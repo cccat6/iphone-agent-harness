@@ -1,0 +1,70 @@
+{
+  "builtAt": "2026-10-17T22:03:24.137093+00:00",
+  "dependencies": {
+    "arduinoEsp32": "3.3.11",
+    "NimBLE-Arduino": "2.5.1",
+    "ArduinoJson": "7.4.3"
+  },
+  "sourceSha256": "4b4ebc2e65b3a7b1ebac4b4463c67ae2cb805f3ef85c1eece9e23bb1b435f8f0",
+  "sourceFiles": {
+    "IPhoneAutomationHarness.ino": "37feb9fe2dee7989b3a1ba21c34912238a03572f7c5338c471bf3cf66ee33167",
+    "ResourceLimits.h": "28abf59b2e419885a3d81d6dcbc7b156a11709aa491d8c4a0a16e902b6f3831a",
+    "build_opt.h": "a0f100f642c14b2ec613aac33270f5d41185269cfb80055777331420fc0f8955",
+    "config.example.h": "cad7f5ace2cea9bfc7eddf86c0e5a538ea5738f4afd7faf1f50ce21eca94fa13",
+    "main.cpp": "a4d6ff36635ae11868f3e044be734598ec0ec245b05c96d4d7abb92129b602fd",
+    "src/Admission.h": "58fa33be3e13dd8aaf0d342211e670ffa7c4ab78eb906a51651a8eaec3f29a16",
+    "src/Canonical.h": "1bf42934d802b3eab3921723c7f1a1af94e89527d01ef2b6355cbcd6928048ff",
+    "src/Core.h": "bc6594e2749f9ee2a61c56193fdcdf530f802e8a6038af417438c1b22abce64d",
+    "src/HidReportMap.h": "80fa777f8c4fadc3d1ebc3bad707e3c38b6df1b7221956ade90cff7e8acd9aa5",
+    "src/Pki.h": "7e43c08dc5b9e1c23f2a71b19cc6625c0377521f8b0d0cb670351c2e6c41681d",
+    "src/SecureService.h": "ef99867861633e6bb43232bff472b0ec0e4dde3ac329f4316df05d5615ccb39b",
+    "src/SetupState.h": "3031424c801b77064393fb44f47d9573fa4559dd5818149c2baed6a28b5bd1a0",
+    "src/Wire.h": "92d87161708ad530a90d6dbb576ff5b2e83dc7d65ea19298e31feaa8a248a5d4"
+  },
+  "serialPortsOpened": false,
+  "flashed": false,
+  "profiles": [
+    {
+      "id": "esp32c3",
+      "fqbn": "esp32:esp32:esp32c3:CDCOnBoot=cdc,FlashMode=dio,FlashSize=4M,PartitionScheme=huge_app",
+      "compiled": true,
+      "summary": [
+        "Sketch uses 1511645 bytes (48%) of program storage space. Maximum is 3145728 bytes.",
+        "Global variables use 47368 bytes (14%) of dynamic memory, leaving 280312 bytes for local variables. Maximum is 327680 bytes."
+      ]
+    },
+    {
+      "id": "esp32s3",
+      "fqbn": "esp32:esp32:esp32s3:USBMode=hwcdc,CDCOnBoot=cdc,FlashMode=dio,FlashSize=4M,PartitionScheme=huge_app,PSRAM=disabled",
+      "compiled": true,
+      "summary": [
+        "Sketch uses 1363261 bytes (43%) of program storage space. Maximum is 3145728 bytes.",
+        "Global variables use 55920 bytes (17%) of dynamic memory, leaving 271760 bytes for local variables. Maximum is 327680 bytes."
+      ]
+    },
+    {
+      "id": "esp32c6",
+      "fqbn": "esp32:esp32:esp32c6:CDCOnBoot=cdc,FlashMode=dio,FlashSize=4M,PartitionScheme=huge_app",
+      "compiled": true,
+      "summary": [
+        "Sketch uses 1657360 bytes (52%) of program storage space. Maximum is 3145728 bytes.",
+        "Global variables use 52480 bytes (16%) of dynamic memory, leaving 275200 bytes for local variables. Maximum is 327680 bytes."
+      ]
+    },
+    {
+      "id": "esp32",
+      "fqbn": "esp32:esp32:esp32:FlashMode=dio,FlashSize=4M,PartitionScheme=huge_app,PSRAM=disabled",
+      "compiled": true,
+      "summary": [
+        "Sketch uses 1436629 bytes (45%) of program storage space. Maximum is 3145728 bytes.",
+        "Global variables use 61072 bytes (18%) of dynamic memory, leaving 266608 bytes for local variables. Maximum is 327680 bytes."
+      ]
+    }
+  ],
+  "excluded": [
+    {
+      "chip": "esp32s2",
+      "reason": "No Bluetooth LE radio"
+    }
+  ]
+}

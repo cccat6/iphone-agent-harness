@@ -1,117 +1,66 @@
 # Harness、后台执行与本地数据
 
-## 1. 核心循环
+本文描述当前 JavaScript 实现。更细的函数和测试入口见[运行时实施](harness-runtime-implementation.md)，当前执行证据见[验收记录](../research/release-acceptance.md)。
 
-采用小型 TypeScript 内核，借鉴 pi 的事件驱动循环、DeepSeek 对 prompt 与 Skill 内容的分离、Codex 的上下文预算和恢复边界。核心工具和能力固定编译，不采用运行时插件注册、自动扫描或依赖装配。可更新的线上 Skill 是本地缓存的内容，不是可加载的新执行能力。
+## 固定循环与模式
 
 ```text
-用户任务／steering
- → 读取会话与目标能力
- → 最新观察或多帧观察组
- → 组装稳定系统指令＋动态上下文＋按需 Skill
- → 模型请求，流式更新 UI／本地日志
- → 完整响应和工具参数校验
- → 执行批量计划
- → 记录回执与截图
- → 评估是否完成／继续／需要用户／失败
+用户消息 → 原子取得本会话 run → 固定本轮 Skill 版本
+ → 准备上下文与目标状态 → 完整模型响应
+ → 校验完整工具参数 → 顺序执行有界工具／动作计划
+ → 保存工具结果、回执与压缩图片 → 下一模型回合或明确终态
 ```
 
-每个 run 一次只保留一个模型请求；一部手机的输入计划只允许一个 writer。只读工作和不同目标可以独立调度。模型输出流没有完成、JSON 不完整、响应达到 token 上限而被截断时，不能执行其中看起来像动作的片段。
+每个 Harness 同时一个 run；IndexedDB 原子运行记录约束同一会话的多窗口争用。设备另有每目标、每运行 writer 租约，不能用浏览器的“正在运行”布尔值代替。默认每轮最多 12 次模型回合、48 次工具调用、10 分钟；单个动作计划另有至多 15 秒的执行预算。
 
-V1 等完整 assistant 响应正常结束后执行动作。后续可评估完整 tool block 提前执行，但必须重做截断、取消与重试语义，不使用正则从自然语言流里抓出点击并执行。
+Chat 不访问取屏与设备控制上下文，可讨论、搜索本地会话并按用户要求制作自有 Skill。Plan 可观察和规划，但没有修改手机的工具。Task 只有在身份、当页目标证明、设置确认、取屏与运行租约都符合时才能执行。目标是 Task 的完成条件，不是无限运行模式。
 
-任务状态：`idle → preparing → awaiting_model → validating → executing → observing → awaiting_model`，终态为 `completed / cancelled / failed / needs_user`。页面挂起、失去可靠连接或证据不足进入 `suspended / reconciling`，这不是用户主动暂停；恢复必须核对状态。
+当前等待整个 assistant 响应正常结束，才处理工具调用。截断、无正常终止、参数超限或重复 ID 不会形成可执行的半截动作。停止会中断模型／工具工作，补齐工具历史并尝试释放自己的租约；无法确认外部已执行结果时使用 unknown，不自动重放。
 
-## 2. 固定工具与普通模块分工
+模型固定工具为 `phone_observe`、`phone_execute_plan`、`skills_list`、`skills_load`、`skills_create`、`skills_update`、`session_search`、`user_request_input`、`task_report`，按模式和当前状态裁剪。可选 MCP 仅增加固定 `mcp_list_tools`／Task 的 `mcp_call` 桥接，不动态注册远程工具。模型无发布 Skill、安装代码或改变设备权限的工具。
 
-工具名称、schema 和处理函数在源码中明确列出，使用固定映射或 switch 分派。前端组件、模型协议、设备传输和存储仍按普通模块分文件，以便测试，但不提供通用插件宿主或动态 provider 注册。
+## 模型、等待与后台
 
-```ts
-type ToolName =
-  | 'phone.observe' | 'phone.execute_plan' | 'phone.get_plan_status'
-  | 'phone.cancel' | 'skills.list' | 'skills.load'
-  | 'session.search' | 'user.request_input';
+已实现 OpenAI Chat Completions 风格、Anthropic Messages 风格、独立 Codex Responses 订阅适配；支持配置端点、模型、账号和流式选择。模型目录是产品实际请求，不是内置猜测列表。具体认证／CORS 边界见[模型与账号](auth-and-backends.md)。
 
-interface InstalledSkill {
-  id: string;
-  sourceUrl: string;
-  version: string;
-  contentHash: string;
-  enabled: boolean;
-  updatePolicy: 'manual' | 'auto';
-  checkedAt: number;
-}
-```
+普通模型请求默认总时限 180 秒，可由 provider 配置覆盖；模型目录单请求 20 秒。没有在设置界面承诺独立首片／空闲超时参数。SSE、UTF-8、工具参数累积及整体响应都有限额。仅在正常响应完成后执行动作；流中断不等于服务端没有处理请求。
 
-这是设计示意，不是本轮实现代码。模型协议按配置选择已内置的实现；新增协议或 HID 能力通过项目代码版本更新，Skill 不能自行注册工具。
+早期 iPhone 12／iOS 27.0.1 实验有约 200 秒延迟／流式探针和四轮真实 DeepSeek 双协议请求的记录，见[后台报告](../research/background-api.md)。这些是特定设备、时长与条件下的观察，不能推出锁屏、内存压力或无限后台执行。当前产品循环在手机上的完整复验仍在手机清单中。
 
-线上目录用于浏览和安装，模型只看到本地已启用 Skill 的简短目录；匹配后 `skills.load` 从本地缓存读取正文及所需参考材料，加入发给用户所选模型后端的本次上下文。更新检查与模型调用分开，不因每条消息重新下载所有 Skill。
+录屏、网络片段、取帧和计时器只提供实际调度机会；它们不是后台权限。网络等待可以跨多个回调，约四秒取一帧不表示请求只有四秒预算。设备本地计时完成短段，不能越过等待网页截图的屏障，也不能唤醒被系统暂停的 Safari。
 
-工具最小集合：`phone.observe`、`phone.execute_plan`、`phone.get_plan_status`、`phone.cancel`、`skills.list`、`skills.load`、`session.search`、`user.request_input`。释放输入是本地执行器兜底能力，不能只靠模型主动调用。
+当前没有注册 Service Worker，也没有用静音音频等方式伪造常驻。主屏幕入口、锁屏、系统中断和网络切换须分别验证。网页结束后不能静默重新取得屏幕授权；重新打开不会盲目续播旧输入。
 
-## 3. 用户自定义 AI 后端
+## 实际存储结构
 
-- 配置 endpoint、协议、模型、鉴权、图片能力、工具能力、上下文预算、请求超时。
-- V1 提供通用 chat-completions 兼容适配器和可配置结构化 JSON 适配器；供应商专用协议另加适配器，不把特定模型绑进核心。
-- 支持流式和非流式，二者生成同一份规范化 assistant/tool 事件。
-- fetch＋ReadableStream 处理分片，UTF-8、SSE event、多行 data、跨网络块的 JSON、工具参数增量分开解析。流式 POST 不使用只能简单 GET 的 EventSource 来代替。
-- `finish`、usage、toolCallId、拒绝／截断／错误等事件保留；不要求供应商提供或暴露隐藏推理链。
-- 图片参数按后端能力映射：同一请求多张图片优先；只接受单图时可生成带帧号与时间的拼图，并明确分辨率损失。纯文本模型不能声明视觉操作能力。
-- 本地或自建 AI 服务也必须让手机能路由访问，允许网页来源，满足 HTTPS／混合内容规则。随便填写一个 API 地址不保证可调用。
-- 浏览器不能绕过提供商的 CORS，也不能安全隐藏前端内置的共享服务密钥。不给用户强制加我们的代理；不支持直连时可让用户选择自己的网关。
-- API Key 默认仅保存在本次内存。用户可选择本地保存；若加密保存，使用用户解锁材料派生密钥，不能把解密钥匙和密文一起无保护存储后宣称安全。
-- 不在 URL、console、会话导出、崩溃报告里记录密钥或 Wi-Fi 密码；禁用携带会话的默认分析上报。
+主库沿用 `iphone-automation-harness`、schema v2；产品改名不自动改库。表为：
 
-## 4. 等待与流式不是后台权限
+| Store | 当前内容 |
+|---|---|
+| sessions | 标题、模式、账号／模型、置顶／归档、序列、上下文 checkpoint、活动 run |
+| messages | 用户／assistant／工具记录、toolCallId、图片引用和已返回的供应商状态 |
+| events | 按会话递增的运行、意图、结果与恢复审计事件 |
+| frames | 单独的压缩 Blob、目标、原始／输出尺寸、方向、时间与本地引用 |
+| runs | 一轮的状态、预算和结束记录 |
+| settings | 普通设置与用户选择的加密凭据 vault；过滤原始 secret 字段 |
+| skills | 内置、自有和只读社区包、来源／版本／内容／启用状态 |
 
-3 秒计时请求在测试中约 4 秒完成，不是浏览器只给 4 秒执行预算。异步模型请求可以跨过很多次录屏／计时事件等待。现有证据包括一次 10 秒服务端等待、11.46 秒总耗时的 HTTPS 返回在 hidden 状态被处理，但没有长时间真实模型多轮验证。
+作者私钥 CryptoKey 位于独立 `iah-creator-identity` 库；备份需要用户主动口令加密导出。语言偏好放 localStorage。未启用加密保存的模型凭据仅在页面内存中；口令不与密文一起保存。恢复的设备 token 也不能代替本页的真实 HID 目标证明。
 
-调度同时接收媒体事件、网络 chunk、取图完成、计时器和可见性变化。它们可以推进同一个状态机，不把某个事件当作保活契约。录屏可能由不同系统组件继续，不能据此推断网页所有逻辑持续运行。
+消息与事件追加使用 readwrite 事务同步序列。UI 最近 80 条加游标分页，正常对话过滤内部运行快照；不是把全部媒体读入首屏。工具输入意图在发送前记录，完整工具组及运行状态持久化。流式 UI 文字与持久完成消息是不同阶段，不承诺页面突然终止后能恢复每个尚未完成的 token。
 
-优先使用流式作进度与错误观察；它也可能减少网络空闲超时，但不能阻止 iOS 暂停或回收网页。模型端完成、socket 仍连接、JS 读到 chunk、计划已下发，是四个不同时间点。
+## 压缩、缓存和图片
 
-请求分别有总时限、首响应时限和读取空闲时限。建议起点为总时限 180 秒、首响应 90 秒、读取空闲 60 秒，允许用户按后端修改；这是产品默认建议，未作为 Safari 性能结论。重试要区分请求未开始、已产生输出和已执行工具。不要把读取停顿解释成模型没执行。
+系统 prompt、固定工具指导、Skill 简短目录与版本放在稳定前缀，运行状态另放动态消息；Skill 正文按需读取。内置生成资源有综合 revision，本轮固定内存 Skill 快照，远端更新不替换执行中的说明；不宣称任意历史社区正文都被单独版本归档。缓存命中取决于后端，UI／事件仅展示真实返回的 usage，不伪造命中。
 
-PWA Service Worker 用于资源缓存和版本管理，不承担常驻 LLM／取屏进程；Web Worker 可减轻主线程负载，不保证脱离页面无限执行。Wake Lock 在页面隐藏时会释放，不能替代后台权限。不使用静音音频等伪保活技巧。
+可设置自动压缩、触发 token 估计、目标、输出预留、图片数量与 model／extractive 策略。估计不是精确 tokenizer。压缩消费完整分页历史，不能把未读范围标为摘要；保留目标、近期完整 tool-call/result 组及错误／未知结果。模型摘要失败或取消不破坏原 checkpoint；明确的本地提取不额外请求模型。
 
-最低可支持场景是：用户主动启动共享，手机亮屏，在其他 App 中运行一项任务。锁屏、系统中断、内存压力、低电量、网络切换都要测试并明确状态；网页被结束后会话可恢复，但不能静默重获屏幕授权或续播旧动作。
+压缩改变发给模型的投影，不删除原会话和图片。图片单独按最长边／JPEG 质量压缩，保留原始尺寸与比例。旧图不会被新的质量设置重写；不保存完整跨 App 录屏。单图、单轮图片数／字节及请求均有限额，存储不足明确失败；当前没有任意附件固定／全库自动淘汰界面或 OPFS 层。
 
-## 5. 本地存储与长会话
+导出／导入为版本化 `iah-session` JSON，保留完整消息和可用图像；导入创建新会话，不覆盖原会话，并把历史 system 内容作为引用数据。普通会话导出不包含账号 vault 或作者私钥。浏览器存储是尽力保留，持久化申请结果要实际检查；不同 origin／浏览器／PWA 容器不能假设共享，应主动导出重要数据。
 
-以 IndexedDB 为主数据库；大附件未来可切 OPFS，先用 Blob 存储即可。localStorage 只放少量非敏感偏好，不存整段会话 JSON。
+## 恢复与信任边界
 
-| Store | 主要键／索引 | 内容 |
-|---|---|---|
-| sessions | id，updatedAt | 标题、摘要、状态、版本、最后 seq |
-| events | [sessionId, seq] | 用户消息、assistant、工具、计划与回执事件 |
-| frames | id，[sessionId, captureOrder] | Blob 引用、尺寸、方向、时间、变换、hash |
-| observationGroups | id | 有序 frameId、实际采样时刻、缺失原因 |
-| plans | id，[sessionId, seq] | 原始计划、编译段、提交状态、结果 |
-| summaries | [sessionId, throughSeq] | 模型上下文摘要及引用范围 |
-| devices | boardId／targetId | 绑定、能力、端点和授权引用 |
-| skills | [sourceUrl, id, version] | 已安装包、正文和参考文件、hash、启用状态、更新策略；同源多版本保留 |
-| credentials | id | 可选加密凭据；不进入普通导出 |
+回执区分 accepted、运行、终止、HID 已提交与画面观察。源流停止会失效未完成取帧、取消非 Chat 运行并清理监听；晚到的旧 bitmap／编码结果不能进入新流或目标。unknown 的操作须先核对设备与新画面；新 bootId 或方向变化使旧状态失效。
 
-一个事务追加事件并推进 lastSeq，不依赖关闭页面时的最后保存。流式 token 批量保存，完成一个 tool plan 后先提交其完整意图再发设备。UI 只加载近期记录，用游标分页与虚拟列表。模型上下文单独投影，完整历史不因压缩被删掉。
-
-长会话策略：稳定 prompt 前缀；近期工具结果与关键截图保留；旧截图变成本地引用和摘要；按需历史搜索。压缩不能拆开 tool-call/result 对，不能丢掉尚未确认的输入状态、失败原因、用户最新指令、目标映射或未执行步骤。
-
-附件按容量和用户保留策略管理：文字与回执默认保留；完整录屏默认不持久化；临时媒体是有界缓冲。用户固定的图片不被自动淘汰；空间不足时停止新的附件写入，保留错误与可导出的文字，不静默破坏会话。
-
-Safari 默认尽力保留；申请 `persist()` 并检查结果，用 `estimate()` 显示近似容量。主屏幕 Web App 对 ITP 的七天无交互清理有豁免，但不能把浏览器存储当作唯一备份。提供带 manifest、schemaVersion、附件 hash 的导出／导入；导入先校验并写入 staging，成功后再切换，失败不覆盖原库。
-
-Safari 与 PWA 存储容器、不同域名和端口不能假定共享数据。跨标签页争用使用单 writer 协调；支持时用 Web Locks，另有 IndexedDB 原子 lease 兜底。租约与 ESP32 目标写权限都要检查，不能只做一个前端布尔值。
-
-## 6. 可恢复的事件
-
-事件信封包含 `eventId, sessionId, seq, parentId?, runId, type, recordedAt, payload, schemaVersion`。只保留公开的模型文本、工具参数、回执和观察，不存储不可访问的模型内部推理。
-
-计划状态：`prepared → submitted → accepted → running → completed/failed/cancelled/unknown`。工具结果区分 `hid_submitted` 与 `observed_match`。网页崩溃时保留最后有效前缀，冷启动先查询 board bootId 和旧 segment 状态，再重新取图核对。
-
-“unknown”是正式状态：网络失败、设备重启或回执缺失不能自动变成成功，也不能自动重发有副作用的动作。已有输入无法撤销。预算耗尽时按产品规则结束本轮并保存进度，不宣称任务已完成。
-
-## 7. 浏览器数据与网页供应链
-
-本地存储不是与网页代码隔离的保险箱。同一 origin 上运行的脚本能访问它，故静态发布不加载不受控远程脚本；Skill 包默认纯数据，不执行导入的 JS。Markdown 要清理，CSP 和资源来源明确，PWA 版本可回退。自托管 origin 是用户自己的信任边界。
-
-参考：[WebKit 存储政策](https://webkit.org/blog/14403/updates-to-storage-policy/)、[ITP](https://webkit.org/tracking-prevention/)、[Wake Lock](https://www.w3.org/TR/screen-wake-lock/)、[源码阅读位置](../../research/harness-reference/readings.json)。
+同源网页代码可以访问本地数据，故不加载不受控远程脚本。Skill 与模型输出当作文字／数据，不执行 HTML、shell 或脚本。自托管 origin 是独立信任边界；站点不内嵌共享 Key，也不提供后台常驻／云端会话代管。

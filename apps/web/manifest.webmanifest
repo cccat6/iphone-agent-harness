@@ -1,8 +1,8 @@
 {
   "id": "./",
-  "name": "iPhone Automation Harness",
-  "short_name": "iPhone Automation Harness",
-  "description": "在浏览器中运行的 iPhone 与 iPad AI 自动化框架。",
+  "name": "iPhone Agent Harness",
+  "short_name": "iPhone Agent Harness",
+  "description": "A browser-based AI automation framework for iPhone and iPad.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

@@ -20,3 +20,10 @@ firmware/phone_chain_c3_input_probe/
 tools/c3_serial_monitor.py
 research/harness-reference/repos/
 research/harness-reference/archives/
+
+node_modules/
+.wrangler/
+.dev.vars
+.dev.vars.*
+
+*.local.h

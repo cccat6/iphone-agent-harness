@@ -1,0 +1,127 @@
+{
+  "checkedAt": "2026-10-17T21:08:27.970419+00:00",
+  "scope": "Offline production DeviceClient plus executePhonePlan; each finite synthetic HTTPS request advances a fake monotonic clock by 1000 or 1300 ms; no real waits, network, serial, firmware or user data",
+  "before": [
+    {
+      "rttMs": 1000,
+      "warmRequestCounts": [
+        2,
+        2,
+        2
+      ],
+      "home": {
+        "status": "failed",
+        "wallMs": 16000,
+        "requests": 16,
+        "binding": 7,
+        "capabilities": 6,
+        "segments": 1,
+        "leaseRenew": 1,
+        "release": 1
+      },
+      "twoGesturesAndCapture": {
+        "status": "failed",
+        "wallMs": 16000,
+        "requests": 16,
+        "binding": 7,
+        "capabilities": 6,
+        "segments": 1,
+        "leaseRenew": 1,
+        "release": 1
+      }
+    },
+    {
+      "rttMs": 1300,
+      "warmRequestCounts": [
+        2,
+        2,
+        4
+      ],
+      "home": {
+        "status": "failed",
+        "wallMs": 18200,
+        "requests": 14,
+        "binding": 6,
+        "capabilities": 5,
+        "segments": 1,
+        "leaseRenew": 1,
+        "release": 1
+      },
+      "twoGesturesAndCapture": {
+        "status": "failed",
+        "wallMs": 18200,
+        "requests": 14,
+        "binding": 6,
+        "capabilities": 5,
+        "segments": 1,
+        "leaseRenew": 1,
+        "release": 1
+      }
+    }
+  ],
+  "after": [
+    {
+      "rttMs": 1000,
+      "warmRequestCounts": [
+        0,
+        0,
+        0
+      ],
+      "home": {
+        "status": "completed",
+        "wallMs": 3000,
+        "requests": 3,
+        "binding": 1,
+        "capabilities": 1,
+        "segments": 1
+      },
+      "twoGesturesAndCapture": {
+        "status": "completed",
+        "wallMs": 4025,
+        "requests": 4,
+        "binding": 1,
+        "capabilities": 1,
+        "segments": 2,
+        "capturedFrames": 1
+      }
+    },
+    {
+      "rttMs": 1300,
+      "warmRequestCounts": [
+        1,
+        0,
+        0
+      ],
+      "home": {
+        "status": "completed",
+        "wallMs": 2600,
+        "requests": 2,
+        "binding": 0,
+        "capabilities": 1,
+        "segments": 1
+      },
+      "twoGesturesAndCapture": {
+        "status": "completed",
+        "wallMs": 5225,
+        "requests": 4,
+        "binding": 1,
+        "capabilities": 1,
+        "segments": 2,
+        "capturedFrames": 1
+      }
+    }
+  ],
+  "implementation": "Default cache floor750ms, successful request RTT high-water x5, maximum5000ms; explicit cacheMs overrides remain fixed. No state checks or server fences removed.",
+  "tests": {
+    "newRTTTests": 8,
+    "targetedPassed": 72,
+    "targetedFailed": 0,
+    "includes": "DeviceClient, plan, device-runtime, unchanged independent R1 and R2 regressions"
+  },
+  "limitations": [
+    "Plans begin after credential restoration, clock synchronization and lease claim; cold setup time is excluded from the plan wall-clock measurements.",
+    "The synthetic board returns a positive terminal HID receipt on segment submission; this is a metadata/cache integration test, not a simulation of firmware scheduler, async result polling or physical gesture latency.",
+    "The 2.5s first real TLS handshake, actual TLS RAM pressure and browser background scheduling are not modeled.",
+    "A 5s cache does not independently prove current board state; explicit refresh, exact boot/lease scope and board-side fencing remain necessary."
+  ]
+}

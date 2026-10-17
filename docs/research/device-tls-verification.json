@@ -1,0 +1,57 @@
+{
+  "checkedAt": "2026-10-17T20:57:31Z",
+  "device": "ESP32-C3 4MB on user-authorized 1101",
+  "scope": "Real pinned CA and DNS-name-verified HTTPS; IP fallback only for this Mac resolver, no certificate check bypass; no HID challenge or phone input sent",
+  "checks": [
+    {
+      "path": "/v1/identity",
+      "status": 200,
+      "elapsedMs": 3667,
+      "cors": "https://igent.cc",
+      "boardIdMatches": true
+    },
+    {
+      "path": "/v1/capabilities",
+      "status": 200,
+      "elapsedMs": 3130,
+      "cors": "https://igent.cc",
+      "boardIdMatches": true
+    },
+    {
+      "path": "/v1/clock",
+      "status": 200,
+      "elapsedMs": 8295,
+      "cors": "https://igent.cc",
+      "boardIdMatches": true
+    },
+    {
+      "name": "wrong-origin-rejected",
+      "passed": true,
+      "elapsedMs": 6298
+    },
+    {
+      "name": "missing-token-rejected",
+      "passed": true,
+      "elapsedMs": 6130
+    },
+    {
+      "name": "authenticated-owner-pair",
+      "passed": true,
+      "elapsedMs": 6123
+    },
+    {
+      "name": "binding-not-fabricated",
+      "passed": true,
+      "targets": 0,
+      "elapsedMs": 6226
+    }
+  ],
+  "capabilities": {
+    "executionEnabled": true,
+    "physicalValidation": false,
+    "maxConcurrentTls": 1,
+    "freeHeapBytes": 15168,
+    "minFreeHeapBytes": 9104
+  },
+  "passed": true
+}

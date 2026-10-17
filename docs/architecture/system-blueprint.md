@@ -1,6 +1,6 @@
-# iPhone Automation Harness：执行架构蓝图
+# iPhone Agent Harness：执行架构蓝图
 
-本轮基线：2026-10-18。产品分成 **Web 与 Arduino** 两部分；Skill 社区入口属于 Web。图中部分连接是已限定的接口，实际接线状态见末尾验收表。
+本轮基线：2026-10-18。产品分成 **Web 与 Arduino** 两部分；Skill 社区入口属于 Web。图中接口均有当前代码；实际设备与手机验收状态见末尾表。
 
 ## 1. 模块总图
 
@@ -52,7 +52,7 @@ flowchart TB
 | boardId | 板子长期 | 稳定公开标签；不是认证密钥 |
 | bootId | 每次板子启动 | 失效旧回执、输入段和校时关系 |
 | targetId | BLE bond 生命周期 | 板子保存的随机 ID，映射到协议栈解析后的稳定身份 |
-| connHandle | 本次 BLE 连接 | 真正发送 HID 的地址；不能跨重连持久使用 |
+| connHandle／connEpoch | 本次 BLE 连接 | 临时句柄和连接代次；提交时仍须匹配稳定 bond 身份，不能跨重连复用 |
 | clientId | 浏览器本地身份 | 每个 origin／存储容器的随机身份，与配对授权分开 |
 | sessionId | 一条对话 | 属于某浏览器，不当作手机身份 |
 | leaseId | 短期写授权 | 某客户端在某目标上的排他输入权 |
@@ -66,11 +66,11 @@ sequenceDiagram
   participant W as 手机网页 A
   participant E as ESP32
   participant P as 手机 A 的系统蓝牙
-  U->>E: 首次热点配网，取得短时绑定材料
+  U->>E: 首次 USB／受保护热点配网，取得每板 CA 与所有者材料
   U->>P: 在系统设置中配对 HID
   P->>E: 加密 bond，解析稳定身份
   E->>E: 建 targetId，连接句柄只作临时路由
-  W->>E: 带一次性材料登记 clientId
+  W->>E: 经信任 HTTPS，用所有者密码登记 clientId
   U->>W: 打开受控配对输入框并开始验证
   E->>P: 仅向待验证目标发送随机短码
   P->>W: 真实键盘事件进入输入框
@@ -79,7 +79,7 @@ sequenceDiagram
   W->>E: 取得该 target 的写租约
 ```
 
-这一步是产品的待接线模块，当前固件不会仅凭能连接 BLE 就打开网络控制。多部手机逐个绑定；重连后由已保存的 bond 身份恢复 target 映射，句柄重新获取。相同客户端可以有多条会话，但同一目标一次只运行一个输入任务。
+这一步已实现；仅能连接 BLE 不会打开网络控制，仍须真实 HID 目标挑战。多部手机逐个绑定；重连后由已保存的 bond 身份恢复 target 映射，句柄重新获取。相同客户端可以有多条会话，但同一目标一次只运行一个输入任务。
 
 ## 3. 网络延迟、设备计时和截图
 
@@ -96,7 +96,7 @@ sequenceDiagram
   W->>E: 有界 segment A，完整 down/up
   E-->>W: accepted（仅接收）
   E->>P: 按设备单调时间提交 HID
-  E-->>W: completed＋lastReportSeq＋endedAt＋release状态
+  E-->>W: completed＋submitted＋endedAt＋release状态
   W->>W: 屏障：确认指定报告已提交，再请求新帧
   P-->>W: ImageCapture bitmap，保存本地附件
   W->>E: segment B：移动末段紧接释放
@@ -108,7 +108,7 @@ sequenceDiagram
 
 网络迟到只影响段的开始，不应改变已接受段内部的相对时序。若设备 tick 迟到超过限额，则停止并释放，而不是把积压轨迹瞬间倾倒出去。网页挂起期间也不能让按键永久按住。
 
-`accepted` 不是点击成功；`hid_submitted` 也不是 App 已响应。App 结果由之后的画面验证。截图必须声明它基于哪个 segment、哪个报告序号以及是否已经释放输入。
+`accepted` 不是点击成功；`hid_submitted` 也不是 App 已响应。App 结果由之后的画面验证。截图关联步骤／输入段与方向、实际时间及释放状态；当前 submitted 是提交数量，不伪装成独立全局报告序号。
 
 ## 4. 校时是带误差的估计
 
@@ -121,7 +121,7 @@ uncertainty >= RTT / 2
 estimatedHostTime(deviceEvent) = deviceEvent - offsetEstimate
 ```
 
-连续采样多次取最小 RTT，保留全部样本；重连、页面重载或 bootId 改变后重做，长任务按漂移需要更新。双向时延不对称意味着估计有误差，不能拿设备时钟硬对齐帧到 1ms。
+校时从有限样本取最小 RTT；bootId 改变使旧估计失效，不能把一次估计当永久精确同步。双向时延不对称意味着估计有误差，不能拿设备时钟硬对齐帧到 1ms。
 
 每条观察至少区分：取图请求时刻、bitmap 就绪时刻、编码完成时刻，以及可得到的源媒体时间。ImageCapture 没给出真实采集时刻时记录 unknown。**请求发生在回执之后，不等于截图内容已反映 HID**：系统画面处理和视频管线仍有延迟。
 
@@ -170,19 +170,21 @@ OpenAI Platform API Key 与 ChatGPT/Codex 登录是不同授权、计费和请�
 
 复用设备码还需要确认：授权客户端的可用范围、浏览器 CORS、代码兑换、token audience、实际 Codex 模型传输、过期与刷新。当前接口 OPTIONS 检查对 deviceauth 返回网络 HTTP530，没有足够证据判定浏览器流程能否使用；这既不是已通过，也不是断言平台永久禁止。
 
-MCP 可选：实现浏览器可访问的 Streamable HTTP 初始化、JSON/SSE 返回、session/version header、tools/list 与显式 allowlist 的 tools/call。没有 stdio、服务器进程启动、任意插件安装或完整 OAuth 自动发现。UI 当前只做连接和工具目录诊断；未自动接入模型工具执行。
+MCP 可选：实现浏览器可访问的 Streamable HTTP 初始化、JSON/SSE 返回、session/version header、tools/list 与显式 allowlist 的 tools/call。没有 stdio、服务器进程启动、任意插件安装或完整 OAuth 自动发现。UI 显式选择与启用工具后，Task 通过固定 mcp_call 工具调用；chat/plan 只列已授权目录。撤销立即失效，发送后结果未知会停止后续操作。
 
 ## 8. 实现状态
 
 | 范围 | 本轮状态 |
 |---|---|
-| Web 本地会话、设置、模式、Skill、本地凭据加密 | 可运行初版，桌面浏览器手机断点已验收 |
+| Web 本地会话、设置、模式、Skill、本地凭据加密 | 已实现，并多轮原生桌面浏览器／模拟手机UI独立验收 |
 | 两类模型请求、模型发现、SSE、截断拒绝 | 已实现与模拟测试；DeepSeek 真 API 另有实测记录 |
 | 页面取屏 | 真实 API 路径已接，需用户手动授权 |
 | MCP HTTP | 轻量客户端与连接诊断；不是全功能 MCP 宿主 |
 | Codex 设备码与刷新 | 有可测试流程模块；第三方网页登录未验证，UI不冒充可用 |
-| Arduino 目标隔离与计时核心 | 主机测试与C3构建通过；未刷写 |
-| 热点配网、客户端认证与网络写控制 | 未完成接线，写请求返回503 |
+| Arduino 目标隔离与计时核心 | 多轮主机／独立交错测试与四类编译；C3实际刷写及TLS记录另见验收，手机HID仍待验收 |
+| 热点配网、客户端认证与网络写控制 | 安全 LAN 通信已实现；需本机 CA 手动信任与 HID 目标证明，实机验收另记 |
 | 手机后台模拟／真实模型测试 | 见独立报告，分开记录；不由桌面测试推断 |
 
 详细证据：[后台测试](../research/background-api.md)、[固件实现](firmware-implementation.md)、[UI实现](web-ui.md)。
+
+最终逐功能状态以[验收清单](../acceptance/zh-Hans.md)与[发布证据](../research/release-acceptance.md)为准，旧候选报告不会自动证明后续源码和二进制。

@@ -1,0 +1,67 @@
+{
+  "checkedAt": "2026-10-17T19:13:08.099Z",
+  "origin": "https://igent.cc",
+  "checks": [
+    {
+      "name": "HTML /",
+      "passed": true
+    },
+    {
+      "name": "HTML /main",
+      "passed": true
+    },
+    {
+      "name": "HTML /skills",
+      "passed": true
+    },
+    {
+      "name": "HTML /flash",
+      "passed": true
+    },
+    {
+      "name": "Missing module stays 404",
+      "passed": true
+    },
+    {
+      "name": "Four firmware profiles",
+      "passed": true
+    },
+    {
+      "name": "Community OPTIONS",
+      "passed": true
+    },
+    {
+      "name": "Community list",
+      "passed": true
+    },
+    {
+      "name": "Signed publish",
+      "passed": true
+    },
+    {
+      "name": "Verified readonly download",
+      "passed": true
+    },
+    {
+      "name": "Downloaded package cannot be republished",
+      "passed": true
+    },
+    {
+      "name": "Immutable next revision",
+      "passed": true
+    },
+    {
+      "name": "Published item in catalog",
+      "passed": true
+    }
+  ],
+  "testCreatorId": "735a83dd6783a5429b1f09ce9066397f4511fcdf41f9dc8c5930b85959e38dc9",
+  "slug": "deployment-check-1792264382414",
+  "cleanupPending": false,
+  "containsUserData": false,
+  "cleanup": {
+    "removedRevisions": 2,
+    "remainingTestRevisions": 0,
+    "onlyDisposableVerificationData": true
+  }
+}

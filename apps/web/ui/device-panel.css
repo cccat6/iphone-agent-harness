@@ -1,0 +1,13 @@
+.device-onboarding{display:flex;flex-direction:column;gap:18px;min-width:0}
+.device-step{border:1px solid var(--border,#dedede);border-radius:14px;padding:16px;min-width:0}
+.device-step h3{font-size:1rem;margin:0 0 14px}.device-step summary{font-weight:600;cursor:pointer;line-height:1.5}
+.device-step ol{padding-inline-start:22px;line-height:1.6}.device-step li+li{margin-top:10px}
+.device-step .field{margin:14px 0}.device-step input,.device-step select,.device-step textarea{max-width:100%;box-sizing:border-box}
+.device-step textarea{resize:vertical;font-family:ui-monospace,SFMono-Regular,monospace;font-size:.82rem;overflow-wrap:anywhere}
+.device-check{display:flex;align-items:flex-start;gap:10px;line-height:1.5;margin:12px 0}.device-check input{flex:0 0 auto;margin-top:4px;width:18px;height:18px}
+.device-check span,.device-step a{overflow-wrap:anywhere}.device-step .panel-actions{flex-wrap:wrap}.device-step button{white-space:normal;text-align:center}
+.device-nonce-field input{font-family:ui-monospace,SFMono-Regular,monospace;letter-spacing:.35em;font-size:1.3rem;min-height:50px;text-align:center}
+.device-nonce-field input:focus{outline:3px solid var(--accent,#268578);outline-offset:2px}
+.device-step pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:.75rem;line-height:1.6}
+.device-status{white-space:pre-wrap;overflow-wrap:anywhere}.device-status.error{border-color:#c55346;color:#a53228}
+@media(max-width:430px){.device-step{padding:13px}.device-step .panel-actions>button{flex:1 1 100%}}

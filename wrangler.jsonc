@@ -1,0 +1,44 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "igent-web",
+  "account_id": "930fbb0ded7a94817e4b30b0e9e43739",
+  "compatibility_date": "2026-10-17",
+  "assets": {
+    "directory": "./build/site",
+    "not_found_handling": "none",
+    "binding": "ASSETS",
+    "run_worker_first": [
+      "/api",
+      "/api/*",
+      "/main",
+      "/main/",
+      "/skills",
+      "/skills/",
+      "/flash",
+      "/flash/",
+      "/home",
+      "/harness"
+    ]
+  },
+  "routes": [
+    {
+      "pattern": "igent.cc",
+      "custom_domain": true
+    }
+  ],
+  "workers_dev": false,
+  "observability": {
+    "enabled": false
+  },
+  "main": "apps/web/worker.js",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "igent-skills",
+      "database_id": "4fad9ce8-a817-4fa1-9299-a02115bec34e"
+    }
+  ],
+  "vars": {
+    "ALLOWED_ORIGINS": "https://igent.cc"
+  }
+}

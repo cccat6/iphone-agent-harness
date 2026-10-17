@@ -1,0 +1,30 @@
+{
+  "checkedAt": "2026-10-17T18:05:07.443Z",
+  "environment": "Mac Node; synthetic Skill workflow, not iPhone or HID",
+  "cases": [
+    {
+      "protocol": "openai",
+      "model": "deepseek-flash",
+      "passed": true,
+      "modelRequests": 3,
+      "toolNames": [
+        "skills_list",
+        "skills_load"
+      ],
+      "elapsedMs": 4455,
+      "messageCount": 7
+    },
+    {
+      "protocol": "anthropic",
+      "model": "deepseek-flash",
+      "passed": true,
+      "modelRequests": 3,
+      "toolNames": [
+        "skills_list",
+        "skills_load"
+      ],
+      "elapsedMs": 4386,
+      "messageCount": 7
+    }
+  ]
+}

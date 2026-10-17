@@ -1,0 +1,62 @@
+{
+  "checkedAt": "2026-10-17T22:00:15.918269+00:00",
+  "releaseFinalPending": true,
+  "webTests": {
+    "passed": 341,
+    "failed": 0,
+    "command": "npm test",
+    "scope": "final runtime/UI source after stable device ID and retained component-error fixes"
+  },
+  "contractTests": {
+    "passed": 29,
+    "failed": 0
+  },
+  "firmwareArtifactTests": {
+    "passed": 6,
+    "failed": 0
+  },
+  "canonicalTests": {
+    "passed": 6,
+    "failed": 0
+  },
+  "knownSecretScan": {
+    "filesScanned": 399,
+    "knownSecretValues": 5,
+    "leakedPaths": [],
+    "passed": true
+  },
+  "pending": [
+    "final independent reviews",
+    "final firmware source/artifact agreement",
+    "final C3 pinned TLS",
+    "final web suite",
+    "final deployment bytes",
+    "commit/push/CI"
+  ],
+  "independentWebReview": {
+    "report": "independent-web-r6.md",
+    "newReproducibleIssues": 0,
+    "scope": "native desktop and simulated phone UI; eight locale module contracts"
+  },
+  "independentReviews": {
+    "web": "independent-web-r6.md",
+    "firmware": "independent-firmware-r8.md",
+    "deviceAndPanelDelta": "independent-device-identity-r10.md",
+    "content": "release-final verification pending"
+  },
+  "firmwareSoftware": {
+    "hostCoreAdmissionRtcSetup": 67,
+    "implementationRouter": 12,
+    "independentR7": 9,
+    "independentR7CoordinateRegression": true,
+    "independentR8": 11,
+    "actualSdkPreprocessProfiles": 4,
+    "crossGcc14R7R8SyntaxOnly": true,
+    "nativeGnuExecution": "pending GitHub CI"
+  },
+  "nativeBrowser": {
+    "storageChecks": 9,
+    "componentCases": 5,
+    "componentLocaleAssertions": 40
+  }
+}

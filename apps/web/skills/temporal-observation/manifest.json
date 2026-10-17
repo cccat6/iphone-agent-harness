@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "temporal-observation",
+  "version": "0.2.0",
+  "description": "Collect and interpret bounded ordered phone frames during or after an action, preserving actual timing and missing-frame uncertainty.",
+  "entry": "SKILL.md",
+  "protocolVersion": 1,
+  "requiredCapabilities": [
+    "capture.frames",
+    "model.images",
+    "harness.skills"
+  ],
+  "families": [],
+  "files": [
+    {
+      "path": "SKILL.md",
+      "sha256": "af4bcd022f820d47d526e82d8552dfd9378c7488baca6cdabb188cceb98bc9fe",
+      "bytes": 4942
+    }
+  ]
+}

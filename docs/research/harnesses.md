@@ -19,7 +19,7 @@
 | Anthropic quickstarts | 官方 Computer Use demo 的循环、动作、截图结果 | MIT | 具体截图—模型—动作循环、顺序和错误传播 |
 | UI-TARS Desktop | GUIAgent、动作空间、图像历史、执行适配器 | Apache-2.0 | 视觉动作接口和时序／尺寸元数据 |
 
-以上是读取的许可标记，不是完整第三方依赖许可审计。新项目尚未选择整体许可证；本轮 prompt 和协议为原创设计，没有原样移植整份上游提示词。
+以上是读取的许可标记，不是完整第三方依赖许可审计。项目现采用 MIT 许可证，第三方组件仍遵循各自许可；本文所述 prompt 和协议为原创设计，没有原样移植整份上游提示词。见[第三方声明](../../THIRD_PARTY_NOTICES.md)。
 
 ## 2. Codex：prompt 不是整个 Harness
 

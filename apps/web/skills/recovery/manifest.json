@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "recovery",
+  "version": "0.2.0",
+  "description": "Recover from phone input, capture, network or model interruption without duplicating uncertain actions or inventing success.",
+  "entry": "SKILL.md",
+  "protocolVersion": 1,
+  "requiredCapabilities": [
+    "harness.skills"
+  ],
+  "families": [],
+  "files": [
+    {
+      "path": "SKILL.md",
+      "sha256": "2680605f2b5767e895f858a2a7394a8ae2a61bef7d1549863bbece778deb24d4",
+      "bytes": 5460
+    }
+  ]
+}

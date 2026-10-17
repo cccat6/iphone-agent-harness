@@ -2,7 +2,7 @@
 
 ## 1. 两层计划
 
-LLM 调用 `phone.execute_plan`，一次给出多个顺序步骤。网页计划包含动作、等待、截图和观察窗口。网页校验并编译为一个或多个 **ESP32 计时输入段**。ESP32 不取屏，不接收图片，也不调用模型。
+LLM 调用 `phone_execute_plan`，一次给出多个顺序步骤。网页计划包含动作、等待、截图和观察窗口。网页校验并编译为一个或多个 **ESP32 计时输入段**。ESP32 不取屏，不接收图片，也不调用模型。
 
 ```text
 LLM 一次返回计划
@@ -31,7 +31,7 @@ LLM 一次返回计划
 
 用户可表达“按下 → 拖动 → 松开”，编译器把它变成一个完整 `pointer_sequence`。不会把按下留在两个 LLM 回合之间；等待模型几十秒期间必须释放输入。暂不支持两个 pointer ID、多指缩放或旋转。
 
-HID 是指针／键盘路径，经 iOS 辅助触控产生操作。能按住和拖动，不代表所有原生 App 都把它当作真实手指；惯性也必须逐类验证。当前已验证鼠标拖动和指针式滑动，尚未验证此协议的速度控制。普通滚轮在现有对照实验未移动列表，默认使用指针式滑动，Fn-H 不默认提供。
+HID 是指针／键盘路径，经 iOS 辅助触控产生操作。能按住和拖动，不代表所有原生 App 都把它当作真实手指；惯性也必须逐类验证。当前已验证鼠标拖动和指针式滑动，尚未验证此协议的速度控制。早期对照中滚轮和指针式滑动均观察到列表移动；当前计划用有明确轨迹的指针式滑动，Fn-H 不默认提供。
 
 ## 3. 惯性滑动的关键
 
@@ -42,7 +42,7 @@ HID 是指针／键盘路径，经 iOS 辅助触控产生操作。能按住和�
 - 释放速度由末尾实际移动采样决定；记录最后若干 HID 报告的计划时间、提交时间和坐标。
 - 不人为给 UI 增加随机噪声。根据目标滚动距离、方向、持续时间调整速度曲线。
 - 终点停顿、BLE 报告拥塞、轨迹插值末尾重复点，均可能抹掉速度；不能用浏览器每步 HTTP 调用来计时。
-- 设备可以协商 8–20ms 等采样目标；实际可用周期以 BLE 连接间隔和报告能力为准，不承诺 1ms 精度。
+- 产品固件当前公布 40ms 报告间隔与 20ms 指针定位等待；执行器按能力编译，实际提交精度仍需 BLE 实测。
 
 验收必须看松开后的列表位移，而不是只看回执“已发送 up”。需要比较同一路径的终点保持与立即释放，并记录多帧中的继续移动和最终位置。
 
@@ -71,29 +71,33 @@ HID 是指针／键盘路径，经 iOS 辅助触控产生操作。能按住和�
 
 网页层：见 `specs/action-plan.schema.json`。它含 `capture/observe`，不能原样 POST 到固件的输入队列。
 
-固件段接口建议：
+固件实现契约见 [受保护局域网](secure-lan.md)：
 
 ```text
-GET  /v1/identity                      协议、设备 ID、bootId、公钥指纹
-GET  /v1/capabilities                  限额、操作、目标连接状态
-POST /v1/pair                         首次短时挑战和客户端登记
-POST /v1/targets/:target/lease         取得单目标写租约
-POST /v1/targets/:target/segments      有界输入段
-GET  /v1/targets/:target/results/:id   查询同一输入段的结果
-POST /v1/targets/:target/cancel        停止后续队列，尽快释放
-POST /v1/targets/:target/release       幂等释放该目标全部键和按钮
-GET/PATCH /v1/settings                整板配置；修改与运行互斥
+GET  /v1/identity
+GET  /v1/capabilities
+POST /v1/pair
+GET  /v1/binding
+POST /v1/targets/:target/challenge/start
+POST /v1/targets/:target/challenge/confirm
+POST /v1/targets/:target/leases/claim
+POST /v1/targets/:target/leases/renew
+POST /v1/targets/:target/segments
+GET  /v1/targets/:target/results/:id
+POST /v1/targets/:target/release
 ```
+
+`release` 使用 `cancelPending` 与 `invalidateLease` 停止未完成工作并作废该运行租约。整板配置通过物理 USB 或受保护配网窗口完成，没有任意远程 settings 修改接口。
 
 输入段包含 `protocolVersion, boardId, bootId, targetId, clientId, leaseId, segmentId, planId, segmentIndex, ttlMs, payloadHash, events[]`。事件只允许带相对时间的 HID 键、指针报告、Home、释放；无截图、URL、模型参数或任意代码。
 
 设备格式见 `specs/device-segment.schema.json`，示例见 `specs/examples/swipe.segment.json`。每段开始要求输入状态已知且释放；指针坐标可以延续，按住状态不能跨段。所有在段内按下的通道在段末释放。
 
-`payloadHash` 为完整输入段除该字段之外的规范化 JSON 的 SHA-256：键递归按字典序排列，UTF-8，无多余空格；当前 wire 标识为 ASCII、数值全为整数，避免跨语言浮点差异。哈希不是身份认证；传输认证另对方法、路径、body hash、nonce 与计数器签名，通过 HTTP 头部携带，服务端拒绝复用的 nonce／计数器。
+`payloadHash` 为完整输入段除该字段之外的规范化 JSON 的 SHA-256：键递归按字典序排列，UTF-8，无多余空格；当前 wire 标识为 ASCII、数值全为整数，避免跨语言浮点差异。哈希不是身份认证；传输使用经信任的 HTTPS、精确 Origin 和每客户端 bearer token。运行租约、bootId、段 ID 与哈希负责授权范围、幂等和重放约束，不声称存在逐请求签名。
 
 `ttlMs` 在设备接受时转换为本机 deadline，避免要求手机和 ESP32 的 UTC 完全一致。重复的 segmentId＋同一哈希返回既有结果；同 ID 不同内容拒绝。超期、旧 bootId、失效租约、错误目标全部拒绝。
 
-建议初始限额：网页计划最多 30 步、总执行预算 15 秒；设备单段最多 5 秒、最多 512 条采样报告、单次按住最长 3 秒。最终数值需设备协商；一个等待截图／LLM 的大计划不能变成无限固件队列。全批次先验证结构和限额，避免走到一半才发现后半段格式错误。
+当前限额：网页计划最多 30 步、总执行预算 15 秒；产品设备单段最多 5 秒、128 条采样报告与 8192 UTF-8 字节、单次按住最长 3 秒。完整批次在首个输入前检查实际序列化字节数，不能把按住的手势拆成多个网络段。最终还需设备协商；一个等待截图／LLM 的大计划不能变成无限固件队列。全批次先验证结构和限额，避免走到一半才发现后半段格式错误。
 
 ## 7. 失败、取消与恢复
 

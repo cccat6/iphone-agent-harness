@@ -1,73 +1,69 @@
-# iPhone Automation Harness
+# iPhone Agent Harness
 
-项目基线：2026-10-18。Web 与 Arduino 两个部分；公开 Skill 目录属于 Web。
+**English** · [简体中文](docs/readme/zh-Hans.md) · [繁體中文](docs/readme/zh-Hant.md) · [日本語](docs/readme/ja.md) · [Русский](docs/readme/ru.md) · [Deutsch](docs/readme/de.md) · [Français](docs/readme/fr.md) · [Español](docs/readme/es.md)
 
-目标是 iOS/iPadOS 27 起的静态网页 Harness：用户在手机上启动屏幕共享，网页调用用户配置的 AI 后端，并通过局域网 ESP32 的蓝牙 HID 操作手机。会话和截图默认保存在手机；ESP32 首次通过配置热点配网。暂不做 Android、多指触控或原生 App。
+An open-source AI harness for operating an iPhone or iPad across apps, using a browser interface and an ESP32 Bluetooth HID bridge.
 
-当前是可运行的 Web 初版和已编译的 Arduino 框架，尚不是完成真机控制接线的成品。新固件本轮未刷写；未完成的认证与网络控制入口返回503。模型测试与手机后台证据分开记录。
+The target platform is **Safari on iOS/iPadOS 27 and later**. On iPhone and iPad, the site opens the Harness by default. Desktop visitors get the project home, Skill community and ESP32 setup/firmware pages. No native app or Android version is planned.
 
-## 两个代码部分
+## Current state
 
-- `apps/web/`：零运行时依赖的静态 ES modules 界面、会话、本地存储、两类模型协议、官方模型目录查询、Skill 本地／线上管理、可选 MCP 诊断。
-- `firmware/IPhoneAutomationHarness/`：Arduino C3 sketch、多目标身份与连接句柄、排他写租约、定时 HID 段、回执与释放、mDNS 和只读诊断接口。
+The Web application, authenticated LAN firmware transport and device onboarding UI are implemented. The official site and signed Skill community are deployed at [igent.cc](https://igent.cc). Product-firmware physical acceptance is still in progress: compilation, host tests and browser simulations do not establish correct phone input or Safari-to-LAN connectivity.
 
-## 运行与验证
+Separate iPhone 12/iOS 27.0.1 experiments confirmed cross-app screen capture, background delayed/streaming requests, and four short real DeepSeek calls using both compatible protocols. Earlier experimental firmware demonstrated keyboard, Home, pointer and swipe input. These observations do not verify the new product firmware or promise unlimited background execution. See the [experiment report](docs/research/background-api.md) and [firmware boundaries](docs/architecture/firmware-implementation.md).
+
+## What is included
+
+- **Local sessions:** IndexedDB conversations, attachments, import/export, chat/plan/task modes and cancellation. Selected context and images are sent to the AI backend you configure; this project does not run a cloud session database.
+- **Models and accounts:** configurable OpenAI/Anthropic-compatible endpoints, model discovery and multiple account profiles. Codex subscription device-code/refresh and Responses adapters are implemented. Actual Safari subscription sign-in and legacy endpoint CORS remain unverified; failures are shown instead of creating a fake connected account.
+- **Context controls:** configurable compaction thresholds, target and response reserve budgets, image limits, model summaries or explicit extractive summaries. Estimates are heuristic. Stable request prefixes and reported provider cache usage help inspect caching; a cache hit is not guaranteed.
+- **Screen images:** configurable maximum side and JPEG quality, with original dimensions, scale and timing metadata. Image compression and conversation compaction are separate controls.
+- **Ten built-in Skills:** screen observation, temporal observation, task planning, phone navigation, text entry, list scrolling, drag-and-drop, recovery, challenge routing and Skill authoring. The tool set is fixed; Skills do not install executable plugins.
+- **Owned Skills:** a local P-256 creator identity, encrypted identity backup/restore, editable self-authored Skills, and read-only community downloads. Publishing requires an explicit user action. The optional signed community API stores only deliberately published Skill packages and is deployed on the official site.
+
+Credentials are held in memory by default. Users can opt into encrypted local storage and unlock it with a passphrase; credentials are not embedded in the static build. Read the [subscription notes](docs/research/codex-subscription.md) before treating compatibility code as a production sign-in guarantee.
+
+## Two product parts
+
+```text
+apps/web/                         Static UI, Harness, local data, Skills
+  community/                      Local authorship and signed community client
+  api/                            Optional Worker/D1 Skill publishing backend
+firmware/IPhoneAutomationHarness/  Arduino ESP32 bridge framework
+prompts/ · specs/ · tests/ · docs/ Shared engineering material
+```
+
+The community belongs to the Web part. You can host the static site yourself; no community backend is needed for local use. Bridge onboarding is one-time Wi-Fi provisioning followed by per-device binding and mDNS reconnection. mDNS does not solve HTTPS, browser permissions or authentication by itself.
+
+## Run locally
+
+Use Node.js 22.13 or later; the community tests use Node's built-in SQLite.
 
 ```sh
+npm ci
 npm test
 npm run build
-python3 -m http.server 8080 --directory build/site
+npm run preview
 ```
 
-桌面可打开 localhost 预览；手机取屏必须使用 HTTPS 托管。`build/site` 是可以独立部署的静态产物，不包含测试密钥、私人会话或上游源码归档。
+Open localhost on desktop for preview. Phone screen sharing requires **HTTPS**. Deploy `build/site` to Cloudflare or another HTTPS host with the [documented page routing](docs/architecture/deployment.md#self-hosted-page-routing). Build output excludes local credentials, private sessions and downloaded reference repositories. Follow the [Arduino instructions](firmware/IPhoneAutomationHarness/README.md) for toolchain details; physical control still requires device acceptance.
 
-模型设置支持 OpenAI／Anthropic 风格接口和“获取模型”按钮。DeepSeek 两类接口共用官方 `/models` 目录，Flash API 标识由服务返回并选择，当前为 `deepseek-flash`。不会把 ChatGPT/Codex 登录当成普通 API Key；设备码适用范围仍在验证，实际登录未开放为可用状态。
+## Architecture and validation
 
-## 阅读顺序
+- [System, identities and synchronization](docs/architecture/system-blueprint.md)
+- [Batch gestures and screenshot barriers](docs/architecture/actions.md)
+- [Runtime implementation and context caching](docs/architecture/harness-runtime-implementation.md)
+- [Context, storage and background runtime](docs/architecture/runtime.md)
+- [Models, subscription access and MCP](docs/architecture/auth-and-backends.md)
+- [Skill ownership and community API](docs/architecture/skill-community.md)
+- [Eight-language behavior](docs/architecture/localization.md)
+- [Official-site deployment and verification](docs/architecture/deployment.md)
+- [Open-source Harness research](docs/research/harnesses.md)
 
-1. [完整系统图、身份映射、同步和模式](docs/architecture/system-blueprint.md)
-2. [整体架构与目录分工](docs/architecture/overview.md)
-2. [手机操作、连续取帧与批量执行](docs/architecture/actions.md)
-3. [Harness、模型请求、后台运行与本地存储](docs/architecture/runtime.md)
-4. [系统提示词、Skill 与验证码扩展](docs/architecture/skills.md)
-5. [实施顺序和验收门槛](docs/architecture/validation.md)
-6. [开源 Harness 源码调研](docs/research/harnesses.md)
-7. [命名候选与公开仓库检索](docs/research/naming.md)
-8. [本轮后台与真实API验证](docs/research/background-api.md)
-9. [Arduino 已实现内容与缺口](docs/architecture/firmware-implementation.md)
-10. [模型目录、OpenAI登录与MCP边界](docs/architecture/auth-and-backends.md)
+Still to validate: public HTTPS site → local ESP32 connectivity on Safari, secure provisioning and target proof, real timed gestures and inertia, and one C3 controlling two phones without cross-target input. Tests and compiled code do not replace physical acceptance.
 
-## 可审阅的设计文件
+Acceptance checklist: [English](docs/acceptance/README.md) · [简体中文](docs/acceptance/zh-Hans.md). It inventories every feature and content item, records the desktop evidence and separates the deferred phone steps. Desktop preparation and final release checks belong to the project team.
 
-- `prompts/system.md`：原创的手机操作系统提示词。
-- `prompts/context-summary.md`：保留操作证据的上下文压缩指令。
-- `specs/action-plan.schema.json`：网页层批量计划格式；包含截图节点，不直接发到 ESP32。
-- `specs/device-segment.schema.json`：只含计时 HID 报告的 ESP32 输入段。
-- `specs/action-result.schema.json`：计划结果与本地图片引用。
-- `specs/skill-manifest.schema.json`：声明式 Skill 包接口。
-- `specs/examples/`：多动作、中途截图、惯性滑动、移动中取帧和 Skill 的实例。
-- `research/harness-reference/sources.lock.json`：10 个官方仓库的提交号及下载校验值。
-- `research/harness-reference/readings.json`：33 个重点阅读位置、文件哈希、固定提交链接。
+Real Mac checks have now passed CA/DNS-verified HTTPS and production-client owner pairing against the C3. They sent no phone input; final-image verification and Safari/phone acceptance remain separate. See the [live C3 client record](docs/research/device-client-live-verification.json).
 
-## 已冻结与待验证
-
-已冻结：静态托管／可自托管、本地会话、用户自定义模型后端、热点配网、设备绑定后通过唯一 mDNS 名称重连、单指 HID 操作、批量动作与截图节点、可独立更新的 Skill。
-
-核心能力固定写在代码里，不提供运行时插件注册或自动装配。线上 Skill 与网站一起托管，用户选择的 Skill 清单、来源、版本和正文缓存在本地；任务匹配时按需加入模型上下文。社区共享只发布用户主动分享的 Skill，不上传私人会话。
-
-已增加手机后台持续取屏、延迟JSON、双协议模拟流和60秒空闲恢复的真机证据，见独立报告；真实DeepSeek接口另记证据，不能从Mac测试推断手机。
-
-待接线／验证：公网 HTTPS 页面直连本地 ESP32 的 Safari 策略、受保护热点配网、客户端授权和一对一配对证明；真实定时段产生的惯性效果；一个 C3 同时操作两部手机。mDNS 不会自动解决 HTTPS、CORS、证书或后台执行限制。
-
-## 设计校验
-
-协议校验脚本依赖 `jsonschema==4.25.1`，可以安装到独立目录后执行：
-
-```sh
-python3 -m pip install --target build/spec-validator jsonschema==4.25.1
-PYTHONPATH=build/spec-validator python3 tools/validate_design_specs.py
-```
-
-它验证示例及关键拒绝路径，不模拟 iOS 或声称已经运行真实手势。
-
-源码快照与压缩包保存在 `research/harness-reference/repos/`、`archives/`，均被忽略，不随我们的项目发布。上游代码只读研究，未执行其安装脚本。下载使用 GitHub 官方归档，未接受本机 Xcode 许可。
+[MIT License](LICENSE) · [Third-party notices](THIRD_PARTY_NOTICES.md)

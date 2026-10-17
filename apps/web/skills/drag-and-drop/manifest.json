@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "drag-and-drop",
+  "version": "0.2.0",
+  "description": "Move one phone UI item with a complete bounded press–move–release trajectory, distinct from inertial scrolling.",
+  "entry": "SKILL.md",
+  "protocolVersion": 1,
+  "requiredCapabilities": [
+    "capture.frames",
+    "model.images",
+    "harness.skills"
+  ],
+  "families": [],
+  "files": [
+    {
+      "path": "SKILL.md",
+      "sha256": "0fc7e1200523b2da7b0723778b3c0711632c15407dc3024838011b84168a2f72",
+      "bytes": 4727
+    }
+  ]
+}

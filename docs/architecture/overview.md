@@ -1,118 +1,71 @@
 # 整体架构
 
-日期：2026-10-18。状态：接受为设计基线；传输和长期后台运行仍有实测门槛。
+日期：2026-10-18。本文描述当前实现；最终验收与手机待测项见[验收记录](../research/release-acceptance.md)。
 
-## 1. 产品边界
+## 产品与数据方向
 
-- iPhone/iPad 上使用 Safari 27，添加到主屏幕作为 PWA 是推荐入口。
-- 静态网页可以放在 GitHub Pages、Cloudflare 或用户自己的 HTTPS 服务上；运行时不依赖我们的业务服务器。
-- 用户配置模型地址、协议、模型标识和凭据。模型必须具备任务所需的图片输入、工具调用或可靠结构化输出能力。
-- 会话、截图、摘要、Skill 安装状态留在手机。模型请求中选中的消息和图片会发送到用户选择的 AI 后端；托管平台不接收会话。这不是保证第三方 AI 服务不留存数据。
-- 一块 ESP32 是输入执行器：网络收指令、BLE HID 发输入、回报执行状态。屏幕与模型流量不经过 ESP32。
-- 暂不做 Android、原生 App、多指触控、任意手机文件访问。普通 HID 不能承诺原生触摸 API、任意 Unicode 输入或剪贴板读写。
-
-## 2. 组件与数据方向
+目标是 iPhone／iPad 上的 Safari 27+。根路径 `/` 为 Harness，电脑访问自动进入 `/main`；`/skills` 为社区，`/flash` 为电脑烧录。低版本手机在 Harness 入口显示不可关闭的兼容提示，只能前往主页。添加到主屏幕不代表已经验收 PWA 的后台行为。
 
 ```mermaid
 flowchart TD
-  Static[静态 HTTPS 网站] -->|程序和内置 Skill| Web[手机网页 UI]
-  Web --> Harness[本地 Harness]
-  Harness <--> DB[IndexedDB 与附件存储]
-  Capture[用户授权的屏幕流] --> Observe[取帧与时序观察]
-  Observe --> Harness
-  Harness <--> Provider[用户配置的 AI 后端]
-  Harness --> Executor[网页计划执行器]
-  Executor <--> LAN[局域网传输适配器]
-  LAN <--> Board[ESP32 有界输入执行器]
-  Board -->|按目标连接发送 BLE HID| Phone[iOS 辅助触控／键盘输入]
+  Static[igent.cc / 自托管 HTTPS 静态资源] --> Web[手机网页与本地 Harness]
+  Web <--> DB[IndexedDB 会话 / 压缩图片 / Skills]
+  Capture[用户授权的屏幕流] --> Web
+  Web <--> Model[用户配置的模型服务]
+  Web --> Plan[有限顺序计划与截图屏障]
+  Plan <--> LAN[经 CA 信任的 ESP32 HTTPS]
+  LAN --> HID[按目标连接提交 BLE HID]
+  HID --> Phone[iOS 辅助触控 / 键盘]
   Phone --> Capture
+  Web <--> Community[可选公开 Skill API / D1]
 ```
 
-网页不是云端代理：浏览器下载脚本后，从手机直接请求模型后端和局域网设备。静态服务器不负责发现用户设备、保存密钥或转发操作。
+会话、截图、摘要、凭据密文及 Skill 安装状态保存在用户浏览器。选中的上下文与图片会发送到用户配置的模型服务。社区后端只保存用户主动签名发布的公开 Skill，不接收私有会话、模型 Key 或截图。ESP32 不运行模型、不保存截图，也不作为模型流量代理。
 
-## 3. 首次配置和再次连接
+暂不做 Android、多指触控、任意手机文件访问或原生触摸 API。HID 不承诺任意 Unicode 输入和剪贴板读写。取屏正在运行也不保证系统永远调度后台网页。
 
-1. ESP32 未配置或用户主动重置网络时，启动有设备标识的受保护配置热点。
-2. 手机手动加入热点；打开固定配置入口。此入口只配网，不取屏，允许使用 HTTP。
-3. 配置页展示设备身份和绑定入口，用户选择 2.4GHz Wi-Fi、输入密码；凭据写入 ESP32 NVS，不上传静态托管平台。
-4. 保留配置页的绑定链接。用户切回正常 Wi-Fi 后，点击链接进入固定的 HTTPS Harness。
-5. 链接用 fragment 传递设备 ID、唯一 `.local` 主机名和短时一次性配对材料；网页导入本地后清除 fragment。不得放在查询参数、分析日志或错误上报里。
-6. 手机系统解析唯一 mDNS 名称；网页进行设备身份验证和配对挑战，换取该手机的独立授权。不要把 mDNS 名字或 IP 当身份凭据。
-7. 用户在系统蓝牙设置里配对 HID，按当前已验证配置开启辅助触控、关闭全键盘控制。
-8. 通过受控输入框的配对验证把网页身份和实际 HID 目标对应起来；多手机时逐台完成，不能根据 IP 或蓝牙显示名称猜目标。
-
-配网完成后 AP 连接通常会断；页面不能承诺自动切换系统 Wi-Fi。绑定按钮要在切换后仍可用；PWA/Safari 数据容器不同，须明确在哪个容器完成导入。
-
-每台设备有唯一名，例如 `harness-a7c291.local`。统一 `harness.local` 可作单设备便捷入口，但不能作为多设备身份或唯一重连地址。冲突处理、访客隔离、组播受限、不同 VLAN 都要有诊断。
-
-正常连接按“已绑定唯一名称 → 已缓存地址（仍需验证身份）→ 重新绑定／排障输入地址”尝试。不给网页做全网 IP 穷举，也不假设存在通用 Bonjour 枚举 API。手机在 5GHz、板子在 2.4GHz 并不天然阻碍通信，取决于路由器是否桥接并允许组播和客户端互访。
-
-## 4. 局域网传输决策
-
-抽象统一为 `DeviceTransport`：发现已知端点、认证、读取能力、提交分段命令、查询结果、继续截图屏障、取消、释放输入。
-
-优先实测 Safari 27 是否允许 HTTPS 页面经过所需授权访问本地 HTTP。若通过，可选择此适配器；CORS 要精确允许 Harness 来源，并处理方法和头部的预检。HTTP 路径不提供链路加密；采用每客户端密钥和 nonce/计数器签名，必要时在应用层加密配置载荷，不能把长期 bearer 密钥明文反复发送。
-
-如果该浏览器策略不允许，则使用 ESP32 HTTPS。自签服务器证书不会因为填写 CORS 就被信任；自建 CA 需要用户安装并启用信任。公开域名证书需要额外证书签发、续期和 DNS 设计，不能当成零运维的纯静态方案。选择以实测和首次配置负担为依据。
-
-WebSocket 不绕过安全规则。第一版可以使用短 HTTP 请求＋结果查询，之后再比较 WebSocket 的连接、内存和恢复成本。不会默认回退到云端指令中转；现有实验中的临时中转是证据工具，不是本方案的默认基础设施。
-
-## 5. 多手机共用一块 ESP32
-
-网络服务多客户端、保存多个蓝牙 bond、同时保持多条 BLE 连接，是三项不同能力。当前实验固件按单目标处理，尚未实现多手机隔离。
-
-设计中始终保留 `boardId / targetId / clientId / sessionId / planId`：
-
-- `targetId` 对应 ESP32 上一个经过配对验证的稳定 bond 身份；不依赖会变化的 BLE 私有地址。
-- 按目标维护连接句柄、加密状态、报告订阅、键盘修饰键、按住的键、指针坐标、按钮状态、队列、租约和结果缓存。
-- HID notification 必须指定目标连接；不能用广播 notification 同时按下所有手机的 Home。
-- 同一目标只允许一个有效写租约；不同目标可独立排队。网络和读取状态可并发，同一目标的手势严格顺序。
-- 配网、升级、重启等整板操作与所有目标的执行互斥；查看状态不会抢控制权。
-- 一个网页没有另一台手机的屏幕。每台被自动化手机运行自己的网页与取屏会话，各自保存历史；板子不汇总用户截图。
-
-先验证一个目标的完整产品闭环，再验证两部手机同时独立运行。支持数量从实际 RAM、TLS 连接和 BLE/Wi-Fi 共存测试得出；不直接宣传协议栈理论最大值。
-
-## 6. 仓库目标结构
-
-以下是后续实现的目标目录，不表示模块已经实现。保留现有实验固件直到新实现通过验收。
+## 固定模块与源码
 
 ```text
-apps/web/                    UI、PWA、设置、设备页、会话页、停止入口
-packages/harness/            turn 循环、事件、调度、压缩、预算、恢复
-packages/providers/          固定内置的模型协议实现、流解析、多图映射
-packages/phone/              取屏、坐标变换、计划编译、观察组、目标租约
-packages/device-client/      LAN 请求、认证、能力、回执、重连
-packages/storage/            IndexedDB、附件、迁移、导出、凭据库
-packages/skills/             线上目录、本地清单与内容缓存、按需加载、更新
-packages/protocol/           共享格式、校验器、版本和错误码
-firmware/PhoneHarness/       可用 Arduino IDE 打开的产品 sketch
-  PhoneHarness.ino
-  src/                      网络、配网、mDNS、认证、调度、BLE、目标状态
-  config.example.h          非秘密构建配置；用户 Wi-Fi 在首次运行配网
-  README.md                 板型、依赖版本、分区、烧录、重置方法
-prompts/                    原创基础提示词与压缩指令
-skills/                     内置声明式 Skill 包
-specs/                      协议、示例、能力字典
-tests/                      模拟后端、协议失败路径、重启与恢复测试
-research/                   实验和固定提交的源码研究
-docs/                       设计与验收
+apps/web/                         UI、路由、八语文案
+  core/                           Harness、模型、上下文、取屏、计划、存储、设备、MCP
+  ui/                             设备、USB 配置、MCP 面板
+  community/                      本地作者身份、签名与社区客户端
+  api/                            公开 Skill Worker / D1
+  skills/                         十个声明式内置 Skill
+  firmware/                       四类预编译固件、哈希与上游许可证
+firmware/IPhoneAutomationHarness/  自包含 Arduino 产品 sketch
+prompts/                          原创系统、模式与压缩提示词
+specs/                            计划 / 结果 / 输入段 / Skill schema 与示例
+tests/ · tools/ · docs/            验证、构建、发布与证据
 ```
 
-推荐 TypeScript 的浏览器核心，网页 UI 可用 React/Vite；驱动和计时执行在 Arduino C++。不是把 Node CLI 打包进 Safari。参考项目的流程和边界可以借鉴，Node 文件系统、shell、原生 CUA、Python graph 不直接搬入手机网页。
+浏览器采用原生 JavaScript ES modules；更早浏览器由经典 ES5 bootstrap 显示公共入口和兼容门禁。工具集合固定，模型不能动态安装代码或注册能力。Skill 是可更新的说明内容；自有 Skill 可由 Harness 制作和修改，内置与社区下载项只读。网站不运行 Node CLI、shell 或本地 stdio MCP。
 
-这些目录是普通源码分工，不代表运行时可插拔架构。核心工具固定，不做能力注册框架、插件发现或自动依赖装配；只有 Skill 内容可以从线上拉取、缓存和更新。
+## 初次配置与信任
 
-Arduino 产品 sketch 要完整自包含或带明确相对路径，不依赖开发者电脑中的绝对路径；锁定板核心和依赖，提供已验证的 C3 分区选择。网络凭据和设备密钥不放进公开头文件。默认 BLE 身份使用自己的厂商标识，不伪装成 Apple 设备。
+电脑可用 Chrome／Edge Web Serial 烧录受支持板型，或使用 Arduino。首次 USB 配置以及单客户端、所有者认证的 WPA2 配置热点均可设置 2.4GHz Wi-Fi 和允许的网页 origin。板子生成每板独立 CA 和服务器证书，导出公开 mobileconfig 和 CA 指纹。手机需要自行安装描述文件并手动启用证书完整信任；网页无法代替这一步。
 
-## 7. 发布分工
+网页保存可信配置来源给出的唯一 `.local` 主机名与预期 CA 指纹，核对身份后才发送所有者密码换取客户端 token。随后用户在系统蓝牙设置配对 HID，关闭全键盘控制、开启辅助触控，并在网页聚焦挑战输入框；板子向选定连接输入八位数字，网页回传实际观察值，成功后才建立客户端到目标的绑定。设备名、IP、蓝牙已连接都不构成目标证明。
 
-- 静态网站发布版本包含 UI、核心、内置 prompt、schema、Skill 目录和内容哈希；GitHub Pages 用 hash 路由避免服务端回退要求。
-- 离线缓存只缓存程序与公开资源；会话、凭据、局域网返回、模型请求不写入 Service Worker 缓存。
-- 有运行中的任务时不自动激活新 SW；在安全边界提示版本更新，必要时先导出。旧固件按能力协商拒绝不支持的计划。
-- 自托管只需静态文件，但用户 AI 后端必须可被浏览器访问。改变 origin 不会自动搬迁历史，通过导出／导入迁移。
-- Skill 目录和包可与站点一起静态托管。社区发布先支持导出、共享链接和仓库提交；若要在网页里直接上传至公共目录，则另加只负责公开 Skill 的上传服务，不把 Harness 会话迁到云端。
-- 产品许可证尚未选择；本轮不替用户给整个项目加开源许可证。参考快照保留上游许可，后续复制任何实现前按组件检查 notice 与许可。
+当前实现使用 **HTTPS + 精确 Origin/CORS + 独立客户端 bearer token**，不提供 HTTP 控制降级。USB／受保护热点负责配网；更改证书导致 CA 指纹变化时须重新安装信任并更新固定指纹。具体契约见[受保护局域网](secure-lan.md)。
 
-## 8. 来源和限制
+## mDNS 与重连
 
-来源详见 [源码调研](../research/harnesses.md)。mDNS、跨域和证书分别参照 [Espressif](https://docs.espressif.com/projects/esp-protocols/mdns/docs/latest/en/index.html)、[Fetch](https://fetch.spec.whatwg.org/#http-cors-protocol)、[LNA 草案](https://wicg.github.io/local-network-access/)、[Apple 证书信任](https://support.apple.com/en-us/102390)。WebKit 主分支的实现不能替代目标 Safari 的测试。
+每板唯一名称用于已知设备重连；网页没有通用 Bonjour 枚举 API，也不穷举内网 IP。用户从初次配置获得名称，浏览器以后请求同一名称并重新验证身份。mDNS 不提供 HTTPS 信任或授权。普通家庭路由器通常无需特殊服务，但访客隔离、不同 VLAN、禁用组播或客户端互访会阻断路径。手机在 5GHz、ESP32 在 2.4GHz 本身不构成障碍。
+
+静态网页必须直接访问允许 CORS 的模型与局域网服务。只填 IP 不能解决证书 SAN；证书包含唯一 `.local` 主机名，使用该名称。自托管改变 origin 时须显式配置板子允许来源，并通过会话／身份导入导出迁移浏览器数据。
+
+## 多目标、租约与时间
+
+实现保留 `boardId / bootId / targetId / clientId / leaseId / planId / segmentId`。稳定 bond 身份与连接代次约束目标；HID 必须定向发送。每目标一个写租约，每次运行使用新 leaseId；其他目标的取消和输入状态互相隔离。单段完整按下与释放，屏障处由网页取图；ESP32 不会伪造截图回执。
+
+当前资源配置为两个 BLE 连接／bond、八个网络客户端登记、一个 TLS 服务槽。HTTP 请求完成后主动关闭连接，为其他客户端留出机会。支持登记或理论连接数量不等于已经验证双手机同时使用的性能。真实 TLS 已在 C3 候选版验证；最终版 BLE 输入、Safari 公网到 LAN 及双目标仍需手机验收。
+
+批次最多 30 步、执行预算不超过 15 秒。产品段最多 128 报告、8192 UTF-8 字节、5 秒，单次按住不超过 3 秒；最终按能力协商进一步约束。每段有规范化哈希、幂等结果查询和未知结果停机路径，网络失败不创建新 ID 盲目重放。见[动作与同步](actions.md)和[设备客户端](device-client.md)。
+
+## 发布与边界
+
+官网在 `igent.cc`，公开页面与 `/api/skills` 同源；没有二级域名依赖。静态构建可自行托管；非官网不会自动启用官网发布 API。当前不注册 Service Worker，不能宣称离线安装或自动更新协调已经实现。常规网站更新不会主动重载正在打开的页面。
+
+项目代码采用 [MIT](../../LICENSE)，第三方组件和固件上游保留其许可证，见[第三方声明](../../THIRD_PARTY_NOTICES.md)。来源研究见[Harness 调研](../research/harnesses.md)。

@@ -1,0 +1,45 @@
+{
+  "checkedAt": "2026-10-17T21:54:17.976709+00:00",
+  "scope": "Native Chrome executes real UI components and real DOM on isolated loopback fixture; all device/MCP/USB transports are synthetic and issue no network, serial, HID or model calls.",
+  "passed": true,
+  "componentCases": 5,
+  "localeAssertions": 40,
+  "checks": [
+    {
+      "name": "device-validation-error-eight-locales",
+      "passed": true
+    },
+    {
+      "name": "device-transport-error-eight-locales-one-fake-pair",
+      "passed": true
+    },
+    {
+      "name": "mcp-error-eight-locales-one-fake-connect",
+      "passed": true
+    },
+    {
+      "name": "usb-transport-error-eight-locales-one-fake-read",
+      "passed": true
+    },
+    {
+      "name": "usb-profile-error-eight-locales-no-new-read",
+      "passed": true
+    }
+  ],
+  "sourceSha256": {
+    "tests/browser/panel-errors.html": "baead1d102d8a2ae7d7fc53b17c2a114e29ebba2a93a5eb7f423d61414414f44",
+    "apps/web/ui/device-panel.js": "755946c73bb90b0edbb81870f57a1bc2fce6e6ba1714c5a0893aacc9a1aebd61",
+    "apps/web/ui/mcp-settings.js": "e0ad782623dbfeaa662cfeeab7f6a45b45d1f45235e1aaf38f56e457be895fda",
+    "apps/web/ui/usb-setup.js": "5fce516d49ab2efcef107c5355c95370422f7c9b1a59b3a7d08285c4bac6af6c",
+    "apps/web/core/error-catalog.js": "8308c548708be845382d868686d932c8fddf24d9fbb84814bff51ee0d95dbf23"
+  },
+  "cleanup": {
+    "createdTabClosed": true,
+    "existingTabsPreserved": true,
+    "fixtureServerStopped": true
+  },
+  "notes": [
+    "The first fixture load had an import ERR_CONNECTION_RESET on the default low-backlog preview server. Restarted a loopback ThreadingHTTPServer with backlog128 and reloaded before execution. This is not a product failure or a passed first attempt.",
+    "No browser password-save prompt was accepted. Only synthetic fixture strings were entered."
+  ]
+}

@@ -5,7 +5,16 @@
 #include <algorithm>
 
 namespace iah {
-constexpr size_t MaxTargets=2, MaxClients=8, MaxEvents=512, MaxResults=16;
+#ifndef IAH_MAX_EVENTS
+#define IAH_MAX_EVENTS 512
+#endif
+#ifndef IAH_SEEN_BYTES
+#define IAH_SEEN_BYTES 8192
+#endif
+constexpr size_t SeenBytes=IAH_SEEN_BYTES;
+static_assert(SeenBytes>=4096&&SeenBytes<=8192,"bounded tombstone storage");
+constexpr size_t MaxTargets=2, MaxClients=8, MaxEvents=IAH_MAX_EVENTS, MaxResults=16;
+static_assert(MaxEvents>=2&&MaxEvents<=512,"bounded event storage");
 constexpr uint32_t MaxSegmentMs=5000, MaxHoldMs=3000, MaxLeaseMs=15000, MaxLatenessMs=40;
 constexpr uint16_t InvalidHandle=0xffff;
 inline bool validId(const std::string& s) {
@@ -47,13 +56,18 @@ struct Lease {std::string clientId,id; uint64_t expiresAt=0;};
 struct Target {
   // bondIdentity is BLE stack-resolved identity address + type, never peer OTA/RPA.
   std::string id,bondIdentity; uint16_t connHandle=InvalidHandle;
-  bool encrypted=false,bonded=false,subscribed=false,releasePending=true;
+  uint32_t connEpoch=0;bool encrypted=false,bonded=false,subscribed=false,releasePending=true;
   Lease lease; Input input; bool running=false; Segment segment; Result result;
   size_t cursor=0; uint64_t deadline=0;
 };
 class Sink {
  public: virtual ~Sink()=default;
  virtual bool submit(uint16_t conn,const Event& event)=0;
+ virtual bool submitTimed(uint16_t conn,const Event& event,uint64_t){return submit(conn,event);}
+ virtual uint64_t submissionTime(uint64_t fallback)const{return fallback;}
+ virtual uint64_t currentTime(uint64_t fallback)const{return fallback;}
+ virtual bool bindConnection(uint16_t,const std::string&,uint32_t){return true;}
+ virtual void unbindConnection(uint16_t,uint32_t){}
  virtual bool release(uint16_t conn,const Input& previous)=0;
 };
 class Core {
@@ -62,18 +76,22 @@ class Core {
  std::array<Result,MaxResults> results_{};size_t resultAt_=0;
  // Boot-local Bloom tombstones: bounded cache eviction may reject a new colliding ID,
  // but must never cause an old ID to execute again. Reset only with a new bootId.
- std::array<uint8_t,1024> seen_{};
+#ifdef IAH_EXTERNAL_SEEN
+ uint8_t* seen_;
+#else
+ std::array<uint8_t,SeenBytes> seen_{};
+#endif
  static uint32_t hash(const std::string& s,uint32_t seed){for(unsigned char c:s)seed=(seed^c)*16777619u;return seed;}
- bool seen(const std::string& s)const{auto a=hash(s,2166136261u)%8192,b=hash(s,0x9e3779b9u)%8192;return (seen_[a/8]&(1u<<(a%8)))&&(seen_[b/8]&(1u<<(b%8)));}
- void mark(const std::string& s){for(uint32_t seed:{2166136261u,0x9e3779b9u}){auto a=hash(s,seed)%8192;seen_[a/8]|=1u<<(a%8);}}
+ bool seen(const std::string& s)const{auto a=hash(s,2166136261u),step=hash(s,0x9e3779b9u)|1u;for(uint32_t i=0;i<16;i++){auto bit=(a+i*step)%(SeenBytes*8);if(!(seen_[bit/8]&(1u<<(bit%8))))return false;}return true;}
+ void mark(const std::string& s){auto a=hash(s,2166136261u),step=hash(s,0x9e3779b9u)|1u;for(uint32_t i=0;i<16;i++){auto bit=(a+i*step)%(SeenBytes*8);seen_[bit/8]|=1u<<(bit%8);}}
  static std::string key(const Segment& s){return s.clientId+"/"+s.segmentId;}
  Client* client(const std::string& id){for(auto& c:clients_)if(c.active&&c.id==id)return &c;return nullptr;}
  bool authorized(const std::string& c,const std::string& t){auto p=client(c);return p&&p->targetId==t;}
  bool ready(const Target& t)const{return t.connHandle!=InvalidHandle&&t.encrypted&&t.bonded&&t.subscribed&&!t.releasePending;}
  void finish(Target& t,Status status,uint64_t now){
-   t.result.status=status;t.result.endedAt=now;
+   t.result.status=status;
    t.result.releaseSubmitted=t.connHandle!=InvalidHandle&&sink_.release(t.connHandle,t.input);
-   t.releasePending=!t.result.releaseSubmitted;auto x=t.input.x,y=t.input.y;t.input=Input{};t.input.x=x;t.input.y=y;t.running=false;
+   t.result.endedAt=std::max(now,sink_.currentTime(now));t.releasePending=!t.result.releaseSubmitted;auto x=t.input.x,y=t.input.y;t.input=Input{};t.input.x=x;t.input.y=y;t.running=false;
    results_[resultAt_++%MaxResults]=t.result;
  }
  static bool validEvents(const Segment& s){
@@ -96,24 +114,41 @@ class Core {
   return !in.held();
  }
  public:
- Core(std::string board,std::string boot,Sink& sink):board_(board),boot_(boot),sink_(sink){}
+ Core(std::string board,std::string boot,Sink& sink
+#ifdef IAH_EXTERNAL_SEEN
+ ,uint8_t* seenStorage
+#endif
+ ):board_(board),boot_(boot),sink_(sink)
+#ifdef IAH_EXTERNAL_SEEN
+ ,seen_(seenStorage)
+#endif
+ {
+#ifdef IAH_EXTERNAL_SEEN
+ std::fill_n(seen_,SeenBytes,0);
+#endif
+ }
  Target* target(const std::string& id){for(auto& t:targets_)if(t.id==id&&!id.empty())return &t;return nullptr;}
  const std::array<Target,MaxTargets>& targets()const{return targets_;}
  Code registerBond(const std::string& id,const std::string& identity){
   if(!validId(id)||identity.empty()||identity.size()>80)return Code::Invalid;
   for(auto& t:targets_)if(!t.id.empty()&&(t.id==id||t.bondIdentity==identity))return t.id==id&&t.bondIdentity==identity?Code::Duplicate:Code::Conflict;
-  for(auto& t:targets_)if(t.id.empty()){t.id=id;t.bondIdentity=identity;return Code::Accepted;}return Code::Busy;
+  for(auto& t:targets_)if(t.id.empty()){t.id=id;t.bondIdentity=identity;return Code::Accepted;}
+  return Code::Busy;
  }
  // Called only after transport authenticates client and proves target binding.
  Code bindClient(const std::string& id,const std::string& targetId){
   if(!validId(id)||!target(targetId))return Code::Invalid;
   if(auto c=client(id))return c->targetId==targetId?Code::Duplicate:Code::Conflict;
-  for(auto& c:clients_)if(!c.active){c={id,targetId,true};return Code::Accepted;}return Code::Busy;
+  for(auto& c:clients_)if(!c.active){c={id,targetId,true};return Code::Accepted;}
+  return Code::Busy;
  }
- Code connect(const std::string& identity,uint16_t handle,bool encrypted,bool bonded,bool subscribed){
+ void forgetClient(const std::string& id,uint64_t now){auto c=client(id);if(!c)return;for(auto& t:targets_)if(t.lease.clientId==id){if(t.running)finish(t,Status::Cancelled,now);t.lease=Lease{};}*c=Client{};}
+ Code connect(const std::string& identity,uint16_t handle,bool encrypted,bool bonded,bool subscribed,uint32_t epoch=0){
   for(auto& t:targets_)if(t.bondIdentity==identity&&!t.id.empty()){
-   if(t.connHandle!=InvalidHandle&&t.connHandle!=handle)return Code::Busy;
-   t.connHandle=handle;t.encrypted=encrypted;t.bonded=bonded;t.subscribed=subscribed;
+   if(t.connHandle!=InvalidHandle&&(t.connHandle!=handle||t.connEpoch!=epoch))return Code::Busy;
+   for(const auto& other:targets_)if(other.id!=t.id&&other.connHandle==handle)return Code::Busy;
+   t.connHandle=handle;t.connEpoch=epoch;t.encrypted=encrypted;t.bonded=bonded;t.subscribed=subscribed;
+   if(!sink_.bindConnection(handle,t.bondIdentity,epoch)){t.releasePending=true;return Code::NotReady;}
    if(encrypted&&bonded&&subscribed&&t.releasePending){t.releasePending=!sink_.release(handle,t.input);t.input=Input{};}
    return ready(t)?Code::Accepted:Code::NotReady;
   }
@@ -122,6 +157,7 @@ class Core {
  void disconnect(uint16_t handle,uint64_t now){for(auto& t:targets_)if(t.connHandle==handle){
   // Link is already gone: do not mislabel a release as delivered.
   t.connHandle=InvalidHandle;if(t.running)finish(t,Status::Disconnected,now);
+  sink_.unbindConnection(handle,t.connEpoch);t.connEpoch=0;
   t.encrypted=t.bonded=t.subscribed=false;t.releasePending=true;t.lease=Lease{};
  }}
  Code lease(const std::string& targetId,const std::string& clientId,const std::string& id,uint32_t ttl,uint64_t now){
@@ -129,11 +165,16 @@ class Core {
   if(!authorized(clientId,targetId))return Code::Unauthorized;
   if(t->lease.expiresAt>now&&(t->lease.clientId!=clientId||t->lease.id!=id))return Code::Busy;
   if(t->running&&t->lease.expiresAt<=now)return Code::Busy;
+  bool renewal=t->lease.expiresAt>now&&t->lease.clientId==clientId&&t->lease.id==id;
+  auto leaseKey=std::string("lease:")+targetId+"/"+clientId+"/"+id;
+  if(!renewal&&seen(leaseKey))return Code::Expired;
+  if(!renewal)mark(leaseKey);
   t->lease={clientId,id,now+ttl};return Code::Accepted;
  }
  const Result* result(const std::string& clientId,const std::string& segmentId)const{
   for(const auto& t:targets_)if(t.running&&t.result.clientId==clientId&&t.result.segmentId==segmentId)return &t.result;
-  for(const auto& r:results_)if(r.clientId==clientId&&r.segmentId==segmentId&&!r.segmentId.empty())return &r;return nullptr;
+  for(const auto& r:results_)if(r.clientId==clientId&&r.segmentId==segmentId&&!r.segmentId.empty())return &r;
+  return nullptr;
  }
  Code accept(const Segment& s,uint64_t now){
   if(s.boardId!=board_||s.bootId!=boot_)return Code::StaleBoot;
@@ -145,7 +186,8 @@ class Core {
   auto t=target(s.targetId);if(!t)return Code::Missing;
   if(t->lease.clientId!=s.clientId||t->lease.id!=s.leaseId)return Code::Unauthorized;
   if(t->lease.expiresAt<=now)return Code::Expired;
-  if(!ready(*t))return Code::NotReady;if(t->running)return Code::Busy;
+  if(!ready(*t))return Code::NotReady;
+  if(t->running)return Code::Busy;
   // Finish before lease expiry; prevents accepting a segment that cannot complete.
   if(now+s.events[s.count-1].atMs>=t->lease.expiresAt)return Code::Expired;
   t->segment=s;t->cursor=0;t->running=true;t->deadline=now+s.ttlMs;
@@ -160,11 +202,12 @@ class Core {
   while(t.cursor<t.segment.count){const auto& e=t.segment.events[t.cursor];auto due=t.result.startedAt+e.atMs;if(now<due)break;
    auto late=static_cast<uint32_t>(now-due);t.result.maxLatenessMs=std::max(t.result.maxLatenessMs,late);
    if(late>MaxLatenessMs){finish(t,Status::TimingMiss,now);break;}
-   if(!sink_.submit(t.connHandle,e)){finish(t,Status::TransportFailed,now);break;}
+   if(!sink_.submitTimed(t.connHandle,e,std::min({due+MaxLatenessMs,t.deadline-1,t.lease.expiresAt-1}))){finish(t,Status::TransportFailed,sink_.currentTime(now));break;}
+   auto submittedAt=sink_.submissionTime(now);t.result.maxLatenessMs=std::max(t.result.maxLatenessMs,static_cast<uint32_t>(submittedAt>due?submittedAt-due:0));
    if(e.kind==Kind::Pointer){t.input.x=e.x;t.input.y=e.y;t.input.buttons=e.buttons;}
    else if(e.kind==Kind::Keyboard){t.input.modifiers=e.modifiers;t.input.count=e.count;t.input.usages=e.usages;}
    else t.input.consumer=e.usage;
-   t.result.submitted++;t.result.lastSubmittedAt=now;t.cursor++;
+   t.result.submitted++;t.result.lastSubmittedAt=submittedAt;t.cursor++;
   }
   if(t.running&&t.cursor==t.segment.count)finish(t,Status::Completed,now);
  }}

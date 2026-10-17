@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "skill-authoring",
+  "version": "1.0.0",
+  "description": "Create or update only the current creator's local authored Skills in the user's language.",
+  "entry": "SKILL.md",
+  "protocolVersion": 1,
+  "requiredCapabilities": [
+    "harness.skills",
+    "skills.authoring"
+  ],
+  "families": [],
+  "files": [
+    {
+      "path": "SKILL.md",
+      "sha256": "3128c7e73a35463ee27f4c0cce0bc87b2e1d295973889452fa6b0f50d2f497f5",
+      "bytes": 2007
+    }
+  ]
+}

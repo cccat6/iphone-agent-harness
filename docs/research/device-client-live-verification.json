@@ -1,0 +1,75 @@
+{
+  "checkedAt": "2026-10-17T21:48:37.730Z",
+  "flashedFirmware": {
+    "sourceSha256": "4b4ebc2e65b3a7b1ebac4b4463c67ae2cb805f3ef85c1eece9e23bb1b435f8f0",
+    "applicationSha256": "ccead46859f7c8d15ff8ca04136cb1673677e1c5e232ca8fff76c2030afc7971",
+    "flashedAt": "2026-10-17T21:47:03.860884+00:00"
+  },
+  "scope": "Production DeviceClient with real C3 CA-verified HTTPS; cached address from USB diagnostic, original DNS name verified by TLS. No HID target challenge, lease or phone input sent.",
+  "checks": [
+    {
+      "name": "pinned-CA-and-board-identity",
+      "passed": true
+    },
+    {
+      "name": "resource-limits-advertised",
+      "passed": true
+    },
+    {
+      "name": "production-client-owner-pair",
+      "passed": true
+    },
+    {
+      "name": "no-fabricated-target-binding",
+      "passed": true
+    },
+    {
+      "name": "production-client-clock-sync",
+      "passed": true,
+      "rttMs": 1024,
+      "uncertaintyMs": 512
+    },
+    {
+      "name": "unverified-phone-cannot-acquire-control",
+      "passed": true
+    }
+  ],
+  "requests": [
+    {
+      "path": "/v1/identity",
+      "status": 200,
+      "headerMs": 1972
+    },
+    {
+      "path": "/v1/capabilities",
+      "status": 200,
+      "headerMs": 1468
+    },
+    {
+      "path": "/v1/identity",
+      "status": 200,
+      "headerMs": 1173
+    },
+    {
+      "path": "/v1/pair",
+      "status": 200,
+      "headerMs": 1263
+    },
+    {
+      "path": "/v1/binding",
+      "status": 200,
+      "headerMs": 1234
+    },
+    {
+      "path": "/v1/clock",
+      "status": 200,
+      "headerMs": 1160
+    },
+    {
+      "path": "/v1/clock",
+      "status": 200,
+      "headerMs": 1022
+    }
+  ],
+  "passed": true
+}

@@ -2,7 +2,7 @@
 // registered public client are configuration, not borrowed Codex credentials.
 export class DeviceCodeAuth {
   constructor({clientId,userCodeUrl,pollUrl,tokenUrl,verificationUrl,fetchImpl=fetch}){Object.assign(this,{clientId,userCodeUrl,pollUrl,tokenUrl,verificationUrl,fetchImpl});this.tokens=null;this.refreshing=null;}
-  async post(url,body,signal,form=false){const r=await this.fetchImpl(url,{method:'POST',headers:{'content-type':form?'application/x-www-form-urlencoded':'application/json'},body:form?new URLSearchParams(body):JSON.stringify(body),signal,credentials:'omit',referrerPolicy:'no-referrer'});let data={};try{data=await r.json();}catch{}return {status:r.status,ok:r.ok,data};}
+  async post(url,body,signal,form=false){const r=await this.fetchImpl.call(globalThis,url,{method:'POST',headers:{'content-type':form?'application/x-www-form-urlencoded':'application/json'},body:form?new URLSearchParams(body):JSON.stringify(body),signal,credentials:'omit',referrerPolicy:'no-referrer'});let data={};try{data=await r.json();}catch{}return {status:r.status,ok:r.ok,data};}
   async start(signal){if(!this.clientId||!this.userCodeUrl)throw new Error('设备码登录尚未配置可验证的 OAuth 客户端');const r=await this.post(this.userCodeUrl,{client_id:this.clientId},signal);if(!r.ok||!r.data.device_auth_id||!r.data.user_code)throw new Error(`设备码入口不可用（${r.status}）；尚未证明该入口支持此网页`);return {...r.data,verification_url:r.data.verification_url||this.verificationUrl};}
   async poll(device,signal,{maxWaitMs=900000,wait=ms=>new Promise(resolve=>setTimeout(resolve,ms))}={}){
     const until=Date.now()+maxWaitMs;

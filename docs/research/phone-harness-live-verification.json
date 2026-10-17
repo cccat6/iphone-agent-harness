@@ -1,0 +1,74 @@
+{
+  "checkedAt": "2026-10-17T20:28:43.231Z",
+  "scope": "Real DeepSeek models through production Harness/provider/plan/store; synthetic in-memory device and generated solid-color PNGs only; not iPhone/Safari/hardware acceptance",
+  "containsUserScreen": false,
+  "containsUserData": false,
+  "credentialsStored": false,
+  "modelResponseContentStored": false,
+  "maxModelTurnsPerCase": 10,
+  "maxDurationMsPerCase": 120000,
+  "model": "deepseek-flash",
+  "results": [
+    {
+      "protocol": "openai",
+      "model": "deepseek-flash",
+      "elapsedMs": 6831,
+      "modelTurns": 3,
+      "httpStatuses": [
+        200,
+        200,
+        200
+      ],
+      "toolNames": [
+        "phone_observe",
+        "phone_execute_plan",
+        "task_report"
+      ],
+      "homeSubmissions": 1,
+      "invalidInputAttempts": 0,
+      "capturedFrames": 2,
+      "blueFrames": 1,
+      "greenFrames": 1,
+      "completedReportCount": 1,
+      "completedWithFreshGreenEvidence": true,
+      "runStatus": "completed",
+      "releaseCalls": 0,
+      "imagesSentToModel": true,
+      "passed": true
+    },
+    {
+      "protocol": "anthropic",
+      "model": "deepseek-flash",
+      "elapsedMs": 4606,
+      "modelTurns": 3,
+      "httpStatuses": [
+        200,
+        200,
+        200
+      ],
+      "toolNames": [
+        "phone_observe",
+        "phone_execute_plan",
+        "task_report"
+      ],
+      "homeSubmissions": 1,
+      "invalidInputAttempts": 0,
+      "capturedFrames": 2,
+      "blueFrames": 1,
+      "greenFrames": 1,
+      "completedReportCount": 1,
+      "completedWithFreshGreenEvidence": true,
+      "runStatus": "completed",
+      "releaseCalls": 0,
+      "imagesSentToModel": true,
+      "passed": true
+    }
+  ],
+  "passed": true,
+  "limitations": [
+    "Both device and capture adapters are synthetic; no real phone or HID operation occurred.",
+    "Store uses production memory mode, not Safari IndexedDB persistence.",
+    "Node requests do not establish Safari CORS, background survival or real-device timing.",
+    "A single simple authorized Home workflow per protocol is not a GUI-reliability benchmark."
+  ]
+}

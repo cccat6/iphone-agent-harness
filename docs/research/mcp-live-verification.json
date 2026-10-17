@@ -1,0 +1,59 @@
+{
+  "checkedAt": "2026-10-17T19:57:10.211Z",
+  "endpoint": "https://docs.mcp.cloudflare.com/mcp",
+  "scope": "Mac Node production MCP permission bridge, real public read-only service; not an iPhone browser run",
+  "containsUserData": false,
+  "responseContentStored": false,
+  "checks": [
+    {
+      "name": "initialize-and-tool-directory",
+      "passed": true,
+      "tools": [
+        "search_cloudflare_documentation",
+        "migrate_pages_to_workers_guide"
+      ]
+    },
+    {
+      "name": "disabled-by-default",
+      "passed": true
+    },
+    {
+      "name": "only-selected-tool-exposed",
+      "passed": true
+    },
+    {
+      "name": "real-readonly-tool-call",
+      "passed": true,
+      "resultBlocks": 1
+    },
+    {
+      "name": "revoked-tool-rejected",
+      "passed": true
+    },
+    {
+      "name": "browser-preflight-headers",
+      "passed": false,
+      "allowOrigin": "*",
+      "allowHeaders": "Content-Type, Accept, Authorization, MCP-Protocol-Version, Mcp-Method, Mcp-Name, cf-account-id"
+    }
+  ],
+  "passed": false,
+  "additionalPreflightChecks": [
+    {
+      "headers": "content-type",
+      "status": 403,
+      "allowOrigin": "*",
+      "allowHeaders": "Content-Type, Accept, Authorization, MCP-Protocol-Version, Mcp-Method, Mcp-Name, cf-account-id",
+      "allowMethods": "POST, OPTIONS"
+    },
+    {
+      "headers": "content-type,mcp-protocol-version",
+      "status": 403,
+      "allowOrigin": "*",
+      "allowHeaders": "Content-Type, Accept, Authorization, MCP-Protocol-Version, Mcp-Method, Mcp-Name, cf-account-id",
+      "allowMethods": "POST, OPTIONS"
+    }
+  ],
+  "nodeBridgePassed": true,
+  "browserInteroperability": "Not established; official documentation server did not accept this browser preflight"
+}
