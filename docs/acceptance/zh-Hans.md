@@ -4,19 +4,19 @@
 
 本清单覆盖 Web 应用、ESP32 桥接器、全部内容与发布。电脑侧检查由项目维护者完成；用户只需参加下方暂缓的手机真机验收。自动化或模拟项打勾，**不代表手机已验收通过**。
 
-证据日期：2026-10-18。`A`＝已记录的自动化／主机测试通过；`N`＝原生桌面浏览器交互通过；`L`＝Mac 上真实服务／设备请求通过；`D`＝源码／文档／内容核对；`P`＝待手机验收；`F`＝等待最终发布核验。测试文件链接说明覆盖范围，报告链接记录实际执行；旧报告只证明对应日期的候选版本，不能证明后续改动已上线。不要在本清单记录密钥、所有者密码、Wi-Fi 信息、验证数字或私人屏幕。
+证据日期：2026-10-18。`A`＝已记录的自动化／主机测试通过；`N`＝原生桌面浏览器交互通过；`L`＝Mac 上真实服务／设备请求通过；`D`＝源码／文档／内容核对；`P`＝待手机验收；`F`＝等待发布回执的关口（当前电脑清单已无此状态）。测试文件链接说明覆盖范围，报告链接记录实际执行；旧报告只证明对应日期的候选版本，不能证明后续改动已上线。不要在本清单记录密钥、所有者密码、Wi-Fi 信息、验证数字或私人屏幕。
 
 ## 电脑证据与最终发布关口
 
 | ID | 状态 | 检查与确切证据 | 已证实范围／剩余边界 |
 |---|---|---|---|
-| R01 | A | Web全套 **341/341**，0失败；[验证记录](../research/release-verification.json) | 含Core R1–R7、取屏／RTT、组合状态、稳定设备ID及独立R9回归；[新R10](../research/independent-device-identity-r10.md)无新问题。最终提交／CI见R06。 |
+| R01 | A / L | Web全套 **354/354**，0失败；[验证记录](../research/release-verification.json)、[实际Linux CI](https://github.com/cccat6/iphone-agent-harness/actions/runs/39074641443) | 含最终串口生命周期及九项独立vendor／复位测试，不推断真机手机结果。 |
 | R02 | A | [生命周期 R6](../research/independent-lifecycle-r6.md)：新增6项取屏、定向82/82 | 使用有限取屏／设备适配器，不是真实Safari录屏。 |
 | R03 | A | host67 +实际router12；独立R7九项+坐标回归、R8十一项；canonical6／artifact6 | [R8报告](../research/independent-firmware-r8.md)关闭软件问题，四种实际SDK宏检查也通过。有限主机／编译证据不等于物理BLE送达。 |
-| R04 | N / A | 新[Web R6](../research/independent-web-r6.md)及最终[设备/UI R10](../research/independent-device-identity-r10.md)无新问题 | 原生选定流程、八语模块、[实际DOM五类错误×八语](../research/desktop-panel-localization-verification.json)、[真实IDB九项](../research/desktop-storage-verification.json)；不冒充所有页面的真机Safari验收。 |
-| R05 | D / F | [四芯片构建报告](../../apps/web/firmware/build-report.json)、[清单](../../apps/web/firmware/manifest.json)、[构建校验器](../../tools/build_firmware.py) | 最终四芯片编译、源码／二进制hash及C3最终镜像核验待发布核验；未宣称S3/C6/原ESP32实机通过。 |
-| R06 | F | [CI定义](../../.github/workflows/checks.yml)、[部署报告](../research/deployment-verification.json) | 最终提交、推送后CI、线上资源hash及部署后路由/API检查待发布核验。 |
-| R07 | D / F | [发布汇总](../research/release-acceptance.md)、[第三方声明](../../THIRD_PARTY_NOTICES.md)、[许可证](../../LICENSE) | 维护者完成最终报告、敏感信息及产物复核后才能宣告发布完成。 |
+| R04 | N / A | 新[Web R6](../research/independent-web-r6.md)、[设备/UI R10](../research/independent-device-identity-r10.md)、[串口R11](../research/independent-serial-r11.md)无新问题 | [真实DOM四十项语言断言](../research/desktop-panel-localization-verification.json)、[真实IDB九项](../research/desktop-storage-verification.json)、[官网原生流程](../research/desktop-site-verification.json)。 |
+| R05 | D / A / L | 四种实际编译均来自源码 `4b4ebc2e…435f8f0`；严格校验通过 **4 profiles / 13 source files** | [构建报告](../../apps/web/firmware/build-report.json)、[manifest](../../apps/web/firmware/manifest.json)、[最终C3网页／USB](../research/webserial-physical-verification.json)、[证书验证TLS八项](../research/device-client-live-verification.json)。未宣称S3/C6/原ESP32物理行为已验收。 |
+| R06 | L / N | private仓库实现已推送；Linux [CI通过](https://github.com/cccat6/iphone-agent-harness/actions/runs/39074641443)；线上 **111/111** 文件hash及社区签名十三项通过 | [分支最新检查](https://github.com/cccat6/iphone-agent-harness/actions/workflows/checks.yml)、[线上字节](../research/release-site-verification.json)、[API及清理](../research/deployment-verification.json)、[原生官网](../research/desktop-site-verification.json)。最终文档回执沿用同一运行时。 |
+| R07 | D / A | 发布证据、八语README、许可证、本地已知敏感值扫描及文档链接已核对 | [发布汇总](../research/release-acceptance.md)、[验证记录](../research/release-verification.json)、[MIT](../../LICENSE)、[第三方声明](../../THIRD_PARTY_NOTICES.md)。记录精确数量与范围，不冒充任意敏感信息检测。 |
 
 ## 会话、设置与本地数据
 
@@ -28,7 +28,7 @@
 | S04 | N | 同一页面内A/B草稿隔离；不承诺刷新恢复未发送草稿 | [R4](../research/independent-web-r4.md)。 |
 | S05 | A / N | IndexedDB v1→v2、最近80条、向前游标分页无遗漏／重复 | [真实IDB与165条原生记录](../research/harness-ui-verification.md)、[存储夹具](../../tests/browser/storage.html)。 |
 | S06 | A / N | 消息、工具记录、图片Blob持久化；普通对话隐藏内部运行记录 | [core](../../tests/web/core.test.mjs)、[运行时集成](../../tests/web/runtime-integration.test.mjs)、[真实IDB](../research/harness-ui-verification.md)。 |
-| S07 | A / N | 完整`iah-session` v2导出；独立导入，兼容v1；保留工具／图片／模型／模式 | [原生文件选择器／下载R4](../research/independent-web-r4.md)、[IDB导入导出](../research/harness-ui-verification.md)。会话导出不含账号vault或作者身份备份。 |
+| S07 | A / N | 完整`iah-session` v2导出；独立导入，兼容v1；保留工具／图片／模型／模式 | [原生文件选择器／下载R4](../research/independent-web-r4.md)、[IDB导入导出](../research/harness-ui-verification.md)。会话导出／导入共用64 MiB UTF-8 JSON上限（含内嵌图片）；超限导出在下载前拒绝，原有本地数据保留。Skill／创作者身份另有10 MiB导入上限。[大图片会话往返与边界](../../tests/web/backup-files.test.mjs)。会话导出不含账号vault或作者身份备份。 |
 | S08 | A / N | 存储估算、如实显示持久化申请结果、刷新保留设置 | [core](../../tests/web/core.test.mjs)、[原生设置](../research/harness-ui-verification.md)、[R4动态语言](../research/independent-web-r4.md)。浏览器仍可清理数据。 |
 | S09 | A / D | localStorage保存语言偏好；会话／Blob／设置在IndexedDB；存储失败可见 | [i18n](../../tests/web/i18n.test.mjs)、[路由／存储失败](../../tests/web/compatibility-routing.test.mjs)、[语言源码](../../apps/web/i18n.js)。没有云端会话同步。 |
 | S10 | A | 会话／run互斥、防重复发送、持久终止状态、本地历史搜索 | [Harness](../../tests/web/harness.test.mjs)、[运行时集成](../../tests/web/runtime-integration.test.mjs)、[独立core](../research/independent-core-r5.md)。 |
@@ -104,10 +104,10 @@
 
 | ID | 状态 | 功能／预期行为 | 证据与边界 |
 |---|---|---|---|
-| B01 | D / A | ESP32/C3/S3/C6≥4MB、固定依赖、白名单干净构建、实际偏移／大小／SHA-256 | [固件说明](../../firmware/IPhoneAutomationHarness/README.md)、[产物测试](../../tools/build_firmware_test.py)、[R6](../research/independent-lifecycle-r6.md)。最终产物待R05；不支持S2/H2。 |
-| B02 | A / N | 桌面用户手势打开Web Serial、清单／芯片／hash校验、进度／错误／清理、安装中导航保护 | [core/flasher](../../tests/web/core.test.mjs)、[串口](../../tests/web/serial-setup.test.mjs)、[UI记录](../architecture/web-ui.md)。模拟UI不证明浏览器已真正写入。 |
+| B01 | D / A | ESP32/C3/S3/C6≥4MB，固定依赖、干净构建、实际偏移／大小／SHA-256；四种均匹配当前十三源码 | [固件](../../firmware/IPhoneAutomationHarness/README.md)、[manifest与构建来源](../../apps/web/firmware/build-report.json)、[严格校验器](../../tools/build_firmware.py)。排除S2/H2；仅硬件支持时保留CDC。 |
+| B02 | A / N / L | Web Serial主动选择、芯片／hash／容量、进度／清理；真实C3四段MD5与自动启动 | [原生硬件记录](../research/webserial-physical-verification.json)、[新串口R11](../research/independent-serial-r11.md)、[生命周期回归](../../tests/web/serial-lifecycle.test.mjs)。只打开1101；其他板型仅编译／完整性。 |
 | B03 | L | 最终授权C3刷写；不整片擦除更新后USB设置／profile／CA指纹保留 | [最终源码client TLS](../research/device-client-live-verification.json)记录源码及镜像hash；保留[早期物理历史](../research/device-physical-verification.json)。原生Web Serial安装另见B02。 |
-| B04 | A / N | USB读显式触发、密码遮蔽／显示／清除／销毁；导出profile需CA就绪且指纹一致 | [串口](../../tests/web/serial-setup.test.mjs)、[原生USB夹具](../architecture/device-ui.md)。夹具不接触串口。 |
+| B04 | A / N / L | 选择窗口等待34秒后USB读取；owner／AP密码遮蔽、清除；真实CA响应先匹配指纹 | [原生USB](../research/webserial-physical-verification.json)、[串口测试](../../tests/web/serial-setup.test.mjs)。Chrome拦截未经验证的描述文件下载；未绕过／安装。手机可从板子受保护页面取得并手动安装CA。 |
 | B05 | D / A | 单客户端受保护AP或物理USB配网、Wi-Fi/origin/time保存、finish／重开窗口期限 | [固件说明](../../firmware/IPhoneAutomationHarness/README.md)、[R6修复](../research/independent-lifecycle-r6.md)。手机AP／回网待P02。 |
 | B06 | D / A | 每板CA／叶证书、时间修正／续期及信任变更提示、NVS读回／提交失败关闭 | [固件R1](../research/independent-firmware-r1.md)、[R6修复调用链](../research/independent-lifecycle-r6.md)。未执行真实掉电／续期实验。 |
 | B07 | L / A | C3真实CA及DNS验证HTTPS身份／能力／时钟、错来源／缺token拒绝 | [真实TLS](../research/device-tls-verification.json)、[client live](../research/device-client-live-verification.json)、[设备测试](../../tests/web/device.test.mjs)。Mac缓存IP仍验证DNS；Safari/mDNS/完全信任待手机。 |
@@ -131,16 +131,16 @@
 | ID | 状态 | 功能／预期行为 | 证据与边界 |
 |---|---|---|---|
 | W01 | A / N / L | 手机`/` Harness，桌面转`/main`；`/main` `/skills` `/flash`；旧链接归一、前进后退不重建run | [路由](../../tests/web/routing.test.mjs)、[原生UI](../research/harness-ui-verification.md)、[线上HTTPS](../research/deployment-verification.json)。 |
-| W02 | A / L | 仅指定文档路径回退；缺模块真404；`/api/skills`为JSON | [路由](../../tests/web/routing.test.mjs)、[线上](../research/deployment-verification.json)。最终部署待R06。 |
+| W02 | A / L | 仅指定文档路径回退、缺模块真404、`/api/skills`为JSON | [路由](../../tests/web/routing.test.mjs)、[实际路由API](../research/deployment-verification.json)、[线上111文件hash](../research/release-site-verification.json)。 |
 | W03 | A / N | iOS/iPadOS27+ Safari/PWA及能力预检、iPad桌面UA；低版本门禁不可Esc/Tab/背景关闭 | [兼容](../../tests/web/compatibility.test.mjs)、[兼容路由](../../tests/web/compatibility-routing.test.mjs)、[原生R3](../research/independent-web-r3.md)。桌面UA不等于旧iPhone真机。 |
 | W04 | A / N | ES5启动回退，现代模块无法解析／加载仍有公共内容 | [bootstrap](../../tests/web/bootstrap.test.mjs)、[旧版架构](../architecture/legacy-bootstrap.md)、[原生R3](../research/independent-web-r3.md)。 |
 | W05 | A / N | 英／简中／繁中／日／俄／德／法／西；系统优先、手动／刷新保留 | [i18n](../../tests/web/i18n.test.mjs)、[动态](../../tests/web/i18n-dynamic.test.mjs)、[新R6](../research/independent-web-r6.md)。原生选定语言流程加八语模块合同，不宣称所有页面八语均做真机视觉检查。 |
 | W06 | A / N | 动态错误／帮助／空态随语言更新；用户标题／消息／模型ID／Skill正文保留 | [组合状态](../../tests/web/localized-status.test.mjs)、[R9/R10](../research/independent-device-identity-r10.md)、[真实DOM四十项语言断言](../research/desktop-panel-localization-verification.json)、[原生R6](../research/independent-web-r6.md)。 |
 | W07 | D / N | 手机safe-area／视口／输入栏、桌面主页社区烧录、名称／图标／manifest／无远端字体 | [UI截图](../research/harness-ui-verification.md)、[Web UI](../architecture/web-ui.md)。真实键盘／旋转／触控待P01/P10。 |
-| W08 | D | 八份互链README、运行构建说明、架构研究链接、硬件及真实边界 | [英文](../../README.md)、[简中](../readme/zh-Hans.md)、[繁中](../readme/zh-Hant.md)、[日](../readme/ja.md)、[俄](../readme/ru.md)、[德](../readme/de.md)、[法](../readme/fr.md)、[西](../readme/es.md)。最终提交／CI见R06。 |
+| W08 | D / L | 八份README互链、构建／自托管路由、架构研究、硬件边界及完整双语清单 | [英文](../../README.md)、[简中](../readme/zh-Hans.md)、[语言入口](../architecture/localization.md)、[GitHub](https://github.com/cccat6/iphone-agent-harness)。 |
 | W09 | D / L | GitHub仓库身份、private、英语description、igent.cc主页已核对 | [仓库](https://github.com/cccat6/iphone-agent-harness)、[多语言约定](../architecture/localization.md)。GitHub description单字段不自动切语；八份README提供其他语言，最终源码同步／CI见R06。 |
 | W10 | D | 原创MIT、上游license／notice保留、依赖版本及重建／重链说明 | [LICENSE](../../LICENSE)、[声明](../../THIRD_PARTY_NOTICES.md)、[固件许可证](../../apps/web/firmware/licenses/)、[vendor说明](../../apps/web/vendor/README.md)。 |
-| W11 | A / L / F | 静态产物排除本地密钥／参考仓库；仅验收用社区数据已清理 | [线上报告](../research/deployment-verification.json)、[构建器](../../tools/build_web.mjs)、[产物测试](../../tools/build_firmware_test.py)。最终敏感信息扫描／hash见R07/R05。 |
+| W11 | A / L | 静态产物不含本地凭据／参考源码；公开验收临时revision已删除 | [实际清理](../research/deployment-verification.json)、[最终扫描／来源](../research/release-verification.json)、[构建过滤](../../tools/build_web.mjs)。为精确已知值扫描，不是任意DLP。 |
 
 ## 暂缓的手机验收——用户只需配合手机
 
@@ -165,6 +165,6 @@
 
 ## 完成记录
 
-维护者填写：最终commit／CI链接／线上资源核验／四芯片source及application hash／C3已刷hash／独立R5 UI与R6-F1关闭／最终敏感信息扫描：**待最终发布核验**。
+维护者回执：[发布证据](../research/release-acceptance.md)、[验证记录](../research/release-verification.json)、[CI](https://github.com/cccat6/iphone-agent-harness/actions/workflows/checks.yml)、[线上字节](../research/release-site-verification.json)、[真实C3安装](../research/webserial-physical-verification.json)。电脑清单已在所述证据范围内完成。
 
 手机记录：P01–P13、可选P14–P16、真实画面／可见结果、失败与重测ID：**等待用户有空配合手机，暂缓执行**。不能从电脑清单推定手机通过。

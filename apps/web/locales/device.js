@@ -1,4 +1,4 @@
-// Device onboarding copy. User data and protocol fields are never translated.
+// Device onboarding messages; protocol identifiers and user values are never translated.
 export const DEVICE_MESSAGES = {
   "en": {
     "title": "Connect your input bridge",
@@ -78,7 +78,7 @@ export const DEVICE_MESSAGES = {
     "usbCaPending": "The board has not created its CA yet. Configure Wi-Fi through its protected hotspot, then read setup information again.",
     "usbReady": "Local setup information received. Pairing and phone input verification are still required on your phone.",
     "usbDownloadProfile": "Read and download this board’s CA profile",
-    "usbDownloaded": "CA profile downloaded. Install it on your phone yourself and enable full trust only after checking its fingerprint.",
+    "usbDownloaded": "CA profile download requested. If your browser blocks it, get the profile from the board’s protected setup page. Install it on your phone after checking its fingerprint.",
     "usbClear": "Clear setup information from this page",
     "usbProfileMismatch": "This CA profile does not match the board information just read. Select the same board and read its setup information again."
   },
@@ -160,7 +160,7 @@ export const DEVICE_MESSAGES = {
     "usbCaPending": "板子尚未生成 CA。请先连接受保护热点完成 Wi-Fi 配置，再次读取信息。",
     "usbReady": "已读取本地配网信息；仍需在手机上完成配对与输入验证。",
     "usbDownloadProfile": "读取并下载此板子的 CA 描述文件",
-    "usbDownloaded": "CA 描述文件已下载。请自行在手机安装，核对指纹后再开启完全信任。",
+    "usbDownloaded": "已请求下载 CA 描述文件。若浏览器拦截，请从板子的受保护配网页面获取。核对指纹后再自行安装到手机。",
     "usbClear": "清除本页配网信息",
     "usbProfileMismatch": "CA 描述文件与刚读取的板子信息不匹配，请选择同一块板子并重新读取。"
   },
@@ -242,7 +242,7 @@ export const DEVICE_MESSAGES = {
     "usbCaPending": "板子尚未產生 CA。請先連接受保護熱點完成 Wi-Fi 設定，再次讀取資訊。",
     "usbReady": "已讀取本機配網資訊；仍需在手機上完成配對與輸入驗證。",
     "usbDownloadProfile": "讀取並下載此板子的 CA 描述檔",
-    "usbDownloaded": "CA 描述檔已下載。請自行在手機安裝，核對指紋後再開啟完全信任。",
+    "usbDownloaded": "已請求下載 CA 描述檔。若瀏覽器攔截，請從開發板的受保護設定頁取得。核對指紋後再自行安裝到手機。",
     "usbClear": "清除本頁配網資訊",
     "usbProfileMismatch": "CA 描述檔與剛讀取的板子資訊不符，請選擇同一塊板子並重新讀取。"
   },
@@ -324,7 +324,7 @@ export const DEVICE_MESSAGES = {
     "usbCaPending": "ボードのCAはまだ作成されていません。保護されたホットスポットでWi-Fiを設定後、再度読み取ってください。",
     "usbReady": "設定情報を読み取りました。端末側でペアリングと入力確認が必要です。",
     "usbDownloadProfile": "このボードのCAプロファイルを読み取って保存",
-    "usbDownloaded": "CAプロファイルを保存しました。端末に手動でインストールし、指紋を確認してから完全な信頼を有効にしてください。",
+    "usbDownloaded": "CAプロファイルのダウンロードを要求しました。ブラウザーにブロックされた場合は、ボードの保護された設定ページから取得してください。指紋を確認してから端末にインストールしてください。",
     "usbClear": "このページの設定情報を消去",
     "usbProfileMismatch": "CAプロファイルが先ほどのボード情報と一致しません。同じボードを選び、情報を読み直してください。"
   },
@@ -406,7 +406,7 @@ export const DEVICE_MESSAGES = {
     "usbCaPending": "ЦС платы ещё не создан. Настройте Wi-Fi через защищённую точку доступа и прочитайте данные снова.",
     "usbReady": "Локальные данные прочитаны. На телефоне ещё нужны сопряжение и проверка ввода.",
     "usbDownloadProfile": "Прочитать и скачать профиль ЦС этой платы",
-    "usbDownloaded": "Профиль ЦС скачан. Установите его на телефоне вручную и включите полное доверие только после проверки отпечатка.",
+    "usbDownloaded": "Запрошена загрузка профиля CA. Если браузер блокирует её, получите профиль на защищённой странице настройки платы. Проверьте отпечаток перед установкой на телефон.",
     "usbClear": "Очистить данные настройки на странице",
     "usbProfileMismatch": "Профиль ЦС не совпадает с прочитанной платой. Выберите ту же плату и снова прочитайте данные."
   },
@@ -488,7 +488,7 @@ export const DEVICE_MESSAGES = {
     "usbCaPending": "Die Board-CA wurde noch nicht erstellt. Erst WLAN über den geschützten Hotspot einrichten, dann erneut lesen.",
     "usbReady": "Lokale Daten gelesen. Kopplung und Eingabeprüfung auf dem iPhone stehen noch aus.",
     "usbDownloadProfile": "CA-Profil dieses Boards lesen und herunterladen",
-    "usbDownloaded": "CA-Profil heruntergeladen. Auf dem iPhone selbst installieren und erst nach Prüfung des Fingerabdrucks vollständig vertrauen.",
+    "usbDownloaded": "Der Download des CA-Profils wurde angefordert. Falls der Browser ihn blockiert, nutzen Sie die geschützte Einrichtungsseite des Boards. Prüfen Sie den Fingerabdruck vor der Installation auf dem Telefon.",
     "usbClear": "Einrichtungsdaten von dieser Seite löschen",
     "usbProfileMismatch": "Das CA-Profil passt nicht zu den gelesenen Board-Daten. Dasselbe Board auswählen und erneut lesen."
   },
@@ -570,7 +570,7 @@ export const DEVICE_MESSAGES = {
     "usbCaPending": "L’AC de la carte n’est pas encore créée. Configurez le Wi-Fi via le point d’accès protégé, puis relisez les informations.",
     "usbReady": "Configuration locale reçue. L’association et la vérification de saisie restent à faire sur le téléphone.",
     "usbDownloadProfile": "Lire et télécharger le profil d’AC de cette carte",
-    "usbDownloaded": "Profil d’AC téléchargé. Installez-le vous-même sur le téléphone et activez la confiance totale après vérification de son empreinte.",
+    "usbDownloaded": "Le téléchargement du profil CA a été demandé. Si le navigateur le bloque, récupérez-le sur la page de configuration protégée de la carte. Vérifiez son empreinte avant de l’installer sur le téléphone.",
     "usbClear": "Effacer la configuration de cette page",
     "usbProfileMismatch": "Le profil d’AC ne correspond pas à la carte lue. Sélectionnez la même carte et relisez ses informations."
   },
@@ -652,7 +652,7 @@ export const DEVICE_MESSAGES = {
     "usbCaPending": "La placa aún no ha creado su CA. Configura el Wi-Fi mediante su punto de acceso protegido y vuelve a leer los datos.",
     "usbReady": "Datos locales recibidos. Aún debes emparejar y verificar la entrada en el teléfono.",
     "usbDownloadProfile": "Leer y descargar el perfil CA de esta placa",
-    "usbDownloaded": "Perfil CA descargado. Instálalo manualmente en el teléfono y activa la confianza total solo tras verificar su huella.",
+    "usbDownloaded": "Se solicitó la descarga del perfil CA. Si el navegador la bloquea, obtén el perfil en la página de configuración protegida de la placa. Comprueba su huella antes de instalarlo en el teléfono.",
     "usbClear": "Borrar la configuración de esta página",
     "usbProfileMismatch": "El perfil CA no coincide con los datos leídos. Selecciona la misma placa y vuelve a leerlos."
   }

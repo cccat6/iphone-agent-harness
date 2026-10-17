@@ -2,6 +2,7 @@ import { getBrowserCompatibility } from './core/compatibility.js';
 import { SITE_CONFIG } from './site-config.js';
 import { t, getLocale, getLocalePreference, setLocale, subscribe, SUPPORTED_LOCALES, translateText, translationKey, localizeError, registerErrorCatalog, skillMetadata } from './i18n.js';
 import { openStore } from './core/store.js';
+import { readImportFile, sessionBackupBlob, SESSION_BACKUP_BYTES, BACKUP_ERRORS } from './core/backup-files.js';
 import { createHarness, chatExecutionContext } from './core/harness.js';
 import { setCredential, hasCredential, getCredential } from './core/credentials.js';
 import { createDevicePanel } from './ui/device-panel.js';
@@ -24,6 +25,7 @@ const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 const escapeHTML = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 const state = { store:null, harness:null, device:null, devicePanel:null, mcpAccess:null, mcpPanel:null, settings:{}, sessions:[], current:null, messages:[], messageLimit:80, hasOlder:false, archived:false, running:false, submitting:false, runGeneration:0, pending:null, skills:[], catalog:[], skillTab:'local', providerEdit:null, providerModels:[], drafts:new Map(), abort:null, lastError:null };
 const capture = screenCapture;
+registerErrorCatalog(BACKUP_ERRORS);
 const vaultPassphrases=new Map();let vaultWrite=Promise.resolve();
 setCodexTokenObserver(({id,event})=>{
   if(event!=='refreshed'||!vaultPassphrases.has(id)||!state.store)return;
@@ -70,8 +72,8 @@ function profileModels(profile) {
 function selectedProvider() { const {providerId}=selectionParts($('#model-select').value);return providers().find(provider=>provider.id===providerId); }
 function dateLabel(value) { const date=new Date(value); return Number.isNaN(+date)?'':new Intl.DateTimeFormat(getLocale(),{month:'short',day:'numeric'}).format(date); }
 function shortId() { return crypto.randomUUID ? crypto.randomUUID() : `id-${Date.now()}-${Math.random().toString(16).slice(2)}`; }
-function download(value,name,type='application/json') { const blob=new Blob([typeof value==='string'?value:JSON.stringify(value,null,2)],{type}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(url),1000); }
-function chooseFile(accept,callback) { const input=$('#file-input'); input.value=''; input.accept=accept; input.onchange=guard(async()=>{const file=input.files[0]; if(!file)return; if(file.size>10*1024*1024) throw new Error('文件超过 10 MB，请分开导入。'); await callback(await file.text(),file.name);}); input.click(); }
+function download(value,name,type='application/json') { const blob=value instanceof Blob?value:new Blob([typeof value==='string'?value:JSON.stringify(value,null,2)],{type}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(url),1000); }
+function chooseFile(accept,callback,maxBytes) { const input=$('#file-input'); input.value=''; input.accept=accept; input.onchange=guard(async()=>{const file=input.files[0]; if(!file)return; await callback(await readImportFile(file,{maxBytes}),file.name);}); input.click(); }
 function safeURL(value) { const url=new URL(value,location.href); if(!['http:','https:'].includes(url.protocol))throw new Error('仅支持 HTTP 或 HTTPS 地址。'); if(url.username||url.password)throw new Error('请不要把凭据写入网址。'); return url.href; }
 function activeSkills() { return state.skills.filter(skill=>skill.enabled!==false); }
 function systemTextHTML(key,variables={}) {return `<span data-no-i18n data-i18n="${escapeHTML(key)}" data-i18n-vars="${escapeHTML(JSON.stringify(variables))}">${escapeHTML(t(key,variables))}</span>`;}
@@ -154,7 +156,7 @@ async function showSessionMenu() {
     if(action==='pin')await state.store.updateSession(session.id,{pinned:!session.pinned});
     if(action==='archive')await state.store.updateSession(session.id,{archived:!session.archived});
     if(action==='copy'){await navigator.clipboard.writeText(session.id);toast('会话 ID 已复制。');}
-    if(action==='export'){download(await state.store.exportSession(session.id),`session-${session.id}.json`);toast('会话已导出。');}
+    if(action==='export'){download(sessionBackupBlob(await state.store.exportSession(session.id)),`session-${session.id}.json`);toast('会话已导出。');}
     if(action==='delete'){if(!confirm(t('confirm.deleteSession')))return;if(state.running)throw new Error('请先停止任务。');await state.store.deleteSession(session.id);state.drafts.delete(session.id);$('#message-input').value='';resizeInput();state.current=null;state.messages=[];$('#session-menu').hidden=true;$('#session-title').textContent='iPhone Agent Harness';$('#session-subtitle').textContent='你的设备，你的模型，你的会话。';renderMessages();}
     await refreshSessions();if(state.current)await openSession(session.id);
   }));$('#action-dialog').showModal();
@@ -187,7 +189,7 @@ async function showSettings() {
   $$('[data-provider-edit]').forEach(button=>button.onclick=()=>renderProviderForm(list.find(provider=>provider.id===button.dataset.providerEdit)));
   $$('[data-provider-default]').forEach(button=>button.onclick=guard(async()=>{state.settings=await state.store.saveSettings({activeProviderId:button.dataset.providerDefault});renderModelOptions();await showSettings();}));
   $$('[data-provider-delete]').forEach(button=>button.onclick=guard(async()=>{if(!confirm(t('confirm.removeProvider')))return;const remaining=providers().filter(provider=>provider.id!==button.dataset.providerDelete);const credentialVault={...state.settings.credentialVault};delete credentialVault[button.dataset.providerDelete];state.settings=await state.store.saveSettings({credentialVault,providers:remaining,activeProviderId:state.settings.activeProviderId===button.dataset.providerDelete?remaining[0]?.id||'':state.settings.activeProviderId});setCredential(button.dataset.providerDelete,'');removeCodexAccount(button.dataset.providerDelete);vaultPassphrases.delete(button.dataset.providerDelete);renderModelOptions();await showSettings();}));
-  $('#import-session').onclick=()=>chooseFile('.json,application/json',async text=>{const session=await state.store.importSession(JSON.parse(text),{titleSuffix:t('session.importSuffix'),fallbackTitle:t('session.importFallback')});$('#panel-dialog').close();await refreshSessions();await openSession(session.id);toast('会话已导入。');});
+  $('#import-session').onclick=()=>chooseFile('.json,application/json',async text=>{const session=await state.store.importSession(JSON.parse(text),{titleSuffix:t('session.importSuffix'),fallbackTitle:t('session.importFallback')});$('#panel-dialog').close();await refreshSessions();await openSession(session.id);toast('会话已导入。');},SESSION_BACKUP_BYTES);
   $('#request-persistence').onclick=guard(async()=>{if(!navigator.storage?.persist)throw new Error('当前浏览器未提供持久存储申请。');const granted=await navigator.storage.persist();setPanelStatus(granted?'浏览器已允许持久存储。仍建议导出重要会话。':'浏览器尚未授予持久存储。可添加到主屏幕后重试。');await renderStorage();});
   await renderStorage();
 }
