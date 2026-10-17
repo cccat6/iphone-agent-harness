@@ -58,5 +58,17 @@
     "storageChecks": 9,
     "componentCases": 5,
     "componentLocaleAssertions": 40
+  },
+  "deployment": {
+    "checkedAt": "2026-10-17T22:08:54.641244+00:00",
+    "origin": "https://igent.cc",
+    "worker": "igent-web",
+    "deploymentId": "d56a7be75f7b45b8b3dcf242f93070b2",
+    "workerEtag": "431c1997f5d4516fd77c2f0bbd661f717b81a92f661b031cc15ad7f77b53739d",
+    "assetFiles": 111,
+    "allFileHashesPassed": true,
+    "routeAndSignedCommunityChecks": 13,
+    "disposableCommunityRowsRemoved": 2,
+    "remainingTestRows": 0
   }
 }

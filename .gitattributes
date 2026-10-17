@@ -4,3 +4,6 @@
 *.jpg binary
 *.jpeg binary
 *.webp binary
+
+# Preserve the upstream license byte for byte, including its original padding.
+apps/web/firmware/licenses/TinyCrypt-LICENSE -whitespace

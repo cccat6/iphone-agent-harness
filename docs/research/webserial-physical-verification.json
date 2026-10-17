@@ -1,0 +1,32 @@
+{
+  "checkedAt": "2026-10-17T22:17:29.274031+00:00",
+  "origin": "https://igent.cc/flash",
+  "devicePort": "/dev/cu.usbmodem1101",
+  "otherSerialPortsOpened": false,
+  "scope": "Real desktop Chrome Web Serial on the explicitly authorized C3; no phone or HID action.",
+  "firmware": {
+    "sourceSha256": "4b4ebc2e65b3a7b1ebac4b4463c67ae2cb805f3ef85c1eece9e23bb1b435f8f0",
+    "applicationSha256": "ccead46859f7c8d15ff8ca04136cb1673677e1c5e232ca8fff76c2030afc7971",
+    "applicationBytes": 1511792
+  },
+  "initialAttempt": {
+    "writeVerificationReported": true,
+    "automaticAppBootObserved": false,
+    "usbSetupRead": false,
+    "tcp443Reachable": false,
+    "cliApplicationReadbackMatchesExpected": true,
+    "recoveredByCliResetWithoutRewrite": true,
+    "wholeChipErased": false
+  },
+  "repairs": {
+    "actualResetPulseWithDtrCleared": true,
+    "chooserTimeExcludedFromIoDeadline": true,
+    "lateUncancellableOpenCleanup": true
+  },
+  "sources": [
+    "https://github.com/espressif/esptool-js/blob/v0.7.0/src/reset.ts",
+    "https://github.com/espressif/esptool/blob/v5.3.1/esptool/reset.py"
+  ],
+  "finalNativeRetest": "pending",
+  "passed": false
+}

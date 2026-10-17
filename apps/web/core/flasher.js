@@ -36,7 +36,11 @@ export async function flashFirmware({profile,manifestUrl=manifestDefault,onProgr
     const {ESPLoader,Transport}=loaderModule||await import('../vendor/esptool-js/bundle.js');
     const md5=md5Impl||(await import('../vendor/js-md5/md5.js')).default;
     if(typeof md5!=='function')throw fail('flash_dependency','Firmware verification could not be initialized');
-    transport=new Transport(port,false);const loader=new ESPLoader({transport,baudrate:115200,debugLogging:false,terminal:{clean(){},write:log,writeLine:log}});
+    transport=new Transport(port,false);const loader=new ESPLoader({transport,baudrate:115200,debugLogging:false,
+      // esptool-js 0.7.0's default HardReset only releases RTS. Start an actual
+      // reset pulse and clear its cached DTR first, so IO0 is not held low.
+      resetConstructors:{hardReset:(link,usingUsbOtg=false)=>({async reset(){await link.setDTR(false);await link.setRTS(true);await new Promise(resolve=>setTimeout(resolve,200));await link.setRTS(false);if(usingUsbOtg)await new Promise(resolve=>setTimeout(resolve,200));}})},
+      terminal:{clean(){},write:log,writeLine:log}});
     const description=await loader.main(),detected=normalizeChip(loader.chip?.CHIP_NAME||description);if(!detected.startsWith(profile.chip)||profile.chip==='esp32'&&detected!=='esp32')throw fail('flash_chip_mismatch','Selected firmware does not match the connected chip');
     const capacity=await loader.detectFlashSize();if(!capacity||loader.flashSizeBytes(capacity)<profile.minFlashMB*1048576)throw fail('flash_capacity','The connected device needs at least 4 MB of flash');
     const total=files.reduce((n,f)=>n+f.data.length,0),progress=files.map(()=>0);
@@ -57,10 +61,16 @@ export function parseDeviceSetupLine(line,{profile=false}={}){
 }
 export async function readDeviceSetup({port,profile=false,serial=globalThis.navigator?.serial,signal,timeoutMs=10000}={}){
   if(flashing||serialReading)throw fail('flash_busy','Firmware operation is already running');if(!port&&!serial?.requestPort)throw fail('flash_unsupported','Web Serial is unavailable');
-  serialReading=true;let reader,writer,opened=false;const timeout=new AbortController(),timer=setTimeout(()=>timeout.abort(new Error('USB setup timed out')),timeoutMs),active=signal?AbortSignal.any([signal,timeout.signal]):timeout.signal;
+  serialReading=true;let reader,writer,opened=false,timer;const timeout=new AbortController(),active=signal?AbortSignal.any([signal,timeout.signal]):timeout.signal;
   try{
     checkAbort(active);port=port||await serial.requestPort();checkAbort(active);
-    if(!port.readable){await abortable(port.open({baudRate:115200}),active);opened=true;}
+    // User deliberation in the native chooser is not a device I/O timeout.
+    timer=setTimeout(()=>timeout.abort(new Error('USB setup timed out')),timeoutMs);
+    if(!port.readable){
+      const opening=port.open({baudRate:115200});
+      try{await abortable(opening,active);opened=true;}
+      catch(error){Promise.resolve(opening).then(()=>port.close()).catch(()=>{});throw error;}
+    }
     if(!port.readable||!port.writable||port.readable.locked||port.writable.locked)throw fail('flash_setup_busy','The selected serial port is in use');
     reader=port.readable.getReader();writer=port.writable.getWriter();
     await abortable(writer.write(new TextEncoder().encode(JSON.stringify({op:profile?'setup-profile':'setup-info'})+'\n')),active);
