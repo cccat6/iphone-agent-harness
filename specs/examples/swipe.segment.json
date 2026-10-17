@@ -1,0 +1,50 @@
+{
+  "protocolVersion": 1,
+  "boardId": "board-demo",
+  "bootId": "boot-demo",
+  "targetId": "phone-A",
+  "clientId": "client-A",
+  "leaseId": "lease-A",
+  "segmentId": "segment-swipe-1",
+  "planId": "plan-swipe-release",
+  "segmentIndex": 0,
+  "ttlMs": 5000,
+  "events": [
+    {
+      "atMs": 0,
+      "kind": "pointer",
+      "buttons": 1,
+      "x": 5000,
+      "y": 8000
+    },
+    {
+      "atMs": 150,
+      "kind": "pointer",
+      "buttons": 1,
+      "x": 5000,
+      "y": 5800
+    },
+    {
+      "atMs": 280,
+      "kind": "pointer",
+      "buttons": 1,
+      "x": 5000,
+      "y": 2500
+    },
+    {
+      "atMs": 320,
+      "kind": "pointer",
+      "buttons": 1,
+      "x": 5000,
+      "y": 1500
+    },
+    {
+      "atMs": 320,
+      "kind": "pointer",
+      "buttons": 0,
+      "x": 5000,
+      "y": 1500
+    }
+  ],
+  "payloadHash": "9de1dadcd2c79414c2841adebd38cad3dd520f110121c9e59ca94f615ae66927"
+}

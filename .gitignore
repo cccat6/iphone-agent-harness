@@ -1,0 +1,22 @@
+tools/libraries/
+tools/certificates/
+build/
+*.local.json
+research/ios27-web-chain/network-token.txt
+research/ios27-web-chain/relay-state.json
+firmware/phone_chain_c3/relay_config.h
+firmware/phone_chain_c3_input_probe/relay_config.h
+backups/
+.env
+.env.*
+!.env.example
+__pycache__/
+*.pyc
+.DS_Store
+# Historical physical experiments stay local; product firmware is tracked separately.
+research/ios27-web-chain/
+firmware/phone_chain_c3/
+firmware/phone_chain_c3_input_probe/
+tools/c3_serial_monitor.py
+research/harness-reference/repos/
+research/harness-reference/archives/

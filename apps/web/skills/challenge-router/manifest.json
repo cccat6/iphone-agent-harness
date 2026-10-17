@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "challenge-router",
+  "version": "0.1.0",
+  "description": "Design template: route a visible verification challenge to a compatible family skill.",
+  "entry": "SKILL.md",
+  "protocolVersion": 1,
+  "requiredCapabilities": [
+    "capture.frames",
+    "harness.skills",
+    "model.images"
+  ],
+  "families": [
+    "checkbox",
+    "text",
+    "image-selection",
+    "slider",
+    "rotation-order",
+    "temporal"
+  ],
+  "files": [
+    {
+      "path": "SKILL.md",
+      "sha256": "41c30b8eef9072265542b5466424d861d3b44f8f901bd8de5b56547ba7db3a4e",
+      "bytes": 1494
+    }
+  ]
+}

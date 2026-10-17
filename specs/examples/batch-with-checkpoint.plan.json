@@ -1,0 +1,75 @@
+{
+  "version": 1,
+  "planId": "plan-batch-with-checkpoint",
+  "sessionId": "session-demo",
+  "boardId": "board-demo",
+  "targetId": "phone-A",
+  "basedOnFrameId": "frame-before",
+  "orientationEpoch": 1,
+  "ttlMs": 15000,
+  "maxExecutionMs": 15000,
+  "steps": [
+    {
+      "id": "tap-open",
+      "op": "tap",
+      "point": {
+        "x": 2500,
+        "y": 4000
+      },
+      "holdMs": 80
+    },
+    {
+      "id": "wait-render",
+      "op": "wait",
+      "durationMs": 400
+    },
+    {
+      "id": "mid",
+      "op": "capture",
+      "frames": {
+        "count": 1,
+        "intervalMs": 0,
+        "timeoutMs": 5000
+      },
+      "review": false,
+      "label": "after-open"
+    },
+    {
+      "id": "scroll",
+      "op": "swipe",
+      "path": [
+        {
+          "x": 5000,
+          "y": 8000,
+          "tMs": 0
+        },
+        {
+          "x": 5000,
+          "y": 5800,
+          "tMs": 150
+        },
+        {
+          "x": 5000,
+          "y": 2500,
+          "tMs": 280
+        },
+        {
+          "x": 5000,
+          "y": 1500,
+          "tMs": 320
+        }
+      ]
+    },
+    {
+      "id": "final",
+      "op": "capture",
+      "frames": {
+        "count": 1,
+        "intervalMs": 0,
+        "timeoutMs": 5000
+      },
+      "review": true,
+      "label": "after-scroll"
+    }
+  ]
+}

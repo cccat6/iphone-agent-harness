@@ -1,0 +1,365 @@
+[
+  {
+    "repository": "codex",
+    "path": "codex-rs/protocol/src/prompts/base_instructions/default.md",
+    "reviewed_lines": [
+      1,
+      110
+    ],
+    "file_sha256": "ac8ae107a0d72fe3476b430afb161ea4e67da2e446d778aefc44828160559807",
+    "file_lines": 275,
+    "url": "https://github.com/openai/codex/blob/ce0323f2f2d3b25e82806cd555237da3db4e1897/codex-rs/protocol/src/prompts/base_instructions/default.md#L1"
+  },
+  {
+    "repository": "codex",
+    "path": "codex-rs/core/src/session/turn.rs",
+    "reviewed_lines": [
+      560,
+      710
+    ],
+    "file_sha256": "a0140a3459a91fd353e21e337ad076c1a7f615ac628e2cc4db9f3e8f0bf3b0c9",
+    "file_lines": 3333,
+    "url": "https://github.com/openai/codex/blob/ce0323f2f2d3b25e82806cd555237da3db4e1897/codex-rs/core/src/session/turn.rs#L560"
+  },
+  {
+    "repository": "codex",
+    "path": "codex-rs/core/src/tools/parallel.rs",
+    "reviewed_lines": [
+      1,
+      120
+    ],
+    "file_sha256": "be06530c709b09c414df6ec4c8c6f26f117c319d144c8d52289327b3c71a6bb6",
+    "file_lines": 883,
+    "url": "https://github.com/openai/codex/blob/ce0323f2f2d3b25e82806cd555237da3db4e1897/codex-rs/core/src/tools/parallel.rs#L1"
+  },
+  {
+    "repository": "deepseek-harness",
+    "path": "packages/core/system-prompt/src/index.ts",
+    "reviewed_lines": [
+      1,
+      210
+    ],
+    "file_sha256": "9e254cddc9ef00072f9205950405ba8650bc43c8809fba6162da93253efc7f71",
+    "file_lines": 691,
+    "url": "https://github.com/deepseek-ai/deepseek-harness/blob/687f282e8625c6b8d11ff58211a90524be2e4317/packages/core/system-prompt/src/index.ts#L1"
+  },
+  {
+    "repository": "deepseek-harness",
+    "path": "packages/core/agent-loop/src/agent.ts",
+    "reviewed_lines": [
+      400,
+      565
+    ],
+    "file_sha256": "4add12f5c22bb1b8cf1dbc239c9b09fa3351feff2c936cb2b8900036468bd01b",
+    "file_lines": 705,
+    "url": "https://github.com/deepseek-ai/deepseek-harness/blob/687f282e8625c6b8d11ff58211a90524be2e4317/packages/core/agent-loop/src/agent.ts#L400"
+  },
+  {
+    "repository": "deepseek-harness",
+    "path": "packages/core/agent-loop/src/tool-calls.ts",
+    "reviewed_lines": [
+      1,
+      180
+    ],
+    "file_sha256": "5c7e8d8ff0028b436efdd13e5dffa4801d2311c211c3af039e7dab705f87b303",
+    "file_lines": 290,
+    "url": "https://github.com/deepseek-ai/deepseek-harness/blob/687f282e8625c6b8d11ff58211a90524be2e4317/packages/core/agent-loop/src/tool-calls.ts#L1"
+  },
+  {
+    "repository": "deepseek-harness",
+    "path": "packages/skill/tool-skill/src/index.ts",
+    "reviewed_lines": [
+      1,
+      115
+    ],
+    "file_sha256": "29f6cf10c7247379298d9a96a53aef9cb2b21dcf7266f57ab147860b27d7cc44",
+    "file_lines": 433,
+    "url": "https://github.com/deepseek-ai/deepseek-harness/blob/687f282e8625c6b8d11ff58211a90524be2e4317/packages/skill/tool-skill/src/index.ts#L1"
+  },
+  {
+    "repository": "deepseek-harness",
+    "path": "packages/skill/skill/README.md",
+    "reviewed_lines": [
+      1,
+      150
+    ],
+    "file_sha256": "6717d6df2c778e4a1ba07afee30206f3a0f3c414e5f49725d755ab7ced9995bb",
+    "file_lines": 150,
+    "url": "https://github.com/deepseek-ai/deepseek-harness/blob/687f282e8625c6b8d11ff58211a90524be2e4317/packages/skill/skill/README.md#L1"
+  },
+  {
+    "repository": "deepseek-harness",
+    "path": "packages/computer-use/computer-use/src/index.ts",
+    "reviewed_lines": [
+      1,
+      48
+    ],
+    "file_sha256": "cdab7238f2f9c9bce4a0bf1e458e1f5bf42346bd3f18d3f1cc276a9e3de0b1eb",
+    "file_lines": 48,
+    "url": "https://github.com/deepseek-ai/deepseek-harness/blob/687f282e8625c6b8d11ff58211a90524be2e4317/packages/computer-use/computer-use/src/index.ts#L1"
+  },
+  {
+    "repository": "deepseek-harness",
+    "path": "packages/experimental/computer-use-cua-driver-native/README.md",
+    "reviewed_lines": [
+      75,
+      144
+    ],
+    "file_sha256": "3b941a85f8d92ede99af54f8979d302dddeef22a1e1042e3d45c846005453667",
+    "file_lines": 144,
+    "url": "https://github.com/deepseek-ai/deepseek-harness/blob/687f282e8625c6b8d11ff58211a90524be2e4317/packages/experimental/computer-use-cua-driver-native/README.md#L75"
+  },
+  {
+    "repository": "deepseek-harness",
+    "path": "packages/session/session-persistence/README.md",
+    "reviewed_lines": [
+      1,
+      100
+    ],
+    "file_sha256": "ba4defbb2f0cece9b1b3b53f564d1a0053a75b7fbbbf960022a69993a6094abf",
+    "file_lines": 165,
+    "url": "https://github.com/deepseek-ai/deepseek-harness/blob/687f282e8625c6b8d11ff58211a90524be2e4317/packages/session/session-persistence/README.md#L1"
+  },
+  {
+    "repository": "deepseek-harness",
+    "path": "packages/compaction/compaction/src/index.ts",
+    "reviewed_lines": [
+      1,
+      110
+    ],
+    "file_sha256": "1d50528c7daf5950e79d7edb2fabca48da6682fc536e911c9f64e4d0bdea4ba1",
+    "file_lines": 195,
+    "url": "https://github.com/deepseek-ai/deepseek-harness/blob/687f282e8625c6b8d11ff58211a90524be2e4317/packages/compaction/compaction/src/index.ts#L1"
+  },
+  {
+    "repository": "pi-mono",
+    "path": "packages/agent/src/agent-loop.ts",
+    "reviewed_lines": [
+      1,
+      340
+    ],
+    "file_sha256": "28a2b03e34a7e32f004aa851e54d3b5be9dad71c392205614cbc9abdf3a9020a",
+    "file_lines": 949,
+    "url": "https://github.com/badlogic/pi-mono/blob/8efd314fa3d3232ce197d8d7a6a5660530b9d83e/packages/agent/src/agent-loop.ts#L1"
+  },
+  {
+    "repository": "pi-mono",
+    "path": "packages/coding-agent/src/core/system-prompt.ts",
+    "reviewed_lines": [
+      127,
+      229
+    ],
+    "file_sha256": "5e28c82634113d0cca7ff5da6fa94e27aaae80e461cd5664ced9dbcef6f89089",
+    "file_lines": 229,
+    "url": "https://github.com/badlogic/pi-mono/blob/8efd314fa3d3232ce197d8d7a6a5660530b9d83e/packages/coding-agent/src/core/system-prompt.ts#L127"
+  },
+  {
+    "repository": "pi-mono",
+    "path": "packages/coding-agent/src/core/session-manager.ts",
+    "reviewed_lines": [
+      1,
+      125
+    ],
+    "file_sha256": "450d82c529933214e088b8422f00061815e617f352f6c834689787a314064bff",
+    "file_lines": 2013,
+    "url": "https://github.com/badlogic/pi-mono/blob/8efd314fa3d3232ce197d8d7a6a5660530b9d83e/packages/coding-agent/src/core/session-manager.ts#L1"
+  },
+  {
+    "repository": "opencode",
+    "path": "packages/core/src/session/system-prompt.ts",
+    "reviewed_lines": [
+      1,
+      28
+    ],
+    "file_sha256": "88f088f1bfa0b5e7dabfb6d3083c19d4203f7e12cc00a251494264a5b243f1dd",
+    "file_lines": 28,
+    "url": "https://github.com/anomalyco/opencode/blob/8c173a8f3805d8e749d44311054b07e37a1b2ce1/packages/core/src/session/system-prompt.ts#L1"
+  },
+  {
+    "repository": "opencode",
+    "path": "packages/core/src/session/runner/prompt/system.txt",
+    "reviewed_lines": [
+      1,
+      15
+    ],
+    "file_sha256": "ab9749036fe5a6b96c74c302900f67a9b249589b4fc4b8a8d18f3c6879dc506d",
+    "file_lines": 15,
+    "url": "https://github.com/anomalyco/opencode/blob/8c173a8f3805d8e749d44311054b07e37a1b2ce1/packages/core/src/session/runner/prompt/system.txt#L1"
+  },
+  {
+    "repository": "opencode",
+    "path": "packages/core/src/session/prompt.ts",
+    "reviewed_lines": [
+      1,
+      165
+    ],
+    "file_sha256": "4a453f9e57d3cc48fc7d6ea23504d1437c751620d7b97bff795c090f2941fc99",
+    "file_lines": 231,
+    "url": "https://github.com/anomalyco/opencode/blob/8c173a8f3805d8e749d44311054b07e37a1b2ce1/packages/core/src/session/prompt.ts#L1"
+  },
+  {
+    "repository": "opencode",
+    "path": "packages/core/src/session/runner/step.ts",
+    "reviewed_lines": [
+      90,
+      155
+    ],
+    "file_sha256": "63fb721e227ca6ece5b3ebd71bc554a57d034e5b5793e922938be10000238b23",
+    "file_lines": 321,
+    "url": "https://github.com/anomalyco/opencode/blob/8c173a8f3805d8e749d44311054b07e37a1b2ce1/packages/core/src/session/runner/step.ts#L90"
+  },
+  {
+    "repository": "opencode",
+    "path": "packages/core/src/session/runner/index.ts",
+    "reviewed_lines": [
+      1,
+      42
+    ],
+    "file_sha256": "e6e5cb41914fbcf10e3071899117a84c8539f777c2c0e6013089e4ecf2948c40",
+    "file_lines": 42,
+    "url": "https://github.com/anomalyco/opencode/blob/8c173a8f3805d8e749d44311054b07e37a1b2ce1/packages/core/src/session/runner/index.ts#L1"
+  },
+  {
+    "repository": "deepagents",
+    "path": "libs/deepagents/deepagents/graph.py",
+    "reviewed_lines": [
+      1,
+      170
+    ],
+    "file_sha256": "3826c92c9613a30d898d3fb4fb76ab49a6af0537b5ef74ec9e7340673f7f2261",
+    "file_lines": 1017,
+    "url": "https://github.com/langchain-ai/deepagents/blob/0c99fd026c4c41a08e6725a5e45d5ac111dcc6bb/libs/deepagents/deepagents/graph.py#L1"
+  },
+  {
+    "repository": "deepagents",
+    "path": "libs/deepagents/deepagents/middleware/skills.py",
+    "reviewed_lines": [
+      1,
+      110
+    ],
+    "file_sha256": "f3cc2139f2b77bd599bf99df032efe27774462b2ecc80f6e58b7ea7edd2d7895",
+    "file_lines": 1432,
+    "url": "https://github.com/langchain-ai/deepagents/blob/0c99fd026c4c41a08e6725a5e45d5ac111dcc6bb/libs/deepagents/deepagents/middleware/skills.py#L1"
+  },
+  {
+    "repository": "deepagents",
+    "path": "libs/deepagents/deepagents/middleware/_video.py",
+    "reviewed_lines": [
+      1,
+      100
+    ],
+    "file_sha256": "976b124f277b95241968d007198063a3fa3f83bf8a11eb201ca739a188a0d51c",
+    "file_lines": 404,
+    "url": "https://github.com/langchain-ai/deepagents/blob/0c99fd026c4c41a08e6725a5e45d5ac111dcc6bb/libs/deepagents/deepagents/middleware/_video.py#L1"
+  },
+  {
+    "repository": "anthropic-quickstarts",
+    "path": "computer-use-demo/computer_use_demo/loop.py",
+    "reviewed_lines": [
+      1,
+      265
+    ],
+    "file_sha256": "4d46230323509261414191109ee322a13d6aeadb52f7fc4c141e2d3730e5da80",
+    "file_lines": 388,
+    "url": "https://github.com/anthropics/anthropic-quickstarts/blob/9ec32b91df50b0d4906cae64b13c6298055ff40d/computer-use-demo/computer_use_demo/loop.py#L1"
+  },
+  {
+    "repository": "anthropic-quickstarts",
+    "path": "computer-use-demo/computer_use_demo/tools/computer.py",
+    "reviewed_lines": [
+      125,
+      160
+    ],
+    "file_sha256": "40848673e0c051c565340127252dc761fcc8d01e9b22f733b0f899a9ae693a9d",
+    "file_lines": 635,
+    "url": "https://github.com/anthropics/anthropic-quickstarts/blob/9ec32b91df50b0d4906cae64b13c6298055ff40d/computer-use-demo/computer_use_demo/tools/computer.py#L125"
+  },
+  {
+    "repository": "ui-tars",
+    "path": "packages/ui-tars/sdk/src/constants.ts",
+    "reviewed_lines": [
+      1,
+      79
+    ],
+    "file_sha256": "efdcbf2ea742a90dbc89ca254730adf95001cdc619b0666f992bd8b17cddae63",
+    "file_lines": 79,
+    "url": "https://github.com/bytedance/UI-TARS-desktop/blob/3ac2cb8d946d78d5ff92ad17b318eaafa18c178c/packages/ui-tars/sdk/src/constants.ts#L1"
+  },
+  {
+    "repository": "ui-tars",
+    "path": "packages/ui-tars/sdk/src/GUIAgent.ts",
+    "reviewed_lines": [
+      165,
+      260
+    ],
+    "file_sha256": "036e14d2cf5db9c3bca830c8e43a8667bf25bfb866832eb3c505356d0a52017d",
+    "file_lines": 605,
+    "url": "https://github.com/bytedance/UI-TARS-desktop/blob/3ac2cb8d946d78d5ff92ad17b318eaafa18c178c/packages/ui-tars/sdk/src/GUIAgent.ts#L165"
+  },
+  {
+    "repository": "claude-code",
+    "path": "README.md",
+    "reviewed_lines": [
+      1,
+      72
+    ],
+    "file_sha256": "aa0d8b80ac083e1591be0789273f447058cc9187b4331634a5614155da27778d",
+    "file_lines": 72,
+    "url": "https://github.com/anthropics/claude-code/blob/c017428c8c27e604840435048d5bce6a9a22c040/README.md#L1"
+  },
+  {
+    "repository": "claude-code",
+    "path": "LICENSE.md",
+    "reviewed_lines": [
+      1,
+      1
+    ],
+    "file_sha256": "728158fd1037143fad6907e8fa34804177e598b7326519503fe83cafdef849e6",
+    "file_lines": 1,
+    "url": "https://github.com/anthropics/claude-code/blob/c017428c8c27e604840435048d5bce6a9a22c040/LICENSE.md#L1"
+  },
+  {
+    "repository": "claude-code",
+    "path": "plugins/plugin-dev/skills/skill-development/SKILL.md",
+    "reviewed_lines": [
+      1,
+      105
+    ],
+    "file_sha256": "d40080c45d652dd3cc481d1e381cd7e6258091a87351fa1de67c6c8ecec3446e",
+    "file_lines": 637,
+    "url": "https://github.com/anthropics/claude-code/blob/c017428c8c27e604840435048d5bce6a9a22c040/plugins/plugin-dev/skills/skill-development/SKILL.md#L1"
+  },
+  {
+    "repository": "claude-agent-sdk-typescript",
+    "path": "README.md",
+    "reviewed_lines": [
+      1,
+      48
+    ],
+    "file_sha256": "d7f8965afea6198e0448bb8a3f3e0806d4dd6cfb3696cab21b1ee36faaef2065",
+    "file_lines": 48,
+    "url": "https://github.com/anthropics/claude-agent-sdk-typescript/blob/9cf9f23b757f881c82fc2bfee459429ea26187df/README.md#L1"
+  },
+  {
+    "repository": "claude-agent-sdk-typescript",
+    "path": "LICENSE.md",
+    "reviewed_lines": [
+      1,
+      1
+    ],
+    "file_sha256": "728158fd1037143fad6907e8fa34804177e598b7326519503fe83cafdef849e6",
+    "file_lines": 1,
+    "url": "https://github.com/anthropics/claude-agent-sdk-typescript/blob/9cf9f23b757f881c82fc2bfee459429ea26187df/LICENSE.md#L1"
+  },
+  {
+    "repository": "cursor-public",
+    "path": "README.md",
+    "reviewed_lines": [
+      1,
+      21
+    ],
+    "file_sha256": "0c3bb694474f6ba546248c089a44b28d7d6b21e1cd258d836a361b84a523a164",
+    "file_lines": 21,
+    "url": "https://github.com/cursor/cursor/blob/654b1b4775ca67aef473bd31a14c8c04a1abde2d/README.md#L1"
+  }
+]

@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "planId": "plan-swipe-release",
+  "sessionId": "session-demo",
+  "boardId": "board-demo",
+  "targetId": "phone-A",
+  "basedOnFrameId": "frame-before",
+  "orientationEpoch": 1,
+  "ttlMs": 15000,
+  "maxExecutionMs": 15000,
+  "steps": [
+    {
+      "id": "flick",
+      "op": "swipe",
+      "path": [
+        {
+          "x": 5000,
+          "y": 8000,
+          "tMs": 0
+        },
+        {
+          "x": 5000,
+          "y": 5800,
+          "tMs": 150
+        },
+        {
+          "x": 5000,
+          "y": 2500,
+          "tMs": 280
+        },
+        {
+          "x": 5000,
+          "y": 1500,
+          "tMs": 320
+        }
+      ]
+    },
+    {
+      "id": "motion-series",
+      "op": "capture",
+      "frames": {
+        "count": 3,
+        "intervalMs": 1000,
+        "timeoutMs": 5000
+      },
+      "review": true,
+      "label": "after-release"
+    }
+  ]
+}

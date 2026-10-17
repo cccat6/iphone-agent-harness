@@ -1,0 +1,21 @@
+{
+  "date": "2026-10-18",
+  "provider": "DeepSeek",
+  "discovery_by": "parent agent using user-authorized local key",
+  "models_endpoint": "https://api.deepseek.com/models",
+  "observed_model_ids": [
+    "deepseek-flash",
+    "deepseek-v4-pro"
+  ],
+  "selected_model": "deepseek-flash",
+  "selected_name": "DeepSeek V4.1 Flash",
+  "sources": [
+    "https://api-docs.deepseek.com/zh-cn/news/news260910/",
+    "https://api-docs.deepseek.com/zh-cn/guides/anthropic_api"
+  ],
+  "tested_endpoints": {
+    "openai": "https://api.deepseek.com/chat/completions",
+    "anthropic": "https://api.deepseek.com/anthropic/v1/messages"
+  },
+  "credentials": "user-supplied ignored local file; key omitted"
+}

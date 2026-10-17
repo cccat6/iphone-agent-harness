@@ -1,0 +1,4 @@
+*.local.json
+*.local.jsonl
+*.local.log
+__pycache__/

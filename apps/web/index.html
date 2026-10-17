@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f7f8fa">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="iPhone Automation Harness">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <title>iPhone Automation Harness</title>
+  <link rel="icon" href="./icons/icon.svg" type="image/svg+xml">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div id="app" class="app-shell">
+    <aside class="sidebar" aria-label="会话列表">
+      <a class="brand" href="#sessions" aria-label="iPhone Automation Harness 首页"><span class="brand-icon">⌘</span><span class="brand-name">iPhone Automation<br>Harness<small>Automation, on your terms.</small></span></a>
+      <div class="sidebar-actions"><button id="new-session" class="primary wide"><span>＋</span> 新会话</button></div>
+      <label class="search-field"><span aria-hidden="true">⌕</span><input id="session-search" type="search" placeholder="搜索会话" aria-label="搜索会话"></label>
+      <div class="list-heading"><span id="list-label">你的会话</span><button id="archive-toggle" class="text-button">查看归档</button></div>
+      <nav id="sessions" class="sessions" aria-label="已保存的会话"></nav>
+      <div class="sidebar-footer"><button id="open-devices" class="nav-button"><span>▣</span> 设备 <i id="device-indicator"></i></button><button id="open-skills" class="nav-button"><span>◇</span> Skills</button><button id="open-settings" class="nav-button"><span>⚙</span> 设置 <span class="local-badge">本地优先</span></button></div>
+    </aside>
+    <main class="workspace" id="workspace">
+      <header class="topbar"><button id="back-sessions" class="icon-button mobile-only" aria-label="返回会话列表">‹</button><div class="conversation-heading"><h1 id="session-title">iPhone Automation Harness</h1><p id="session-subtitle">你的设备，你的模型，你的会话。</p></div><button id="session-menu" class="icon-button" aria-label="会话操作" hidden>···</button></header>
+      <div id="conversation" class="conversation" aria-live="polite"></div>
+      <section class="composer-wrap" aria-label="消息输入">
+        <div id="run-status" class="run-status" role="status" hidden></div>
+        <form id="composer" class="composer"><textarea id="message-input" rows="1" placeholder="描述你想完成的事情…" aria-label="消息" maxlength="100000"></textarea><div class="composer-toolbar"><div class="composer-options"><select id="mode-select" aria-label="执行模式"><option value="chat">对话</option><option value="plan">计划</option><option value="task">任务</option></select><select id="model-select" aria-label="模型"><option value="">选择模型</option></select><button id="composer-skills" class="chip-button" type="button" title="管理 Skills">◇ Skills</button></div><button id="stop-run" class="send-button stop-button" type="button" aria-label="停止" hidden>■</button><button id="send-message" class="send-button" type="submit" aria-label="发送消息">↑</button></div></form>
+        <p id="mode-description" class="composer-note">对话模式只讨论，不操作设备。会话保存在这台设备上。</p>
+      </section>
+    </main>
+  </div>
+  <dialog id="panel-dialog" class="panel-dialog"><div id="panel-content"></div></dialog>
+  <dialog id="action-dialog" class="action-dialog"><div id="action-content"></div></dialog>
+  <input id="file-input" type="file" hidden>
+  <div id="toast" class="toast" role="status" hidden></div>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

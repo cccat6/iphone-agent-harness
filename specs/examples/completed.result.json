@@ -1,0 +1,63 @@
+{
+  "version": 1,
+  "planId": "plan-batch-with-checkpoint",
+  "targetId": "phone-A",
+  "status": "completed",
+  "outcome": "not_evaluated",
+  "inputState": "released",
+  "steps": [
+    {
+      "id": "tap-open",
+      "status": "hid_submitted",
+      "detail": "Illustrative contract fixture; not a physical execution receipt."
+    },
+    {
+      "id": "wait-render",
+      "status": "waited",
+      "detail": "Illustrative contract fixture; not a physical execution receipt."
+    },
+    {
+      "id": "mid",
+      "status": "captured",
+      "detail": "Illustrative contract fixture; not a physical execution receipt."
+    },
+    {
+      "id": "scroll",
+      "status": "hid_submitted",
+      "detail": "Illustrative contract fixture; not a physical execution receipt."
+    },
+    {
+      "id": "final",
+      "status": "captured",
+      "detail": "Illustrative contract fixture; not a physical execution receipt."
+    }
+  ],
+  "frames": [
+    {
+      "frameId": "frame-after-open",
+      "groupId": "group-mid",
+      "label": "after-open",
+      "targetId": "phone-A",
+      "orientationEpoch": 1,
+      "requestedAtMs": 520,
+      "readyAtMs": 780,
+      "mediaTimeMs": null,
+      "width": 1170,
+      "height": 2532,
+      "assetRef": "local-asset:fixture-mid"
+    },
+    {
+      "frameId": "frame-after-scroll",
+      "groupId": "group-final",
+      "label": "after-scroll",
+      "targetId": "phone-A",
+      "orientationEpoch": 1,
+      "requestedAtMs": 1250,
+      "readyAtMs": 1600,
+      "mediaTimeMs": null,
+      "width": 1170,
+      "height": 2532,
+      "assetRef": "local-asset:fixture-final"
+    }
+  ]
+}

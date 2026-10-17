@@ -1,0 +1,159 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Phone plan result v1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "planId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$"
+    },
+    "targetId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$"
+    },
+    "status": {
+      "enum": [
+        "completed",
+        "failed",
+        "cancelled",
+        "unknown"
+      ]
+    },
+    "outcome": {
+      "enum": [
+        "not_evaluated",
+        "observed_match",
+        "observed_mismatch",
+        "insufficient_evidence"
+      ]
+    },
+    "inputState": {
+      "enum": [
+        "released",
+        "unknown"
+      ]
+    },
+    "steps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$"
+          },
+          "status": {
+            "enum": [
+              "hid_submitted",
+              "captured",
+              "waited",
+              "failed",
+              "skipped",
+              "cancelled",
+              "unknown"
+            ]
+          },
+          "detail": {
+            "type": "string",
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "detail"
+        ]
+      },
+      "minItems": 1,
+      "maxItems": 30
+    },
+    "frames": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "frameId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$"
+          },
+          "groupId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "targetId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$"
+          },
+          "orientationEpoch": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2147483647
+          },
+          "requestedAtMs": {
+            "type": "number",
+            "minimum": 0
+          },
+          "readyAtMs": {
+            "type": "number",
+            "minimum": 0
+          },
+          "mediaTimeMs": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "width": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10000
+          },
+          "height": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10000
+          },
+          "assetRef": {
+            "type": "string",
+            "pattern": "^local-asset:[A-Za-z0-9._:-]+$"
+          }
+        },
+        "required": [
+          "frameId",
+          "groupId",
+          "label",
+          "targetId",
+          "orientationEpoch",
+          "requestedAtMs",
+          "readyAtMs",
+          "mediaTimeMs",
+          "width",
+          "height",
+          "assetRef"
+        ]
+      },
+      "minItems": 0,
+      "maxItems": 24
+    }
+  },
+  "required": [
+    "version",
+    "planId",
+    "targetId",
+    "status",
+    "outcome",
+    "inputState",
+    "steps",
+    "frames"
+  ]
+}

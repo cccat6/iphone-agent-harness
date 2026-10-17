@@ -1,0 +1,77 @@
+{
+  "at": "2026-10-17T17:07:42.631Z",
+  "environment": "Mac Node.js direct provider API",
+  "scope": "Real provider protocol and CORS header check only; not browser or iPhone background",
+  "results": [
+    {
+      "protocol": "openai",
+      "model": "deepseek-flash",
+      "stream": false,
+      "status": 200,
+      "ok": true,
+      "elapsedMs": 912,
+      "chunks": 0,
+      "records": 1,
+      "bytes": 675,
+      "cors": {
+        "status": 200,
+        "allowOrigin": "https://patch-fact-learned-setup.trycloudflare.com",
+        "allowHeaders": "content-type,authorization",
+        "allowMethods": "POST"
+      }
+    },
+    {
+      "protocol": "openai",
+      "model": "deepseek-flash",
+      "stream": true,
+      "status": 200,
+      "ok": true,
+      "elapsedMs": 655,
+      "firstChunkMs": 133,
+      "chunks": 22,
+      "records": 63,
+      "bytes": 18821,
+      "cors": {
+        "status": 200,
+        "allowOrigin": "https://patch-fact-learned-setup.trycloudflare.com",
+        "allowHeaders": "content-type,authorization",
+        "allowMethods": "POST"
+      }
+    },
+    {
+      "protocol": "anthropic",
+      "model": "deepseek-flash",
+      "stream": false,
+      "status": 200,
+      "ok": true,
+      "elapsedMs": 688,
+      "chunks": 0,
+      "records": 1,
+      "bytes": 554,
+      "cors": {
+        "status": 200,
+        "allowOrigin": "https://patch-fact-learned-setup.trycloudflare.com",
+        "allowHeaders": "content-type,x-api-key,anthropic-version,anthropic-dangerous-direct-browser-access",
+        "allowMethods": "POST"
+      }
+    },
+    {
+      "protocol": "anthropic",
+      "model": "deepseek-flash",
+      "stream": true,
+      "status": 200,
+      "ok": true,
+      "elapsedMs": 807,
+      "firstChunkMs": 175,
+      "chunks": 19,
+      "records": 72,
+      "bytes": 8847,
+      "cors": {
+        "status": 200,
+        "allowOrigin": "https://patch-fact-learned-setup.trycloudflare.com",
+        "allowHeaders": "content-type,x-api-key,anthropic-version,anthropic-dangerous-direct-browser-access",
+        "allowMethods": "POST"
+      }
+    }
+  ]
+}

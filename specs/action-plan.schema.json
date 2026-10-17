@@ -1,0 +1,465 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Phone browser action plan v1 (design contract)",
+  "description": "Host plan including screenshot nodes; not the ESP32 segment wire payload.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "planId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$"
+    },
+    "sessionId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$"
+    },
+    "boardId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$"
+    },
+    "targetId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$"
+    },
+    "basedOnFrameId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$"
+    },
+    "orientationEpoch": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 2147483647
+    },
+    "ttlMs": {
+      "type": "integer",
+      "minimum": 1000,
+      "maximum": 30000
+    },
+    "maxExecutionMs": {
+      "type": "integer",
+      "minimum": 100,
+      "maximum": 15000
+    },
+    "steps": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/step"
+      },
+      "minItems": 1,
+      "maxItems": 30
+    }
+  },
+  "required": [
+    "version",
+    "planId",
+    "sessionId",
+    "boardId",
+    "targetId",
+    "basedOnFrameId",
+    "orientationEpoch",
+    "ttlMs",
+    "maxExecutionMs",
+    "steps"
+  ],
+  "$defs": {
+    "point": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "x": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "y": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        }
+      },
+      "required": [
+        "x",
+        "y"
+      ]
+    },
+    "pathPoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "x": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "y": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "tMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3000
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "tMs"
+      ]
+    },
+    "frames": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8
+        },
+        "intervalMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4000
+        },
+        "timeoutMs": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 10000
+        }
+      },
+      "required": [
+        "count",
+        "intervalMs",
+        "timeoutMs"
+      ]
+    },
+    "tap": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$"
+        },
+        "op": {
+          "const": "tap"
+        },
+        "point": {
+          "$ref": "#/$defs/point"
+        },
+        "holdMs": {
+          "type": "integer",
+          "minimum": 40,
+          "maximum": 1200
+        }
+      },
+      "required": [
+        "id",
+        "op",
+        "point",
+        "holdMs"
+      ]
+    },
+    "drag": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$"
+        },
+        "op": {
+          "const": "drag"
+        },
+        "path": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/pathPoint"
+          },
+          "minItems": 2,
+          "maxItems": 128
+        },
+        "endHoldMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 500
+        }
+      },
+      "required": [
+        "id",
+        "op",
+        "path",
+        "endHoldMs"
+      ]
+    },
+    "swipe": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$"
+        },
+        "op": {
+          "const": "swipe"
+        },
+        "path": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/pathPoint"
+          },
+          "minItems": 2,
+          "maxItems": 128
+        }
+      },
+      "required": [
+        "id",
+        "op",
+        "path"
+      ]
+    },
+    "pointerEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "phase": {
+          "enum": [
+            "down",
+            "move",
+            "up"
+          ]
+        },
+        "x": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "y": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "atMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3000
+        }
+      },
+      "required": [
+        "phase",
+        "x",
+        "y",
+        "atMs"
+      ]
+    },
+    "pointer": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$"
+        },
+        "op": {
+          "const": "pointer_sequence"
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/pointerEvent"
+          },
+          "minItems": 2,
+          "maxItems": 130
+        }
+      },
+      "required": [
+        "id",
+        "op",
+        "events"
+      ]
+    },
+    "motion": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/drag"
+        },
+        {
+          "$ref": "#/$defs/swipe"
+        },
+        {
+          "$ref": "#/$defs/pointer"
+        }
+      ]
+    },
+    "capture": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$"
+        },
+        "op": {
+          "const": "capture"
+        },
+        "frames": {
+          "$ref": "#/$defs/frames"
+        },
+        "review": {
+          "type": "boolean"
+        },
+        "label": {
+          "type": "string",
+          "maxLength": 120
+        }
+      },
+      "required": [
+        "id",
+        "op",
+        "frames",
+        "review",
+        "label"
+      ]
+    },
+    "observe": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$"
+        },
+        "op": {
+          "const": "observe"
+        },
+        "motion": {
+          "$ref": "#/$defs/motion"
+        },
+        "frames": {
+          "$ref": "#/$defs/frames"
+        },
+        "label": {
+          "type": "string",
+          "maxLength": 120
+        }
+      },
+      "required": [
+        "id",
+        "op",
+        "motion",
+        "frames",
+        "label"
+      ]
+    },
+    "wait": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$"
+        },
+        "op": {
+          "const": "wait"
+        },
+        "durationMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2000
+        }
+      },
+      "required": [
+        "id",
+        "op",
+        "durationMs"
+      ]
+    },
+    "home": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$"
+        },
+        "op": {
+          "const": "home"
+        }
+      },
+      "required": [
+        "id",
+        "op"
+      ]
+    },
+    "key": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$"
+        },
+        "op": {
+          "const": "key"
+        },
+        "usage": {
+          "type": "integer",
+          "minimum": 4,
+          "maximum": 231
+        },
+        "modifiers": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255
+        },
+        "holdMs": {
+          "type": "integer",
+          "minimum": 40,
+          "maximum": 1200
+        }
+      },
+      "required": [
+        "id",
+        "op",
+        "usage",
+        "modifiers",
+        "holdMs"
+      ]
+    },
+    "step": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/tap"
+        },
+        {
+          "$ref": "#/$defs/drag"
+        },
+        {
+          "$ref": "#/$defs/swipe"
+        },
+        {
+          "$ref": "#/$defs/pointer"
+        },
+        {
+          "$ref": "#/$defs/capture"
+        },
+        {
+          "$ref": "#/$defs/observe"
+        },
+        {
+          "$ref": "#/$defs/wait"
+        },
+        {
+          "$ref": "#/$defs/home"
+        },
+        {
+          "$ref": "#/$defs/key"
+        }
+      ]
+    }
+  }
+}

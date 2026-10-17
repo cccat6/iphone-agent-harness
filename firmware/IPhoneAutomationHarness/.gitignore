@@ -1,0 +1,5 @@
+config.local.h
+build/
+*.bin
+*.elf
+*.map

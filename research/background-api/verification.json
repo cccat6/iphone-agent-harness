@@ -1,0 +1,7 @@
+{
+  "environment": "Mac Node.js v23.7.0",
+  "scope": "protocol only; not browser, not iPhone, no real API",
+  "assertions": 46,
+  "passed": true,
+  "at": "2026-10-17T17:17:13.597Z"
+}

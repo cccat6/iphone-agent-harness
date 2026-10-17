@@ -1,0 +1,125 @@
+{
+  "sources": [
+    {
+      "name": "anthropic-quickstarts",
+      "repository": "anthropics/anthropic-quickstarts",
+      "commit": "9ec32b91df50b0d4906cae64b13c6298055ff40d",
+      "default_branch": "main",
+      "source_url": "https://github.com/anthropics/anthropic-quickstarts/tree/9ec32b91df50b0d4906cae64b13c6298055ff40d",
+      "archive_url": "https://codeload.github.com/anthropics/anthropic-quickstarts/tar.gz/9ec32b91df50b0d4906cae64b13c6298055ff40d",
+      "archive_sha256": "471ccbc08224d4aa343cd5cb467809154965f9a853fbe4c00ef91ca1f1d6b2e7",
+      "archive_bytes": 4580788,
+      "local_path": "repos/anthropic-quickstarts",
+      "downloaded_utc": "2026-10-17T16:01:11.447013+00:00"
+    },
+    {
+      "name": "claude-agent-sdk-typescript",
+      "repository": "anthropics/claude-agent-sdk-typescript",
+      "commit": "9cf9f23b757f881c82fc2bfee459429ea26187df",
+      "default_branch": "main",
+      "source_url": "https://github.com/anthropics/claude-agent-sdk-typescript/tree/9cf9f23b757f881c82fc2bfee459429ea26187df",
+      "archive_url": "https://codeload.github.com/anthropics/claude-agent-sdk-typescript/tar.gz/9cf9f23b757f881c82fc2bfee459429ea26187df",
+      "archive_sha256": "48a3bf7229c5ef1e05e1a365607676c71739e710f98e00c4780dd1333ceebfbf",
+      "archive_bytes": 58022,
+      "local_path": "repos/claude-agent-sdk-typescript",
+      "downloaded_utc": "2026-10-17T16:00:39.814686+00:00"
+    },
+    {
+      "name": "claude-code",
+      "repository": "anthropics/claude-code",
+      "commit": "c017428c8c27e604840435048d5bce6a9a22c040",
+      "default_branch": "main",
+      "source_url": "https://github.com/anthropics/claude-code/tree/c017428c8c27e604840435048d5bce6a9a22c040",
+      "archive_url": "https://codeload.github.com/anthropics/claude-code/tar.gz/c017428c8c27e604840435048d5bce6a9a22c040",
+      "archive_sha256": "71c911f0eb43879aba4ea2b27df721b4bc08c2788253320cfa073d72f145f6c0",
+      "archive_bytes": 12106467,
+      "local_path": "repos/claude-code",
+      "downloaded_utc": "2026-10-17T16:00:42.817756+00:00"
+    },
+    {
+      "name": "codex",
+      "repository": "openai/codex",
+      "commit": "ce0323f2f2d3b25e82806cd555237da3db4e1897",
+      "default_branch": "main",
+      "source_url": "https://github.com/openai/codex/tree/ce0323f2f2d3b25e82806cd555237da3db4e1897",
+      "archive_url": "https://codeload.github.com/openai/codex/tar.gz/ce0323f2f2d3b25e82806cd555237da3db4e1897",
+      "archive_sha256": "0cb204e7e0b4e0338cef5b74d0296fdfa1a44d8aafa1d9d6ffefb628ea440be6",
+      "archive_bytes": 17802697,
+      "local_path": "repos/codex",
+      "downloaded_utc": "2026-10-17T16:00:51.716734+00:00"
+    },
+    {
+      "name": "cursor-public",
+      "repository": "cursor/cursor",
+      "commit": "654b1b4775ca67aef473bd31a14c8c04a1abde2d",
+      "default_branch": "main",
+      "source_url": "https://github.com/cursor/cursor/tree/654b1b4775ca67aef473bd31a14c8c04a1abde2d",
+      "archive_url": "https://codeload.github.com/cursor/cursor/tar.gz/654b1b4775ca67aef473bd31a14c8c04a1abde2d",
+      "archive_sha256": "5f1e7a9076a298e681612530951ea3d38ccef9ce30e04fd234da9163af3d79b5",
+      "archive_bytes": 1147,
+      "local_path": "repos/cursor-public",
+      "downloaded_utc": "2026-10-17T16:04:10.074604+00:00"
+    },
+    {
+      "name": "deepagents",
+      "repository": "langchain-ai/deepagents",
+      "commit": "0c99fd026c4c41a08e6725a5e45d5ac111dcc6bb",
+      "default_branch": "main",
+      "source_url": "https://github.com/langchain-ai/deepagents/tree/0c99fd026c4c41a08e6725a5e45d5ac111dcc6bb",
+      "archive_url": "https://codeload.github.com/langchain-ai/deepagents/tar.gz/0c99fd026c4c41a08e6725a5e45d5ac111dcc6bb",
+      "archive_sha256": "6299f6a0aa7cf06355c8981fcbddf3e7aba3a3ae397f36537a089630336c13aa",
+      "archive_bytes": 24876130,
+      "local_path": "repos/deepagents",
+      "downloaded_utc": "2026-10-17T16:02:16.241575+00:00"
+    },
+    {
+      "name": "deepseek-harness",
+      "repository": "deepseek-ai/deepseek-harness",
+      "commit": "687f282e8625c6b8d11ff58211a90524be2e4317",
+      "default_branch": "master",
+      "source_url": "https://github.com/deepseek-ai/deepseek-harness/tree/687f282e8625c6b8d11ff58211a90524be2e4317",
+      "archive_url": "https://codeload.github.com/deepseek-ai/deepseek-harness/tar.gz/687f282e8625c6b8d11ff58211a90524be2e4317",
+      "archive_sha256": "157903b22c2881d3678d846755afe957a48df834e747deda805a1195ce25a146",
+      "archive_bytes": 34728365,
+      "local_path": "repos/deepseek-harness",
+      "downloaded_utc": "2026-10-17T16:00:47.388896+00:00"
+    },
+    {
+      "name": "opencode",
+      "repository": "anomalyco/opencode",
+      "commit": "8c173a8f3805d8e749d44311054b07e37a1b2ce1",
+      "default_branch": "dev",
+      "source_url": "https://github.com/anomalyco/opencode/tree/8c173a8f3805d8e749d44311054b07e37a1b2ce1",
+      "archive_url": "https://codeload.github.com/anomalyco/opencode/tar.gz/8c173a8f3805d8e749d44311054b07e37a1b2ce1",
+      "archive_sha256": "7ab218c81c816409140908655c370d3d3ce2436dd7ef7222fd47cd684ce238d8",
+      "archive_bytes": 79801074,
+      "local_path": "repos/opencode",
+      "downloaded_utc": "2026-10-17T16:03:03.494775+00:00"
+    },
+    {
+      "name": "pi-mono",
+      "repository": "badlogic/pi-mono",
+      "commit": "8efd314fa3d3232ce197d8d7a6a5660530b9d83e",
+      "default_branch": "main",
+      "source_url": "https://github.com/badlogic/pi-mono/tree/8efd314fa3d3232ce197d8d7a6a5660530b9d83e",
+      "archive_url": "https://codeload.github.com/badlogic/pi-mono/tar.gz/8efd314fa3d3232ce197d8d7a6a5660530b9d83e",
+      "archive_sha256": "51818843b0af3f16b17cc775c4d45eb44def40b8d6771387a18b134dd3a1f29c",
+      "archive_bytes": 8010926,
+      "local_path": "repos/pi-mono",
+      "downloaded_utc": "2026-10-17T16:01:03.074218+00:00"
+    },
+    {
+      "name": "ui-tars",
+      "repository": "bytedance/UI-TARS-desktop",
+      "commit": "3ac2cb8d946d78d5ff92ad17b318eaafa18c178c",
+      "default_branch": "main",
+      "source_url": "https://github.com/bytedance/UI-TARS-desktop/tree/3ac2cb8d946d78d5ff92ad17b318eaafa18c178c",
+      "archive_url": "https://codeload.github.com/bytedance/UI-TARS-desktop/tar.gz/3ac2cb8d946d78d5ff92ad17b318eaafa18c178c",
+      "archive_sha256": "3b073aa6f7ad345641753796470513205b821171af639724a75112672e4592eb",
+      "archive_bytes": 32534937,
+      "local_path": "repos/ui-tars",
+      "downloaded_utc": "2026-10-17T16:02:22.318728+00:00"
+    }
+  ],
+  "errors": []
+}

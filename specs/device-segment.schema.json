@@ -1,0 +1,172 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ESP32 timed HID segment v1 (design contract)",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "protocolVersion": {
+      "const": 1
+    },
+    "boardId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$"
+    },
+    "bootId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$"
+    },
+    "targetId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$"
+    },
+    "clientId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$"
+    },
+    "leaseId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$"
+    },
+    "segmentId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$"
+    },
+    "planId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$"
+    },
+    "segmentIndex": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 29
+    },
+    "ttlMs": {
+      "type": "integer",
+      "minimum": 100,
+      "maximum": 15000
+    },
+    "payloadHash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "events": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "atMs": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 5000
+              },
+              "kind": {
+                "const": "pointer"
+              },
+              "buttons": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "x": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 10000
+              },
+              "y": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 10000
+              }
+            },
+            "required": [
+              "atMs",
+              "kind",
+              "buttons",
+              "x",
+              "y"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "atMs": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 5000
+              },
+              "kind": {
+                "const": "keyboard"
+              },
+              "modifiers": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 255
+              },
+              "usages": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "minimum": 4,
+                  "maximum": 231
+                },
+                "maxItems": 6,
+                "uniqueItems": true
+              }
+            },
+            "required": [
+              "atMs",
+              "kind",
+              "modifiers",
+              "usages"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "atMs": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 5000
+              },
+              "kind": {
+                "const": "consumer"
+              },
+              "usage": {
+                "enum": [
+                  0,
+                  64
+                ]
+              }
+            },
+            "required": [
+              "atMs",
+              "kind",
+              "usage"
+            ]
+          }
+        ]
+      },
+      "minItems": 1,
+      "maxItems": 512
+    }
+  },
+  "required": [
+    "protocolVersion",
+    "boardId",
+    "bootId",
+    "targetId",
+    "clientId",
+    "leaseId",
+    "segmentId",
+    "planId",
+    "segmentIndex",
+    "ttlMs",
+    "payloadHash",
+    "events"
+  ]
+}

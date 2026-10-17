@@ -1,0 +1,54 @@
+{
+  "version": 1,
+  "planId": "plan-pointer-sequence",
+  "sessionId": "session-demo",
+  "boardId": "board-demo",
+  "targetId": "phone-A",
+  "basedOnFrameId": "frame-before",
+  "orientationEpoch": 1,
+  "ttlMs": 15000,
+  "maxExecutionMs": 15000,
+  "steps": [
+    {
+      "id": "press-move-release",
+      "op": "pointer_sequence",
+      "events": [
+        {
+          "phase": "down",
+          "x": 2500,
+          "y": 5000,
+          "atMs": 0
+        },
+        {
+          "phase": "move",
+          "x": 3500,
+          "y": 5000,
+          "atMs": 500
+        },
+        {
+          "phase": "move",
+          "x": 6000,
+          "y": 5000,
+          "atMs": 900
+        },
+        {
+          "phase": "up",
+          "x": 6000,
+          "y": 5000,
+          "atMs": 900
+        }
+      ]
+    },
+    {
+      "id": "final",
+      "op": "capture",
+      "frames": {
+        "count": 1,
+        "intervalMs": 0,
+        "timeoutMs": 5000
+      },
+      "review": true,
+      "label": "after-pointer"
+    }
+  ]
+}
