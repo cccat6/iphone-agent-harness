@@ -1,5 +1,5 @@
 {
-  "checkedAt": "2026-10-17T22:17:29.274031+00:00",
+  "checkedAt": "2026-10-17T22:26:37.106204+00:00",
   "origin": "https://igent.cc/flash",
   "devicePort": "/dev/cu.usbmodem1101",
   "otherSerialPortsOpened": false,
@@ -27,6 +27,27 @@
     "https://github.com/espressif/esptool-js/blob/v0.7.0/src/reset.ts",
     "https://github.com/espressif/esptool/blob/v5.3.1/esptool/reset.py"
   ],
-  "finalNativeRetest": "pending",
-  "passed": false
+  "finalNativeRetest": {
+    "passed": true,
+    "writeVerificationReported": true,
+    "verifiedFirmwarePartsInActualLog": 4,
+    "chromeFindObserved": "1 of 4 matches for Hash of data verified.",
+    "autoAppBootWithoutCliIntervention": true,
+    "tcp443ReachableBeforeAnyCliAction": true,
+    "usbSetupRead": true,
+    "chooserObservedWaitMs": 34272,
+    "publicBoardIdMatches": true,
+    "caFingerprintMatchesPrevious": true,
+    "ownerAndApPasswordsMasked": true,
+    "clearRemovesSecretFields": true,
+    "profileResponseFingerprintMatches": true,
+    "profileDownloadRequested": true,
+    "profileDownloadSaved": false,
+    "profileDownloadBlockedByChrome": true,
+    "browserWarningBypassed": false,
+    "certificateInstalledOnMac": false,
+    "phoneHidOrChallengeSent": false
+  },
+  "passed": true,
+  "profileDeliveryBoundary": "Chrome blocked the unverified configuration-profile download. The program now says download requested, not saved. Public profile content is separately available from authorized USB export and the protected board setup page for manual phone installation."
 }

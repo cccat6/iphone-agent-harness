@@ -85,7 +85,7 @@ All Core admission/result/cancel/tick access is serialized. `lockedReply` comput
 - Final C3/S3/C6/classic ESP32 profiles all compiled from the same 13-file source record; `--verify-only` checks their 16 binaries, offsets, partition bounds and current-source provenance.
 - The source targets C3/S3/C6/original ESP32; the published manifest lists only profiles that actually compiled. No S2 or H2 profile is offered.
 
-This implementation agent performed no serial I/O or flashing. Root separately flashed the final 13-source C3 build (source SHA-256 `4b4ebc2e65b3a7b1ebac4b4463c67ae2cb805f3ef85c1eece9e23bb1b435f8f0`) without erasing NVS, verified CA/hostname HTTPS and passed six production DeviceClient checks, including owner enrollment and refusal to grant control to an unverified phone. Safari trust, pairing/challenge routing, real timing, stops/releases and two-phone fairness remain separate checks. See `docs/research/device-client-live-verification.json` for the exact source/application hashes and scope.
+This implementation agent performed no serial I/O or flashing. Root separately flashed the final 13-source C3 build (source SHA-256 `4b4ebc2e65b3a7b1ebac4b4463c67ae2cb805f3ef85c1eece9e23bb1b435f8f0`) without erasing NVS, verified CA/hostname HTTPS and passed eight production DeviceClient checks, including owner enrollment and refusal to grant control to an unverified phone. Safari trust, pairing/challenge routing, real timing, stops/releases and two-phone fairness remain separate checks. See `docs/research/device-client-live-verification.json` for the exact source/application hashes and scope.
 
 ## Resource-limited product build
 

@@ -1,20 +1,20 @@
 {
-  "checkedAt": "2026-10-17T22:19:13.265Z",
+  "checkedAt": "2026-10-17T22:43:16.382Z",
   "origin": "https://igent.cc",
   "passed": true,
   "checks": [
+    {
+      "path": "bootstrap.css",
+      "status": 200,
+      "bytes": 2051,
+      "sha256": "86f914d5ffa317b230ea5e73014b59d48d1651e32621b9a93c7d7058c676ca24",
+      "passed": true
+    },
     {
       "path": "THIRD_PARTY_NOTICES.md",
       "status": 200,
       "bytes": 1489,
       "sha256": "0894abb3c6490576ede23e0d3cf4f5a8cff688ba08f4c0ca6b99a18be7b42d98",
-      "passed": true
-    },
-    {
-      "path": "app.js",
-      "status": 200,
-      "bytes": 80445,
-      "sha256": "c895296cdfc21142fb1d22bdab682bfd8144fbe5d11443c30947cafc27b96a45",
       "passed": true
     },
     {
@@ -25,17 +25,10 @@
       "passed": true
     },
     {
-      "path": "bootstrap.css",
+      "path": "app.js",
       "status": 200,
-      "bytes": 2051,
-      "sha256": "86f914d5ffa317b230ea5e73014b59d48d1651e32621b9a93c7d7058c676ca24",
-      "passed": true
-    },
-    {
-      "path": "community/common.js",
-      "status": 200,
-      "bytes": 4486,
-      "sha256": "046f628560c94eac94e063ed262f2bf5c00189be5d88dfa6fdd9cd418fc7af1d",
+      "bytes": 80605,
+      "sha256": "c2c2f8681565691e1fe41b31dc432e7b1827ac29f6f3e725b52996d2ad4f515e",
       "passed": true
     },
     {
@@ -43,6 +36,13 @@
       "status": 200,
       "bytes": 2451,
       "sha256": "3497a6bddc5894051e51da9bd1763deb1eadebb92b69d59e8a9d7bff737bf1c3",
+      "passed": true
+    },
+    {
+      "path": "community/common.js",
+      "status": 200,
+      "bytes": 4486,
+      "sha256": "046f628560c94eac94e063ed262f2bf5c00189be5d88dfa6fdd9cd418fc7af1d",
       "passed": true
     },
     {
@@ -60,24 +60,10 @@
       "passed": true
     },
     {
-      "path": "community/identity.js",
-      "status": 200,
-      "bytes": 4158,
-      "sha256": "d4682af084cff8a2a20e17ce7b5099549f40de5bfd1c2cf6c436e0446f49795c",
-      "passed": true
-    },
-    {
       "path": "core/auth.js",
       "status": 200,
       "bytes": 4294,
       "sha256": "9a0fe7886f9871c3c27459d32528dd7140cbbd7841c5a0d2c24791285981ebde",
-      "passed": true
-    },
-    {
-      "path": "core/assets.js",
-      "status": 200,
-      "bytes": 116683,
-      "sha256": "5949e0ccccaa15b6be9671347f297d40dc35a0c7b5053ca3bd978c3c8461fbca",
       "passed": true
     },
     {
@@ -88,10 +74,17 @@
       "passed": true
     },
     {
-      "path": "core/compatibility.js",
+      "path": "community/identity.js",
       "status": 200,
-      "bytes": 4958,
-      "sha256": "c559095e9e4c64b9472cccccbe28f4e6e0ad6780969324e679d892ef0700a375",
+      "bytes": 4158,
+      "sha256": "d4682af084cff8a2a20e17ce7b5099549f40de5bfd1c2cf6c436e0446f49795c",
+      "passed": true
+    },
+    {
+      "path": "core/assets.js",
+      "status": 200,
+      "bytes": 116683,
+      "sha256": "5949e0ccccaa15b6be9671347f297d40dc35a0c7b5053ca3bd978c3c8461fbca",
       "passed": true
     },
     {
@@ -102,10 +95,10 @@
       "passed": true
     },
     {
-      "path": "core/context.js",
+      "path": "core/compatibility.js",
       "status": 200,
-      "bytes": 22469,
-      "sha256": "3b51197d2a61d29e6c79a7701db13a51cfd999bd4d0a0e46afc0a0fcb8707c9e",
+      "bytes": 4958,
+      "sha256": "c559095e9e4c64b9472cccccbe28f4e6e0ad6780969324e679d892ef0700a375",
       "passed": true
     },
     {
@@ -113,6 +106,13 @@
       "status": 200,
       "bytes": 27686,
       "sha256": "71300581a2e4ad02b35495340d94b15ff7cf75ba48d1f4ff02eb9a51efdaf7ad",
+      "passed": true
+    },
+    {
+      "path": "core/backup-files.js",
+      "status": 200,
+      "bytes": 2675,
+      "sha256": "defad0d24f46c1757800683a79f9c158febb43e66a29b457565b85d85cae9a7c",
       "passed": true
     },
     {
@@ -130,17 +130,17 @@
       "passed": true
     },
     {
-      "path": "core/error-catalog.js",
-      "status": 200,
-      "bytes": 78654,
-      "sha256": "8308c548708be845382d868686d932c8fddf24d9fbb84814bff51ee0d95dbf23",
-      "passed": true
-    },
-    {
       "path": "core/device.js",
       "status": 200,
       "bytes": 25923,
       "sha256": "5e2a32772b192ef9e2387ec6a851e4ff666cd51963e70e4ba0ad3401cd513339",
+      "passed": true
+    },
+    {
+      "path": "core/context.js",
+      "status": 200,
+      "bytes": 22469,
+      "sha256": "3b51197d2a61d29e6c79a7701db13a51cfd999bd4d0a0e46afc0a0fcb8707c9e",
       "passed": true
     },
     {
@@ -151,10 +151,10 @@
       "passed": true
     },
     {
-      "path": "core/mcp.js",
+      "path": "core/flasher.js",
       "status": 200,
-      "bytes": 19097,
-      "sha256": "00a17e84c98a9235c4ade9581233397e259c25d525bd2ba34f41df8bf875aafe",
+      "bytes": 9712,
+      "sha256": "5993cfb80bb73b7966d9ca63a16c6bbdce0886e04864593890df619a6d9142a2",
       "passed": true
     },
     {
@@ -165,10 +165,17 @@
       "passed": true
     },
     {
-      "path": "core/flasher.js",
+      "path": "core/error-catalog.js",
       "status": 200,
-      "bytes": 9712,
-      "sha256": "5993cfb80bb73b7966d9ca63a16c6bbdce0886e04864593890df619a6d9142a2",
+      "bytes": 78654,
+      "sha256": "8308c548708be845382d868686d932c8fddf24d9fbb84814bff51ee0d95dbf23",
+      "passed": true
+    },
+    {
+      "path": "core/mcp.js",
+      "status": 200,
+      "bytes": 19097,
+      "sha256": "00a17e84c98a9235c4ade9581233397e259c25d525bd2ba34f41df8bf875aafe",
       "passed": true
     },
     {
@@ -179,13 +186,6 @@
       "passed": true
     },
     {
-      "path": "core/plan.js",
-      "status": 200,
-      "bytes": 25868,
-      "sha256": "143f2396614c70d045da196f1dcd309cee656837971f8c02c76b12b53a3a1048",
-      "passed": true
-    },
-    {
       "path": "core/prompt.js",
       "status": 200,
       "bytes": 2707,
@@ -193,24 +193,10 @@
       "passed": true
     },
     {
-      "path": "core/providers.js",
+      "path": "core/plan.js",
       "status": 200,
-      "bytes": 18767,
-      "sha256": "22e46f9ba426a03b367e4b2fd700d3a1e3bfe53bd56fe598b949932a2134f9be",
-      "passed": true
-    },
-    {
-      "path": "firmware/build-report.json",
-      "status": 200,
-      "bytes": 3326,
-      "sha256": "b4c5a6945f127f063a252f5a3ee6f97002f7880a10b9c62af326da76bd5e3b8c",
-      "passed": true
-    },
-    {
-      "path": "core/store.js",
-      "status": 200,
-      "bytes": 14322,
-      "sha256": "47a5e10fa97b12514ef451653700755fbb69332ea8c4d5f895dbaf62a7a81d6c",
+      "bytes": 25868,
+      "sha256": "143f2396614c70d045da196f1dcd309cee656837971f8c02c76b12b53a3a1048",
       "passed": true
     },
     {
@@ -223,8 +209,22 @@
     {
       "path": "firmware/README.md",
       "status": 200,
-      "bytes": 5424,
-      "sha256": "8affc173122b2cd55e1d1b5b6f54dc163299294afe9f652dbe351d1a7e0d7e0d",
+      "bytes": 5426,
+      "sha256": "74c8ae36d5b49735a87e289190f7947a43be98dfad99d3f0d6b681e38b572cf4",
+      "passed": true
+    },
+    {
+      "path": "core/store.js",
+      "status": 200,
+      "bytes": 14322,
+      "sha256": "47a5e10fa97b12514ef451653700755fbb69332ea8c4d5f895dbaf62a7a81d6c",
+      "passed": true
+    },
+    {
+      "path": "core/providers.js",
+      "status": 200,
+      "bytes": 18767,
+      "sha256": "22e46f9ba426a03b367e4b2fd700d3a1e3bfe53bd56fe598b949932a2134f9be",
       "passed": true
     },
     {
@@ -235,17 +235,17 @@
       "passed": true
     },
     {
-      "path": "firmware/esp32/partitions.bin",
-      "status": 200,
-      "bytes": 3072,
-      "sha256": "aaae2888c5a6a348004b5b436f47abb25ae32e72d9003902955a998eda723edd",
-      "passed": true
-    },
-    {
       "path": "firmware/esp32/boot_app0.bin",
       "status": 200,
       "bytes": 8192,
       "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0",
+      "passed": true
+    },
+    {
+      "path": "firmware/build-report.json",
+      "status": 200,
+      "bytes": 3326,
+      "sha256": "b4c5a6945f127f063a252f5a3ee6f97002f7880a10b9c62af326da76bd5e3b8c",
       "passed": true
     },
     {
@@ -256,17 +256,17 @@
       "passed": true
     },
     {
-      "path": "firmware/esp32c3/partitions.bin",
-      "status": 200,
-      "bytes": 3072,
-      "sha256": "aaae2888c5a6a348004b5b436f47abb25ae32e72d9003902955a998eda723edd",
-      "passed": true
-    },
-    {
       "path": "firmware/esp32c3/boot_app0.bin",
       "status": 200,
       "bytes": 8192,
       "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0",
+      "passed": true
+    },
+    {
+      "path": "firmware/esp32/partitions.bin",
+      "status": 200,
+      "bytes": 3072,
+      "sha256": "aaae2888c5a6a348004b5b436f47abb25ae32e72d9003902955a998eda723edd",
       "passed": true
     },
     {
@@ -284,13 +284,6 @@
       "passed": true
     },
     {
-      "path": "firmware/esp32c6/bootloader.bin",
-      "status": 200,
-      "bytes": 19872,
-      "sha256": "df4f545cc24eb6060600110dfbfc4fb810a8cac2f5025d3dce618318f125fcab",
-      "passed": true
-    },
-    {
       "path": "firmware/esp32c6/boot_app0.bin",
       "status": 200,
       "bytes": 8192,
@@ -298,10 +291,17 @@
       "passed": true
     },
     {
-      "path": "firmware/esp32c6/partitions.bin",
+      "path": "firmware/esp32c3/partitions.bin",
       "status": 200,
       "bytes": 3072,
       "sha256": "aaae2888c5a6a348004b5b436f47abb25ae32e72d9003902955a998eda723edd",
+      "passed": true
+    },
+    {
+      "path": "firmware/esp32c6/bootloader.bin",
+      "status": 200,
+      "bytes": 19872,
+      "sha256": "df4f545cc24eb6060600110dfbfc4fb810a8cac2f5025d3dce618318f125fcab",
       "passed": true
     },
     {
@@ -309,6 +309,13 @@
       "status": 200,
       "bytes": 1657472,
       "sha256": "0606a6117b1476fa7adc42ff0736be848fbc6f0d84c056047aea6d61f7254230",
+      "passed": true
+    },
+    {
+      "path": "firmware/esp32c6/partitions.bin",
+      "status": 200,
+      "bytes": 3072,
+      "sha256": "aaae2888c5a6a348004b5b436f47abb25ae32e72d9003902955a998eda723edd",
       "passed": true
     },
     {
@@ -326,24 +333,10 @@
       "passed": true
     },
     {
-      "path": "firmware/esp32s3/partitions.bin",
-      "status": 200,
-      "bytes": 3072,
-      "sha256": "aaae2888c5a6a348004b5b436f47abb25ae32e72d9003902955a998eda723edd",
-      "passed": true
-    },
-    {
       "path": "firmware/esp32s3/application.bin",
       "status": 200,
       "bytes": 1363408,
       "sha256": "2fbbe718d955aa87262c92475c9cfdfbb5e91efbbf476ee354f5efeb515d55bd",
-      "passed": true
-    },
-    {
-      "path": "firmware/licenses/NimBLE-Arduino-NOTICE",
-      "status": 200,
-      "bytes": 465,
-      "sha256": "f6ef45d67d7ae62672e48dfac088897f1027a2fafff69b8ccc60f3b54b7babff",
       "passed": true
     },
     {
@@ -354,13 +347,6 @@
       "passed": true
     },
     {
-      "path": "firmware/licenses/Arduino-ESP32-LICENSE",
-      "status": 200,
-      "bytes": 26335,
-      "sha256": "62e54861b30e953735dc187f036917c588665dbe3c5dd88449e34317608bbf5e",
-      "passed": true
-    },
-    {
       "path": "firmware/licenses/NimBLE-Arduino-LICENSE",
       "status": 200,
       "bytes": 11353,
@@ -368,10 +354,17 @@
       "passed": true
     },
     {
-      "path": "firmware/licenses/NimBLE-upstream-NOTICE",
+      "path": "firmware/esp32s3/partitions.bin",
       "status": 200,
-      "bytes": 321,
-      "sha256": "b838c4733a5020cd8e2bafbe70842acd8c8dc7816012965b77d10c1f4c0727f6",
+      "bytes": 3072,
+      "sha256": "aaae2888c5a6a348004b5b436f47abb25ae32e72d9003902955a998eda723edd",
+      "passed": true
+    },
+    {
+      "path": "firmware/licenses/Arduino-ESP32-LICENSE",
+      "status": 200,
+      "bytes": 26335,
+      "sha256": "62e54861b30e953735dc187f036917c588665dbe3c5dd88449e34317608bbf5e",
       "passed": true
     },
     {
@@ -382,24 +375,24 @@
       "passed": true
     },
     {
+      "path": "firmware/licenses/NimBLE-upstream-NOTICE",
+      "status": 200,
+      "bytes": 321,
+      "sha256": "b838c4733a5020cd8e2bafbe70842acd8c8dc7816012965b77d10c1f4c0727f6",
+      "passed": true
+    },
+    {
+      "path": "firmware/licenses/NimBLE-Arduino-NOTICE",
+      "status": 200,
+      "bytes": 465,
+      "sha256": "f6ef45d67d7ae62672e48dfac088897f1027a2fafff69b8ccc60f3b54b7babff",
+      "passed": true
+    },
+    {
       "path": "firmware/licenses/TinyCrypt-LICENSE",
       "status": 200,
       "bytes": 3313,
       "sha256": "b2d451fcba3577b118741d733d37ebd15bdd0b6b381e554a7345bdbfa3743108",
-      "passed": true
-    },
-    {
-      "path": "firmware/manifest.json",
-      "status": 200,
-      "bytes": 4217,
-      "sha256": "dcdef6f063b3fd8a6841529ee09fc5ad0b282d7790c757277df56f60f123e6b8",
-      "passed": true
-    },
-    {
-      "path": "index.html",
-      "status": 200,
-      "bytes": 7120,
-      "sha256": "6b9c938fcf13c379da261f1866ae5b12ca89b70d0ec880db3c42ecf9da113c26",
       "passed": true
     },
     {
@@ -410,31 +403,24 @@
       "passed": true
     },
     {
+      "path": "index.html",
+      "status": 200,
+      "bytes": 7120,
+      "sha256": "6b9c938fcf13c379da261f1866ae5b12ca89b70d0ec880db3c42ecf9da113c26",
+      "passed": true
+    },
+    {
+      "path": "firmware/manifest.json",
+      "status": 200,
+      "bytes": 4217,
+      "sha256": "dcdef6f063b3fd8a6841529ee09fc5ad0b282d7790c757277df56f60f123e6b8",
+      "passed": true
+    },
+    {
       "path": "i18n.js",
       "status": 200,
       "bytes": 5746,
       "sha256": "1416ecceab48916ea16b89ec78fad7dd7fdefcbedb08791e54eb676c251a6fd4",
-      "passed": true
-    },
-    {
-      "path": "locales/device.js",
-      "status": 200,
-      "bytes": 53520,
-      "sha256": "0c052af1d7c29126c893f5d5022a8d79dfdc1be3abaf1ffe50f7a5a890a8205c",
-      "passed": true
-    },
-    {
-      "path": "locales/mcp.js",
-      "status": 200,
-      "bytes": 14639,
-      "sha256": "7a0e73320cb5a7cc7323c5c61d7f91af8f64a8e971b056aae74793763d99ee8a",
-      "passed": true
-    },
-    {
-      "path": "prompts/context-summary.md",
-      "status": 200,
-      "bytes": 989,
-      "sha256": "041f070fbd00c8bbc711aa0473a4a0b59bcb9b56cff1b9f17329183bdd38c198",
       "passed": true
     },
     {
@@ -445,6 +431,20 @@
       "passed": true
     },
     {
+      "path": "locales/mcp.js",
+      "status": 200,
+      "bytes": 14639,
+      "sha256": "7a0e73320cb5a7cc7323c5c61d7f91af8f64a8e971b056aae74793763d99ee8a",
+      "passed": true
+    },
+    {
+      "path": "locales/device.js",
+      "status": 200,
+      "bytes": 54109,
+      "sha256": "06a4e17ec16a7d600b1fa88d13e9b2118f806d78997afb64d9f42d2fc59e428c",
+      "passed": true
+    },
+    {
       "path": "locales/messages.js",
       "status": 200,
       "bytes": 379628,
@@ -452,24 +452,10 @@
       "passed": true
     },
     {
-      "path": "skills/catalog.json",
+      "path": "prompts/context-summary.md",
       "status": 200,
-      "bytes": 3478,
-      "sha256": "ce1c80992ef57a695e0c52a93d1f9607c1857ae1df27ce2dcad28a44118301a3",
-      "passed": true
-    },
-    {
-      "path": "prompts/system.md",
-      "status": 200,
-      "bytes": 5829,
-      "sha256": "d098554e7c9f1750603dea82a940061585adc4dfb34109ea11ea8582d27b0136",
-      "passed": true
-    },
-    {
-      "path": "site-config.js",
-      "status": 200,
-      "bytes": 241,
-      "sha256": "973fd5e57a0177b1da2d52bdd51850df20241dab653eef8cacaef486e8475672",
+      "bytes": 989,
+      "sha256": "041f070fbd00c8bbc711aa0473a4a0b59bcb9b56cff1b9f17329183bdd38c198",
       "passed": true
     },
     {
@@ -480,10 +466,38 @@
       "passed": true
     },
     {
+      "path": "site-config.js",
+      "status": 200,
+      "bytes": 241,
+      "sha256": "973fd5e57a0177b1da2d52bdd51850df20241dab653eef8cacaef486e8475672",
+      "passed": true
+    },
+    {
+      "path": "prompts/system.md",
+      "status": 200,
+      "bytes": 5829,
+      "sha256": "d098554e7c9f1750603dea82a940061585adc4dfb34109ea11ea8582d27b0136",
+      "passed": true
+    },
+    {
+      "path": "skills/catalog.json",
+      "status": 200,
+      "bytes": 3478,
+      "sha256": "ce1c80992ef57a695e0c52a93d1f9607c1857ae1df27ce2dcad28a44118301a3",
+      "passed": true
+    },
+    {
       "path": "skills/challenge-router/SKILL.md",
       "status": 200,
       "bytes": 6245,
       "sha256": "a5bf8e118277feba16a7370566d8ade4ce8c58faff684cda39046b16be655b38",
+      "passed": true
+    },
+    {
+      "path": "skills/drag-and-drop/SKILL.md",
+      "status": 200,
+      "bytes": 4727,
+      "sha256": "0fc7e1200523b2da7b0723778b3c0711632c15407dc3024838011b84168a2f72",
       "passed": true
     },
     {
@@ -494,10 +508,17 @@
       "passed": true
     },
     {
-      "path": "skills/drag-and-drop/SKILL.md",
+      "path": "skills/list-scroll/SKILL.md",
       "status": 200,
-      "bytes": 4727,
-      "sha256": "0fc7e1200523b2da7b0723778b3c0711632c15407dc3024838011b84168a2f72",
+      "bytes": 4511,
+      "sha256": "5c01dbf44800b696a8363a682608aafa09b7fdcd36a61e0ad2a13769136b02d8",
+      "passed": true
+    },
+    {
+      "path": "skills/list-scroll/manifest.json",
+      "status": 200,
+      "bytes": 536,
+      "sha256": "a59cdbbf07fcdc19027048beb631ba7f6c7b0ad6cceaa38c5cc8e6d205fa78ed",
       "passed": true
     },
     {
@@ -515,17 +536,10 @@
       "passed": true
     },
     {
-      "path": "skills/list-scroll/manifest.json",
+      "path": "skills/recovery/manifest.json",
       "status": 200,
-      "bytes": 536,
-      "sha256": "a59cdbbf07fcdc19027048beb631ba7f6c7b0ad6cceaa38c5cc8e6d205fa78ed",
-      "passed": true
-    },
-    {
-      "path": "skills/list-scroll/SKILL.md",
-      "status": 200,
-      "bytes": 4511,
-      "sha256": "5c01dbf44800b696a8363a682608aafa09b7fdcd36a61e0ad2a13769136b02d8",
+      "bytes": 491,
+      "sha256": "e1986885785163ff94efa6b9914951aa1ea44553cbd3dcbf539f1c060ffb6e0a",
       "passed": true
     },
     {
@@ -536,13 +550,6 @@
       "passed": true
     },
     {
-      "path": "skills/screen-observation/SKILL.md",
-      "status": 200,
-      "bytes": 4674,
-      "sha256": "6c8db8e9ca8b24b4ecf9d703cfce004f2594a725002ec10944dac5046155aaf8",
-      "passed": true
-    },
-    {
       "path": "skills/recovery/SKILL.md",
       "status": 200,
       "bytes": 5460,
@@ -550,24 +557,10 @@
       "passed": true
     },
     {
-      "path": "skills/screen-observation/manifest.json",
+      "path": "skills/screen-observation/SKILL.md",
       "status": 200,
-      "bytes": 546,
-      "sha256": "9383094109d342e5333cccbaae06b6de7f00f171cece0af3f2933114d853ec8d",
-      "passed": true
-    },
-    {
-      "path": "skills/recovery/manifest.json",
-      "status": 200,
-      "bytes": 491,
-      "sha256": "e1986885785163ff94efa6b9914951aa1ea44553cbd3dcbf539f1c060ffb6e0a",
-      "passed": true
-    },
-    {
-      "path": "skills/skill-authoring/SKILL.md",
-      "status": 200,
-      "bytes": 2007,
-      "sha256": "3128c7e73a35463ee27f4c0cce0bc87b2e1d295973889452fa6b0f50d2f497f5",
+      "bytes": 4674,
+      "sha256": "6c8db8e9ca8b24b4ecf9d703cfce004f2594a725002ec10944dac5046155aaf8",
       "passed": true
     },
     {
@@ -578,10 +571,17 @@
       "passed": true
     },
     {
-      "path": "skills/task-planning/manifest.json",
+      "path": "skills/screen-observation/manifest.json",
       "status": 200,
-      "bytes": 500,
-      "sha256": "f405050d97fa99791b10547e11b4927c0c72f06a40a7f674b2e799a6cf52c646",
+      "bytes": 546,
+      "sha256": "9383094109d342e5333cccbaae06b6de7f00f171cece0af3f2933114d853ec8d",
+      "passed": true
+    },
+    {
+      "path": "skills/skill-authoring/SKILL.md",
+      "status": 200,
+      "bytes": 2007,
+      "sha256": "3128c7e73a35463ee27f4c0cce0bc87b2e1d295973889452fa6b0f50d2f497f5",
       "passed": true
     },
     {
@@ -592,17 +592,17 @@
       "passed": true
     },
     {
-      "path": "skills/text-entry/manifest.json",
-      "status": 200,
-      "bytes": 532,
-      "sha256": "014f09d5bb685aa809a9a9c91949feb2c5ad44135dc7df3aab21695ea9060684",
-      "passed": true
-    },
-    {
       "path": "skills/temporal-observation/SKILL.md",
       "status": 200,
       "bytes": 4942,
       "sha256": "af4bcd022f820d47d526e82d8552dfd9378c7488baca6cdabb188cceb98bc9fe",
+      "passed": true
+    },
+    {
+      "path": "skills/task-planning/manifest.json",
+      "status": 200,
+      "bytes": 500,
+      "sha256": "f405050d97fa99791b10547e11b4927c0c72f06a40a7f674b2e799a6cf52c646",
       "passed": true
     },
     {
@@ -620,13 +620,6 @@
       "passed": true
     },
     {
-      "path": "specs/action-plan.schema.json",
-      "status": 200,
-      "bytes": 9341,
-      "sha256": "4a093f47740f69473a52b91674ff8a8be3eed30cef682080be5fb62f88eba846",
-      "passed": true
-    },
-    {
       "path": "specs/device-segment.schema.json",
       "status": 200,
       "bytes": 4015,
@@ -641,24 +634,24 @@
       "passed": true
     },
     {
+      "path": "specs/action-plan.schema.json",
+      "status": 200,
+      "bytes": 9341,
+      "sha256": "4a093f47740f69473a52b91674ff8a8be3eed30cef682080be5fb62f88eba846",
+      "passed": true
+    },
+    {
+      "path": "skills/text-entry/manifest.json",
+      "status": 200,
+      "bytes": 532,
+      "sha256": "014f09d5bb685aa809a9a9c91949feb2c5ad44135dc7df3aab21695ea9060684",
+      "passed": true
+    },
+    {
       "path": "specs/examples/batch-with-checkpoint.plan.json",
       "status": 200,
       "bytes": 1313,
       "sha256": "3e262c0273fe1b592e010812c0d3a73f1ff80a5e97b6341d3ead2499c77c3c13",
-      "passed": true
-    },
-    {
-      "path": "specs/examples/swipe-release.plan.json",
-      "status": 200,
-      "bytes": 890,
-      "sha256": "c3fc1760c66e39006db2a9e6be3e93a221ab189193ce3486fe0e3015301b5492",
-      "passed": true
-    },
-    {
-      "path": "specs/examples/observe-during-motion.plan.json",
-      "status": 200,
-      "bytes": 1163,
-      "sha256": "1c11c72c7a7fadb3bb44460e1050601ee627a5fc5f8df527c440a0d764672c41",
       "passed": true
     },
     {
@@ -669,6 +662,13 @@
       "passed": true
     },
     {
+      "path": "specs/examples/observe-during-motion.plan.json",
+      "status": 200,
+      "bytes": 1163,
+      "sha256": "1c11c72c7a7fadb3bb44460e1050601ee627a5fc5f8df527c440a0d764672c41",
+      "passed": true
+    },
+    {
       "path": "specs/examples/completed.result.json",
       "status": 200,
       "bytes": 1621,
@@ -676,24 +676,10 @@
       "passed": true
     },
     {
-      "path": "specs/examples/swipe.segment.json",
+      "path": "specs/examples/swipe-release.plan.json",
       "status": 200,
-      "bytes": 911,
-      "sha256": "8db93211c9ab64d57e55a8cc3bccfb80b88fd427f997152c753b4cbb4821fc76",
-      "passed": true
-    },
-    {
-      "path": "specs/skill-manifest.schema.json",
-      "status": 200,
-      "bytes": 1927,
-      "sha256": "fa70c5eef103b2e80e37a9e54c96911745f2870f788c3aed38afa5e26a3078d3",
-      "passed": true
-    },
-    {
-      "path": "ui/device-panel.css",
-      "status": 200,
-      "bytes": 1518,
-      "sha256": "b16493c09de7b99fcc1af6cf96dab043f522241ec8c7ecccbf3718e205aadb23",
+      "bytes": 890,
+      "sha256": "c3fc1760c66e39006db2a9e6be3e93a221ab189193ce3486fe0e3015301b5492",
       "passed": true
     },
     {
@@ -704,17 +690,17 @@
       "passed": true
     },
     {
-      "path": "ui/mcp-settings.js",
+      "path": "specs/skill-manifest.schema.json",
       "status": 200,
-      "bytes": 6187,
-      "sha256": "e0ad782623dbfeaa662cfeeab7f6a45b45d1f45235e1aaf38f56e457be895fda",
+      "bytes": 1927,
+      "sha256": "fa70c5eef103b2e80e37a9e54c96911745f2870f788c3aed38afa5e26a3078d3",
       "passed": true
     },
     {
-      "path": "ui/usb-setup.js",
+      "path": "specs/examples/swipe.segment.json",
       "status": 200,
-      "bytes": 4795,
-      "sha256": "5fce516d49ab2efcef107c5355c95370422f7c9b1a59b3a7d08285c4bac6af6c",
+      "bytes": 911,
+      "sha256": "8db93211c9ab64d57e55a8cc3bccfb80b88fd427f997152c753b4cbb4821fc76",
       "passed": true
     },
     {
@@ -725,17 +711,24 @@
       "passed": true
     },
     {
+      "path": "ui/device-panel.css",
+      "status": 200,
+      "bytes": 1518,
+      "sha256": "b16493c09de7b99fcc1af6cf96dab043f522241ec8c7ecccbf3718e205aadb23",
+      "passed": true
+    },
+    {
+      "path": "ui/mcp-settings.js",
+      "status": 200,
+      "bytes": 6187,
+      "sha256": "e0ad782623dbfeaa662cfeeab7f6a45b45d1f45235e1aaf38f56e457be895fda",
+      "passed": true
+    },
+    {
       "path": "ui/device-panel.js",
       "status": 200,
       "bytes": 18306,
       "sha256": "755946c73bb90b0edbb81870f57a1bc2fce6e6ba1714c5a0893aacc9a1aebd61",
-      "passed": true
-    },
-    {
-      "path": "vendor/README.md",
-      "status": 200,
-      "bytes": 902,
-      "sha256": "e2abf72defb3c1d6f5a9d6d164a03f5a5058076b1c35cdbb060d517a9ed11021",
       "passed": true
     },
     {
@@ -746,13 +739,6 @@
       "passed": true
     },
     {
-      "path": "vendor/esptool-js/bundle.js",
-      "status": 200,
-      "bytes": 313171,
-      "sha256": "00ebe6fb0b202976d3e2a3c6b9a6bd438c26a81d2af6739c95ac276a64c1a84e",
-      "passed": true
-    },
-    {
       "path": "vendor/esptool-js/THIRD_PARTY_LICENSES.txt",
       "status": 200,
       "bytes": 2251,
@@ -760,10 +746,17 @@
       "passed": true
     },
     {
-      "path": "vendor/esptool-js/source.json",
+      "path": "ui/usb-setup.js",
       "status": 200,
-      "bytes": 351,
-      "sha256": "d1cc71fc2b7d26d1fdaefa0ec6d0348b09fc660a2687abe82a612d44680bf84c",
+      "bytes": 4795,
+      "sha256": "5fce516d49ab2efcef107c5355c95370422f7c9b1a59b3a7d08285c4bac6af6c",
+      "passed": true
+    },
+    {
+      "path": "vendor/README.md",
+      "status": 200,
+      "bytes": 902,
+      "sha256": "e2abf72defb3c1d6f5a9d6d164a03f5a5058076b1c35cdbb060d517a9ed11021",
       "passed": true
     },
     {
@@ -774,10 +767,24 @@
       "passed": true
     },
     {
+      "path": "vendor/esptool-js/source.json",
+      "status": 200,
+      "bytes": 351,
+      "sha256": "d1cc71fc2b7d26d1fdaefa0ec6d0348b09fc660a2687abe82a612d44680bf84c",
+      "passed": true
+    },
+    {
       "path": "vendor/js-md5/md5.js",
       "status": 200,
       "bytes": 29399,
       "sha256": "db363f37ef006212ee7f5ecfebb31e2af2bb59f9dca0c5f365e367b671e92ab5",
+      "passed": true
+    },
+    {
+      "path": "vendor/esptool-js/bundle.js",
+      "status": 200,
+      "bytes": 313171,
+      "sha256": "00ebe6fb0b202976d3e2a3c6b9a6bd438c26a81d2af6739c95ac276a64c1a84e",
       "passed": true
     }
   ]

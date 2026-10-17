@@ -1,11 +1,11 @@
 {
-  "checkedAt": "2026-10-17T22:00:15.918269+00:00",
-  "releaseFinalPending": true,
+  "checkedAt": "2026-10-17T22:45:00.650709+00:00",
+  "releaseFinalPending": false,
   "webTests": {
-    "passed": 341,
+    "passed": 361,
     "failed": 0,
     "command": "npm test",
-    "scope": "final runtime/UI source after stable device ID and retained component-error fixes"
+    "scope": "final runtime/UI source including restored image-session backup bounds and four independent R13 tests"
   },
   "contractTests": {
     "passed": 29,
@@ -20,19 +20,13 @@
     "failed": 0
   },
   "knownSecretScan": {
-    "filesScanned": 399,
+    "checkedAt": "2026-10-17T22:45:01.899011+00:00",
+    "filesScanned": 435,
     "knownSecretValues": 5,
     "leakedPaths": [],
     "passed": true
   },
-  "pending": [
-    "final independent reviews",
-    "final firmware source/artifact agreement",
-    "final C3 pinned TLS",
-    "final web suite",
-    "final deployment bytes",
-    "commit/push/CI"
-  ],
+  "pending": [],
   "independentWebReview": {
     "report": "independent-web-r6.md",
     "newReproducibleIssues": 0,
@@ -42,7 +36,10 @@
     "web": "independent-web-r6.md",
     "firmware": "independent-firmware-r8.md",
     "deviceAndPanelDelta": "independent-device-identity-r10.md",
-    "content": "release-final verification pending"
+    "content": "independent-release-content-r4.md",
+    "serial": "independent-serial-r11.md",
+    "backupDelta": "independent-backup-r13.md",
+    "backupFindingHistory": "independent-backup-r12.md"
   },
   "firmwareSoftware": {
     "hostCoreAdmissionRtcSetup": 67,
@@ -52,23 +49,92 @@
     "independentR8": 11,
     "actualSdkPreprocessProfiles": 4,
     "crossGcc14R7R8SyntaxOnly": true,
-    "nativeGnuExecution": "pending GitHub CI"
+    "nativeGnuExecution": {
+      "passed": true,
+      "ciUrl": "https://github.com/cccat6/iphone-agent-harness/actions/runs/39076239197",
+      "scope": "Linux native Core/Admission/router/canonical/artifact verification, including independent R7/R8"
+    }
   },
   "nativeBrowser": {
     "storageChecks": 9,
     "componentCases": 5,
-    "componentLocaleAssertions": 40
+    "componentLocaleAssertions": 40,
+    "realWebSerialC3": "passed; four MD5 checks and automatic app boot",
+    "usbChooserObservedWaitMs": 34272,
+    "caProfileDownload": "response verified; Chrome blocked file save; no warning bypass"
   },
   "deployment": {
-    "checkedAt": "2026-10-17T22:08:54.641244+00:00",
+    "checkedAt": "2026-10-17T22:43:16.382Z",
     "origin": "https://igent.cc",
     "worker": "igent-web",
-    "deploymentId": "d56a7be75f7b45b8b3dcf242f93070b2",
+    "deploymentId": "945f0e07bea843bfa1471dc5bba55a28",
     "workerEtag": "431c1997f5d4516fd77c2f0bbd661f717b81a92f661b031cc15ad7f77b53739d",
-    "assetFiles": 111,
+    "assetFiles": 112,
     "allFileHashesPassed": true,
     "routeAndSignedCommunityChecks": 13,
     "disposableCommunityRowsRemoved": 2,
-    "remainingTestRows": 0
+    "remainingTestRows": 0,
+    "nativeSiteReport": "desktop-site-verification.json"
+  },
+  "firmwareBuild": {
+    "sourceSha256": "4b4ebc2e65b3a7b1ebac4b4463c67ae2cb805f3ef85c1eece9e23bb1b435f8f0",
+    "sourceFiles": 13,
+    "applicationImages": {
+      "esp32c3": {
+        "path": "esp32c3/application.bin",
+        "offset": 65536,
+        "sha256": "ccead46859f7c8d15ff8ca04136cb1673677e1c5e232ca8fff76c2030afc7971",
+        "size": 1511792
+      },
+      "esp32s3": {
+        "path": "esp32s3/application.bin",
+        "offset": 65536,
+        "sha256": "2fbbe718d955aa87262c92475c9cfdfbb5e91efbbf476ee354f5efeb515d55bd",
+        "size": 1363408
+      },
+      "esp32c6": {
+        "path": "esp32c6/application.bin",
+        "offset": 65536,
+        "sha256": "0606a6117b1476fa7adc42ff0736be848fbc6f0d84c056047aea6d61f7254230",
+        "size": 1657472
+      },
+      "esp32": {
+        "path": "esp32/application.bin",
+        "offset": 65536,
+        "sha256": "12032599daff3fbe76d7203aaae5eae6030a8ea63f66a9a245187173784843c1",
+        "size": 1436784
+      }
+    }
+  },
+  "ci": {
+    "implementationCommit": "4919cdd8ddc57b170dd0576ca098f51afb001319",
+    "url": "https://github.com/cccat6/iphone-agent-harness/actions/runs/39076239197",
+    "conclusion": "success",
+    "webTests": 361,
+    "optionalReferenceArchiveHashTestSkippedInCi": 1,
+    "localAllContractTestsPassed": 29
+  },
+  "backupBounds": {
+    "sessionUtf8JsonBytes": 67108864,
+    "skillAndIdentityImportBytes": 10485760,
+    "sameSessionExportImportBound": true,
+    "oversizedOperationsPreserveExistingData": true,
+    "actualGreaterThan10MiBImageRoundTrip": true,
+    "full64MiBFixtureNotAllocated": true
+  },
+  "documentLinks": {
+    "checkedAt": "2026-10-17T22:45:01.899011+00:00",
+    "documents": 81,
+    "localLinks": 753,
+    "problems": [],
+    "passed": true
+  },
+  "inventory": {
+    "matchingBilingualItems": 94,
+    "phoneGroups": 16,
+    "requiredPhoneGroups": 13,
+    "optionalPhoneGroups": 3,
+    "desktopRemaining": 0,
+    "phoneExecutionDeferred": true
   }
 }

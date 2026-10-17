@@ -10,12 +10,12 @@
 
 | ID | 状态 | 检查与确切证据 | 已证实范围／剩余边界 |
 |---|---|---|---|
-| R01 | A / L | Web全套 **354/354**，0失败；[验证记录](../research/release-verification.json)、[实际Linux CI](https://github.com/cccat6/iphone-agent-harness/actions/runs/39074641443) | 含最终串口生命周期及九项独立vendor／复位测试，不推断真机手机结果。 |
+| R01 | A / L | Web全套 **361/361**，0失败；[验证记录](../research/release-verification.json)、[实际Linux CI](https://github.com/cccat6/iphone-agent-harness/actions/runs/39076239197) | 含最终串口生命周期及九项独立vendor／复位测试，不推断真机手机结果。 |
 | R02 | A | [生命周期 R6](../research/independent-lifecycle-r6.md)：新增6项取屏、定向82/82 | 使用有限取屏／设备适配器，不是真实Safari录屏。 |
 | R03 | A | host67 +实际router12；独立R7九项+坐标回归、R8十一项；canonical6／artifact6 | [R8报告](../research/independent-firmware-r8.md)关闭软件问题，四种实际SDK宏检查也通过。有限主机／编译证据不等于物理BLE送达。 |
 | R04 | N / A | 新[Web R6](../research/independent-web-r6.md)、[设备/UI R10](../research/independent-device-identity-r10.md)、[串口R11](../research/independent-serial-r11.md)无新问题 | [真实DOM四十项语言断言](../research/desktop-panel-localization-verification.json)、[真实IDB九项](../research/desktop-storage-verification.json)、[官网原生流程](../research/desktop-site-verification.json)。 |
 | R05 | D / A / L | 四种实际编译均来自源码 `4b4ebc2e…435f8f0`；严格校验通过 **4 profiles / 13 source files** | [构建报告](../../apps/web/firmware/build-report.json)、[manifest](../../apps/web/firmware/manifest.json)、[最终C3网页／USB](../research/webserial-physical-verification.json)、[证书验证TLS八项](../research/device-client-live-verification.json)。未宣称S3/C6/原ESP32物理行为已验收。 |
-| R06 | L / N | private仓库实现已推送；Linux [CI通过](https://github.com/cccat6/iphone-agent-harness/actions/runs/39074641443)；线上 **111/111** 文件hash及社区签名十三项通过 | [分支最新检查](https://github.com/cccat6/iphone-agent-harness/actions/workflows/checks.yml)、[线上字节](../research/release-site-verification.json)、[API及清理](../research/deployment-verification.json)、[原生官网](../research/desktop-site-verification.json)。最终文档回执沿用同一运行时。 |
+| R06 | L / N | private仓库实现已推送；Linux [CI通过](https://github.com/cccat6/iphone-agent-harness/actions/runs/39076239197)；线上 **112/112** 文件hash及社区签名十三项通过 | [分支最新检查](https://github.com/cccat6/iphone-agent-harness/actions/workflows/checks.yml)、[线上字节](../research/release-site-verification.json)、[API及清理](../research/deployment-verification.json)、[原生官网](../research/desktop-site-verification.json)。本轮最终实现另含会话备份边界修复；新[R13](../research/independent-backup-r13.md)无新问题。 |
 | R07 | D / A | 发布证据、八语README、许可证、本地已知敏感值扫描及文档链接已核对 | [发布汇总](../research/release-acceptance.md)、[验证记录](../research/release-verification.json)、[MIT](../../LICENSE)、[第三方声明](../../THIRD_PARTY_NOTICES.md)。记录精确数量与范围，不冒充任意敏感信息检测。 |
 
 ## 会话、设置与本地数据
@@ -131,7 +131,7 @@
 | ID | 状态 | 功能／预期行为 | 证据与边界 |
 |---|---|---|---|
 | W01 | A / N / L | 手机`/` Harness，桌面转`/main`；`/main` `/skills` `/flash`；旧链接归一、前进后退不重建run | [路由](../../tests/web/routing.test.mjs)、[原生UI](../research/harness-ui-verification.md)、[线上HTTPS](../research/deployment-verification.json)。 |
-| W02 | A / L | 仅指定文档路径回退、缺模块真404、`/api/skills`为JSON | [路由](../../tests/web/routing.test.mjs)、[实际路由API](../research/deployment-verification.json)、[线上111文件hash](../research/release-site-verification.json)。 |
+| W02 | A / L | 仅指定文档路径回退、缺模块真404、`/api/skills`为JSON | [路由](../../tests/web/routing.test.mjs)、[实际路由API](../research/deployment-verification.json)、[线上112文件hash](../research/release-site-verification.json)。 |
 | W03 | A / N | iOS/iPadOS27+ Safari/PWA及能力预检、iPad桌面UA；低版本门禁不可Esc/Tab/背景关闭 | [兼容](../../tests/web/compatibility.test.mjs)、[兼容路由](../../tests/web/compatibility-routing.test.mjs)、[原生R3](../research/independent-web-r3.md)。桌面UA不等于旧iPhone真机。 |
 | W04 | A / N | ES5启动回退，现代模块无法解析／加载仍有公共内容 | [bootstrap](../../tests/web/bootstrap.test.mjs)、[旧版架构](../architecture/legacy-bootstrap.md)、[原生R3](../research/independent-web-r3.md)。 |
 | W05 | A / N | 英／简中／繁中／日／俄／德／法／西；系统优先、手动／刷新保留 | [i18n](../../tests/web/i18n.test.mjs)、[动态](../../tests/web/i18n-dynamic.test.mjs)、[新R6](../research/independent-web-r6.md)。原生选定语言流程加八语模块合同，不宣称所有页面八语均做真机视觉检查。 |

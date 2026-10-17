@@ -28,7 +28,7 @@ All four profiles in the checked-in manifest were compiled from the same 13-file
 | ESP32-C6 | 1,657,472 | Native |
 | ESP32 | 1,436,784 | External UART |
 
-The final C3 binary also passed six real production DeviceClient checks over CA/hostname-verified HTTPS; see [the exact hardware report](../../../docs/research/device-client-live-verification.json). This did not send a HID challenge, acquire a phone lease or perform gestures. The other three profiles are compile/integrity-verified, and the full phone/multi-phone acceptance gate remains open.
+The final C3 binary also passed eight real production DeviceClient checks over CA/hostname-verified HTTPS; see [the exact hardware report](../../../docs/research/device-client-live-verification.json). This did not send a HID challenge, acquire a phone lease or perform gestures. The other three profiles are compile/integrity-verified, and the full phone/multi-phone acceptance gate remains open.
 
 ## Manifest
 
