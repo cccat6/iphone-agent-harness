@@ -1,6 +1,8 @@
 // Eight locale tables for product text; user content and protocol identifiers stay unchanged.
 export const messages = {
   "en": {
+    "session.emptyTitle": "No sessions yet",
+    "session.connectStart": "Connect your device to get started.",
     "session.listTitle": "Sessions",
     "device.state.offline": "Device not connected",
     "device.state.connecting": "Connecting…",
@@ -342,6 +344,8 @@ export const messages = {
     "session.stopBeforeImport": "Stop the current task before importing a session."
   },
   "zh-Hans": {
+    "session.emptyTitle": "还没有会话",
+    "session.connectStart": "连接设备，开始第一个会话。",
     "session.listTitle": "会话",
     "device.state.offline": "设备未连接",
     "device.state.connecting": "正在连接…",
@@ -683,6 +687,8 @@ export const messages = {
     "session.stopBeforeImport": "请先停止当前任务，再导入会话。"
   },
   "zh-Hant": {
+    "session.emptyTitle": "還沒有對話",
+    "session.connectStart": "連線裝置，開始第一個對話。",
     "session.listTitle": "對話",
     "device.state.offline": "裝置未連線",
     "device.state.connecting": "連線中…",
@@ -1024,6 +1030,8 @@ export const messages = {
     "session.stopBeforeImport": "請先停止目前任務，再匯入對話。"
   },
   "ja": {
+    "session.emptyTitle": "セッションはまだありません",
+    "session.connectStart": "デバイスを接続して始めましょう。",
     "session.listTitle": "セッション",
     "device.state.offline": "デバイス未接続",
     "device.state.connecting": "接続中…",
@@ -1365,6 +1373,8 @@ export const messages = {
     "session.stopBeforeImport": "会話をインポートする前に、実行中のタスクを停止してください。"
   },
   "ru": {
+    "session.emptyTitle": "Пока нет сеансов",
+    "session.connectStart": "Подключите устройство, чтобы начать.",
     "session.listTitle": "Сеансы",
     "device.state.offline": "Устройство не подключено",
     "device.state.connecting": "Подключение…",
@@ -1706,6 +1716,8 @@ export const messages = {
     "session.stopBeforeImport": "Перед импортом остановите текущую задачу."
   },
   "de": {
+    "session.emptyTitle": "Noch keine Sitzungen",
+    "session.connectStart": "Verbinde dein Gerät, um zu beginnen.",
     "session.listTitle": "Sitzungen",
     "device.state.offline": "Kein Gerät verbunden",
     "device.state.connecting": "Verbindung wird hergestellt…",
@@ -2047,6 +2059,8 @@ export const messages = {
     "session.stopBeforeImport": "Beenden Sie die aktuelle Aufgabe, bevor Sie eine Sitzung importieren."
   },
   "fr": {
+    "session.emptyTitle": "Aucune conversation",
+    "session.connectStart": "Connectez votre appareil pour commencer.",
     "session.listTitle": "Conversations",
     "device.state.offline": "Appareil non connecté",
     "device.state.connecting": "Connexion en cours…",
@@ -2388,6 +2402,8 @@ export const messages = {
     "session.stopBeforeImport": "Arrêtez la tâche en cours avant d’importer une conversation."
   },
   "es": {
+    "session.emptyTitle": "Aún no hay conversaciones",
+    "session.connectStart": "Conecta tu dispositivo para empezar.",
     "session.listTitle": "Conversaciones",
     "device.state.offline": "Dispositivo desconectado",
     "device.state.connecting": "Conectando…",

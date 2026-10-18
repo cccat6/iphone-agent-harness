@@ -21,13 +21,13 @@
   </section>
   <div id="app" class="app-shell" hidden inert>
     <aside class="sidebar" aria-label="会话列表">
-      <header class="session-home-header"><a class="brand" href="/main" aria-label="iPhone Agent Harness 首页"><img class="brand-icon" src="./icons/icon.svg" alt="" width="28" height="28"><span class="brand-name" data-no-i18n>iPhone Agent Harness</span></a><button id="open-settings" class="icon-button" aria-label="设置">⚙</button></header>
+      <header class="session-home-header"><a class="brand" href="/main" aria-label="iPhone Agent Harness 首页"><img class="brand-icon" src="./icons/icon.svg" alt="" width="28" height="28"><span class="brand-name" data-no-i18n>iPhone Agent Harness</span></a><button id="open-settings" class="icon-button" aria-label="设置"><img src="./icons/settings.svg" alt="" width="21" height="21"></button></header>
       <button id="open-devices" class="device-status-row"><i id="device-indicator" aria-hidden="true"></i><span><strong id="home-device-status" data-no-i18n></strong><small id="home-device-detail" data-no-i18n></small></span><span aria-hidden="true">›</span></button>
-      <div class="session-library-heading"><h1 id="list-label" data-i18n="session.listTitle">会话</h1><button id="new-session" class="primary" data-i18n="session.newButton">＋ 新会话</button><button id="session-list-menu" class="icon-button" aria-label="会话操作">···</button></div>
-      <label class="search-field"><input id="session-search" type="search" placeholder="搜索会话" aria-label="搜索会话" autocomplete="off"></label>
+      <label class="search-field"><img src="./icons/search.svg" width="18" height="18" alt=""><input id="session-search" type="search" placeholder="搜索会话" aria-label="搜索会话" autocomplete="off"></label>
+      <div class="session-library-heading"><h1 id="list-label" data-i18n="session.listTitle">会话</h1><button id="session-list-menu" class="icon-button" aria-label="会话操作">···</button></div>
       <button id="archive-toggle" class="text-button archive-back" hidden>返回会话</button>
       <nav id="sessions" class="sessions" aria-label="已保存的会话"></nav>
-      <div class="sidebar-footer"><button id="open-skills" class="nav-button"><span data-i18n="nav.skills">技能</span><span aria-hidden="true">›</span></button></div>
+      <div class="sidebar-footer"><button id="open-skills" class="nav-button"><img src="./icons/skills.svg" width="19" height="19" alt=""><span data-i18n="nav.skills">技能</span></button><button id="new-session" class="primary"><img src="./icons/new-session.svg" width="20" height="20" alt=""><span data-i18n="session.new">新会话</span></button></div>
     </aside>
     <main class="workspace" id="workspace">
       <header class="topbar"><button id="back-sessions" class="icon-button mobile-only" aria-label="返回会话列表">‹</button><div class="conversation-heading"><h1 id="session-title">iPhone Agent Harness</h1><p id="session-subtitle"></p></div><button id="session-menu" class="icon-button" aria-label="会话操作" hidden>···</button></header>

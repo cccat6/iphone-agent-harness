@@ -13,3 +13,5 @@ The root MIT license applies to original iPhone Agent Harness source. Upstream d
 Firmware is built using the pinned upstream toolchain rather than checked-in vendor source snapshots. `tools/build_firmware.py`, the sketch sources, `build_opt.h`, resource limits and the generated build report document how to rebuild and relink the images. Local Wi-Fi configuration and per-device private keys are not part of the distributed binary build.
 
 Architecture research references are listed in `docs/research/harnesses.md`; this project does not redistribute Claude Code or Cursor internal source. Vendor code is not relicensed by the root project license.
+
+The four interface icons `new-session.svg`, `settings.svg`, `search.svg`, and `skills.svg` come from [Lucide](https://github.com/lucide-icons/lucide), under the ISC license retained at `apps/web/icons/LUCIDE-LICENSE`.
