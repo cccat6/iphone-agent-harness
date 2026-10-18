@@ -1,10 +1,11 @@
 // Eight locale tables for product text; user content and protocol identifiers stay unchanged.
 export const messages = {
   "en": {
+    "clipboard.continueTask": "Continue the task using the text just copied. Return to the intended app and confirm its input field before pasting; do not paste into Harness.",
     "session.emptyTitle": "No sessions yet",
     "session.connectStart": "Connect your device to get started.",
     "session.listTitle": "Sessions",
-    "device.state.offline": "Device not connected",
+    "device.state.offline": "ESP32 bridge not connected",
     "device.state.connecting": "Connecting…",
     "device.state.test": "Connection test needed",
     "device.state.ready": "Device ready",
@@ -344,10 +345,11 @@ export const messages = {
     "session.stopBeforeImport": "Stop the current task before importing a session."
   },
   "zh-Hans": {
+    "clipboard.continueTask": "刚才的文字已复制，请继续任务。先回到目标 App，确认输入框后再粘贴，不要粘贴到 Harness。",
     "session.emptyTitle": "还没有会话",
     "session.connectStart": "连接设备，开始第一个会话。",
     "session.listTitle": "会话",
-    "device.state.offline": "设备未连接",
+    "device.state.offline": "ESP32 桥未连接",
     "device.state.connecting": "正在连接…",
     "device.state.test": "等待连接测试",
     "device.state.ready": "设备已就绪",
@@ -687,10 +689,11 @@ export const messages = {
     "session.stopBeforeImport": "请先停止当前任务，再导入会话。"
   },
   "zh-Hant": {
+    "clipboard.continueTask": "剛才的文字已複製，請繼續任務。先回到目標 App，確認輸入欄位後再貼上，不要貼到 Harness。",
     "session.emptyTitle": "還沒有對話",
     "session.connectStart": "連線裝置，開始第一個對話。",
     "session.listTitle": "對話",
-    "device.state.offline": "裝置未連線",
+    "device.state.offline": "ESP32 橋接器未連線",
     "device.state.connecting": "連線中…",
     "device.state.test": "等待連線測試",
     "device.state.ready": "裝置已就緒",
@@ -1030,10 +1033,11 @@ export const messages = {
     "session.stopBeforeImport": "請先停止目前任務，再匯入對話。"
   },
   "ja": {
+    "clipboard.continueTask": "テキストをコピーしました。タスクを続けてください。対象アプリに戻り、入力欄を確認してから貼り付けてください。Harness には貼り付けないでください。",
     "session.emptyTitle": "セッションはまだありません",
     "session.connectStart": "デバイスを接続して始めましょう。",
     "session.listTitle": "セッション",
-    "device.state.offline": "デバイス未接続",
+    "device.state.offline": "ESP32 ブリッジ未接続",
     "device.state.connecting": "接続中…",
     "device.state.test": "接続テストが必要です",
     "device.state.ready": "デバイスの準備完了",
@@ -1373,10 +1377,11 @@ export const messages = {
     "session.stopBeforeImport": "会話をインポートする前に、実行中のタスクを停止してください。"
   },
   "ru": {
+    "clipboard.continueTask": "Текст скопирован. Продолжи задачу: вернись в нужное приложение и проверь поле ввода перед вставкой. Не вставляй текст в Harness.",
     "session.emptyTitle": "Пока нет сеансов",
     "session.connectStart": "Подключите устройство, чтобы начать.",
     "session.listTitle": "Сеансы",
-    "device.state.offline": "Устройство не подключено",
+    "device.state.offline": "Мост ESP32 не подключён",
     "device.state.connecting": "Подключение…",
     "device.state.test": "Нужна проверка ввода",
     "device.state.ready": "Устройство готово",
@@ -1716,10 +1721,11 @@ export const messages = {
     "session.stopBeforeImport": "Перед импортом остановите текущую задачу."
   },
   "de": {
+    "clipboard.continueTask": "Der Text wurde kopiert. Setze die Aufgabe fort: Kehre zur Ziel-App zurück und prüfe das Eingabefeld vor dem Einfügen. Nicht in Harness einfügen.",
     "session.emptyTitle": "Noch keine Sitzungen",
     "session.connectStart": "Verbinde dein Gerät, um zu beginnen.",
     "session.listTitle": "Sitzungen",
-    "device.state.offline": "Kein Gerät verbunden",
+    "device.state.offline": "ESP32-Bridge nicht verbunden",
     "device.state.connecting": "Verbindung wird hergestellt…",
     "device.state.test": "Eingabetest erforderlich",
     "device.state.ready": "Gerät bereit",
@@ -2059,10 +2065,11 @@ export const messages = {
     "session.stopBeforeImport": "Beenden Sie die aktuelle Aufgabe, bevor Sie eine Sitzung importieren."
   },
   "fr": {
+    "clipboard.continueTask": "Le texte a été copié. Poursuis la tâche : reviens dans l’application cible et vérifie le champ avant de coller. Ne colle pas dans Harness.",
     "session.emptyTitle": "Aucune conversation",
     "session.connectStart": "Connectez votre appareil pour commencer.",
     "session.listTitle": "Conversations",
-    "device.state.offline": "Appareil non connecté",
+    "device.state.offline": "Pont ESP32 non connecté",
     "device.state.connecting": "Connexion en cours…",
     "device.state.test": "Test de saisie nécessaire",
     "device.state.ready": "Appareil prêt",
@@ -2402,10 +2409,11 @@ export const messages = {
     "session.stopBeforeImport": "Arrêtez la tâche en cours avant d’importer une conversation."
   },
   "es": {
+    "clipboard.continueTask": "El texto ya se ha copiado. Continúa la tarea: vuelve a la app de destino y verifica el campo antes de pegar. No pegues en Harness.",
     "session.emptyTitle": "Aún no hay conversaciones",
     "session.connectStart": "Conecta tu dispositivo para empezar.",
     "session.listTitle": "Conversaciones",
-    "device.state.offline": "Dispositivo desconectado",
+    "device.state.offline": "Puente ESP32 desconectado",
     "device.state.connecting": "Conectando…",
     "device.state.test": "Falta comprobar la entrada",
     "device.state.ready": "Dispositivo listo",

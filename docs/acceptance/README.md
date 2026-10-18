@@ -10,7 +10,7 @@ Device status sits beside the session heading. **New session** is the only prima
 
 Open **Settings → Accounts or API → Add account or API**. For ChatGPT, select a ChatGPT account and follow the sign-in instructions. For an API, choose the OpenAI-compatible or Anthropic-compatible interface, enter the service’s **API endpoint** and key, load its model list, then save. You can also enter a model ID manually.
 
-Choose **New session**, select a model at the bottom and send a message. The model picker switches between accounts, APIs and models. **Chat** is for discussion, **Plan** for observation and planning, and **Task** for carrying out actions. Connect your device and complete its input test before starting or sending in a session. Existing conversations remain readable while disconnected. Phone actions also need screen sharing. Real ChatGPT subscription sign-in in Safari is still being verified.
+Choose **New session**, select a model at the bottom and send a message. The model picker switches between accounts, APIs and models. **Chat** is for discussion, **Plan** for observation and planning, and **Task** for carrying out actions. Connect your ESP32 bridge and complete its input test before creating a session. Existing sessions remain conversational when disconnected; the model receives the offline state and phone input fails with a specific bridge-unavailable reason. Phone actions also need screen sharing. Real ChatGPT subscription sign-in in Safari is still being verified.
 
 ## Sessions and backups
 
@@ -56,3 +56,9 @@ Session import and export files have a 64 MiB limit, including images. Skill and
 [Arduino guide](../../firmware/IPhoneAutomationHarness/README.md) · [Manual releases](../architecture/manual-release.md) · [Historical engineering record](../research/acceptance-before-ui-repair.en.md)
 
 </details>
+
+## Long text and the clipboard
+
+The AI can prepare long or multilingual text during a task. Return to Harness and tap **Copy and continue**. Only a successful browser copy resumes the task; the AI must observe the screen, return to the intended app and confirm the input field before issuing Paste and checking the result. A failed copy does not resume. If saving the receipt fails, **Retry continuation** retries saving and continuing without another clipboard write.
+
+Safari requires a foreground clipboard gesture; screen-sharing callbacks do not grant background clipboard permission. The OS or destination app may still require paste permission. Copy success is not proof of text entry. Switching sessions or input targets invalidates pending copy content.

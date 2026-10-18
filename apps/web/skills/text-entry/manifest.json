@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "id": "text-entry",
-  "version": "0.2.0",
-  "description": "Enter and verify bounded text through supported HID keyboard usages, with explicit limits for layouts, Unicode and focus.",
+  "version": "0.3.0",
+  "description": "Enter and verify text through supported HID keys or user-confirmed clipboard preparation, respecting Safari foreground requirements and target focus.",
   "entry": "SKILL.md",
   "protocolVersion": 1,
   "requiredCapabilities": [
@@ -14,8 +14,8 @@
   "files": [
     {
       "path": "SKILL.md",
-      "sha256": "c73fd13b39cc79b1011bd9e1f7ac093b84065d9ba31f3b7db4c6ff1291ff073a",
-      "bytes": 4677
+      "sha256": "942067939a5b414b3f1b61d64dc77788b44b57b2afa707613130409f3ef53f5d",
+      "bytes": 7662
     }
   ]
 }

@@ -1,3 +1,4 @@
+import {assertBridgePresent} from './bridge-status.js';
 // Host-side phone plans. Device and capture adapters must be supplied by trusted
 // application code; model output can never enable execution or verify a target.
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$/;
@@ -72,6 +73,7 @@ function operationAllowed(op,context) {
 }
 function stateChecks(plan,context) {
   if(!plain(context))fail('Trusted execution context required');
+  assertBridgePresent(context);
   for(const key of BASE_KEYS.slice(0,-1))if(!validId(context[key]))fail(`Trusted context missing ${key}`);
   if(!integer(context.orientationEpoch,0,2147483647))fail('Trusted orientation epoch required');
   if(context.sessionId!==undefined&&plan.sessionId!==context.sessionId)fail('Plan session differs from trusted context');
@@ -245,6 +247,7 @@ export async function executePhonePlan(input,{device,capture,context,signal,onEv
     if(now()>=deadline)fail('Plan execution deadline exceeded');
     const current=typeof context.getState==='function'?await abortable(Promise.resolve(context.getState()),controller.signal):context;
     if(controller.signal.aborted)fail(failureCode==='cancelled'?'Phone plan cancelled':'Plan execution deadline exceeded',failureCode||'cancelled');
+    if(changes)assertBridgePresent(current);
     for(const key of BASE_KEYS)if(current[key]!==baseline[key])fail(`Execution context changed: ${key}`,'unknown');
     if(context.mode!==initialMode||(current.mode!==undefined&&current.mode!==initialMode))fail('Execution mode changed');
     if(changes)for(const key of ['identityVerified','bindingVerified','leaseVerified','executionEnabled'])if(current[key]!==true)fail(`Execution permission lost: ${key}`,'unknown');
@@ -260,10 +263,11 @@ export async function executePhonePlan(input,{device,capture,context,signal,onEv
     const segment=gestureEnvelope(plan,baseline,index,compiled,crypto.randomUUID());checkRequestBytes(segment,caps);
     segment.payloadHash=await hashSegment(segment);const latest=await check(),latestCaps=latest.capabilities||context.capabilities;operationAllowed(step.op,{capabilities:latestCaps});checkGestureLimits(segment.events,compiled.durationMs,latestCaps);checkRequestBytes(segment,latestCaps);
     if(!dispatched){const batch=validatePlan(plan,{...context,capabilities:latestCaps});if(!batch.valid)fail(batch.errors.join('; '));}
+    context.validateSegment?.(segment);
     let receipt;dispatched=true;inputState='unknown';
     emit(onEvent,{type:'segment',phase:'submitting',segment});
     try{receipt=await within(device.submitSegment(segment,{signal:controller.signal}),Math.min(deadline,now()+8000));await check();}
-    catch(e){await check();emit(onEvent,{type:'segment',phase:'submission_uncertain',segmentId:segment.segmentId,message:String(e.message)});}
+    catch(e){if(e.code==='CLIPBOARD_COPY_REQUIRED'&&e.sent===false){inputState='released';throw e;}await check();emit(onEvent,{type:'segment',phase:'submission_uncertain',segmentId:segment.segmentId,message:String(e.message)});}
     const receiptDeadline=Math.min(deadline,now()+(integer(context.resultTimeoutMs,100,15000)?context.resultTimeoutMs:8000));
     const query={boardId:segment.boardId,bootId:segment.bootId,targetId:segment.targetId,clientId:segment.clientId,segmentId:segment.segmentId};
     while(true){
@@ -322,7 +326,7 @@ export async function executePhonePlan(input,{device,capture,context,signal,onEv
     }
   }catch(e){
     const code=failureCode||e.code||'failed';failureCode=code;controller.abort();
-    result.status=code==='cancelled'?'cancelled':code==='unknown'?'unknown':'failed';result.outcome='insufficient_evidence';
+    result.code=code;result.status=code==='cancelled'?'cancelled':code==='unknown'||(code==='DEVICE_BRIDGE_UNAVAILABLE'&&dispatched&&inputState==='unknown')?'unknown':'failed';result.outcome='insufficient_evidence';
     if(stepIndex<plan.steps.length)result.steps.push({id:plan.steps[stepIndex].id,status:result.status==='cancelled'?'cancelled':result.status==='unknown'?'unknown':'failed',detail:String(e.message).slice(0,500)});
     for(let i=stepIndex+1;i<plan.steps.length;i++)result.steps.push({id:plan.steps[i].id,status:'skipped',detail:'Stopped after prior failure or cancellation.'});
     await cleanupRelease();

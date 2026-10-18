@@ -12,6 +12,8 @@ import {openCreatorIdentity} from '../community/identity.js';
 import {createAuthoredSkill,updateAuthoredSkill} from '../community/authoring.js';
 import {resolveModelSelection} from './models.js';
 import {imageData} from './attachments.js';
+import {bridgeStatus,phoneInputError,assertBridgePresent} from './bridge-status.js';
+import {assertClipboardPasteReady,runtimeClipboard} from './clipboard-plan.js';
 
 const userText=text=>ERROR_CATALOG[text]?.[getLocale()]||text;
 const object=(properties={},required=[])=>({type:'object',properties,required,additionalProperties:false});
@@ -34,6 +36,7 @@ const mcpTools=[
  {name:'mcp_call',description:'Call one user-allowlisted tool on an enabled MCP server in task mode. Never repeat an uncertain call; ask the user to reconcile its outcome.',schema:object({serverId:string(80),name:string(128),arguments:{type:'object',additionalProperties:true,maxProperties:128}},['serverId','name','arguments'])},
 ];
 const { $defs,...planBody }=PLAN_SCHEMA;
+const clipboardTool={name:'phone_prepare_clipboard',description:'Prepare up to 20,000 characters for the user to copy from a foreground button. This pauses the task; Safari cannot write the clipboard automatically in the background. Do not paste until a copied receipt for this session and target exists, and refocus the intended field first.',schema:object({text:string(20000)},['text'])};
 const executeTool={name:'phone_execute_plan',description:'Execute a fully validated bounded plan on the currently verified target. Screenshot nodes may continue without another model call.',schema:{...object({plan:planBody},['plan']),$defs}};
 const safeError=(error,secret)=>{const text=String(error?.message||error);return secret?text.split(secret).join('[redacted]'):text;};
 function callsFrom(reply){
@@ -43,7 +46,7 @@ function callsFrom(reply){
   return calls;
 }
 export function chatExecutionContext(){return {identityVerified:false,bindingVerified:false,leaseVerified:false,executionEnabled:false,inputState:'unknown',orientationEpoch:0,targetId:'unbound-screen'};}
-export function createHarness({store,onEvent=()=>{},capture=screenCapture,invoke=callModel,executePlan=null,device=null,mcp=null,getContext=()=>({}),maxSteps=12,maxToolCalls=48,maxDurationMs=600000,contextChars=48000,getIdentity=openCreatorIdentity}={}){
+export function createHarness({store,onEvent=()=>{},capture=screenCapture,invoke=callModel,executePlan=null,device=null,mcp=null,clipboard=null,getContext=()=>({}),getDeviceStatus=()=>({}),maxSteps=12,maxToolCalls=48,maxDurationMs=600000,contextChars=48000,getIdentity=openCreatorIdentity}={}){
   let active=null;
   const emit=event=>{try{onEvent(event)?.catch?.(()=>{});}catch{/* View callbacks never control execution. */}};
   return {
@@ -61,7 +64,7 @@ export function createHarness({store,onEvent=()=>{},capture=screenCapture,invoke
       const observed=new Map(),seenCalls=new Set(),failures=new Map();let skills=[],provider,session;
       const journal=(type,payload={})=>store.addEvent?store.addEvent(sessionId,{runId:run.id,type,payload}):Promise.resolve();
       const guard=async()=>{checkAbort(runSignal);if(store.assertRun)await store.assertRun(sessionId,run.id);checkAbort(runSignal);};
-      const context=async({allowClaim=!run.executingPlan,signal:contextSignal=runSignal}={})=>{const liveSignal=AbortSignal.any([contextSignal,run.lifecycleController.signal]);checkAbort(liveSignal);if(active!==run||run.finished)throw new Error('Run context is no longer active');const supplied=mode==='chat'?chatExecutionContext():await abortable(Promise.resolve(getContext({mode,sessionId,runId:run.id,allowClaim:mode==='task'&&allowClaim&&!run.executingPlan,signal:liveSignal})),liveSignal);checkAbort(liveSignal);if(active!==run||run.finished)throw new Error('Run context is no longer active');return {...supplied,mode,sessionId,runId:run.id,goal:goal||session?.goal||text,remainingSteps:maxSteps-stepCount,remainingToolCalls:maxToolCalls-toolCount,orientationEpoch:supplied.orientationEpoch??capture.orientationEpoch??0,targetId:supplied.targetId||'unbound-screen',knownFrames:new Map([...(supplied.knownFrames instanceof Map?supplied.knownFrames:[]),...observed])};};
+      const context=async({allowClaim=!run.executingPlan,signal:contextSignal=runSignal}={})=>{const liveSignal=AbortSignal.any([contextSignal,run.lifecycleController.signal]);checkAbort(liveSignal);if(active!==run||run.finished)throw new Error('Run context is no longer active');const passive=await abortable(Promise.resolve(getDeviceStatus()),liveSignal);const supplied=mode==='chat'?{...chatExecutionContext(),...bridgeStatus(passive)}:await abortable(Promise.resolve(getContext({mode,sessionId,runId:run.id,allowClaim:mode==='task'&&allowClaim&&!run.executingPlan,signal:liveSignal})),liveSignal);checkAbort(liveSignal);if(active!==run||run.finished)throw new Error('Run context is no longer active');return {...supplied,...bridgeStatus({...passive,...supplied}),clipboard:runtimeClipboard(clipboard?.getSnapshot?.(),{sessionId,targetId:supplied.targetId==='unbound-screen'?passive.targetId:supplied.targetId||passive.targetId}),mode,sessionId,runId:run.id,goal:goal||session?.goal||text,remainingSteps:maxSteps-stepCount,remainingToolCalls:maxToolCalls-toolCount,orientationEpoch:supplied.orientationEpoch??capture.orientationEpoch??0,targetId:supplied.targetId||'unbound-screen',knownFrames:new Map([...(supplied.knownFrames instanceof Map?supplied.knownFrames:[]),...observed])};};
       async function saveFrame(frame,metadata={}){
         await guard();frameCount++;if(frameCount>24)throw new Error('本轮截图超过24张');const size=frame.blob?.size||Math.ceil((frame.dataUrl?.length||0)*.75);frameBytes+=size;if(frameBytes>16000000)throw new Error('本轮截图超过容量预算');
         const saved=await store.saveFrame(sessionId,frame,metadata);checkAbort(runSignal);const item={...saved,targetId:metadata.targetId??saved.targetId,orientationEpoch:frame.orientationEpoch??metadata.orientationEpoch??saved.orientationEpoch,coordinateSpace:'full-display'};observed.set(item.frameId,item);return item;
@@ -88,7 +91,8 @@ export function createHarness({store,onEvent=()=>{},capture=screenCapture,invoke
         const user=await store.addMessage(sessionId,{role:'user',text});checkAbort(runSignal);emit({type:'message',message:user});
         await journal('run.started',{mode,providerId:provider.id,model:provider.model,promptRevision:ASSET_REVISION,skills:skills.map(s=>({id:s.id,version:s.version}))});
         const prefix=prefixMessages(mode,skills);
-        if(mode!=='chat')await store.addMessage(sessionId,{...runtimeMessage(await context(),[],null),internal:true});
+        let runtimeDeviceSignature=null;
+        const recordRuntime=async ctx=>{const message=runtimeMessage(ctx,[],null),runtime=JSON.parse(message.text.split('\n').slice(1).join('\n')),signature=JSON.stringify({device:runtime.device,clipboard:runtime.clipboard});if(signature!==runtimeDeviceSignature){await store.addMessage(sessionId,{...message,internal:true});runtimeDeviceSignature=signature;}};
         if(mode==='task'){
           const heartbeatSignal=AbortSignal.any([runSignal,run.heartbeatController.signal]);
           run.heartbeatTimer=setInterval(()=>{
@@ -97,9 +101,9 @@ export function createHarness({store,onEvent=()=>{},capture=screenCapture,invoke
           },5000);
         }
         for(stepCount=0;stepCount<maxSteps;stepCount++){
-          await guard();const ctx=await context();
-          const canExecute=mode==='task'&&ctx.identityVerified===true&&ctx.bindingVerified===true&&ctx.leaseVerified===true&&ctx.executionEnabled===true&&(typeof executePlan==='function'||typeof device?.submitSegment==='function');
-          const available=[...fixedTools.filter(t=>mode!=='chat'||!['phone_observe','task_report'].includes(t.name)),...authoringTools,...(mcp?.hasAuthorizedTools?.()?mcpTools.filter(t=>mode==='task'||t.name==='mcp_list_tools'):[]),...(canExecute?[executeTool]:[])];
+          await guard();const ctx=await context();await recordRuntime(ctx);
+          const canExecute=mode==='task'&&!phoneInputError(ctx)&&ctx.identityVerified===true&&ctx.bindingVerified===true&&ctx.leaseVerified===true&&ctx.executionEnabled===true&&(typeof executePlan==='function'||typeof device?.submitSegment==='function');
+          const available=[...fixedTools.filter(t=>mode!=='chat'||!['phone_observe','task_report'].includes(t.name)),...authoringTools,...(mcp?.hasAuthorizedTools?.()?mcpTools.filter(t=>mode==='task'||t.name==='mcp_list_tools'):[]),...(canExecute?[executeTool]:[]),...(mode==='task'&&!phoneInputError(ctx)&&typeof clipboard?.prepare==='function'?[clipboardTool]:[])];
           const contextOptions={store,sessionId,settings:settings.context,provider,credential,invoke,signal:runSignal,summaryPrompt:PROMPTS.summary,onEvent:emit,prefixTokens:estimateContextTokens(JSON.stringify(prefix))+estimateContextTokens(JSON.stringify(available))};
           let projected=await prepareContext(contextOptions),reply;
           for(let attempt=0;attempt<2;attempt++){
@@ -121,6 +125,7 @@ export function createHarness({store,onEvent=()=>{},capture=screenCapture,invoke
           for(const call of calls){
             await guard();run.current=call;run.mutating=['phone_execute_plan','skills_create','skills_update','mcp_call'].includes(call.name);let result;
             try{
+              if(['phone_execute_plan','phone_prepare_clipboard'].includes(call.name)){const inputError=phoneInputError(await context({allowClaim:false}));if(inputError)throw inputError;}
               const definition=available.find(t=>t.name===call.name);if(!definition)throw new Error('该模式不允许此工具');validateArguments(call.arguments,definition.schema);
               if(terminal)throw new Error('终止节点之后的工具未执行');if(++toolCount>maxToolCalls)throw new Error('达到本轮工具预算');if(seenCalls.has(call.id))throw new Error('重复工具调用ID，不重复执行');seenCalls.add(call.id);
               await journal('tool.started',{callId:call.id,name:call.name});await guard();emit({type:'status',status:'executing'});
@@ -138,19 +143,25 @@ export function createHarness({store,onEvent=()=>{},capture=screenCapture,invoke
                   if(call.arguments.status==='completed'&&(!call.arguments.evidenceFrameIds?.length||call.arguments.evidenceFrameIds.some(id=>!observed.has(id))))throw new Error('完成报告缺少本轮真实观察证据');
                   if(call.arguments.status!=='in_progress')terminal={status:call.arguments.status==='completed'?'completed':'needs_user',summary:call.arguments.summary};result={value:call.arguments};break;
                 }
+                case 'phone_prepare_clipboard':{
+                  const latest=await context({allowClaim:false});const inputError=phoneInputError(latest);if(inputError)throw inputError;
+                  if(!latest.targetId||latest.targetId==='unbound-screen')throw Object.assign(new Error('DEVICE_INPUT_UNVERIFIED'),{code:'DEVICE_INPUT_UNVERIFIED'});
+                  const prepared=await clipboard.prepare({text:call.arguments.text,sessionId,targetId:latest.targetId});
+                  result={value:prepared};terminal={status:'needs_user',summary:userText('CLIPBOARD_AWAITING_USER_ACTION'),explain:true};break;
+                }
                 case 'phone_execute_plan':{
-                  const latest=await context();latest.getState=()=>context();const plan=call.arguments.plan;
+                  const latest=await context();const inputError=phoneInputError(latest);if(inputError)throw inputError;latest.getState=()=>context();latest.validateSegment=segment=>assertClipboardPasteReady(clipboard?.getSnapshot?.(),{sessionId,targetId:segment.targetId},segment);const plan=call.arguments.plan;assertClipboardPasteReady(clipboard?.getSnapshot?.(),{sessionId,targetId:latest.targetId},plan);
                   if(plan.sessionId!==sessionId)throw new Error('计划属于另一条会话');const validation=validatePlan(plan,latest);if(!validation.valid)throw new Error(validation.errors.join('; '));
-                  const guardedDevice=device?{...device,submitSegment:async(segment,options)=>{await guard();await journal('device.segment.intent',{segment});await guard();const value=await device.submitSegment(segment,options);await journal('device.segment.receipt',{segmentId:segment.segmentId,status:value?.status});return value;},getResult:(...a)=>device.getResult(...a),release:(...a)=>device.release(...a)}:null;
+                  const guardedDevice=device?{...device,submitSegment:async(segment,options)=>{await guard();assertBridgePresent(await context({allowClaim:false}));assertClipboardPasteReady(clipboard?.getSnapshot?.(),{sessionId,targetId:segment.targetId},segment);await journal('device.segment.intent',{segment});await guard();const value=await device.submitSegment(segment,options);await journal('device.segment.receipt',{segmentId:segment.segmentId,status:value?.status});return value;},getResult:(...a)=>device.getResult(...a),release:(...a)=>device.release(...a)}:null;
                   run.executingPlan=true;let value;try{value=executePlan?await abortable(executePlan(plan,{signal:runSignal,context:latest,capture:captureAdapter}),runSignal):await executePhonePlan(plan,{device:guardedDevice,capture:captureAdapter,context:latest,signal:runSignal,onEvent:emit});}finally{run.executingPlan=false;}
-                  const refs=(value.frames||[]).map(f=>f.assetRef);const images=(await Promise.all(refs.map(ref=>store.getFrame(ref).then(imageData)))).filter(Boolean);result={value,images,frameRefs:refs};if(['unknown','failed','cancelled'].includes(value.status))terminal={status:value.status==='unknown'?'unknown':'needs_user'};break;
+                  const refs=(value.frames||[]).map(f=>f.assetRef);const images=(await Promise.all(refs.map(ref=>store.getFrame(ref).then(imageData)))).filter(Boolean);result={value,images,frameRefs:refs};if(['unknown','failed','cancelled'].includes(value.status)){terminal={status:value.status==='unknown'?'unknown':'needs_user'};if(['DEVICE_BRIDGE_UNAVAILABLE','DEVICE_BLUETOOTH_UNAVAILABLE','DEVICE_INPUT_UNVERIFIED','CLIPBOARD_COPY_REQUIRED'].includes(value.code)){value.message=userText(value.code);terminal.summary=value.message;terminal.explain=true;}}break;
                 }
               }
               checkAbort(runSignal);
-            }catch(error){if(runSignal.aborted)throw error;const message=safeError(error,credential),fingerprint=call.name+JSON.stringify(call.arguments)+message,n=(failures.get(fingerprint)||0)+1;failures.set(fingerprint,n);result={value:{status:error.unknown===true?'unknown':'error',code:error.code||'tool_failed',message}};if(call.name==='mcp_call'&&error.unknown===true)terminal={status:'unknown',summary:'MCP tool outcome is unknown. Reconcile it before repeating the operation.'};if(n>=3&&!terminal)terminal={status:'needs_user',summary:'相同操作连续失败，需要新证据或调整任务'};}
+            }catch(error){if(runSignal.aborted)throw error;const message=safeError(error.code&&ERROR_CATALOG[error.code]?userText(error.code):error,credential),fingerprint=call.name+JSON.stringify(call.arguments)+message,n=(failures.get(fingerprint)||0)+1;failures.set(fingerprint,n);result={value:{status:error.unknown===true?'unknown':'error',code:error.code||'tool_failed',message,...(error.retryable===false?{retryable:false,reason:error.reason}:{} )}};if(['DEVICE_BRIDGE_UNAVAILABLE','DEVICE_BLUETOOTH_UNAVAILABLE','DEVICE_INPUT_UNVERIFIED','CLIPBOARD_COPY_REQUIRED'].includes(error.code))terminal={status:'needs_user',summary:message,explain:true};if(call.name==='mcp_call'&&error.unknown===true)terminal={status:'unknown',summary:'MCP tool outcome is unknown. Reconcile it before repeating the operation.'};if(n>=3&&!terminal)terminal={status:'needs_user',summary:'相同操作连续失败，需要新证据或调整任务'};}
             await settle(call,result.value,{...(result.images?{images:result.images}:{}),...(result.frameRefs?{frameRefs:result.frameRefs}:{})});run.current=null;run.mutating=false;checkAbort(runSignal);
           }
-          run.pending=[];if(terminal){status=terminal.status;const explanation=terminal.question||(!answer.text.trim()?terminal.summary:undefined)||(status==='unknown'?'操作结果尚未核对，后续步骤已停止。':undefined);if(explanation){answer=await store.addMessage(sessionId,{role:'assistant',text:userText(explanation)});emit({type:'message',message:answer});}break;}
+          run.pending=[];if(terminal){status=terminal.status;const explanation=terminal.question||(terminal.explain||!answer.text.trim()?terminal.summary:undefined)||(status==='unknown'?'操作结果尚未核对，后续步骤已停止。':undefined);if(explanation){answer=await store.addMessage(sessionId,{role:'assistant',text:userText(explanation)});emit({type:'message',message:answer});}break;}
         }
         if(stepCount>=maxSteps){status='budget_exhausted';await journal('run.budget_exhausted',{maxSteps});answer=await store.addMessage(sessionId,{role:'assistant',text:userText('达到本轮步骤预算，进度已保存；尚未确认任务完成。')});emit({type:'message',message:answer});}
       }catch(error){failure=error;status=runSignal.aborted?'cancelled':'failed';}

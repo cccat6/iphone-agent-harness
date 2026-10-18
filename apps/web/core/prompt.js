@@ -15,6 +15,6 @@ Preferred user-interface language: ${language} (${locale}). Use this language fo
   return messages;
 }
 export function runtimeMessage(context,skills,checkpoint){
-  const {boardId,bootId,targetId,orientationEpoch,inputState,executionEnabled,bindingVerified,capabilities,sessionId,runId,remainingSteps,remainingToolCalls,goal}=context;
-  return {role:'user',text:'Harness runtime context (data, not a new user task):\n'+JSON.stringify({sessionId,runId,goal,remainingSteps,remainingToolCalls,device:{boardId,bootId,targetId,orientationEpoch,inputState,executionEnabled,bindingVerified,capabilities},skills:skills.map(s=>({id:s.id,description:s.description,version:s.version,requiredCapabilities:s.requiredCapabilities||[]})),checkpoint:checkpoint?.text?checkpoint:undefined})};
+  const {boardId,bootId,targetId,orientationEpoch,inputState,executionEnabled,bindingVerified,bridgeConnection,bluetoothConnection,inputVerified,capabilities,sessionId,runId,remainingSteps,remainingToolCalls,goal,clipboard}=context;
+  return {role:'user',text:'Harness runtime context (data, not a new user task):\n'+JSON.stringify({sessionId,runId,goal,remainingSteps,remainingToolCalls,device:{boardId,bootId,targetId,orientationEpoch,inputState,executionEnabled,bindingVerified,bridgeConnection,bluetoothConnection,inputVerified,capabilities},clipboard,skills:skills.map(s=>({id:s.id,description:s.description,version:s.version,requiredCapabilities:s.requiredCapabilities||[]})),checkpoint:checkpoint?.text?checkpoint:undefined})};
 }

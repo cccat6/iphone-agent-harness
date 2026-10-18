@@ -12,12 +12,14 @@ function appFunction(name){const start=app.indexOf('async function '+name+'(');a
 function appHarness({ready=false,current=null,liveReady=ready}={}){
  const counts={openedDevice:0,created:0,model:0,openedSession:0},nodes=new Map(),node=s=>{if(!nodes.has(s))nodes.set(s,{value:s==='#message-input'?'hello':s==='#mode-select'?'chat':'p::m',classList:{add(){},remove(){}},focus(){}});return nodes.get(s);};
  const state={current,settings:{},running:false,submitting:false,runGeneration:0,drafts:new Map(),store:{async createSession(){counts.created++;return {id:'new'};},async updateSession(){},async getMessages(){return [];},async getSession(id){return {id,title:'Existing',mode:'chat'};}},harness:{async run(){counts.model++;}},devicePanel:{getState:()=>({connected:ready,inputVerified:ready}),ensureReady:async()=>liveReady}};
- const context=vm.createContext({state,$:node,deviceSessionAvailable:()=>ready,ensureSessionDevice:async()=>liveReady,async showDevices(){counts.openedDevice++;},toast(){},t:k=>k,getBrowserCompatibility:()=>({supportedForHarness:true}),renderPlatform(){},selectedProvider:()=>({id:'p'}),providers:()=>[{id:'p'}],async showSettings(){},async refreshSessions(){},async openSession(id){counts.openedSession++;state.current={id};},setRunning(value){state.running=value;},resizeInput(){},renderMessages(){},renderModelOptions(){},updateModeDescription(){},renderSessions(){},modeLabel:m=>m,report(e){throw e;},AbortController,console});
+ const context=vm.createContext({clipboard:{clear(){}},renderClipboard(){},state,$:node,deviceSessionAvailable:()=>ready,ensureSessionDevice:async()=>liveReady,async showDevices(){counts.openedDevice++;},toast(){},t:k=>k,getBrowserCompatibility:()=>({supportedForHarness:true}),renderPlatform(){},selectedProvider:()=>({id:'p'}),providers:()=>[{id:'p'}],async showSettings(){},async refreshSessions(){},async openSession(id){counts.openedSession++;state.current={id};},setRunning(value){state.running=value;},resizeInput(){},renderMessages(){},renderModelOptions(){},updateModeDescription(){},renderSessions(){},modeLabel:m=>m,report(e){throw e;},AbortController,console});
  vm.runInContext(appFunction('newSession')+'\n'+appFunction('sendMessage'),context);
  return {context,state,counts};
 }
 test('production newSession gate never creates an offline session',async()=>{const h=appHarness();await h.context.newSession();assert.equal(h.counts.created,0);assert.equal(h.counts.openedDevice,1);});
-test('production send gate never calls model even with an existing offline session',async()=>{const h=appHarness({current:{id:'existing'}});await h.context.sendMessage({preventDefault(){}});assert.equal(h.counts.model,0);assert.equal(h.counts.created,0);});
+// Current requirement: an existing session can explain a disconnected bridge.
+// Physical input rejection is covered by bridge-runtime-awareness.test.mjs.
+test('existing offline session can still ask the model without creating a new session',async()=>{const h=appHarness({current:{id:'existing'}});await h.context.sendMessage({preventDefault(){}});assert.equal(h.counts.model,1);assert.equal(h.counts.created,0);assert.equal(h.counts.openedDevice,0);});
 
 for(const operation of ['select','enable'])test(`MCP ${operation} during local credential restoration keeps the saved token`,async()=>{
  const store=await openStore({memory:true}),access=createMCPAccess({fetchImpl:async(url,o)=>{const rpc=JSON.parse(o.body);if(rpc.method==='notifications/initialized')return new Response(null,{status:202});return Response.json({jsonrpc:'2.0',id:rpc.id,result:rpc.method==='initialize'?{protocolVersion:'2025-11-25'}:{tools:['lookup','search'].map(name=>({name,inputSchema:{type:'object'}}))}});}});
@@ -32,7 +34,7 @@ for(const operation of ['select','enable'])test(`MCP ${operation} during local c
 // The stale UI may still display ready until the next status poll. The action
 // itself must require a fresh board response before mutating/sending anything.
 test('production newSession performs live readiness check, rejecting stale ready state',async()=>{const h=appHarness({ready:true,liveReady:false});await h.context.newSession();assert.equal(h.counts.created,0);});
-test('production send performs live readiness check, rejecting stale ready state',async()=>{const h=appHarness({ready:true,liveReady:false,current:{id:'existing'}});await h.context.sendMessage({preventDefault(){}});assert.equal(h.counts.model,0);});
+test('existing session remains conversational after its live readiness check fails',async()=>{const h=appHarness({ready:true,liveReady:false,current:{id:'existing'}});await h.context.sendMessage({preventDefault(){}});assert.equal(h.counts.model,1);assert.equal(h.counts.openedDevice,0);});
 test('production existing conversation remains readable while device is offline',async()=>{const h=appHarness();vm.runInContext(appFunction('openSession'),h.context);await h.context.openSession('existing');assert.equal(h.state.current.id,'existing');assert.equal(h.counts.model,0);assert.equal(h.counts.openedDevice,0);});
 
 function accountEditorHarness(){

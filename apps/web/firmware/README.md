@@ -2,9 +2,9 @@
 
 `manifest.json` is generated from successful real Arduino builds. Every part records its original flash offset, byte size and SHA-256; paths are relative to the manifest URL for GitHub Pages, Cloudflare and self-hosted static deployments.
 
-Version **0.3.0-lan-http** provides local Wi-Fi setup, HTTP control and the `/harness-link` connection window. Normal onboarding does not install a CA certificate, and website servers do not forward control commands. Owner enrollment, per-client tokens, phone input verification, writer leases and timed segments remain in place.
+Version **0.3.0-lan-http** provides local Wi-Fi setup, HTTP control and the `/harness-link` connection window. Normal onboarding does not install a CA certificate, and website servers do not forward control commands. The Bluetooth name is **iPhone Agent Bridge**. Owner enrollment, per-client tokens, phone input verification, writer leases and timed segments remain in place. Bluetooth pairing no longer depends on a hidden two-minute web enrollment window; obsolete, unregistered bonds can be reclaimed when the bond store is full.
 
-The browser-side local-window test passed five read-only GET/POST requests, including both-tabs-hidden requests during screen sharing, on Safari 27.0.1. `physicalValidation:false` remains correct: that test did not run this firmware on a board or send HID input. See [phone transport evidence](../../../docs/research/ios-lan-probe20261018.json).
+The browser-side local-window test passed five read-only GET/POST requests, including both-tabs-hidden requests during screen sharing, on Safari 27.0.1. `physicalValidation:false` remains correct: that browser transport test did not establish this firmware’s complete phone-control loop. The latest C3 pairing-fix candidate is undergoing separate physical readback; no successful phone pairing or input result is inferred from compilation. See [phone transport evidence](../../../docs/research/ios-lan-probe20261018.json).
 
 ## Hardware profiles
 
@@ -19,14 +19,14 @@ Chip-name labels stay untranslated (`ESP32-C3`, `ESP32-S3`, `ESP32-C6`, `ESP32`)
 
 ## Current compiled artifacts
 
-All four profiles were compiled from the same 16-file source SHA-256 `ac83d1513a05c40f5a3cf0ab3b2f0c9099cefd7990cadf990902f214bc1acae7` with the pinned dependencies below. No serial port was opened by this build.
+All four profiles were compiled from the same 16-file source SHA-256 `04d23f70d5da0e9d7088b7ba2505d2185c16ebc993177edf7ce691df4bf1df92` with the pinned dependencies below. The verified C3 candidate was reused byte for byte; S3, C6 and ESP32 were rebuilt from those identical source files. `profileBuiltAt` records each build date. No serial port was opened by this build.
 
 | Profile | Application bytes | Application SHA-256 |
 |---|---:|---|
-| ESP32-C3 | 1,407,760 | `9e0b755f8272cee565fadea524e750156917cf87a211126e71debd6a899f9fcc` |
-| ESP32-S3 | 1,265,952 | `d37e118a450fc641b3867731a749a6de08b3be8744a0e68fe7ae095ef441ce87` |
-| ESP32-C6 | 1,569,152 | `9dca12970a68e823cbd303ae521e67a48fd001e4b54ff5f9fae4b54638d06135` |
-| ESP32 | 1,341,536 | `ea8bd86861fe4c485ebd4c6d265603ab77313454ec1d0161022a488fab5102fa` |
+| ESP32-C3 | 1,411,168 | `8258a6704bc632f090154097e2dba9af16b399b514e6e26df29daefb0703f79a` |
+| ESP32-S3 | 1,269,168 | `89ec543c7d5e220d45be5418947695218dc272cee6a56d005597b692be46198a` |
+| ESP32-C6 | 1,572,464 | `fe0083e8e8ca53989023fe77135bc651229377132a881346a0a3e77f30dfbdd0` |
+| ESP32 | 1,344,800 | `7edff989ee9e36cf3bbf1b835abb160afb66e6f5c46ac8453f2b73412cc24c27` |
 
 The previous 0.2 firmware's CA-verified C3 test remains historical evidence; it is not physical acceptance of this version.
 
@@ -63,8 +63,10 @@ Requires ESP32 Arduino 3.3.11, ArduinoJson 7.4.3 and NimBLE-Arduino 2.5.1. Insta
 
 The builder installs nothing, opens no serial port and contains no upload command. It compiles a clean source allowlist, excluding `config.local.h`, old experiment firmware and relay credentials. `build-report.json` records dependencies, exact FQBNs and individual/overall source hashes. Verification checks all binaries, offsets, partition bounds **and their source provenance against the current sketch**; stale or missing source records fail instead of passing old binaries as new firmware. Failed builds never appear as supported profiles.
 
-Browser USB flashing additionally requires Web Serial; an iPhone Safari tab does not gain USB flashing merely because it runs the Harness. First setup and exact local serial/HTTPS contracts are in [Arduino README](../../../firmware/IPhoneAutomationHarness/README.md) and [protected LAN design](../../../docs/architecture/secure-lan.md).
+Browser USB flashing additionally requires Web Serial; an iPhone Safari tab does not gain USB flashing merely because it runs the Harness. First setup and exact local serial/HTTP contracts are in [Arduino README](../../../firmware/IPhoneAutomationHarness/README.md) and [protected LAN design](../../../docs/architecture/secure-lan.md).
 
 For repeat builds, `--work-dir /absolute/dedicated/cache` retains compiler artifacts. Staging is still limited to the public source allowlist; unexpected files cause a failure. This cache never opens a port and must not be used for local credential files. `--verify-only` checks each current source hash and the combined provenance hash as well as published binary hashes/offsets.
 
 C3/S3/C6 use MSYS pools 8/8. The classic ESP32 SDK omits the second pool size, so that target preserves its disabled second pool (8/0) rather than enabling an undefined allocation; its physical two-phone throughput remains unverified. Effective values are available in USB diagnostics.
+
+The updated C3 candidate was flashed to the authorized test board on 2026-10-18 with all four segment checks passing. Wi-Fi recovered, and nine actual HTTP checks passed; see [new C3 report](../../../docs/research/device-bridge-pairing-live-20261018.json). Bluetooth pairing and phone paste are not inferred from those HTTP checks.

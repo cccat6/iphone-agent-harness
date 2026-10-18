@@ -8,6 +8,8 @@ import { setCredential, hasCredential, getCredential } from './core/credentials.
 import { createDevicePanel } from './ui/device-panel.js';
 import { mountUsbSetup } from './ui/usb-setup.js';
 import { setLocalizedText, refreshLocalizedText } from './ui/localized-status.js';
+import { createClipboardController } from './core/clipboard.js';
+import { mountClipboardPanel } from './ui/clipboard.js';
 import { screenCapture, normalizeImageSettings } from './core/capture.js';
 import { normalizeContextSettings } from './core/context.js';
 import { modelContextMetadata } from './core/models.js';
@@ -28,6 +30,7 @@ const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 const escapeHTML = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 const state = { store:null, harness:null, device:null, devicePanel:null, mcpAccess:null, mcpPanel:null, settings:{}, sessions:[], current:null, messages:[], messageLimit:80, hasOlder:false, archived:false, running:false, submitting:false, runGeneration:0, pending:null, skills:[], catalog:[], skillTab:'local', providerEdit:null, providerModels:[], drafts:new Map(), abort:null, lastError:null };
 const capture = screenCapture;
+const clipboard=createClipboardController({isCurrent:({sessionId,targetId})=>state.current?.id===sessionId&&deviceStatus().inputVerified&&deviceStatus().targetId===targetId});
 registerErrorCatalog(BACKUP_ERRORS);
 const vaultPassphrases=new Map();let vaultWrite=Promise.resolve();
 setCodexTokenObserver(({id,event})=>{
@@ -111,7 +114,7 @@ function renderModelOptions() {
 }
 function updateModeDescription() { $('#mode-description').textContent=t(modeDescriptions[$('#mode-select').value]); }
 async function newSession({fromSubmit=false}={}) { if(!(fromSubmit?deviceSessionAvailable():await state.devicePanel?.ensureReady?.())){await showDevices();toast(t('device.startHint'));return null;} if((state.running||state.submitting)&&!fromSubmit)throw new Error('请先停止当前任务，再切换会话。');const session=await state.store.createSession({title:t('session.new'),mode:$('#mode-select').value||'chat',modelId:$('#model-select').value||state.settings.activeProviderId||providers()[0]?.id||''}); await refreshSessions(); await openSession(session.id,{fromSubmit}); $('#message-input').focus();return session; }
-async function openSession(id,{fromSubmit=false}={}) { if(state.submitting&&!fromSubmit)throw new Error('请先停止当前任务，再切换会话。'); if(state.current)state.drafts.set(state.current.id,$('#message-input').value); if(state.running && state.current?.id!==id)throw new Error('请先停止当前任务，再切换会话。'); state.current=await state.store.getSession(id); if(!state.current)throw new Error('未找到这条会话。'); state.messages=await state.store.getMessages(id,{limit:80,includeImages:false,includeInternal:false}); state.hasOlder=state.messages.length===80;state.messageLimit=80; state.lastError=null; state.pending=null; $('#app').classList.add('in-conversation'); $('#session-title').textContent=state.current.title||t('session.new'); $('#session-subtitle').textContent=t('session.savedHere',{mode:modeLabel(state.current.mode||'chat')}); $('#session-menu').hidden=false; $('#mode-select').value=state.current.mode||'chat'; $('#message-input').value=state.drafts.get(id)||'';resizeInput(); renderModelOptions(); updateModeDescription(); renderSessions(); renderMessages(); }
+async function openSession(id,{fromSubmit=false}={}) { if(state.submitting&&!fromSubmit)throw new Error('请先停止当前任务，再切换会话。'); if(state.current)state.drafts.set(state.current.id,$('#message-input').value); if(state.running && state.current?.id!==id)throw new Error('请先停止当前任务，再切换会话。'); if(state.current?.id!==id)clipboard.clear();state.current=await state.store.getSession(id); if(!state.current)throw new Error('未找到这条会话。'); state.messages=await state.store.getMessages(id,{limit:80,includeImages:false,includeInternal:false}); state.hasOlder=state.messages.length===80;state.messageLimit=80; state.lastError=null; state.pending=null; $('#app').classList.add('in-conversation'); $('#session-title').textContent=state.current.title||t('session.new'); $('#session-subtitle').textContent=t('session.savedHere',{mode:modeLabel(state.current.mode||'chat')}); $('#session-menu').hidden=false; $('#mode-select').value=state.current.mode||'chat'; $('#message-input').value=state.drafts.get(id)||'';resizeInput(); renderModelOptions(); updateModeDescription(); renderSessions();renderClipboard(); renderMessages(); }
 function welcome() { return `<section class="welcome"><div class="welcome-icon" aria-hidden="true">⌘</div><div class="eyebrow">IPHONE AGENT HARNESS</div><h2>从想法，到手机上的行动。</h2><p>连接你自己的模型。用对话制定计划，借助设备完成操作。会话与 Skills 留在你的浏览器里。</p><div class="welcome-cards"><button class="welcome-card" data-welcome="chat"><span>↗</span><strong>先聊聊你的想法</strong><small>梳理需求，或把目标变成计划</small></button><button class="welcome-card" data-welcome="devices"><span>▣</span><strong>连接你的设备</strong><small>查看输入桥与屏幕共享设置</small></button></div></section>`; }
 function renderMessages() {
   const region=$('#conversation');
@@ -130,16 +133,17 @@ function onHarnessEvent(event) {
   if(event.type==='message' && event.message) { const message=event.message;if(!state.messages.some(existing=>existing.id===message.id))state.messages.push(message);if(message.role==='assistant')state.pending=null;renderMessages(); }
   if(event.type==='error') { state.lastError=localizeError(event.message);renderMessages(); }
 }
-async function sendMessage(event) {
-  event.preventDefault();if(!await state.devicePanel?.ensureReady?.()){await showDevices();toast(t('device.startHint'));return;}if(!getBrowserCompatibility().supportedForHarness){renderPlatform();return;}const text=$('#message-input').value.trim();if(!text||state.running||state.submitting)return;
-  state.submitting=true;let generation=null,sessionId=null,controller=null;
+async function sendMessage(event,textOverride=null,modeOverride=null) {
+  event.preventDefault();if(!getBrowserCompatibility().supportedForHarness){renderPlatform();return;}const text=(textOverride===null?$('#message-input').value:textOverride).trim();if(!text||state.running||state.submitting)return;
+  state.submitting=true;let resolveCompletion;state.runCompletion=new Promise(resolve=>{resolveCompletion=resolve;});let generation=null,sessionId=null,controller=null;
   try{
+    const ready=await state.devicePanel?.ensureReady?.();if(!state.current&&!ready){await showDevices();toast(t('device.startHint'));return;}
     if(!selectedProvider()){await showSettings('accounts');toast(t('status.configureModel'));return;}
-    const mode=$('#mode-select').value,modelId=$('#model-select').value;
+    const mode=modeOverride||$('#mode-select').value,modelId=$('#model-select').value;if(modeOverride){$('#mode-select').value=mode;updateModeDescription();}
     if(!state.current)await newSession({fromSubmit:true});if(!state.current)return;
     sessionId=state.current.id;await state.store.updateSession(sessionId,{mode,modelId});
     generation=++state.runGeneration;controller=new AbortController();state.abort=controller;state.lastError=null;state.pending=null;setRunning(true);$('#run-status').textContent=t('status.preparing');
-    $('#message-input').value='';state.drafts.delete(sessionId);resizeInput();
+    if(textOverride===null){$('#message-input').value='';state.drafts.delete(sessionId);resizeInput();}
     await state.harness.run({sessionId,text,mode,modelId,signal:controller.signal});
   }catch(error){
     if(generation!==null&&generation===state.runGeneration)state.lastError=error;
@@ -150,10 +154,21 @@ async function sendMessage(event) {
         const messages=await state.store.getMessages(sessionId,{limit:80,includeImages:false,includeInternal:false}),session=await state.store.getSession(sessionId);
         if(generation===state.runGeneration&&state.current?.id===sessionId){state.pending=null;state.messages=messages;state.hasOlder=messages.length===80;state.messageLimit=80;state.current=session;$('#session-title').textContent=session.title;await refreshSessions();renderMessages();}
       }
-    }finally{if(generation!==null&&generation===state.runGeneration){state.abort=null;setRunning(false);}state.submitting=false;}
+    }finally{if(generation!==null&&generation===state.runGeneration){state.abort=null;setRunning(false);}state.submitting=false;resolveCompletion?.();}
   }
 }
 
+function renderClipboard(){
+  state.clipboardView?.destroy();if(!state.current)return;
+  state.clipboardView=mountClipboardPanel($('#clipboard-panel'),{controller:clipboard,sessionId:state.current.id,continueAfterCopy:true,onCopied:async receipt=>{
+    try{
+      await state.store.addEvent(receipt.sessionId,{type:'clipboard.copied',payload:receipt});
+      const completion=state.runCompletion;if(completion)await completion;
+      if(state.current?.id!==receipt.sessionId||clipboard.getSnapshot()?.requestId!==receipt.requestId||deviceStatus().targetId!==receipt.targetId)return;
+      await sendMessage({preventDefault(){}},t('clipboard.continueTask'),'task');
+    }catch(error){report(error);throw error;}
+  }});
+}
 function resizeInput() { const input=$('#message-input');input.style.height='auto';input.style.height=Math.min(input.scrollHeight,180)+'px'; }
 function discardProviderDraft(){const id=state.providerDraftId;if(id&&!providers().some(profile=>profile.id===id)){removeCodexAccount(id);setCredential(id,'');vaultPassphrases.delete(id);}state.providerDraftId=null;}
 function panel(title,subtitle,body,metadata={}) { state.panelGeneration=(state.panelGeneration||0)+1;state.codexAbort?.abort();state.modelsAbort?.abort();discardProviderDraft(); state.devicePanel?.dispose();state.mcpPanel?.disposeView();const titleKey=Object.hasOwn(metadata,'titleKey')?metadata.titleKey:translationKey(title),subtitleKey=Object.hasOwn(metadata,'subtitleKey')?metadata.subtitleKey:translationKey(subtitle);$('#panel-content').innerHTML=`<div class="panel-header"><div><h2 data-no-i18n${titleKey?` data-i18n="${escapeHTML(titleKey)}"`:''}>${escapeHTML(title)}</h2>${subtitle?`<p data-no-i18n${subtitleKey?` data-i18n="${escapeHTML(subtitleKey)}"`:''}>${escapeHTML(subtitle)}</p>`:''}</div><button class="icon-button" id="close-panel" aria-label="关闭">×</button></div><div class="panel-body">${body}</div>`;$('#close-panel').onclick=()=>{state.panelGeneration=(state.panelGeneration||0)+1;state.devicePanel?.dispose();state.codexAbort?.abort();state.modelsAbort?.abort();$('#panel-dialog').close();};if(!$('#panel-dialog').open)$('#panel-dialog').showModal();$('.panel-body').scrollTop=0;$('#close-panel').focus({preventScroll:true}); }
@@ -326,7 +341,8 @@ async function showDevices() {
 // The Harness owns each run's writer ID; the UI never creates a perpetual lease.
 const runDevices=new Map();
 function activeInputBridge(){return state.devicePanel?.getDevice()||null;}
-function requireInputBridge(){const device=activeInputBridge();if(!device){const error=new Error('DEVICE_BINDING_UNVERIFIED');error.code='DEVICE_BINDING_UNVERIFIED';throw error;}return device;}
+function deviceStatus(){const value=state.devicePanel?.getState?.()||{};return {bridgeConnection:value.connected?'connected':'disconnected',bluetoothConnection:value.connected?(value.bluetoothConnected?'connected':'disconnected'):'unknown',inputVerified:Boolean(value.inputVerified),boardId:value.boardId||null,targetId:value.targetId||null};}
+function requireInputBridge(){const device=activeInputBridge();if(!device){const status=deviceStatus(),code=status.bridgeConnection!=='connected'?'DEVICE_BRIDGE_UNAVAILABLE':status.bluetoothConnection!=='connected'?'DEVICE_BLUETOOTH_UNAVAILABLE':'DEVICE_BINDING_UNVERIFIED';const error=new Error(code);error.code=code;throw error;}return device;}
 const deviceAdapter={
   submitSegment:(...args)=>requireInputBridge().submitSegment(...args),
   getResult:(...args)=>requireInputBridge().getResult(...args),
@@ -334,11 +350,12 @@ const deviceAdapter={
   endRun:async options=>{const device=runDevices.get(options.writerId);runDevices.delete(options.writerId);return device?device.endRun(options):{status:'not_owned',leaseInvalidated:false};},
 };
 async function deviceContext(meta){
-  if(meta.mode==='chat')return chatExecutionContext();
-  const device=activeInputBridge();
-  if(!device)return {identityVerified:false,bindingVerified:false,leaseVerified:false,executionEnabled:false,inputState:'unknown',orientationEpoch:capture.orientationEpoch};
+  const status=deviceStatus(),blocked={...status,identityVerified:false,bindingVerified:false,leaseVerified:false,executionEnabled:false,inputState:'unknown',orientationEpoch:capture.orientationEpoch};
+  if(meta.mode==='chat')return {...chatExecutionContext(),...status};
+  const device=activeInputBridge();if(!device)return blocked;
   runDevices.set(meta.runId,device);
-  return device.getExecutionContext({orientationEpoch:capture.orientationEpoch,writerId:meta.runId,allowClaim:meta.allowClaim===true,renewLease:true,signal:meta.signal});
+  try{return {...await device.getExecutionContext({orientationEpoch:capture.orientationEpoch,writerId:meta.runId,allowClaim:meta.allowClaim===true,renewLease:true,signal:meta.signal}),...deviceStatus()};}
+  catch(error){if(meta.signal?.aborted)throw error;await state.devicePanel?.ensureReady?.();return {...blocked,...deviceStatus(),executionError:error.code||'DEVICE_STATE_UNAVAILABLE'};}
 }
 
 async function creatorIdentity(){if(!state.identity)state.identity=await openCreatorIdentity();return state.identity;}
@@ -569,10 +586,10 @@ async function boot() {
   const pendingDeviceSetup=location.hash.startsWith('#device=');
   renderPlatform();
   state.store=await openStore();void requestStorageProtection();await installBuiltinSkills(state.store);state.settings=await state.store.getSettings()||{};state.skills=await state.store.listSkills();
-  state.devicePanel=createDevicePanel({store:state.store,capture,openPanel:panel,getPanelRoot:()=>$('#panel-content .panel-body'),onDeviceChange:(device,summary)=>{state.device=device;state.deviceStatus=summary;renderDeviceStatus();},onSettingsChange:settings=>{state.settings=settings;},isBusy:()=>state.running||state.submitting,onToast:toast});
+  state.devicePanel=createDevicePanel({store:state.store,capture,openPanel:panel,getPanelRoot:()=>$('#panel-content .panel-body'),onDeviceChange:(device,summary)=>{state.device=device;state.deviceStatus=summary;const pending=clipboard.getSnapshot();if(pending&&(!summary.inputVerified||summary.targetId!==pending.targetId))clipboard.clear();renderDeviceStatus();},onSettingsChange:settings=>{state.settings=settings;},isBusy:()=>state.running||state.submitting,onToast:toast});
   state.mcpAccess=createMCPAccess();state.mcpPanel=createMCPSettings({access:state.mcpAccess,store:state.store,onSettingsChange:settings=>{state.settings=settings;}});
   void state.mcpPanel.restore({servers:state.settings.mcpServers,endpoint:state.settings.mcpEndpoint||''}).catch(report);
-  state.harness=createHarness({store:state.store,onEvent:onHarnessEvent,capture,device:deviceAdapter,getContext:deviceContext,mcp:state.mcpAccess});
+  state.harness=createHarness({store:state.store,onEvent:onHarnessEvent,capture,device:deviceAdapter,getContext:deviceContext,getDeviceStatus:deviceStatus,clipboard,mcp:state.mcpAccess});
   $('#new-session').onclick=guard(newSession);state.sessionSearch=mountSessionSearch({surface:$('.sidebar'),scrollArea:$('#sessions'),field:$('#session-search-wrap'),input:$('#session-search'),toggle:$('#toggle-session-search'),cancel:$('#cancel-session-search'),onQueryChange:guard(refreshSessions)});$('#archive-toggle').onclick=guard(async()=>{state.archived=!state.archived;await refreshSessions();});
   $('#back-sessions').onclick=()=>$('#app').classList.remove('in-conversation');$('#session-menu').onclick=guard(showSessionMenu);
   $('#conversation-device').onclick=guard(showDevices);$('#open-settings').onclick=guard(showSettings);$('#open-devices').onclick=guard(showDevices);$('#composer-skills').onclick=guard(()=>{state.skillsFromSettings=false;return showSkills();});
