@@ -8,6 +8,7 @@ import os, subprocess, tempfile
 ROOT=Path(__file__).resolve().parents[2]
 main=(ROOT/'firmware/IPhoneAutomationHarness/main.cpp').read_text()
 callbacks=main[main.index('class ServerCallbacks:'):main.index('class DeviceCallbacks:')]
+diagnostics=main[main.index('enum class BleEventKind:'):main.index('bool peerRouteMatches(')]
 start=main[main.index('void startBle(){'):main.index('// Wi-Fi callbacks')]
 source=r'''
 #include <atomic>
@@ -19,10 +20,12 @@ source=r'''
 #include <vector>
 constexpr int MaxTargets=2,InvalidHandle=65535,HID_MOUSE=962,BLE_HS_IO_NO_INPUT_OUTPUT=3;
 struct Addr{int type=1;std::string text="random-before-identity";int getType(){return type;}std::string toString(){return text;}};
-struct NimBLEConnInfo{uint16_t handle=7;bool encrypted=false,bonded=false;Addr addr;uint16_t getConnHandle(){return handle;}Addr getIdAddress(){return addr;}bool isEncrypted(){return encrypted;}bool isBonded(){return bonded;}};
+struct NimBLEConnInfo{uint16_t handle=7;bool encrypted=false,bonded=false;Addr addr;uint16_t getConnHandle()const{return handle;}Addr getIdAddress(){return addr;}bool isEncrypted()const{return encrypted;}bool isBonded()const{return bonded;}bool isAuthenticated()const{return false;}uint8_t getSecKeySize()const{return encrypted?16:0;}};
 struct Peer{uint16_t handle=InvalidHandle;};Peer peers[2];int peersMux=0;std::atomic_bool bondStateDirty{false};
 #define portENTER_CRITICAL(x) ((void)(x))
 #define portEXIT_CRITICAL(x) ((void)(x))
+uint32_t testTime=0;uint32_t millis(){return testTime++;}
+DIAGNOSTICS
 char knownIdentities[2][32]{};
 struct Gate{bool pairingAllowed(){return false;}};std::atomic<Gate*> bleService{nullptr};
 int updates=0,newConnections=0;void updatePeer(NimBLEConnInfo&,bool fresh=false){updates++;if(fresh)newConnections++;}
@@ -54,9 +57,31 @@ int main(){
  // A failed SMP negotiation must release the radio slot for a fresh attempt.
  info.encrypted=false;server.cb->onAuthenticationComplete(info);assert(server.disconnects==2);
  peers[0].handle=info.handle;server.cb->onDisconnect(&server,info,0);assert(peers[0].handle==InvalidHandle);
+ assert(bleEventSequence==7&&bleEventCount==7);
+ assert(bleEvents[0].kind==BleEventKind::Connect&&bleEvents[0].handle==info.handle);
+ assert(bleEvents[3].kind==BleEventKind::Authentication&&bleEvents[3].encrypted&&bleEvents[3].bonded&&bleEvents[3].keySize==16);
+ assert(bleEvents[4].kind==BleEventKind::Identity);
+ assert(bleEvents[5].kind==BleEventKind::Authentication&&!bleEvents[5].encrypted&&bleEvents[5].keySize==0);
+ assert(bleEvents[6].kind==BleEventKind::Disconnect&&bleEvents[6].reason==0);
+ // Execute the actual fixed-ring writer through more than its capacity. Every
+ // retained slot must correspond to the latest 16 events, with original flags.
+ bleEventNext=bleEventCount=bleEventSequence=0;testTime=100;
+ for(int sequence=1;sequence<=20;sequence++){
+  info.handle=sequence;info.encrypted=sequence%2;info.bonded=sequence%3;
+  recordBleEvent(BleEventKind::Subscription,info,400+sequence,4,sequence%3);
+ }
+ assert(bleEventCount==16&&bleEventNext==4&&bleEventSequence==20);
+ for(int sequence=5;sequence<=20;sequence++){
+  const auto& event=bleEvents[(sequence-1)%BleDiagnosticCapacity];
+  assert(event.sequence==static_cast<uint32_t>(sequence)&&event.handle==sequence&&event.atMs==static_cast<uint32_t>(99+sequence));
+  assert(event.kind==BleEventKind::Subscription&&event.reportBit==4&&event.value==sequence%3&&event.reason==400+sequence);
+  assert(event.encrypted==static_cast<bool>(sequence%2)&&event.bonded==static_cast<bool>(sequence%3));
+  assert(!event.authenticated&&event.keySize==(sequence%2?16:0));
+ }
+ std::puts("BLE diagnostic ring: real callback flags, newest 16 events, wraparound and original event fields passed");
  std::puts("BLE production callbacks: admission, 2-peer capacity, late identity, failed auth, disconnect and advertising name passed");
 }
-'''.replace('CALLBACKS',callbacks).replace('START',start)
+'''.replace('DIAGNOSTICS',diagnostics).replace('CALLBACKS',callbacks).replace('START',start)
 with tempfile.TemporaryDirectory(prefix='iah-ble-pairing-') as temp:
  path=Path(temp);cpp=path/'test.cpp';binary=path/'test';cpp.write_text(source)
  compiler=os.environ.get('CXX');flags=[]

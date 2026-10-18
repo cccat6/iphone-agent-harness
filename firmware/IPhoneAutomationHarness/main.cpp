@@ -7,6 +7,7 @@
 #include <ESPmDNS.h>
 #include <NimBLEDevice.h>
 #include <NimBLEHIDDevice.h>
+#include "nimble/nimble/host/services/gap/include/services/gap/ble_svc_gap.h"
 #include "nimble/porting/nimble/include/nimble/nimble_port.h"
 #include "nimble/nimble/include/nimble/nimble_npl.h"
 #include <esp_timer.h>
@@ -36,6 +37,18 @@ using namespace iah;
 NimBLECharacteristic *mouseReport=nullptr,*keyboardReport=nullptr,*consumerReport=nullptr;
 struct Peer {uint16_t handle=InvalidHandle;uint32_t epoch=0;bool encrypted=false,bonded=false;uint8_t reports=0;char identity[32]{};uint16_t pointerX=5000,pointerY=5000;bool pointerKnown=false;};
 Peer peers[MaxTargets];portMUX_TYPE peersMux=portMUX_INITIALIZER_UNLOCKED;uint32_t nextPeerEpoch=0;std::atomic_bool bondStateDirty{true};
+// Diagnostics contain transient connection handles and flags only: never peer
+// addresses, bonding material, or credentials. Callbacks write this fixed ring;
+// JSON allocation and USB output happen exclusively in loop().
+enum class BleEventKind:uint8_t {Connect,Authentication,Identity,Disconnect,Subscription};
+struct BleDiagnosticEvent {uint32_t sequence=0,atMs=0;uint16_t handle=InvalidHandle,value=0;int reason=0;BleEventKind kind=BleEventKind::Connect;bool encrypted=false,bonded=false,authenticated=false;uint8_t keySize=0,reportBit=0;};
+constexpr size_t BleDiagnosticCapacity=16;
+BleDiagnosticEvent bleEvents[BleDiagnosticCapacity];size_t bleEventNext=0,bleEventCount=0;uint32_t bleEventSequence=0;
+void recordBleEvent(BleEventKind kind,const NimBLEConnInfo& info,int reason=0,uint8_t reportBit=0,uint16_t value=0){
+ BleDiagnosticEvent event;event.atMs=millis();event.handle=info.getConnHandle();event.kind=kind;event.reason=reason;event.reportBit=reportBit;event.value=value;
+ event.encrypted=info.isEncrypted();event.bonded=info.isBonded();event.authenticated=info.isAuthenticated();event.keySize=info.getSecKeySize();
+ portENTER_CRITICAL(&peersMux);event.sequence=++bleEventSequence;bleEvents[bleEventNext]=event;bleEventNext=(bleEventNext+1)%BleDiagnosticCapacity;if(bleEventCount<BleDiagnosticCapacity)++bleEventCount;portEXIT_CRITICAL(&peersMux);
+}
 bool peerRouteMatches(uint16_t handle,uint32_t epoch,const char* identity,uint8_t requiredReports){
  bool matches=false;portENTER_CRITICAL(&peersMux);for(const auto& p:peers)if(p.handle==handle&&p.epoch==epoch&&p.encrypted&&p.bonded&&(p.reports&requiredReports)==requiredReports&&std::strcmp(p.identity,identity)==0)matches=true;portEXIT_CRITICAL(&peersMux);return matches;
 }
@@ -136,6 +149,7 @@ void updatePeer(NimBLEConnInfo& info,bool newConnection=false) {
 }
 class ServerCallbacks:public NimBLEServerCallbacks {
  void onConnect(NimBLEServer* server,NimBLEConnInfo& info)override {
+  recordBleEvent(BleEventKind::Connect,info);
   // System Bluetooth pairing must work before the browser is connected and
   // after a restart. A target identity may only resolve during SMP, so never
   // reject this initial connection using the application target table.
@@ -146,11 +160,13 @@ class ServerCallbacks:public NimBLEServerCallbacks {
   if(server->getConnectedCount()<MaxTargets)NimBLEDevice::getAdvertising()->start();
  }
  void onAuthenticationComplete(NimBLEConnInfo& info)override{
+  recordBleEvent(BleEventKind::Authentication,info);
   updatePeer(info);bondStateDirty=true;
   if(!info.isEncrypted())NimBLEDevice::getServer()->disconnect(info.getConnHandle());
  }
- void onIdentity(NimBLEConnInfo& info)override{updatePeer(info);bondStateDirty=true;}
- void onDisconnect(NimBLEServer*,NimBLEConnInfo& info,int)override{
+ void onIdentity(NimBLEConnInfo& info)override{recordBleEvent(BleEventKind::Identity,info);updatePeer(info);bondStateDirty=true;}
+ void onDisconnect(NimBLEServer*,NimBLEConnInfo& info,int reason)override{
+  recordBleEvent(BleEventKind::Disconnect,info,reason);
   portENTER_CRITICAL(&peersMux);for(auto& peer:peers)if(peer.handle==info.getConnHandle())peer=Peer{};portEXIT_CRITICAL(&peersMux);bondStateDirty=true;
  }
 };
@@ -184,6 +200,7 @@ class ReportCallbacks:public NimBLECharacteristicCallbacks {
  uint8_t bit_;
  public:explicit ReportCallbacks(uint8_t report):bit_(1u<<(report-1)){}
  void onSubscribe(NimBLECharacteristic*,NimBLEConnInfo& info,uint16_t value)override{
+  recordBleEvent(BleEventKind::Subscription,info,0,bit_,value);
   updatePeer(info);portENTER_CRITICAL(&peersMux);
   for(auto& peer:peers)if(peer.handle==info.getConnHandle()){if(value&1)peer.reports|=bit_;else peer.reports&=~bit_;}
   portEXIT_CRITICAL(&peersMux);
@@ -263,6 +280,29 @@ void savedNetwork(String& ssid,String& password){
  JsonDocument network;if(!deserializeJson(network,preferences.getString("network",""))){ssid=network["ssid"]|"";password=network["password"]|"";}
 }
 bool applySavedPower(){int value=preferences.getInt("rfPower",-1);return value<0||WiFi.setTxPower(static_cast<wifi_power_t>(value));}
+void bleDiagnostic(){
+ Peer peerSnapshot[MaxTargets];BleDiagnosticEvent events[BleDiagnosticCapacity];size_t count;uint32_t total;
+ portENTER_CRITICAL(&peersMux);
+ for(size_t i=0;i<MaxTargets;i++)peerSnapshot[i]=peers[i];count=bleEventCount;total=bleEventSequence;
+ for(size_t i=0;i<count;i++)events[i]=bleEvents[(bleEventNext+BleDiagnosticCapacity-count+i)%BleDiagnosticCapacity];
+ portEXIT_CRITICAL(&peersMux);
+ JsonDocument out;out["format"]="iah-ble-diagnostic/1";out["bootId"]=bootId;out["atMs"]=millis();out["initialized"]=NimBLEDevice::isInitialized();
+ const char* gapName=ble_svc_gap_device_name();out["gapName"]=gapName?gapName:"";
+ auto server=NimBLEDevice::getServer();auto advertising=NimBLEDevice::getAdvertising();
+ out["advertising"]=advertising&&advertising->isAdvertising();out["connectedCount"]=server?server->getConnectedCount():0;out["numBonds"]=NimBLEDevice::getNumBonds();
+ auto reportHandles=out["reportHandles"].to<JsonObject>();
+ if(mouseReport)reportHandles["pointer"]=mouseReport->getHandle();if(keyboardReport)reportHandles["keyboard"]=keyboardReport->getHandle();if(consumerReport)reportHandles["consumer"]=consumerReport->getHandle();
+ auto peerRows=out["peers"].to<JsonArray>();for(const auto& peer:peerSnapshot){if(peer.handle==InvalidHandle)continue;auto row=peerRows.add<JsonObject>();row["handle"]=peer.handle;row["epoch"]=peer.epoch;row["encrypted"]=peer.encrypted;row["bonded"]=peer.bonded;row["identityResolved"]=peer.identity[0]!=0;row["reports"]=peer.reports;}
+ out["freeHeap"]=ESP.getFreeHeap();out["minFreeHeap"]=ESP.getMinFreeHeap();out["largestFreeBlock"]=heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT);
+ out["eventTotal"]=total;auto eventRows=out["events"].to<JsonArray>();
+ for(size_t i=0;i<count;i++){const auto& event=events[i];auto row=eventRows.add<JsonObject>();row["sequence"]=event.sequence;row["atMs"]=event.atMs;row["handle"]=event.handle;
+  const char* kind="connect";switch(event.kind){case BleEventKind::Connect:break;case BleEventKind::Authentication:kind="authentication";break;case BleEventKind::Identity:kind="identity";break;case BleEventKind::Disconnect:kind="disconnect";break;case BleEventKind::Subscription:kind="subscription";break;}
+  row["kind"]=kind;row["encrypted"]=event.encrypted;row["bonded"]=event.bonded;row["authenticated"]=event.authenticated;row["keySize"]=event.keySize;
+  if(event.kind==BleEventKind::Disconnect)row["reason"]=event.reason;
+  if(event.kind==BleEventKind::Subscription){row["reportBit"]=event.reportBit;row["value"]=event.value;}
+ }
+ Serial.print("IAH_BLE ");serializeJson(out,Serial);Serial.println();
+}
 void wifiDiagnostic(){
  String ssid,password;savedNetwork(ssid,password);JsonDocument out;out["format"]="iah-wifi-diagnostic/1";out["wifiConfigured"]=!ssid.isEmpty();out["wifiConnected"]=WiFi.status()==WL_CONNECTED;out["wifiStatus"]=(int)WiFi.status();out["wifiMode"]=(int)WiFi.getMode();out["configuredSsidBytes"]=ssid.length();out["configuredPasswordBytes"]=password.length();out["attemptedSsidMatchesStored"]=WiFi.SSID()==ssid;out["lastDisconnectReason"]=wifiLastReason.load();out["disconnectCount"]=wifiDisconnects.load();out["connectionCount"]=wifiConnections.load();out["gotIpCount"]=wifiGotIps.load();out["lastEvent"]=wifiLastEvent.load();out["lastEventAtMs"]=wifiLastEventMs.load();out["txPowerQuarterDbm"]=(int)WiFi.getTxPower();out["savedTxPowerQuarterDbm"]=preferences.getInt("rfPower",-1);out["freeHeap"]=ESP.getFreeHeap();out["largestFreeBlock"]=heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT);out["loopStackHighWaterBytes"]=uxTaskGetStackHighWaterMark(nullptr);out["nimbleHostMaxConnections"]=CONFIG_BT_NIMBLE_MAX_CONNECTIONS;out["nimbleHostMaxBonds"]=CONFIG_BT_NIMBLE_MAX_BONDS;out["coreMaxEvents"]=MaxEvents;out["replayTombstoneBytes"]=SeenBytes;out["replayStorage"]="rtc";out["nimblePreferredMtu"]=CONFIG_BT_NIMBLE_ATT_PREFERRED_MTU;out["nimbleMsys1Blocks"]=CONFIG_BT_NIMBLE_MSYS_1_BLOCK_COUNT;out["nimbleMsys2Blocks"]=CONFIG_BT_NIMBLE_MSYS_2_BLOCK_COUNT;out["maxRequestBytes"]=WireMaxRequestBytes;out["httpReady"]=secureService->networkReady();if(WiFi.status()==WL_CONNECTED){out["rssi"]=WiFi.RSSI();out["localIp"]=WiFi.localIP().toString();}Serial.print("IAH_WIFI ");serializeJson(out,Serial);Serial.println();
 }
@@ -285,6 +325,7 @@ void configureSerial(){
   char c=Serial.read();if(c!='\n'){if(!dropping&&line.length()<1024)line+=c;else{line="";dropping=true;}continue;}if(dropping){dropping=false;line="";Serial.println("{\"error\":\"configuration_line_too_large\"}");continue;}
   JsonDocument d;auto error=deserializeJson(d,line);line="";if(error){Serial.println("{\"error\":\"invalid_json\"}");continue;}
   String op=d["op"]|"";
+  if(op=="ble-diagnostic"){bleDiagnostic();continue;}
   if(op=="wifi-diagnostic"){wifiDiagnostic();continue;}
   if(op=="wifi-power"){wifiPower(d);continue;}
   if(op=="wifi-reconnect"){wifiReconnect();continue;}

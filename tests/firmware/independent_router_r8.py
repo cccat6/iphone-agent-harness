@@ -13,7 +13,7 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
 main = (ROOT / 'firmware/IPhoneAutomationHarness/main.cpp').read_text()
-peers = main[main.index('struct Peer {'):main.index('class BleSink:public Sink {')]
+peers = (main[main.index('struct Peer {'):main.index('enum class BleEventKind:')] + main[main.index('bool peerRouteMatches('):main.index('class BleSink:public Sink {')])
 sink = main[main.index('class BleSink:public Sink {'):main.index('} sink;') + 1] + ';'
 source = r'''
 
