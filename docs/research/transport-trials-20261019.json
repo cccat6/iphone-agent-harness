@@ -5,7 +5,7 @@
     "WebRTC Direct v2",
     "BLE extension"
   ],
-  "currentStage": "C3 prototype deployed; awaiting iPhone direct foreground/background result",
+  "currentStage": "iPhone Safari to C3 short background echo passed with measured stalls; production reliability and BLE coexistence unverified",
   "phoneFeatureFlag": "User reports no Local Network Access option on iOS 27.0.1",
   "boardPreflight": {
     "hostname": "igent.local",
@@ -121,7 +121,7 @@
     "safariStatisticsFalseFailureFixed": true,
     "macSafariAfterFix": "3 matching echoes, success with explicit incomplete-statistics note",
     "phoneBackground": "passed",
-    "c3": "flashed and three echoes passed in Chrome and macOS Safari; iPhone trial pending"
+    "c3": "flashed; Chrome, macOS Safari and iPhone Safari foreground/background echo verified"
   },
   "phoneWebRTCBackground": {
     "evidence": "Summary extracted from user-pasted JSON and reference server selected-pair log",
@@ -169,12 +169,37 @@
     "dtlsReadyFreeHeap": 158992,
     "dtlsMinimumHeap": 141848,
     "echoFreeHeap": 160904,
-    "phoneValidation": "pending",
+    "phoneValidation": "passed five hidden-page echo rounds; ICE disconnect/recovery and slow replies observed",
     "pionClient": "failed; likely extra SRTP handshake expectation, actual browsers passed",
     "limitations": [
       "simplified SCTP without complete retransmission or fragmentation",
       "no BLE coexistence validation",
       "not production firmware"
     ]
+  },
+  "phoneC3Evidence": {
+    "file": "rtc-direct-c3-iphone-20261019.json",
+    "endpoint": "192.168.0.125",
+    "testDurationSeconds": 40.223,
+    "closeAfterLastEchoMs": 23,
+    "iceDisconnectSeconds": 4.526,
+    "foregroundEchoMs": [
+      18,
+      2062,
+      5993
+    ],
+    "backgroundEchoMs": [
+      1057,
+      66,
+      23,
+      21,
+      22
+    ],
+    "allBackgroundHidden": true,
+    "allNoncesMatched": true,
+    "recorderContinuedDuringIceDisconnect": true,
+    "recordingStopCause": "five-round completion followed by explicit releaseCapture/track.stop; 90-second abort timer did not fire",
+    "unlimitedBackgroundRecordingProven": false,
+    "productionControlReady": false
   }
 }
