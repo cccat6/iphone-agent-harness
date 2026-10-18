@@ -53,7 +53,8 @@ class FirmwareArtifacts(unittest.TestCase):
     def test_local_configuration_and_relay_files_never_enter_clean_source(self):
         with tempfile.TemporaryDirectory() as temporary:
             root=Path(temporary);source=root/'source';source.mkdir();(source/'src').mkdir()
-            for name in build.SOURCE_FILES:(source/name).write_text('// public source')
+            for name in build.SOURCE_FILES:
+                public=source/name;public.parent.mkdir(parents=True,exist_ok=True);public.write_text('// public source')
             (source/'config.local.h').write_text('private testing secret');(source/'relay_config.h').write_text('private relay secret')
             original=build.SKETCH
             try:

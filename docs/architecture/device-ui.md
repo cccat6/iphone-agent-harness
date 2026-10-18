@@ -1,37 +1,33 @@
 # Device onboarding UI
 
-`apps/web/ui/device-panel.js` is a fixed UI module used by the Harness device panel. Its localized copy is in `apps/web/locales/device.js` (eight languages). It subscribes to language changes without translating user input, fingerprints, device IDs, or nonce content.
+`apps/web/ui/device-panel.js` separates three states: the Harness-to-bridge network connection, the phone's Bluetooth/input verification, and screen sharing. Its copy is localized in `apps/web/locales/device.js`.
 
-The panel is a daily status/control view, not a numbered provisioning wizard. It separates the website-to-ESP32 LAN connection, the phone's Bluetooth/input verification, and screen sharing. Wi-Fi provisioning is an optional collapsed guide for boards that have not joined a network. A board already on the user's LAN must not be provisioned again.
+## Normal flow
 
-The default address is http://igent.local and the connection code is off by default in firmware. Saved bridge endpoints and browser credentials are reused. The optional /settings page allows a custom local hostname . Only automatically generated legacy harness-<12 hex>.local saved addresses migrate to the default; custom endpoints remain unchanged. The optional address editor is collapsed for saved bridges; the normal action connects that bridge without re-entering either. Connecting Bluetooth in iOS does not itself open or authenticate the browser's LAN channel, so before that channel exists the phone section says that the webpage cannot yet read the paired-phone list and offers a direct bridge-connection action. It must not report the phone's Bluetooth as disconnected when it has not queried the bridge. A live existing browser connection does not require another Connect step. A reload that loses the local helper needs a user click to reopen it under Safari's window policy. A different browser has its own local records and needs to associate the existing bridge once.
+The user imports bridge information once from the desktop USB setup link or by opening `http://igent.local/settings` and choosing **Return to Harness**. That link navigates back in the same tab and supplies the board identity and `rtc:{ip,port,fingerprint}`. The URL fragment is consumed and removed on entry. Saved details are reused; a board already on the LAN does not need Wi-Fi provisioning again.
 
-The Connect click opens the device window synchronously before the first await. The app only reports connection readiness after an actual request returns while the device tab is hidden and Harness is visible. Keep that tab open during control. There is no Direct LAN mode selector in the Safari UI. The tested Safari 27.0.1 blocked direct HTTP/WS; the local-window experiment subsequently passed five GET/POST requests including both-tabs-hidden requests during screen sharing, over about 21 seconds. Physical ESP32/HID and longer sessions remain separate checks.
+**Connect ESP32 bridge** establishes WebRTC Direct from the existing Harness page. The UI checks the actual board response before publishing the client. It does not open or retain a helper tab. Local HTTP remains available for provisioning, device management and Shortcuts.
 
-Connection codes have been removed from the UI, USB display and generated setup links. Legacy links identify the board but their owner fields are discarded. Ordinary settings contain the origin and device identity; per-browser tokens stay in their separate local record. Restoring tokens never substitutes for the current phone input test.
+Connection codes are absent from the UI, USB display and new links. Shared transport certificate configuration is supplied by the project; the user does not install a CA or manage a certificate for each board. The shared fingerprint does not replace board identity, browser token enrollment or the phone input test.
 
+Before the website has queried the bridge, it describes the bridge as disconnected without inventing a phone Bluetooth status. Once connected, it shows the returned target list. **Connection test** starts an eight-digit HID input test; it is not called “connect this phone.” AssistiveTouch belongs to the phone tutorial. Full Keyboard Access is neither required nor prohibited.
 
-The dedicated challenge input is readonly and focused synchronously before the start request. A private buffer accepts only trusted foreground keydown events: Digit codes take precedence over layout-dependent key values; numpad and ASCII fallback are supported. Synthetic, repeated, modified, pasted, and non-digit input is rejected. Digits arriving before the HTTP response are retained. The code is masked and not logged. The collector expires after 30 seconds and stops when the panel closes or its target changes.
+## Input proof and control state
 
-The homepage and conversation header show current device readiness. New-session creation requires a fresh device status check and completed input proof. Existing conversations remain usable while disconnected; runtime messages identify the missing bridge, and physical input fails with an explicit unavailable reason. A five-second status monitor and foreground refresh clear stale readiness when LAN or Bluetooth connectivity fails; reconnection requires another input test.
+The readonly test field is focused synchronously before the start request. It collects trusted foreground digit key events only, including digits arriving before the request response. Synthetic events, pasted digits, modifiers and repeats do not establish proof. The collector expires after 30 seconds and stops when the panel or target changes. Successful confirmation is tied to the current board, boot, browser and target.
 
-The app supplies a dynamic device adapter to `createHarness`. Trusted run metadata supplies writer IDs and safe claim permission to `getExecutionContext`. Tasks can claim or reclaim only under the client's verified, released, idle conditions, and only the owning run can renew or end its lease. The optional explicit control check claims and then releases a temporary lease; it does not advertise persistent control. No background timer is presented as a guarantee of Safari scheduling.
+The session list and conversation header show the bridge state. New-session creation requires the current device connection and input test. Existing conversations remain available offline; model context identifies an absent bridge and phone input fails with a specific unavailable reason. A lost connection clears readiness and input proof instead of leaving a stale connected badge.
 
-## Earlier UI checks (legacy transport, 2026-10-18)
+The Task owns its writer lease. The optional control check claims and releases a temporary lease; it does not grant permanent control. Closing or losing the RTC connection cancels that connection's work and invalidates its browser-side readiness. Unknown command delivery is reconciled by receipt ID, never automatically replayed.
 
-- Syntax checks passed for the module and app integration.
-- Three focused Node tests passed for trusted digit parsing and all eight locale keys/placeholders.
-- Two route regression tests execute the app's actual route normalizer: unsupported phone + IndexedDB failure still reaches the non-dismissable root gate; desktop and supported-phone runtime storage failure retain the homepage fallback.
-- `tests/browser/device-panel.html` is an explicitly labelled isolated fixture. Its fake client performs no fetch, BLE, USB, real screen sharing or model calls. Native Chrome UI input verified pairing alone leaves control disabled; a focused readonly input accepts eight native digit keys; confirm plus settings acknowledgement publishes the mock client; mock sharing state follows the capture object. Screenshot: `screenshots/device-onboarding-mock-zh.png`.
-- Chrome's extension/CDP interface timed out before command dispatch, so these checks used the documented native Chrome accessibility interface. A later reload did not visibly complete; no final mobile viewport or eight-language live DOM claim is made. Resource parity is covered by the locale test. The test tab and local-only port 18831 server were closed.
+## Device information and clipboard
 
-The fixture verifies UI transitions only. Production device pairing, HID delivery, lease contention and capture-to-control execution still require the separately scheduled device integration test. No firmware was flashed or physical device contacted by this UI pass.
+The desktop installer reads board information after the user chooses the serial device. It shows setup Wi-Fi details, the local management address and a phone return link. Runtime RTC details include the actual LAN IP, UDP port and shared fingerprint. No user-facing connection code is shown.
 
+The device manager changes the hostname while the bridge is idle. A changed address can be imported with **Return to Harness**. It does not need to remain open afterward.
 
-## USB setup information
+The [clipboard tutorial](https://igent.cc/shortcuts/clipboard.html) installs **iPhone Agent Clipboard**. The Harness button passes the prepared job address to Shortcuts; direct execution without input uses the default bridge address. Copy completion, rather than download alone, permits the task to continue. The direct browser-copy button remains available when the user returns to the foreground.
 
-The desktop flashing page reads structured board information only after a user click. It shows the device Wi-Fi name/password, pairing code, local address and phone setup link. Sensitive fields start masked and can be cleared. No CA download is presented. Legacy `httpsUrl` responses remain parseable; the new firmware reports `httpUrl` and `manualTrustRequired:false`.
+## Verification scope
 
-## Current verification boundary
-
-Node tests cover local address validation, setup-link import, window source/origin/nonce checks, hidden-helper readiness, cancellation, timeouts and no automatic replay. The actual firmware helper JavaScript is also executed in a host VM test. These checks do not replace Safari background or physical HID acceptance. [Real-phone evidence](../research/ios-lan-probe20261018.json) records what actually reached the LAN server.
+Browser tests exercise transport configuration, fragmented RPC, request ordering, cancellation, stored metadata, input proof and offline state. Firmware protocol tests exercise packet loss, ordering and replay boundaries. The phone's short WebRTC prototype results are recorded [separately](../research/rtc-direct-c3-iphone-20261019.json); the integrated RTC/BLE firmware and actual Shortcut use remain physical acceptance items.

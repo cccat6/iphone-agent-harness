@@ -1,4 +1,5 @@
 import {getLocale,subscribe} from '../i18n.js';
+import {SHORTCUT_COPY} from './clipboard-shortcut-copy.js';
 export const CLIPBOARD_MESSAGES={
  en:{retryContinue:"Retry continue",retrySave:"Retry save",retrying:"Retrying…",copyContinue:"Copy and continue",hintContinue:"After copying, the agent will return to the target app, check the field, then paste.",copiedContinue:"Copied. The agent will return to the target app before pasting.",recordFailed:"Copied, but the session record could not be saved. Do not continue until it is saved.",title:'Copy text for the phone',hint:'Safari needs you to tap Copy here. Then return to the target app; copying does not paste.',copy:'Copy text',copying:'Copying…',copied:'Copied. Return to the target app before continuing.',cancel:'Cancel',failed:'Could not copy. Keep this page open and tap Copy again.',cancelled:'Copy cancelled.',count:'{count} characters'},
  'zh-Hans':{retryContinue:"重试继续",retrySave:"重试保存",retrying:"正在重试…",copyContinue:"复制并继续",hintContinue:"复制后，AI 会先返回目标 App、确认输入框，再粘贴。",copiedContinue:"已复制，AI 将先返回目标 App 再粘贴。",recordFailed:"已复制，但会话记录未能保存。请先处理保存错误，再继续。",title:'复制要输入的文字',hint:'请在这里点一下复制，再切回目标 App。复制不会自动粘贴。',copy:'复制文本',copying:'正在复制…',copied:'已复制。请切回目标 App 后再继续操作。',cancel:'取消',failed:'未能复制，请保持此页面在前台，再点一次复制。',cancelled:'已取消复制。',count:'{count} 个字符'},
@@ -10,13 +11,15 @@ export const CLIPBOARD_MESSAGES={
  es:{retryContinue:"Reintentar continuar",retrySave:"Reintentar guardar",retrying:"Reintentando…",copyContinue:"Copiar y continuar",hintContinue:"Tras copiar, la IA volverá a la app de destino, comprobará el campo y pegará el texto.",copiedContinue:"Copiado. La IA volverá a la app de destino antes de pegar.",recordFailed:"El texto se copió, pero no se guardó en la conversación. Resuelve el error de guardado antes de continuar.",title:'Copiar texto para el teléfono',hint:'Pulsa Copiar aquí y vuelve a la app de destino. El texto no se pega automáticamente.',copy:'Copiar texto',copying:'Copiando…',copied:'Copiado. Vuelve a la app de destino antes de continuar.',cancel:'Cancelar',failed:'No se pudo copiar. Mantén esta página abierta e inténtalo de nuevo.',cancelled:'Copia cancelada.',count:'{count} caracteres'},
 };
 const continuationStates=new WeakMap();
-export function mountClipboardPanel(root,{controller,sessionId=null,continueAfterCopy=false,onCopied=()=>{}}){
+export function mountClipboardPanel(root,{controller,sessionId=null,continueAfterCopy=false,onCopied=()=>{},deviceClipboard=null,navigate=url=>globalThis.location.assign(url)}){
  const doc=root.ownerDocument;
  let continuation=continuationStates.get(controller);
  if(!continuation){continuation={failedReceipt:null,callbackAttempt:null,views:new Set()};continuationStates.set(controller,continuation);}
  const notifyViews=()=>{for(const update of continuation.views)update();};
  const title=doc.createElement('strong'),hint=doc.createElement('p'),preview=doc.createElement('textarea'),status=doc.createElement('p'),actions=doc.createElement('div'),copy=doc.createElement('button'),cancel=doc.createElement('button'),retry=doc.createElement('button');
  root.dataset.noI18n='';root.classList.add('clipboard-panel');root.setAttribute('aria-live','polite');preview.readOnly=true;preview.rows=4;preview.setAttribute('aria-label','');preview.style.width='100%';copy.type=cancel.type=retry.type='button';actions.className='panel-actions';copy.className=retry.className='primary';cancel.className='secondary-button';actions.append(copy,cancel,retry);root.replaceChildren(title,hint,preview,status,actions);
+ const shortcutArea=doc.createElement('div'),shortcut=doc.createElement('button'),shortcutStatus=doc.createElement('p'),guide=doc.createElement('a');let attemptedRequest=null,shortcutFault=false;
+ shortcut.type='button';shortcut.className='secondary-button';guide.href='/shortcuts/clipboard.html';guide.target='_blank';guide.rel='noopener noreferrer';shortcutArea.append(shortcut,shortcutStatus,guide);if(deviceClipboard)root.append(shortcutArea);
  const words=()=>CLIPBOARD_MESSAGES[getLocale()]||CLIPBOARD_MESSAGES.en;
  const matches=(receipt,state=controller.getSnapshot())=>Boolean(receipt&&state&&state.status==='copied'&&state.requestId===receipt.requestId&&state.sessionId===receipt.sessionId&&state.targetId===receipt.targetId&&(!sessionId||state.sessionId===sessionId));
  const paint=()=>{
@@ -25,6 +28,7 @@ export function mountClipboardPanel(root,{controller,sessionId=null,continueAfte
   if(continuation.callbackAttempt&&!matches(continuation.callbackAttempt.receipt,state))continuation.callbackAttempt=null;
   root.hidden=!state||(sessionId&&state.sessionId!==sessionId);
   const pending=Boolean(state&&['awaiting_user_action','copying'].includes(state.status)),canRetry=Boolean(continuation.failedReceipt);
+  if(deviceClipboard){const w=SHORTCUT_COPY[getLocale()]||SHORTCUT_COPY.en,job=deviceClipboard.getSnapshot();shortcutArea.hidden=!pending||!deviceClipboard.available();shortcut.disabled=state?.status==='copying'||['preparing','waiting'].includes(job?.status);shortcut.textContent=job?.status==='failed'||shortcutFault?w.retry:w.button;guide.textContent=w.help;shortcutStatus.textContent=shortcutFault||job?.status==='failed'?w.failed:job?.status==='preparing'?w.preparing:job?.status==='waiting'?w.waiting:w.hint;}
   copy.hidden=cancel.hidden=!pending;retry.hidden=!canRetry;actions.hidden=!pending&&!canRetry;
   retry.disabled=Boolean(continuation.callbackAttempt);retry.textContent=continuation.callbackAttempt?w.retrying:continueAfterCopy?w.retryContinue:w.retrySave;
   if(root.hidden){preview.value='';return;}
@@ -42,7 +46,17 @@ export function mountClipboardPanel(root,{controller,sessionId=null,continueAfte
  copy.addEventListener('click',()=>{controller.copyPending().then(continueCopied,()=>{/* The controller renders write failures separately. */});});
  retry.addEventListener('click',()=>{if(continuation.failedReceipt)void continueCopied(continuation.failedReceipt);});
  cancel.addEventListener('click',()=>controller.cancel());
+ let shortcutAttempt=0;
+ function prepareShortcut(retry=false){
+  const value=controller.getSnapshot();if(!deviceClipboard)return;if(!value||value.status!=='awaiting_user_action'){deviceClipboard.cancel();return;}if(!deviceClipboard.available()||(!retry&&attemptedRequest===value.requestId))return;
+  attemptedRequest=value.requestId;shortcutFault=false;const attempt=++shortcutAttempt;
+  void deviceClipboard.prepare({...value,text:controller.getPendingText()},{retry}).then(()=>{
+   if(attempt!==shortcutAttempt)return;
+   if(deviceClipboard.arm)return deviceClipboard.arm().then(receipt=>controller.completeExternal(receipt)).then(continueCopied);
+  }).catch(()=>{if(attempt===shortcutAttempt){shortcutFault=true;paint();}});
+ }
+ shortcut.addEventListener('click',()=>{if(!deviceClipboard)return;if(deviceClipboard.getSnapshot()?.status!=='ready'){prepareShortcut(true);return;}try{const launch=deviceClipboard.start();if(!deviceClipboard.arm)launch.completion.then(receipt=>controller.completeExternal(receipt)).then(continueCopied,()=>paint());navigate(launch.url);}catch{shortcutFault=true;paint();}});
  continuation.views.add(paint);
- const unsubscribe=controller.subscribe(paint),unlocale=subscribe(paint);paint();
- return {destroy(){continuation.views.delete(paint);unsubscribe();unlocale();root.replaceChildren();root.hidden=true;}};
+ const unsubscribe=controller.subscribe(()=>{paint();prepareShortcut();}),unlocale=subscribe(paint),unshortcut=deviceClipboard?.subscribe(paint);paint();prepareShortcut();
+ return {destroy(){continuation.views.delete(paint);unsubscribe();unlocale();unshortcut?.();root.replaceChildren();root.hidden=true;}};
 }

@@ -1,0 +1,40 @@
+{
+  "checkedAt": "2026-10-18T21:39:00.790280+00:00",
+  "scope": "Chrome production DOM and real IndexedDB; synthetic mobile UA, disposable 240-message conversation",
+  "checks": [
+    {
+      "stage": "initial",
+      "messages": 40,
+      "characters": 36122,
+      "loadedImages": 0,
+      "firstSeq": 201,
+      "lastSeq": 240
+    },
+    {
+      "stage": "older",
+      "messages": 120,
+      "characters": 10320,
+      "loadedImages": 1,
+      "firstSeq": 1,
+      "lastSeq": 120
+    },
+    {
+      "stage": "newer",
+      "messages": 120,
+      "characters": 43002,
+      "loadedImages": 1,
+      "firstSeq": 121,
+      "lastSeq": 240
+    }
+  ],
+  "passed": true,
+  "phoneInputSent": false,
+  "notes": "Long final message showed next-text-page control. The first inspection ran before asynchronous image hydration; older/newer readings were taken after settling.",
+  "backupRoundTrip": {
+    "backupBytes": 135110,
+    "restoredMessages": 240,
+    "lastMessageCharacters": 54014,
+    "passed": true,
+    "restoredDisposableSessionRemoved": true
+  }
+}

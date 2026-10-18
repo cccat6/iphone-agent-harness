@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import vm from 'node:vm';
+import {createHistoryWindow} from '../../apps/web/core/history-window.js';
 import {createClipboardController} from '../../apps/web/core/clipboard.js';
 import {mountClipboardPanel} from '../../apps/web/ui/clipboard.js';
 const app=await readFile(new URL('../../apps/web/app.js',import.meta.url),'utf8');
@@ -11,7 +12,8 @@ function continuationFixture(mode='chat'){
  const runs=[],nodes=new Map(),draft='Unsent user draft';let options;
  const $=selector=>{if(!nodes.has(selector))nodes.set(selector,{value:selector==='#message-input'?draft:selector==='#mode-select'?mode:'model-a',textContent:'',hidden:false});return nodes.get(selector);};
  const state={current:{id:'session-a',mode},drafts:new Map([['session-a',draft]]),runGeneration:0,devicePanel:{ensureReady:async()=>true},store:{addEvent:async()=>{},updateSession:async()=>{},getMessages:async()=>[],getSession:async()=>({id:'session-a',title:'Session',mode})},harness:{run:async x=>runs.push(x)}};
- const sandbox={state,$,clipboard:{getSnapshot:()=>receipt},deviceStatus:()=>({targetId:'phone-a',inputVerified:true}),mountClipboardPanel:(_root,opts)=>(options=opts,{destroy(){}}),getBrowserCompatibility:()=>({supportedForHarness:true}),selectedProvider:()=>({id:'model-a'}),setRunning:value=>{state.running=value;},AbortController,t:x=>x,resizeInput(){},updateModeDescription(){},refreshSessions:async()=>{},renderMessages(){},report:error=>{throw error;}};
+ const sandbox={createHistoryWindow,state,$,clipboard:{getSnapshot:()=>receipt},deviceClipboard:null,deviceStatus:()=>({targetId:'phone-a',inputVerified:true}),mountClipboardPanel:(_root,opts)=>(options=opts,{destroy(){}}),getBrowserCompatibility:()=>({supportedForHarness:true}),selectedProvider:()=>({id:'model-a'}),setRunning:value=>{state.running=value;},AbortController,t:x=>x,resizeInput(){},updateModeDescription(){},refreshSessions:async()=>{},renderMessages(){},report:error=>{throw error;}};
+ vm.runInNewContext(app.slice(app.indexOf('function historyWindow()'),app.indexOf('async function openSession(')),sandbox);
  vm.runInNewContext(app.slice(app.indexOf('async function sendMessage('),app.indexOf('function resizeInput()')),sandbox);
  sandbox.renderClipboard();return {copy:()=>options.onCopied(receipt),runs,state,$,draft};
 }

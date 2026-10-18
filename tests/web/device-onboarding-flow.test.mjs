@@ -1,3 +1,4 @@
+import {getLocale} from '../../apps/web/i18n.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createDevicePanel} from '../../apps/web/ui/device-panel.js';
@@ -49,7 +50,7 @@ test('connection test gates readiness, saves locally and reconnects without anot
 });
 
 test('daily bridge uses default address and legacy protected firmware requires update',async t=>{
- const prior=Object.getOwnPropertyDescriptor(globalThis,'document'),fields=new Map();let markup='',required=false,pairCalls=0,opens=0,restored=null;
+ const prior=Object.getOwnPropertyDescriptor(globalThis,'document'),fields=new Map();let markup='',required=false,pairCalls=0,opens=0,restored=null;const rtc={ip:'192.168.0.125',port:18948,fingerprint:'AB:'.repeat(31)+'AB'},bridgeOptions=[];
  const field=selector=>{if(!fields.has(selector))fields.set(selector,{value:'',checked:false,dataset:{},classList:{toggle(){}},addEventListener(){},replaceChildren(){},append(){},focus(){document.activeElement=this;}});return fields.get(selector);};
  const root={isConnected:true,querySelector:field,querySelectorAll:()=>[],closest:()=>null},holder={querySelector:()=>root,contains:e=>e===root};
  Object.defineProperty(globalThis,'document',{configurable:true,value:{documentElement:{},addEventListener(){},removeEventListener(){},querySelector:()=>({}),createElement:()=>({}),head:{append(){}}}});
@@ -63,14 +64,14 @@ test('daily bridge uses default address and legacy protected firmware requires u
   exportCredentials(){return {format:'fixture',token:'not-used'};}
   status(){return {publicKeyFingerprint:fp,boardId:this.boardId};}clearCredentials(){this.paired=false;}
  }
- const panel=createDevicePanel({store,capture:{active:false},getPanelRoot:()=>holder,openPanel(a,b,html){markup=html;field('[data-address]').value=/data-address[^>]+value="([^"]*)"/.exec(html)[1];},clientFactory:()=>new Client(),bridgeFactory:()=>({open(){opens++;return Promise.resolve();},close(){}})});
+ const panel=createDevicePanel({store,capture:{active:false},getPanelRoot:()=>holder,openPanel(a,b,html){markup=html;field('[data-address]').value=/data-address[^>]+value="([^"]*)"/.exec(html)[1];},clientFactory:()=>new Client(),bridgeFactory:options=>{bridgeOptions.push(options);return {open(){opens++;return Promise.resolve();},close(){},exportConfiguration:()=>rtc};}});
  t.after(()=>panel.destroy());await panel.open();
  assert.equal(field('[data-address]').value,endpoint);assert.ok(markup.includes('data-configuration >'));assert.ok(markup.includes('data-bridge-settings target="_blank" rel="noopener noreferrer"'));
- const pending=field('[data-connect-shortcut]').onclick();assert.equal(opens,1,'window opens in the click before storage awaits');await pending;
- assert.equal(pairCalls,1);assert.equal(panel.getState().connected,true);assert.equal(field('[data-bridge-settings]').href,endpoint+'/settings');assert.equal(field('[data-bridge-settings]').hidden,false);
+ const pending=field('[data-connect-shortcut]').onclick();assert.equal(opens,1,'RTC connection begins in the click before storage awaits');await pending;
+ assert.equal(pairCalls,1);assert.equal(panel.getState().connected,true);assert.equal(field('[data-bridge-settings]').href,endpoint+'/settings?lang='+encodeURIComponent(getLocale()));assert.equal(field('[data-bridge-settings]').hidden,false);assert.deepEqual((await store.getSettings()).deviceRTC,rtc);assert.equal(bridgeOptions[0].rtc,undefined);assert.ok(markup.includes('data-import-connection'));assert.ok(!markup.includes('harness-link'));
  field('[data-disconnect]').onclick();await store.deleteLocalCredential('device:'+endpoint);required=true;
  await field('[data-connect-shortcut]').onclick();assert.equal(panel.getState().connected,false);assert.equal(markup.includes('data-owner-password'),false);assert.equal(field('[data-bridge-settings]').hidden,true);
- required=false;await field('[data-pair]').onclick();assert.equal(panel.getState().connected,true);assert.equal(field('[data-configuration]').open,false);assert.equal(pairCalls,3);
+ required=false;await field('[data-pair]').onclick();assert.equal(panel.getState().connected,true);assert.equal(field('[data-configuration]').open,false);assert.equal(pairCalls,3);assert.deepEqual(bridgeOptions.at(-1).rtc,rtc);
  const legacy='http://harness-b0e4b4e05380.local';field('[data-disconnect]').onclick();await store.saveSettings({deviceEndpoint:legacy});await store.deleteLocalCredential('device:'+endpoint);await store.saveLocalCredential('device:'+legacy,{baseUrl:legacy,token:'legacy-token',clientId:'legacy-client',expectedFingerprint:fp});
  await panel.open();assert.equal(field('[data-address]').value,endpoint);await field('[data-connect-shortcut]').onclick();assert.equal(restored.baseUrl,endpoint);assert.equal(restored.token,'legacy-token');assert.equal(pairCalls,3,'legacy credential avoids owner re-enrollment');assert.equal(panel.getState().connected,true);assert.equal((await store.getSettings()).deviceEndpoint,endpoint);
 });

@@ -1,8 +1,5 @@
 {
   "version": 1,
-  "label": "ESP32-C3 通信原型",
-  "ip": "192.168.0.125",
-  "port": 18948,
-  "fingerprint": "6D:26:26:CC:2C:8A:1B:D7:2F:3E:D5:2D:E8:A0:38:25:74:C1:B6:98:EB:E8:1D:E4:6D:92:37:1A:53:2D:5D:55",
-  "phoneInputSent": false
+  "retired": true,
+  "label": "历史 WebRTC 回传原型；正式设备请使用 Harness"
 }

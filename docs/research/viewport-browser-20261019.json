@@ -1,0 +1,102 @@
+{
+  "scope": "Chrome native UI with production DOM; iPhone UA and visual viewport geometry simulated, not physical Safari pinch acceptance",
+  "tests": {
+    "webPass": 608,
+    "webFail": 0,
+    "viewportModulePass": 5
+  },
+  "observations": [
+    {
+      "case": "landscape",
+      "visual": [
+        844,
+        390,
+        0,
+        0,
+        1
+      ],
+      "surface": [
+        844,
+        390,
+        0,
+        0
+      ],
+      "sidebar": "flex",
+      "workspace": "none",
+      "keyboard": false,
+      "documentScroll": 0,
+      "passed": true
+    },
+    {
+      "case": "zoom-dialog",
+      "visual": [
+        422,
+        195,
+        90,
+        40,
+        2
+      ],
+      "surface": [
+        422,
+        195,
+        90,
+        40
+      ],
+      "close": {
+        "left": 454,
+        "top": 44,
+        "right": 498,
+        "bottom": 88
+      },
+      "keyboard": false,
+      "documentScroll": 0,
+      "passed": true,
+      "closeButtonClickedSuccessfully": true
+    },
+    {
+      "case": "search-keyboard-pan",
+      "visual": [
+        390,
+        430,
+        0,
+        70,
+        1
+      ],
+      "surface": [
+        390,
+        430,
+        0,
+        70
+      ],
+      "keyboard": true,
+      "footer": "none",
+      "documentScroll": 0,
+      "passed": true
+    },
+    {
+      "case": "keyboard-restored",
+      "visual": [
+        390,
+        844,
+        0,
+        0,
+        1
+      ],
+      "surface": [
+        390,
+        844,
+        0,
+        0
+      ],
+      "keyboard": false,
+      "footer": "flex",
+      "documentScroll": 0
+    }
+  ],
+  "screenshots": [
+    "before-landscape.png",
+    "after-landscape.png",
+    "after-zoom-dialog.png",
+    "after-keyboard-pan.png"
+  ]
+}

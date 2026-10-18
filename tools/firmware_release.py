@@ -31,8 +31,9 @@ def sha(data):
 def inputs(root=None):
     root = root or ROOT
     source = {name: sha((root / 'firmware/IPhoneAutomationHarness' / name).read_bytes()) for name in builder.SOURCE_FILES}
+    recipes = {name: sha((root / 'tools' / name).read_bytes()) for name in ('build_firmware.py', 'verify_rtc_tls_link.py')}
     return {'format': 'iah-firmware-inputs/1', 'sourceFiles': source,
-            'recipeSha256': sha((root / 'tools/build_firmware.py').read_bytes()),
+            'recipeFiles': recipes, 'recipeSha256': sha(json.dumps(recipes, sort_keys=True, separators=(',', ':')).encode()),
             'arduinoCli': CLI_VERSION, 'dependencies': DEPENDENCIES, 'profiles': builder.PROFILES}
 
 

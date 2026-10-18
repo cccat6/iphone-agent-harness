@@ -1,7 +1,6 @@
 // Safari clipboard writes need a foreground, focused document and a fresh user
 // gesture. Requesting text only queues it; only copyPending(), called directly
 // from a click handler, touches the system clipboard. No clipboard reads.
-export const CLIPBOARD_TEXT_LIMIT=20000;
 const failure=code=>Object.assign(new Error(code),{code});
 export function createClipboardController({navigator:nav=globalThis.navigator,document:doc=globalThis.document,isSecureContext=()=>globalThis.isSecureContext,now=()=>Date.now(),id=()=>crypto.randomUUID(),onChange=()=>{},isCurrent=()=>true}={}){
   let pending=null,last=null,writing=false;
@@ -17,8 +16,15 @@ export function createClipboardController({navigator:nav=globalThis.navigator,do
     getSnapshot:snapshot,
     subscribe(listener){listeners.add(listener);return()=>listeners.delete(listener);},
     getPendingText(){return pending?.text||'';},
+    completeExternal(receipt){
+      const item=pending;
+      if(!item||writing||receipt?.status!=='copied'||receipt.source!=='shortcut'||receipt.requestId!==item.id||receipt.sessionId!==item.sessionId||receipt.targetId!==item.targetId||!Number.isFinite(receipt.copiedAt))throw failure('CLIPBOARD_TARGET_CHANGED');
+      if(!isCurrent({sessionId:item.sessionId,targetId:item.targetId})){const error=failure('CLIPBOARD_TARGET_CHANGED');cancel(error);throw error;}
+      const result={id:item.id,requestId:item.id,sessionId:item.sessionId,targetId:item.targetId,status:'copied',characters:item.text.length,copiedAt:receipt.copiedAt,source:'shortcut',requiresTargetRefocus:true,systemClipboardUnchanged:false};
+      last=result;clear(item);item.resolve({...result});emit();return {...result};
+    },
     request({text,sessionId,targetId,signal}={}){
-      if(typeof text!=='string'||!text.length||text.length>CLIPBOARD_TEXT_LIMIT) return Promise.reject(failure('CLIPBOARD_TEXT_INVALID'));
+      if(typeof text!=='string'||!text.length) return Promise.reject(failure('CLIPBOARD_TEXT_INVALID'));
       if(typeof sessionId!=='string'||!sessionId)return Promise.reject(failure('CLIPBOARD_SESSION_REQUIRED'));
       if(typeof targetId!=='string'||!targetId)return Promise.reject(failure('CLIPBOARD_TARGET_REQUIRED'));
       if(signal?.aborted)return Promise.reject(signal.reason||failure('CLIPBOARD_CANCELLED'));
@@ -33,7 +39,7 @@ export function createClipboardController({navigator:nav=globalThis.navigator,do
       // prepare is the non-blocking harness API. Failed or cancelled requests
       // never leave an unhandled rejection while the model run has stopped.
       if(pending||writing)throw failure('CLIPBOARD_BUSY');
-      if(typeof options?.text!=='string'||!options.text.length||options.text.length>CLIPBOARD_TEXT_LIMIT)throw failure('CLIPBOARD_TEXT_INVALID');
+      if(typeof options?.text!=='string'||!options.text.length)throw failure('CLIPBOARD_TEXT_INVALID');
       if(typeof options.sessionId!=='string'||!options.sessionId)throw failure('CLIPBOARD_SESSION_REQUIRED');
       if(typeof options.targetId!=='string'||!options.targetId)throw failure('CLIPBOARD_TARGET_REQUIRED');
       if(options.signal?.aborted)throw options.signal.reason||failure('CLIPBOARD_CANCELLED');

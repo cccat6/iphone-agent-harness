@@ -1,0 +1,35 @@
+{
+  "checkedAt": "2026-10-18T21:14:53.112650+00:00",
+  "boardId": "iah-b0e4b4e05380",
+  "bootId": "boot-75a81936c7b4867f",
+  "appSha256": "f4bbb07aa39d3c9325d74319b0b266076ace2819787b9c5d712052293a815c1f",
+  "sourceSha256": "8ec1b81184bfaa8fbde0842f326154b27a59b4dfd5b803379eb16f46fe4dbf1d",
+  "flashVerified": true,
+  "nvsPreserved": true,
+  "phoneInputSent": false,
+  "activeUIConnection": {
+    "wifiConnected": true,
+    "httpReady": true,
+    "rtcReady": true,
+    "rtcConnected": true,
+    "rtcDtlsConnected": true,
+    "rtcLastError": -100002,
+    "rtcMaxSctpBytes": 1188,
+    "rtcDataFlagsSeen": 3855,
+    "rtcStackHighWaterBytes": 2764,
+    "loopStackHighWaterBytes": 3620,
+    "freeHeap": 43880,
+    "largestFreeBlock": 38900
+  },
+  "ble": {
+    "initialized": true,
+    "gapName": "iPhone Agent Bridge",
+    "advertising": true,
+    "connectedCount": 0,
+    "numBonds": 1,
+    "freeHeap": 43528,
+    "minFreeHeap": 15292,
+    "largestFreeBlock": 38900
+  },
+  "limits": "No phone was currently connected over BLE during these checks. Full iPhone input and Shortcut clipboard require phone acceptance."
+}

@@ -8,7 +8,7 @@ Designed for **Safari on iOS/iPadOS 27 and later**. iPhone and iPad visitors ope
 
 Using the app: [English](docs/acceptance/README.md) · [简体中文](docs/acceptance/zh-Hans.md). These guides explain the main screens and everyday actions.
 
-The website is at [igent.cc](https://igent.cc). Device control uses a local connection tab: return to Harness and keep that tab open. No certificate installation or cloud forwarding is needed. A Safari 27.0.1 phone test passed five GET/POST requests over about 21 seconds, including requests while both tabs were hidden during screen sharing. This does not establish unlimited background running or complete physical phone-control acceptance. See the [connection results](docs/architecture/lan-connection.md).
+The website is at [igent.cc](https://igent.cc). The Harness page connects directly to the local ESP32 bridge with **WebRTC Direct**; no extra connection tab, connection code or certificate installation is needed. Import bridge information once from the USB setup link or the local settings page, then reconnect from Harness. The integrated RTC/BLE firmware is undergoing hardware validation; see the [connection guide and results](docs/architecture/secure-lan.md).
 
 ## Features
 

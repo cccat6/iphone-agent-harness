@@ -66,11 +66,11 @@ sequenceDiagram
   participant W as 手机网页 A
   participant E as ESP32
   participant P as 手机 A 的系统蓝牙
-  U->>E: 首次 USB／受保护热点配网，取得每板 CA 与所有者材料
+  U->>E: 首次 USB／设备 Wi-Fi 配网，返回链接导入 RTC 地址
   U->>P: 在系统设置中配对 HID
   P->>E: 加密 bond，解析稳定身份
   E->>E: 建 targetId，连接句柄只作临时路由
-  W->>E: 经信任 HTTPS，用所有者密码登记 clientId
+  W->>E: WebRTC Direct 连接，登记或恢复 clientId 令牌
   U->>W: 打开受控配对输入框并开始验证
   E->>P: 仅向待验证目标发送随机短码
   P->>W: 真实键盘事件进入输入框
@@ -83,7 +83,7 @@ sequenceDiagram
 
 ## 3. 网络延迟、设备计时和截图
 
-**输入采样留在 ESP32，画面采集留在网页。** 不通过几十个 HTTP 请求分别发送 down、move、up。网页先把一个完整手势编译成带相对时间的段，固件在本地执行。
+**输入采样留在 ESP32，画面采集留在网页。** 不通过几十个网络请求分别发送 down、move、up。网页先把一个完整手势编译成带相对时间的段，固件在本地执行。
 
 ```mermaid
 sequenceDiagram
@@ -181,8 +181,8 @@ MCP 可选：实现浏览器可访问的 Streamable HTTP 初始化、JSON/SSE �
 | 页面取屏 | 真实 API 路径已接，需用户手动授权 |
 | MCP HTTP | 轻量客户端与连接诊断；不是全功能 MCP 宿主 |
 | Codex 设备码与刷新 | 有可测试流程模块；第三方网页登录未验证，UI不冒充可用 |
-| Arduino 目标隔离与计时核心 | 多轮主机／独立交错测试与四类编译；C3实际刷写及TLS记录另见验收，手机HID仍待验收 |
-| 热点配网、客户端认证与网络写控制 | 安全 LAN 通信已实现；需本机 CA 手动信任与 HID 目标证明，实机验收另记 |
+| Arduino 目标隔离与计时核心 | 主机／独立交错测试；编译与源码以产物记录为准，正式 RTC/BLE 手机闭环正在验收 |
+| 热点配网、客户端认证与网络写控制 | 单页 WebRTC Direct、共享通信证书、无连接码；客户端令牌与 HID 目标验证独立，实机结果另记 |
 | 手机后台模拟／真实模型测试 | 见独立报告，分开记录；不由桌面测试推断 |
 
 详细证据：[后台测试](../research/background-api.md)、[固件实现](firmware-implementation.md)、[UI实现](web-ui.md)。

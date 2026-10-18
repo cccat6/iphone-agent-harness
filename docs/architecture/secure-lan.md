@@ -1,123 +1,70 @@
-# Direct LAN transport v0.3
+# WebRTC Direct LAN transport
 
-Status: implemented source, host-tested admission/state invariants; compiled/hardware acceptance reported separately in build artifacts. `physicalValidation:false` remains deliberate. No model, screenshot or session data is stored on ESP32.
+The Harness controls the bridge from one HTTPS page over WebRTC Direct. HTTP remains the bridge's setup, management and Shortcut interface. The website does not relay phone commands, and ESP32 does not store model credentials, screenshots or conversations.
 
-## Current connection and ownership
+## Connection and identity
 
 ```mermaid
 sequenceDiagram
   participant U as User
-  participant W as Harness HTTPS tab
-  participant H as Device HTTP tab
-  participant E as ESP32 on home Wi-Fi
-  participant I as iPhone Bluetooth input
-  U->>E: Configure home Wi-Fi once
-  U->>W: Open setup return link and tap Connect
-  W->>H: Open a unique local connection window
-  U->>W: Return to Harness, keep device tab open
-  W->>H: Identity request via browser postMessage
-  H->>E: Same-origin HTTP GET
-  E-->>H: Device identity
-  H-->>W: Identity response, helper hidden
-  W->>H: Pair with device code
-  H->>E: HTTP pair request
-  E-->>W: Per-client token through local window
-  W->>E: Start selected-phone input test through local window
-  E->>I: Eight digits via Bluetooth HID
-  I->>W: Trusted keyboard events
-  W->>E: Confirm received digits; claim writer lease
+  participant M as USB setup / local settings
+  participant W as Harness page
+  participant E as ESP32 bridge
+  participant P as Phone Bluetooth input
+  U->>M: Configure Wi-Fi once
+  M->>W: Return link with board and RTC information
+  W->>E: Direct LAN ICE / DTLS / SCTP, UDP 18948
+  W->>E: Read identity and enroll or restore browser token
+  W->>E: Start selected-phone connection test
+  E->>P: Type eight digits through HID
+  P->>W: Trusted key events
+  W->>E: Confirm input proof and claim writer lease
+  W->>E: Submit bounded operation segments
+  E-->>W: Execution receipts
 ```
 
-The device's Wi-Fi password and pairing code are random per board. The Wi-Fi setup page requires possession of the device Wi-Fi connection and fills the owner code internally. The current firmware waits for a new IP event on the submitted SSID before saving Wi-Fi settings. Failed joins keep setup Wi-Fi open and preserve the previous saved network; `/finish` rejects until actually connected. A failed saved-network boot opens setup after 30 seconds. The firmware starts HTTP port 80 after setup, advertises that port through mDNS, serves `/harness-link`, and does not generate a CA for normal onboarding. No cloud service forwards control data.
+`RtcIdentity.h` provides the same long-lived ECDSA transport certificate for all boards, matching `/firmware/rtc-defaults.json`. This is the project's shared communication configuration, not a per-board CA or user credential. The user maintains neither certificates nor connection codes. Authorization remains separate: board/boot identity, per-browser token, phone input proof, writer lease and segment identity must agree.
 
-The local connection page checks the configured Harness origin, exact opener, nonce and request ID. Only fixed API routes and headers can pass through. Its same-origin requests carry `X-Harness-Window: 1`; the server accepts that path only with its own Host and same-origin/no-Origin requests, then retains the normal client token, target proof, writer lease, replay and timing checks. The header alone is never an input credential.
+The default management address is `http://igent.local/settings`. USB setup output and the local manager's same-tab return link carry `rtc:{ip,port,fingerprint}` with the actual LAN IP. New links omit owner credentials. Legacy connection-code fields are ignored; saved bridge settings contain the hostname.
 
-For HTTP, `publicKeyFingerprint` is a stable identity label derived from the random owner code, not a certificate or encryption proof. Older HTTPS/CA behavior is historical compatibility, not a user setup requirement. Direct HTTP from the HTTPS page failed on the tested Safari 27.0.1; a local-window GET/POST experiment passed. Five read-only local-window HTTP requests, including both-tabs-hidden requests during screen sharing, subsequently passed over about 21 seconds. Physical ESP32/HID acceptance remains separate.
+## Transport and RPC
 
-## REST contract
+The bridge is an ICE-lite DTLS server on UDP 18948. Direct v2 derives the client's credentials from the authenticated STUN USERNAME, so the browser keeps its generated local offer unchanged and needs no external signaling or TURN service.
 
-All paths below use HTTP port 80 in the current firmware. Except public GET identity/clock/capabilities, requests require the configured Harness origin (or the validated same-origin local-window route) and `Authorization: Bearer <token>`. Tokens are random 256-bit values, returned once by pair; only their SHA-256 hashes are persisted. Default origin is `https://igent.cc`.
+There is one reliable, ordered, externally negotiated data channel, ID 0. The bounded SCTP implementation checks CRC, verification tag and state cookie; reorders up to eight receive slots; suppresses duplicate TSNs; sends cumulative/gap SACKs; and retains one outbound frame for acknowledgement and finite retransmission. It handles heartbeat and closing. Ordered SCTP DATA fragments are reassembled within the 512-byte application message limit; only a completed message advances the stream sequence number. A single additional 512-byte buffer holds partial assembly. The receive packet limit is 2048 bytes and the outbound packet limit remains 1200 bytes. It does not advertise additional streams, partial reliability or message interleaving.
 
-| Method / path | Request | Successful response |
-|---|---|---|
-| GET `/v1/identity` | none | boardId, bootId, hostname, protocolVersion, publicKeyFingerprint (stable HTTP identity label), firmwareVersion, tls, requiresManualTrust |
-| GET `/v1/clock` | none | boardId, bootId, deviceTimeMs |
-| GET `/v1/capabilities` | none | executionEnabled, operations, maxEvents=128, maxRequestBytes=8192, reportIntervalMs=40, pointerSettleMs=20, maxSegmentMs=5000, maxHoldMs=3000, maxLeaseMs=15000, maxTargets=2, maxClients=8, maxConcurrentRequests=2, physicalValidation=false, heap metrics |
-| POST `/v1/pair` | `{clientId,setupPassword}` | 200 `{clientId,token,boardId,bootId,hostname,publicKeyFingerprint}` |
-| GET `/v1/binding` | none | boardId, bootId, clientId, targetId or null, bindingVerified, targets[] with connected/encrypted/hidSubscribed/inputState/running |
-| POST `/v1/targets/:id/challenge/start` | `{}` | 202 `{challengeId,targetId,length:8,expiresInMs:30000,expiresAtDeviceMs,status:"typing",boardId,bootId}` |
-| POST `/v1/targets/:id/challenge/confirm` | `{challengeId,observedNonce}` | 200 `{boardId,bootId,clientId,targetId,bindingVerified:true}` |
-| POST `/v1/targets/:id/leases/claim` | `{leaseId,ttlMs}` | 200 `{boardId,bootId,targetId,clientId,leaseId,expiresAtDeviceMs,inputState:"released"}` |
-| POST `/v1/targets/:id/leases/renew` | same exact fields | same fields; inputState can be unknown while segment is running |
-| POST `/v1/targets/:id/segments` | existing device-segment v1 wire object | 202 receipt, including running or terminal status |
-| GET `/v1/targets/:id/results/:segmentId` | none | 200 receipt |
-| POST `/v1/targets/:id/release` | `{leaseId,cancelPending:true,invalidateLease:true}` | 200 `{boardId,bootId,targetId,status:"released",leaseInvalidated:true,releaseSubmitted:true}` |
+Each text frame is at most 512 UTF-8 bytes:
 
-A receipt contains boardId/bootId/targetId/clientId/segmentId/planId/payloadHash/status/releaseSubmitted and device accepted/start/end times, submitted count and observed lateness. Successful HID submission does not assert any UI outcome. A missing receipt is 404 `result_unknown`; cached-ID conflicts/stale boot/lease conflicts are 409. The client queries the same ID and never blindly resends unknown input as a new ID.
-
-Challenge responses never expose the secret nonce. The Web input listener must be installed and focused **before** POST start; HID digits can arrive before the HTTP response. Only normal digit usages are submitted, with directed down/up reports and a final release. A challenge is limited to three observed-nonce attempts, a 30-second expiry, and one per client per 30 seconds. Grant/client/target/challenge IDs must all match. Ordinary input remains inaccessible until proof succeeds. During initial binding, target input is held unavailable rather than interleaving another user's plan with the proof.
-
-Claim requires idle, known released input. Renew accepts only the same authenticated client and same unexpired lease ID, including during a running segment. New runs must use a fresh random ID; cancelled/expired IDs cannot be revived in the same boot. Same-client tabs do not gain permission to replace another run's active writer. Result idempotency and retired-lease tombstones are boot-local and bounded; power loss changes bootId and requires reconciliation.
-
-## Scheduling and socket fairness
-
-```mermaid
-flowchart LR
-  HTTP[HTTP task: request receive / parse / SHA-256] --> Lock[Short Core mutex]
-  BLE[NimBLE callback: fixed snapshots / atomic pairing gate] --> Loop[loop: peer reconciliation + tick]
-  Loop --> Lock
-  Lock --> A[Target A lease / segment / directed handle]
-  Lock --> B[Target B lease / segment / directed handle]
-  Lock --> Copy[Copy result metadata]
-  Copy --> Unlock[Unlock before network response]
-  Unlock --> Close[Complete REST response and close session]
+```text
+{v:1,type:"req"|"res",id:UUID,n:requestNumber,seq:chunkNumber,end:boolean,data:base64}
 ```
 
-The HTTP task runs at priority 1, alongside the Arduino loop. Parsing, canonical hashing and network writes do not hold the Core mutex. NimBLE callbacks never acquire it. The main loop and HTTP handler each use an 8 KB stack. Normal setup performs no RSA/CA generation.
+Decoded chunks are 256 bytes except the final chunk, which is 1–256 bytes. Request envelopes are at most 12,288 bytes; responses at most 16,384 bytes. `n` starts at 1 for each connection and advances once per complete request. It is consumed before dispatch, so an old number cannot execute a mutation again. `seq` starts at 0 per RPC. The application request is `{method,path,headers,body:string}`; the response is `{status,body:string}`.
 
-The HTTP server accepts two socket sessions, with a two-second send/receive limit. Each REST response explicitly closes its session; request handling remains sequential. The local helper page has a separate bounded request map, not a second firmware control engine. Physical two-phone fairness still needs testing.
+When SCTP owns the final response frame, RPC releases its assembly buffer and may accept the next request even before that frame's SACK. The next response waits for the outstanding SCTP frame. This supports normal browser request chaining without sleeps or duplicate execution.
 
-## Durable configuration and failures
+An active cancellation, timeout or broken connection rejects pending browser requests. It does not resend mutations. New ICE traffic cannot replace a live connection or evict an active writer; stale-peer replacement also requires the application's idle gate.
 
-Wi-Fi and permitted origin commit as one NVS JSON value, with readback before success. Client grants use a candidate copy: persist successfully before replacing the active RAM token/binding. Failures do not acknowledge a new credential whose token was never returned.
+## Application authorization and execution
 
-Normal HTTP configuration does not read or update old private-CA materials. Existing Wi-Fi and owner credentials remain in NVS. Current setup reports `manualTrustRequired:false`. The device's pairing and client-token records still use readback/commit checks before becoming active.
+Public identity/capability/clock reads and code-free client enrollment retain their existing semantics. Authenticated `/v1` operations use the same route handler for RTC and HTTP, including Bearer tokens and request IDs. The RTC task supplies the selected socket peer IP; a client frame cannot replace that address.
 
-Cancelling, expired leases, disconnected BLE, notify failure and missed timing request releases for the same target only. Network/window scheduling delays do not turn into fabricated precise gestures; Core records a timing miss and stops. Screenshots remain Web barriers after released input, or a separate parallel sampling window during a complete gesture. ESP32 never fabricates a screenshot acknowledgment.
+Phone binding uses an eight-digit HID challenge whose value is not included in the start response. The browser installs the trusted-key listener before starting the request and confirms only observed digits. Proof is scoped to the exact board, boot, browser and target. A pairing record alone does not authorize phone input.
 
-The API does not provide unattended discovery trust, a cloud relay, stdio MCP, shell commands, arbitrary JSON-to-HID forwarding or executable plugin loading. Device management and private Web sessions remain distinct.
+A writer can renew its own unexpired lease while a segment is running. A replacement lease cannot resume an old segment. Execution receipts identify the board, boot, target, browser, lease, segment and payload hash. They record HID submission and release, not the visible app outcome; screenshots remain browser-side barriers. Unknown delivery is queried by its existing segment ID.
 
-## Remaining physical gates
+## HTTP, Shortcuts and persistence
 
-- Fresh firmware on the physical C3, Wi-Fi onboarding and hidden-helper request round trips.
-- Both Safari tabs backgrounded while screen sharing and another app is foreground.
-- Actual Bluetooth pairing, eight-digit input proof, gestures, cancellation and screenshot barriers.
-- Two phones using one board without cross-target input or request starvation.
+HTTP port 80 serves Wi-Fi setup, `/settings`, status and the clipboard handoff. The signed **iPhone Agent Clipboard** Shortcut obtains a prepared text job, copies it to the system clipboard and acknowledges completion. Text arrives through one HTTP stream backed by a single 1 KiB bridge slot, with browser-produced chunks and no 8 KiB total text limit. Fetching a job alone is not copy confirmation. The mailbox binds jobs to their browser/phone context, expires them and clears consumed or cancelled content. Clipboard jobs are transient, not conversation storage.
 
-The previous 0.2 HTTPS firmware's CA-verified tests remain historical evidence in [the earlier device report](../research/device-client-live-verification.json). They do not validate the current HTTP-window firmware.
+Wi-Fi settings and client grants are saved with NVS readback before becoming active. Failed Wi-Fi joins preserve the previous network and leave setup available. Normal updates do not require a full-chip erase. HTTP compatibility code does not make certificate installation part of setup.
 
-### USB radio diagnostics
+## Scheduling and verification
 
-Read-only `wifi-diagnostic` reports status, disconnect reason, event counters, configured credential byte lengths and SSID equality only; it never prints credentials. The SSID equality field uses `WiFi.SSID()` and may be false simply because the disconnected driver reports an empty SSID; it does not establish which credentials were actually transmitted. Optional `wifi-power` and `wifi-reconnect` are physical USB maintenance operations and are refused while the HTTP service or a segment is running. A saved power limit is applied at boot, and reconnect reuses the existing network. They permit a measured low-power comparison without assuming that signal strength or board type caused an authentication failure. See the firmware README for exact JSON.
+The RTC network task runs on core 0 at priority 1 with an 8 KiB stack. The Arduino loop and HTTP management each use a separate 6 KiB stack. Receive, JSON and network work stay outside the short Core mutex; the shared application handler takes the existing execution locks. NimBLE callbacks publish bounded state, and actual HID jobs retain the stable identity/connection-generation fence.
 
-The current product Core has 128 events per target. Its 7168-byte, 16-probe boot-local replay filter lives in RTC RAM and is explicitly cleared on each new Core/boot ID; it remains fail-closed and can falsely reject new IDs when saturated. Host tests include retained storage and stale-boot replay. The ordinary heap is reserved for BLE/HTTP/JSON rather than an always-resident replay bitmap.
+Core cancellation, lease expiry, BLE loss and timing misses release the affected input and stop dependent work. RTC disconnection cancels its coordinator through the application's disconnect callback. The existing 128-event segment capacity, request limits and boot-local segment replay protection remain in effect; the transport does not loosen them.
 
-### Setup reopening
+Host protocol tests and independent review cover the transport boundaries. [Phone prototype evidence](../research/rtc-direct-c3-iphone-20261019.json) includes short successes and intermittent failures. Full production RTC plus BLE, Shortcut behavior and multi-phone use require their own hardware results; they are not inferred from protocol tests or the earlier HTTP/window experiments.
 
-The portable SetupDeadline state remains in use: repeated finish does not extend the deadline, already-finished requests leave no pending deadline, and reopening the setup Wi-Fi clears the previous finish deadline. HTTP setup does not issue, renew or ask users to trust certificates.
-
-### BLE connection-generation fence
-
-All actual HID notifications execute as bounded jobs on NimBLE's default host event queue. The same host context owns connect/disconnect/authentication/subscription updates, so it validates the Core-pinned stable identity and connection generation immediately before notification without another host callback interleaving. A numeric connection handle alone is never sufficient. No portMUX is held across notify, and host callbacks never take the Core mutex. A fixed job slot is not reused until a cancelled/abandoned job is consumed; late queued jobs never deliver their requested action; a same-identity/generation safety release may still follow. Releases retain the same identity/generation fence and can release an available report channel even if another channel unsubscribed. Core disconnect/reconnect invalidates the old generation/lease. Receipts record actual host submission time; late/expired work stops.
-
-Pointer cleanup uses host-owned last-submitted coordinates scoped to the same peer generation. Coordinates change only after a pointer notify succeeds; enqueueing an unsubmitted move does not change them. A cancelled move releases at the previous submitted position. An already committed move releases at its committed position, including an abandoned caller; later releases cannot jump back to stale Core coordinates. Pose writes and reads use the short Peer lock, while Route bindings remain Core-thread-owned.
-
-C3/S3/C6 use MSYS pools 8/8. The classic ESP32 SDK omits the second pool size, so that target preserves its disabled second pool (8/0) rather than enabling an undefined allocation; its physical two-phone throughput remains unverified. Effective values are available in USB diagnostics.
-
-## Fixed address and code-free enrollment
-
-The default mDNS name is `igent.local`. Connection codes have been removed. `/v1/pair` accepts `clientId` alone; an old `setupPassword` field is accepted but ignored. Identity and USB compatibility flags always report `pairingCodeRequired:false`. Browser tokens and phone input verification remain separate requirements.
-
-The local device manager at `/settings` and `/` edits only hostname. Its authenticated GET/POST `/v1/settings` never returns a connection code. Old configuration flags are ignored; new saved records contain hostname only. Changing hostname restarts the idle bridge after returning the new address.
-
-New USB and AP return links omit owner credentials. The AP Wi-Fi configuration protocol retains an internal embedded owner value, without exposing a user-facing connection code or using it for browser enrollment.
+The complete SDK-matched TLS source family is built in the project with 2048-byte record content limits. Its two record buffers use 28,672 fewer bytes by calculation. The build checks linked TLS owners to prevent mixing project and SDK TLS implementations; this does not substitute for device handshake and BLE coexistence checks.

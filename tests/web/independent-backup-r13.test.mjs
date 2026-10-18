@@ -77,12 +77,12 @@ test('R13 actual chooseFile rejects early at distinct bounds and actual download
 
 test('R13 real application wiring, corrected locale messages and bilingual backup limits remain aligned',()=>{
   assert.match(app,/registerErrorCatalog\(BACKUP_ERRORS\)/);
-  assert.match(app,/if\(action==='export'\)\{download\(sessionBackupBlob\(await state\.store\.exportSession\(session\.id\)\)/);
+  assert.match(app,/if\(action==='export'\)\{download\(await exportSessionFile\(state\.store,session\.id\)/);
   const sessionImport=app.split('\n').find(line=>line.includes("$('#import-session').onclick="));
   assert.match(sessionImport,/importSessionFile\(\)/);
-  const importFlow=app.slice(app.indexOf('function importSessionFile(){'),app.indexOf('function showSessionListMenu(){'));
-  assert.match(importFlow,/,SESSION_BACKUP_BYTES\);/);
-  assert.match(importFlow,/state\.store\.importSession\(JSON\.parse\(text\)/);
+  const importFlow=app.slice(app.indexOf('function importSessionFile(){'),app.indexOf('function panelBack('));
+  assert.match(importFlow,/restoreSessionFile\(state\.store,file/);
+  assert.doesNotMatch(importFlow,/JSON\.parse\(text\)/);
   for(const id of ['import-skill','import-identity']){
     const line=app.split('\n').find(line=>line.includes(`$('#${id}').onclick=`));
     assert.ok(line.includes('chooseFile('));assert.ok(!line.includes('SESSION_BACKUP_BYTES'));

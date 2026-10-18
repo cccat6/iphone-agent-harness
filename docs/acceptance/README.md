@@ -1,66 +1,37 @@
-# Using iPhone Agent Harness
+# Phone use and acceptance
 
-[简体中文](zh-Hans.md) · [Website](https://igent.cc) · [Project](../../README.md)
+[简体中文](zh-Hans.md) · [Open Harness](https://igent.cc/) · [Project](../../README.md)
 
-Open the website in Safari on an iPhone or iPad to see your sessions. The home button opens the project page; “Open Harness” in that page’s header returns to your sessions. Desktop visitors can browse the project, explore skills and install ESP32 firmware.
+Use Safari on an iPhone or iPad. One Harness page connects the ESP32 bridge, shares the screen and runs tasks. The device management page is only needed for initial setup or configuration changes; it does not stay open during control.
 
-Device status sits beside the session heading. **New session** is the only primary action at the bottom. Search is hidden until you pull down at the top of the list or tap the search icon. Cancel clears the filter and hides search. Settings is a directory with separate pages and back navigation; archived sessions and skill management are available there.
+## Check these eight steps
 
-## Start a conversation
+1. **Connect the ESP32 bridge.** Put the phone and bridge on the same Wi-Fi. On first use, open the connection link supplied by the desktop installer, or visit `http://igent.local/settings` on the phone and choose **Return to Harness** to import its details. Then choose **Settings → Devices → Connect ESP32 bridge**. A board already configured for this Wi-Fi needs no new provisioning.
 
-Open **Settings → Accounts or API → Add account or API**. For ChatGPT, select a ChatGPT account and follow the sign-in instructions. For an API, choose the OpenAI-compatible or Anthropic-compatible interface, enter the service’s **API endpoint** and key, load its model list, then save. You can also enter a model ID manually.
+2. **Verify phone input.** Pair **iPhone Agent Bridge** in iOS Bluetooth settings and enable AssistiveTouch using the tutorial. Back in Harness, start the connection test, wait for the bridge to type eight digits and confirm. Full Keyboard Access can remain on or off. There is no connection code to type manually.
 
-Choose **New session**, select a model at the bottom and send a message. The model picker switches between accounts, APIs and models. **Chat** is for discussion, **Plan** for observation and planning, and **Task** for carrying out actions. Connect your ESP32 bridge and complete its input test before creating a session. Existing sessions remain conversational when disconnected; the model receives the offline state and phone input fails with a specific bridge-unavailable reason. Phone actions also need screen sharing. Real ChatGPT subscription sign-in in Safari is still being verified.
+3. **Add an account or API and chat.** Under **Settings → Accounts or API**, add a connection, enter an API endpoint and key and load its models, or follow the ChatGPT sign-in interface. Create a session, select a model and send a message. Reopen settings to check that the connection was saved. The keyboard should leave form inputs and back/close actions accessible.
 
-## Sessions and backups
+4. **Share the screen and run a task.** Start with Clock or a dedicated test page. Share the screen and ask the AI to perform a tap, scroll or drag. Switch to the target app to observe the action, then return to inspect the screenshot and result. Plan mode observes and plans; Task mode executes.
 
-Messages and images are saved automatically in this browser. The session’s top-right menu provides rename, pin, archive, delete and **Export to file**. Use **Settings → Import session from file** to restore a file as a separate session.
+5. **Try long text.** Open the [clipboard tutorial](https://igent.cc/shortcuts/clipboard.html), download **iPhone Agent Clipboard** and add it without changing its name. Ask Harness to prepare test text, choose **Copy with Shortcuts**, complete any system prompts and return. The task should wait for copy confirmation, then check the target field and paste. The foreground **Copy and continue** button is also available. With no pending text, running the Shortcut should finish immediately and leave the clipboard unchanged.
 
-On entry, the site asks the browser to retain its data. The browser may decide without showing a prompt. If retention has not been granted, retry under **Settings → Data on this device**. Export sessions when you want a backup; session files do not include sign-in credentials or API keys.
+6. **Save and recover a session.** Rename and pin the test session, then archive it and find it under **Settings → View archived**. Export it from its menu and use **Settings → Import session from file** to create an imported session. Check its messages and images. Pull down at the top of the list or tap the search icon to find a session. Long conversations load older pages as you scroll up; images load when visible. Rotate the phone or zoom the page and check that input, back and close controls remain reachable.
 
-## Context and images
+7. **Use skills and MCP.** Add a community skill under **Settings → Skills**, or ask Harness to create and edit your own skill. Downloaded community skills remain read-only. If you have an MCP service, add it under **Settings → MCP servers**, select tools and try a read-only operation. Server settings, access tokens and tool choices should remain saved.
 
-Under **Settings → Context and images**, automatic compaction defaults to **750,000 tokens**. At the threshold, the current model summarizes earlier messages while the full conversation stays on your device. If a model accepts a shorter context, the Harness also attempts compaction when that limit is reached.
+8. **Stop, disconnect and reconnect.** Stop a running task and confirm that phone actions cease. Disconnect the bridge: the session should show the ESP32 bridge as disconnected, and the AI may keep chatting but must identify the missing device and not send phone input. Reconnect and repeat the input test before resuming control.
 
-Images keep their original dimensions and are saved as JPEG. Choose **Smaller files**, **Balanced** or **High quality** for images saved afterward.
+## Everyday settings
 
-## Skills
+Messages and images are saved in this browser. Session exports exclude sign-in credentials and API keys. The site requests data retention on entry; if it was not granted, retry under **Settings → Data on this device**.
 
-Open **Skills** to manage saved skills or add skills from the community. The official website uses its built-in community address; no API setting is required. Added skills stay in this browser and can be enabled, disabled or updated.
+Session imports and exports are limited to **64 MiB**, including images; reaching the export limit does not delete the original session. Skill and creator-identity imports have a **10 MiB** limit. Before changing devices, export an encrypted **Creator identity** backup to restore ownership of your published skills.
 
-Create your own skill manually or ask the Harness to help write and revise it. Your own skills can be edited, exported or published; community downloads stay read-only. Before changing devices, export an encrypted backup under **Creator identity** so you can restore ownership of your skills.
+**Settings → Context and images** offers a compaction threshold, defaulting to **750,000 tokens**, while preserving full local history. Images retain their dimensions without cropping and use JPEG with **Smaller files**, **Balanced** or **High quality** presets.
 
-## MCP tools
+Change the bridge name at `http://igent.local/settings`, then use its new address. HTTP also supports Wi-Fi setup and Shortcut jobs; normal control uses WebRTC Direct. The project supplies a shared transport certificate configuration, with no certificate installation or per-board certificate upkeep.
 
-Under **Settings → MCP servers**, add a server, enter its name, MCP endpoint and optional access token, then choose **Save and connect**. Select the tools you want and enable them. You can add multiple servers and use their tools in Task mode.
+Short phone prototype tests have succeeded in the foreground and during background screen sharing, with intermittent failures also recorded. Integrated RTC/BLE firmware, actual Shortcut import and the complete phone workflow are undergoing hardware acceptance. The [connection record](../architecture/secure-lan.md) keeps those results separate.
 
-The client supports Streamable HTTP. Servers, access tokens and tool selections are saved in this browser and reconnect after a reload. Expand a server to edit it; disconnecting retains its settings, while deleting it removes its saved credentials.
-
-## Phone and ESP32 connection
-
-The default bridge address is **http://igent.local**, and no connection code is used. Harness fills the address automatically. Tap **Connect ESP32 bridge** to open its local connection tab, then use Safari’s tab switcher to return to the original Harness tab and keep the local connection tab open. An existing live browser connection does not need this step again.
-
-A bridge already on your home Wi-Fi needs no provisioning. Only a new unconfigured board needs the optional first-time Wi-Fi guide. System Bluetooth pairing is separate from the webpage's network connection; once the webpage connects, it can read the phone list and run the input test.
-
-Saved connection details are reused. **Add or change bridge** is optional, for a custom address. Open **http://igent.local/settings** (or the custom address) to change the local hostname. Changing the hostname restarts the idle bridge and provides its new address. Multiple bridges can use distinct custom names.
-
-Pair the phone with **iPhone Agent Bridge**, run the eight-digit input test and confirm it, then enable AssistiveTouch and share the screen. Full Keyboard Access need not be disabled.
-
-Commands travel between the phone and ESP32 over the local network; the website server does not forward them. Closing the device connection tab disconnects it. After reconnecting, repeat the phone input test.
-
-A real Safari 27.0.1 phone passed five GET/POST requests, including requests with both tabs hidden during screen sharing, over about 21 seconds. That does not establish unlimited background running, complete phone-control acceptance or compatibility with every network. See the [LAN connection evidence](../architecture/lan-connection.md).
-
-<details>
-<summary>File limits and developer references</summary>
-
-Session import and export files have a 64 MiB limit, including images. Skill and creator-identity imports have a 10 MiB limit. Reaching the export limit does not remove the original conversation from the browser.
-
-[Arduino guide](../../firmware/IPhoneAutomationHarness/README.md) · [Manual releases](../architecture/manual-release.md) · [Historical engineering record](../research/acceptance-before-ui-repair.en.md)
-
-</details>
-
-## Long text and the clipboard
-
-The AI can prepare long or multilingual text during a task. Return to Harness and tap **Copy and continue**. Only a successful browser copy resumes the task; the AI must observe the screen, return to the intended app and confirm the input field before issuing Paste and checking the result. A failed copy does not resume. If saving the receipt fails, **Retry continuation** retries saving and continuing without another clipboard write.
-
-Safari requires a foreground clipboard gesture; screen-sharing callbacks do not grant background clipboard permission. The OS or destination app may still require paste permission. Copy success is not proof of text entry. Switching sessions or input targets invalidates pending copy content.
+[Arduino guide](../../firmware/IPhoneAutomationHarness/README.md) · [Manual releases](../architecture/manual-release.md)

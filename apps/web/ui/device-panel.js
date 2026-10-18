@@ -1,4 +1,4 @@
-import {DeviceWindowTransport} from '../core/device-window.js';
+import {DeviceRTCTransport} from '../core/device-rtc.js';
 import {parseDeviceSetupLink,takeDeviceSetupLink} from '../core/device-setup.js';
 import {DeviceClient} from '../core/device.js';
 import {getLocale, subscribe, localizeError} from '../i18n.js';
@@ -17,7 +17,7 @@ export function trustedNonceDigit(event){
 }
 
 /** Fixed device onboarding UI. No network request or input is sent before a user action. */
-export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDeviceChange=()=>{},onSettingsChange=()=>{},isBusy=()=>false,onToast=()=>{},clientFactory=options=>new DeviceClient(options),bridgeFactory=options=>new DeviceWindowTransport(options)}={}){
+export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDeviceChange=()=>{},onSettingsChange=()=>{},isBusy=()=>false,onToast=()=>{},clientFactory=options=>new DeviceClient(options),bridgeFactory=options=>new DeviceRTCTransport(options)}={}){
   let transport=null,legacyEndpoint='';
   let client=null,proof=null,targets=[],targetId='',root=null,dialog=null,controller=null,operation=0,working=false;
   let challenge=null,nonce='',armed=false,challengeTimer=null,unsubscribe=null,settings={},statusKey='notPaired',statusDetail='',checkedAt=null;
@@ -41,8 +41,8 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
     const state=getState(),connected=state.connected,verified=state.inputVerified,ready=verified;
     node('[data-bridge-state]').textContent=copy(connected?'bridgeConnected':'bridgeDisconnected');
     node('[data-bridge-address]').textContent=connected?client.baseUrl.origin:defaultBridgeEndpoint(settings.deviceEndpoint);
-    node('[data-bridge-settings]').hidden=!connected;node('[data-bridge-settings]').href=connected?client.baseUrl.origin+'/settings':'#';
-    node('[data-connect-help]').hidden=connected;
+    node('[data-bridge-settings]').hidden=!connected;node('[data-bridge-settings]').href=connected?client.baseUrl.origin+'/settings?lang='+encodeURIComponent(getLocale()):'#';
+    node('[data-connect-help]').hidden=connected;node('[data-import-connection]').hidden=connected;node('[data-import-help]').hidden=connected;let importOrigin=DEFAULT_BRIDGE_URL;try{const entered=node('[data-address]').value.trim(),origin=entered.includes('#device=')?parseDeviceSetupLink(entered).baseUrl:DeviceClient.createURL(entered);if(origin.startsWith('http:'))importOrigin=origin;}catch{}node('[data-import-connection]').href=importOrigin+'/settings?lang='+encodeURIComponent(getLocale());
     node('[data-test-controls]').hidden=!connected;
     node('[data-connect-shortcut]').hidden=connected;
     node('[data-connect-shortcut]').disabled=working||isBusy();
@@ -68,7 +68,7 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
     const entered=node('[data-address]').value.trim();
     if(entered.includes('#device=')){try{return {...parseDeviceSetupLink(entered),expectedFingerprint:''};}catch{throw componentError('invalidAddress');}}
     let baseUrl;try{baseUrl=DeviceClient.createURL(entered);}catch{throw componentError('invalidAddress');}
-    if(baseUrl.startsWith('http:'))return {baseUrl,expectedFingerprint:node('[data-pin-confirmed]').checked?normalizedFingerprint(node('[data-fingerprint]').value):''};
+    if(baseUrl.startsWith('http:')){const imported=pendingSetup?.baseUrl===baseUrl?pendingSetup:null;return {baseUrl,...(imported?{boardId:imported.boardId}:{}),...(imported?.rtc?{rtc:imported.rtc}:defaultBridgeEndpoint(settings.deviceEndpoint)===baseUrl&&settings.deviceRTC?{rtc:settings.deviceRTC}:{}),expectedFingerprint:node('[data-pin-confirmed]').checked?normalizedFingerprint(node('[data-fingerprint]').value):''};}
     const expectedFingerprint=normalizedFingerprint(node('[data-fingerprint]').value);
     if(!/^[a-f0-9]{64}$/.test(expectedFingerprint))throw componentError('invalidFingerprint');
     if(!node('[data-pin-confirmed]').checked)throw componentError('verificationRequired');
@@ -141,7 +141,7 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
     statusKey=getState().ready?'bound':getState().connected?'needsFreshChallenge':'notPaired';
     if(!document.querySelector('link[data-device-panel-style]')){const style=document.createElement('link');style.rel='stylesheet';style.href=new URL('./device-panel.css',import.meta.url).href;style.dataset.devicePanelStyle='';document.head.append(style);}
     openPanel(copy('title'),copy('subtitle'),`<div class="device-onboarding" data-no-i18n>
-      <section class="device-step device-bridge-card"><h3 data-device-text="pairTitle"></h3><p class="device-bridge-state" data-bridge-state></p><p class="device-bridge-address" data-bridge-address></p><p class="quiet-note" data-connect-help data-device-text="connectHelp"></p>
+      <section class="device-step device-bridge-card"><h3 data-device-text="pairTitle"></h3><p class="device-bridge-state" data-bridge-state></p><p class="device-bridge-address" data-bridge-address></p><p class="quiet-note" data-connect-help data-device-text="connectHelp"></p><a class="device-settings-link" data-import-connection data-device-text="importConnection"></a><p class="quiet-note" data-import-help data-device-text="importConnectionHelp"></p>
       <details class="device-configuration" data-configuration ${pendingSetup?'open':''}><summary data-device-text="configureBridge"></summary><label class="field"><span data-device-text="address"></span><input data-address type="url" inputmode="url" autocapitalize="none" autocomplete="off" spellcheck="false" placeholder="http://igent.local" value="${escapeHTML(pendingSetup?.baseUrl||defaultBridgeEndpoint(settings.deviceEndpoint))}"></label><details data-legacy-pin><summary data-device-text="advanced"></summary><label class="field"><span data-device-text="fingerprint"></span><textarea data-fingerprint rows="2" autocapitalize="none" autocomplete="off" spellcheck="false">${escapeHTML(settings.deviceFingerprint||'')}</textarea></label><label class="device-check"><input data-pin-confirmed type="checkbox"><span data-device-text="fingerprintConfirmed"></span></label></details></details><div class="panel-actions"><button type="button" class="primary" data-pair data-device-text="pair"></button><button type="button" class="secondary-button" data-disconnect data-device-text="disconnect"></button></div><a class="device-settings-link" data-bridge-settings target="_blank" rel="noopener noreferrer" data-device-text="manageBridge"></a></section>
       <section class="device-step"><h3 data-device-text="bindTitle"></h3><p class="quiet-note" data-binding-state></p><button type="button" class="secondary-button" data-connect-shortcut data-device-text="pair"></button><div data-test-controls><label class="field"><span data-device-text="target"></span><select data-target></select></label><button type="button" class="secondary-button" data-refresh data-device-text="refresh"></button><label class="field device-nonce-field"><span data-device-text="nonceLabel"></span><input data-nonce type="text" readonly inputmode="none" autocomplete="off" autocapitalize="none" spellcheck="false" aria-describedby="device-nonce-help"><small id="device-nonce-help" data-device-text="nonceHelp"></small></label><div class="panel-actions"><button type="button" class="secondary-button" data-start-challenge data-device-text="startChallenge"></button><button type="button" class="primary" data-confirm-challenge data-device-text="confirmChallenge"></button></div></div></section>
       <section class="device-step"><h3 data-device-text="settingsTitle"></h3><p class="quiet-note" data-device-text="settingsHelp"></p><div class="panel-actions"><button type="button" class="primary" data-start-sharing data-device-text="startSharing"></button><button type="button" class="secondary-button" data-stop-sharing data-device-text="stopSharing"></button></div><p class="quiet-note" data-sharing-state></p></section>
@@ -152,21 +152,22 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
     function connection(configuration,signal){
       resetChallenge();stopMonitor();connectionEpoch++;connectionActive=false;invalidateProof();
       transport?.close();transport=null;
-      if(!configuration.baseUrl.startsWith('http:'))return {bridge:null,ready:Promise.resolve()};
-      setStatus('windowOpening');
-      const bridge=bridgeFactory({baseUrl:configuration.baseUrl,locale:getLocale(),onDisconnect:()=>{stopMonitor();connectionEpoch++;connectionActive=false;targets=[];invalidateProof();resetChallenge();setStatus('windowDisconnected');renderState();}});
+      setStatus('rtcOpening');
+      const bridge=bridgeFactory({baseUrl:configuration.baseUrl,rtc:configuration.rtc,onDisconnect:()=>{stopMonitor();connectionEpoch++;connectionActive=false;targets=[];invalidateProof();resetChallenge();setStatus('rtcDisconnected');renderState();}});
       const ready=bridge.open({signal});ready.catch(()=>{});return {bridge,ready};
     }
     node('[data-disconnect]').onclick=()=>{if(working||isBusy())return;stopMonitor();connectionEpoch++;transport?.close();transport=null;connectionActive=false;client?.clearCredentials();client=null;targets=[];targetId='';resetChallenge();invalidateProof();setStatus('notPaired');renderState();};
     const connect=()=>{if(working||isBusy())return;if(!node('[data-address]').value.trim()){node('[data-configuration]').open=true;node('[data-address]').focus();return;}return action(async({signal,current})=>{
-      const configuration=values();pendingSetup=null;
+      // Keep imported identity and RTC metadata across failed attempts; clear only after persistence succeeds.
+      const configuration=values();
       const preferredId=client?.paired&&client.baseUrl?.origin===configuration.baseUrl?client.clientId:undefined;
-      // Open before the first await so Safari can associate this window with the Connect click.
+      // Create the peer from the explicit Connect action; no auxiliary tab is opened.
       const {bridge,ready}=connection(configuration,signal);let retained=false;
       try{
        const clientId=await store.ensureDeviceClientId(configuration.baseUrl,{preferredId});await ready;if(!valid(current))return;
        resetChallenge();invalidateProof();client=null;targets=[];targetId='';setStatus('pairing');
        const candidate=clientFactory({...configuration,...(bridge?{fetchImpl:bridge.fetch}:{})});
+       if(configuration.boardId){const identity=await candidate.identity({signal});if(identity.boardId!==configuration.boardId){candidate.clearCredentials();throw Object.assign(new Error('DEVICE_IDENTITY_MISMATCH'),{code:'DEVICE_IDENTITY_MISMATCH'});}}
        let saved=await store.getLocalCredential('device:'+configuration.baseUrl);
        // Preserve an existing board credential across the automatic hostname change.
        // pinIdentity below still checks the old board fingerprint before it is used.
@@ -177,7 +178,7 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
        };
        if(saved){candidate.restoreCredentials(saved);await candidate.pinIdentity(saved.expectedFingerprint,{signal});}
        else await enroll(clientId);
-       if(configuration.boardId&&candidate.boardId!==configuration.boardId){candidate.clearCredentials();throw componentError('invalidAddress');}
+       if(configuration.boardId&&candidate.boardId!==configuration.boardId){candidate.clearCredentials();throw Object.assign(new Error('DEVICE_IDENTITY_MISMATCH'),{code:'DEVICE_IDENTITY_MISMATCH'});}
        if(!valid(current)){candidate.clearCredentials();return;}client=candidate;transport=bridge;connectionActive=true;
        await refresh(signal,saved?async recoverySignal=>{
         await store.deleteLocalCredential('device:'+configuration.baseUrl);
@@ -185,7 +186,7 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
         await enroll(saved.clientId,recoverySignal,saved.expectedFingerprint||saved.publicKeyFingerprint);
        }:null);if(!valid(current))return;
        await store.saveLocalCredential('device:'+configuration.baseUrl,client.exportCredentials());
-       await savePublicSettings({deviceEndpoint:configuration.baseUrl,deviceFingerprint:client.status().publicKeyFingerprint});retained=true;node('[data-configuration]').open=false;setStatus(getState().bluetoothConnected?'phoneConnectedNeedsTest':'paired');startMonitor();
+       const deviceRTC=bridge?.exportConfiguration?.();await savePublicSettings({deviceEndpoint:configuration.baseUrl,deviceFingerprint:client.status().publicKeyFingerprint,...(deviceRTC?{deviceRTC}:{})});retained=true;pendingSetup=null;node('[data-configuration]').open=false;setStatus(getState().bluetoothConnected?'phoneConnectedNeedsTest':'paired');startMonitor();
       }finally{if(!retained){bridge?.close();if(transport===bridge)transport=null;connectionActive=false;invalidateProof();}}
     });
     };

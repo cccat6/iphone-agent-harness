@@ -8,7 +8,7 @@
 
 使用说明：[简体中文](../acceptance/zh-Hans.md) · [English](../acceptance/README.md)。介绍主要界面和日常操作。
 
-官网为 [igent.cc](https://igent.cc)。连接设备后，请切回 Harness，并保持“设备连接”标签页打开；不需要安装证书，操作指令也不经过云端转发。Safari 27.0.1 真机已通过约 21 秒的五轮 GET／POST 测试，包括录屏期间两个标签页都在后台的请求。这不代表可以无限后台运行，也不等于完整手机操作已验收。详见[连接结果](../architecture/lan-connection.md)。
+官网为 [igent.cc](https://igent.cc)。Harness 通过 **WebRTC Direct** 在同一个页面连接局域网内的 ESP32 桥，无需保留额外标签页、输入连接码或安装证书。首次从 USB 设置链接或设备设置页导入连接信息，之后直接在 Harness 连接即可。正式 RTC 与蓝牙组合固件正在进行实机验收，详见[连接说明与记录](../architecture/lan-connection.md)。
 
 ## 功能
 

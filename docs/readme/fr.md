@@ -8,7 +8,7 @@ Conçu pour **Safari sur iOS/iPadOS 27 ou ultérieur**. Sur iPhone et iPad, le s
 
 Guide d’utilisation : [English](../acceptance/README.md) · [简体中文](../acceptance/zh-Hans.md). Les principaux écrans et les actions du quotidien.
 
-Le site est disponible sur [igent.cc](https://igent.cc). Après la connexion, revenez à Harness et gardez l’onglet de connexion de l’appareil ouvert. Aucun certificat à installer : les commandes ne transitent pas par le cloud. Sur un iPhone avec Safari 27.0.1, cinq requêtes GET/POST ont réussi sur environ 21 secondes, y compris avec les deux onglets en arrière-plan pendant le partage d’écran. Cela ne garantit ni un fonctionnement illimité en arrière-plan ni la validation de toutes les actions sur le téléphone. Voir les [résultats des essais](../architecture/lan-connection.md).
+Le site est disponible sur [igent.cc](https://igent.cc). Harness se connecte au pont ESP32 du réseau local par **WebRTC Direct**, depuis la même page. Aucun onglet de connexion supplémentaire, code de connexion ou certificat à installer. Importez les paramètres une fois depuis le lien de configuration USB ou la page de réglages de l’appareil, puis connectez-vous dans Harness. Le firmware intégrant RTC et Bluetooth est en cours de validation sur matériel. Voir le [guide de connexion et les résultats](../architecture/secure-lan.md).
 
 ## Fonctionnalités
 

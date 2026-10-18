@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "text-entry",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Enter and verify text through supported HID keys or user-confirmed clipboard preparation, respecting Safari foreground requirements and target focus.",
   "entry": "SKILL.md",
   "protocolVersion": 1,
@@ -14,8 +14,8 @@
   "files": [
     {
       "path": "SKILL.md",
-      "sha256": "942067939a5b414b3f1b61d64dc77788b44b57b2afa707613130409f3ef53f5d",
-      "bytes": 7662
+      "sha256": "7720a07e822572f372f8b8ac591075f74fedde4e1f4c12125e78c44adbe7932a",
+      "bytes": 8212
     }
   ]
 }

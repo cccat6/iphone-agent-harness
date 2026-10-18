@@ -38,6 +38,7 @@ struct SinkMock:Sink{bool submit(uint16_t,const Event&)override{return true;}boo
 Core* core=nullptr;
 struct SecureService{
  Admission auth_;Core& core_;uint16_t challengeHandle_=7;bool failSave=false;std::map<std::string,Grant> saved;
+ String clipboardTarget_;bool clipboardCleared=false;void clearClipboard(){clipboardTarget_.clear();clipboardCleared=true;}
  explicit SecureService(Core& c):core_(c){}
  static uint64_t now(){return 2;}
  bool saveGrant(const Grant& grant){if(failSave)return false;saved[grant.clientId]=grant;return true;}
@@ -64,7 +65,9 @@ int main(){
  {Fixture f;assert(f.c.connect("1:b",22,true,true,true)==Code::Accepted);bonds.erase(bonds.begin()+1);retireMissingBonds();assert(f.c.target("old-b"));f.c.disconnect(22,10);bondStateDirty=true;retireMissingBonds();assert(!f.c.target("old-b"));}
  {Fixture f;DeviceCallbacks cb;ble_store_status_event e;e.event_code=BLE_STORE_EVENT_FULL;assert(static_cast<NimBLEDeviceCallbacks&>(cb).onStoreStatus(&e,nullptr)==0&&bonds.size()==2);e.event_code=999;assert(static_cast<NimBLEDeviceCallbacks&>(cb).onStoreStatus(&e,nullptr)==BLE_HS_EUNKNOWN&&bonds.size()==2);}
  {Fixture f;bonds.erase(bonds.begin()+1);f.c.target("old-a")->running=true;retireMissingBonds();assert(f.c.target("old-b")&&preferences.values.count("bond1")&&bondStateDirty);f.c.target("old-a")->running=false;retireMissingBonds();assert(!f.c.target("old-b"));}
- std::puts("11 production bond lifecycle scenarios passed, including active-peer protection, storage failures and reboot revocation");
+ {Fixture f;f.s.clipboardTarget_="old-b";bonds.erase(bonds.begin()+1);retireMissingBonds();assert(f.s.clipboardCleared&&f.s.clipboardTarget_.empty());}
+ {Fixture f;f.s.clipboardTarget_="old-a";bonds.erase(bonds.begin()+1);retireMissingBonds();assert(!f.s.clipboardCleared&&f.s.clipboardTarget_=="old-a");}
+ std::puts("13 production bond lifecycle scenarios passed, including active-peer protection, storage failures and reboot revocation");
 }
 '''.replace('ADMISSION_HEADER',str(ROOT/'firmware/IPhoneAutomationHarness/src/Admission.h')).replace('REVOKE',revoke).replace('SANITIZE',san).replace('CALLBACKS',callbacks).replace('RETIRE',retire).replace('BOOT',boot)
 with tempfile.TemporaryDirectory(prefix='iah-bond-lifecycle-') as temp:

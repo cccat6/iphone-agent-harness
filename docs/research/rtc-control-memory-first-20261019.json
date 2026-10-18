@@ -1,0 +1,62 @@
+{
+  "checkedAt": "2026-10-18T20:13:20.115210+00:00",
+  "status": "failed_candidate_not_published",
+  "applicationSha256": "2e017727ba51bd669508df0780231dc56230ff633b5b6e9349f2b407c2f13a9d",
+  "boardId": "iah-b0e4b4e05380",
+  "bootId": "boot-a547f052f91a7a4b",
+  "serialPort": "/dev/cu.usbmodem1101",
+  "flashHashVerified": true,
+  "nvsPreserved": true,
+  "phoneInputSent": false,
+  "readings": [
+    {
+      "phase": "initial",
+      "wifiConnected": false,
+      "httpReady": false,
+      "freeHeap": 60344,
+      "largestFreeBlock": 57332,
+      "lastDisconnectReason": 2,
+      "loopStackHighWaterBytes": 5672
+    },
+    {
+      "phase": "reconnect",
+      "wifiConnected": true,
+      "httpReady": false,
+      "freeHeap": 46228,
+      "largestFreeBlock": 42996,
+      "lastDisconnectReason": 8,
+      "loopStackHighWaterBytes": 5224
+    },
+    {
+      "phase": "ready",
+      "wifiConnected": true,
+      "httpReady": true,
+      "freeHeap": 2008,
+      "largestFreeBlock": 1076,
+      "lastDisconnectReason": 8,
+      "loopStackHighWaterBytes": 5224
+    },
+    {
+      "phase": "lowmem",
+      "wifiConnected": true,
+      "httpReady": true,
+      "freeHeap": 2040,
+      "largestFreeBlock": 1076,
+      "lastDisconnectReason": 8,
+      "loopStackHighWaterBytes": 5224
+    }
+  ],
+  "browser": {
+    "startedAt": "2026-10-18T20:02:04.157Z",
+    "phoneInputSent": false,
+    "rows": [
+      {
+        "test": "failure",
+        "passed": false,
+        "code": "DEVICE_RTC_DISCONNECTED",
+        "message": "DEVICE_RTC_DISCONNECTED"
+      }
+    ],
+    "passed": false
+  }
+}

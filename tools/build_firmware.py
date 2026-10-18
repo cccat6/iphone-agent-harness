@@ -15,11 +15,102 @@ import struct
 import sys
 import tempfile
 from datetime import datetime, timezone
+from verify_rtc_tls_link import verify_tls_link
 
 ROOT = Path(__file__).resolve().parents[1]
 SKETCH = ROOT / 'firmware' / 'IPhoneAutomationHarness'
 CORE_VERSION = '3.3.11'
-SOURCE_FILES = ('IPhoneAutomationHarness.ino', 'main.cpp', 'config.example.h', 'ResourceLimits.h', 'build_opt.h', 'src/Core.h', 'src/Canonical.h', 'src/SetupState.h', 'src/HidReportMap.h', 'src/Admission.h', 'src/Pki.h', 'src/Wire.h', 'src/SecureService.h', 'src/LanBridgePage.h', 'src/HtmlJson.h', 'src/WifiSetupPage.h', 'src/BridgeSettings.h', 'src/BridgeSettingsPage.h')
+SOURCE_FILES = ('IPhoneAutomationHarness.ino', 'main.cpp', 'config.example.h', 'ResourceLimits.h', 'build_opt.h', 'src/Core.h', 'src/Canonical.h', 'src/SetupState.h', 'src/HidReportMap.h', 'src/Admission.h', 'src/Pki.h', 'src/Wire.h', 'src/SecureService.h', 'src/LanBridgePage.h', 'src/HtmlJson.h', 'src/WifiSetupPage.h', 'src/BridgeSettings.h', 'src/BridgeSettingsPage.h', 'src/ClipboardMailbox.h', 'src/ClipboardWire.h', 'src/RtcIdentity.h', 'src/RtcSctp.h', 'src/RtcRpc.h', 'src/RtcBridge.h', 'src/StrictJson.h')
+
+# Exact ESP-IDF 5.5.5 TLS family; explicit names keep local config files excluded.
+RTC_TLS_FILES = tuple("src/RtcTls/" + name for name in (
+    'RtcTlsConfig.h',
+    'aesce.h',
+    'aesni.h',
+    'alignment.h',
+    'base64_internal.h',
+    'bignum_core.h',
+    'bignum_core_invasive.h',
+    'bignum_internal.h',
+    'bignum_mod.h',
+    'bignum_mod_raw.h',
+    'bignum_mod_raw_invasive.h',
+    'block_cipher_internal.h',
+    'bn_mul.h',
+    'check_crypto_config.h',
+    'cipher_invasive.h',
+    'cipher_wrap.h',
+    'common.h',
+    'constant_time_impl.h',
+    'constant_time_internal.h',
+    'ctr.h',
+    'debug.c',
+    'debug_internal.h',
+    'ecp_internal_alt.h',
+    'ecp_invasive.h',
+    'entropy_poll.h',
+    'esp_platform_time.c',
+    'lmots.h',
+    'mbedtls_debug.c',
+    'md_psa.h',
+    'md_wrap.h',
+    'mps_common.h',
+    'mps_error.h',
+    'mps_reader.c',
+    'mps_reader.h',
+    'mps_trace.c',
+    'mps_trace.h',
+    'net_sockets.c',
+    'padlock.h',
+    'pk_internal.h',
+    'pk_wrap.h',
+    'pkwrite.h',
+    'psa_crypto_aead.h',
+    'psa_crypto_cipher.h',
+    'psa_crypto_core.h',
+    'psa_crypto_core_common.h',
+    'psa_crypto_driver_wrappers.h',
+    'psa_crypto_driver_wrappers_no_static.h',
+    'psa_crypto_ecp.h',
+    'psa_crypto_ffdh.h',
+    'psa_crypto_hash.h',
+    'psa_crypto_invasive.h',
+    'psa_crypto_its.h',
+    'psa_crypto_mac.h',
+    'psa_crypto_pake.h',
+    'psa_crypto_random.h',
+    'psa_crypto_random_impl.h',
+    'psa_crypto_rsa.h',
+    'psa_crypto_se.h',
+    'psa_crypto_slot_management.h',
+    'psa_crypto_storage.h',
+    'psa_util_internal.h',
+    'rsa_alt_helpers.h',
+    'rsa_internal.h',
+    'ssl_cache.c',
+    'ssl_ciphersuites.c',
+    'ssl_ciphersuites_internal.h',
+    'ssl_client.c',
+    'ssl_client.h',
+    'ssl_cookie.c',
+    'ssl_debug_helpers.h',
+    'ssl_debug_helpers_generated.c',
+    'ssl_misc.h',
+    'ssl_msg.c',
+    'ssl_ticket.c',
+    'ssl_tls.c',
+    'ssl_tls12_client.c',
+    'ssl_tls12_server.c',
+    'ssl_tls13_client.c',
+    'ssl_tls13_generic.c',
+    'ssl_tls13_invasive.h',
+    'ssl_tls13_keys.c',
+    'ssl_tls13_keys.h',
+    'ssl_tls13_server.c',
+    'threading_internal.h',
+    'x509_internal.h',
+))
+SOURCE_FILES += RTC_TLS_FILES
 
 PROFILES = {
     'esp32c3': {'label': 'ESP32-C3', 'board': 'ESP32C3 Dev Module', 'usbCdc': True,
@@ -240,6 +331,7 @@ def main():
             if run.returncode == 0:
                 if (build / 'build_opt.h').read_bytes() != (sketch / 'build_opt.h').read_bytes():
                     raise RuntimeError('Compiled options do not match allowlisted source')
+                report['rtcTlsLink'] = verify_tls_link(build, sketch / 'src' / 'RtcTls')
                 parts = collect_parts(build, profile_id, args.output)
                 built = {'id': profile_id, 'label': profile['label'], 'chip': profile_id, 'board': profile['board'], 'minFlashMB': 4, 'usbCdc': profile['usbCdc'], 'parts': parts}
                 for line in summary:
@@ -261,7 +353,7 @@ def main():
         order = {value: index for index, value in enumerate(args.profiles)}
         compiled.sort(key=lambda value: order[value['id']])
         reports.sort(key=lambda value: order[value['id']])
-    manifest = {'schemaVersion': 1, 'firmwareVersion': '0.3.0-lan-http', 'executionEnabled': True, 'physicalValidation': False, 'requiresManualTrust': False, 'stage': 'lan-window-phone-validation-pending', 'profiles': compiled}
+    manifest = {'schemaVersion': 1, 'firmwareVersion': '0.4.0-rtc-direct', 'executionEnabled': True, 'physicalValidation': False, 'requiresManualTrust': False, 'stage': 'rtc-control-phone-validation-pending', 'profiles': compiled}
     report = {'builtAt': datetime.now(timezone.utc).isoformat(), 'dependencies': pinned, 'sourceSha256': source_hash, 'sourceFiles': source_files, 'serialPortsOpened': False, 'flashed': False, 'profiles': reports, 'excluded': [{'chip': 'esp32s2', 'reason': 'No Bluetooth LE radio'}]}
     for name, value in [('manifest.json', manifest), ('build-report.json', report)]:
         temporary_path = args.output / (name + '.tmp')

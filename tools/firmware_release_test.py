@@ -32,7 +32,8 @@ def fixture():
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(SOURCE_ROOT / 'firmware/IPhoneAutomationHarness' / name, destination)
         (root / 'tools').mkdir()
-        shutil.copyfile(SOURCE_ROOT / 'tools/build_firmware.py', root / 'tools/build_firmware.py')
+        for recipe in ('build_firmware.py', 'verify_rtc_tls_link.py'):
+            shutil.copyfile(SOURCE_ROOT / 'tools' / recipe, root / 'tools' / recipe)
         shutil.copyfile(SOURCE_ROOT / 'LICENSE', root / 'LICENSE')
         output = root / 'apps/web/firmware'
         output.mkdir(parents=True)
@@ -79,6 +80,14 @@ class FirmwareReleaseTests(unittest.TestCase):
         with fixture() as (root, sketch, output):
             before = release.key(release.inputs())
             (root / 'tools/build_firmware.py').write_text('// changed recipe')
+            self.assertNotEqual(release.key(release.inputs()), before)
+            self.assertTrue(release.plan(offline=True)['compile'])
+
+    def test_tls_link_guard_change_invalidates_recipe_reuse(self):
+        with fixture() as (root, sketch, output):
+            before = release.key(release.inputs())
+            guard = root / 'tools/verify_rtc_tls_link.py'
+            guard.write_text(guard.read_text() + '\n# changed verification recipe\n')
             self.assertNotEqual(release.key(release.inputs()), before)
             self.assertTrue(release.plan(offline=True)['compile'])
 

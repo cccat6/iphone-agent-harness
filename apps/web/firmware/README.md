@@ -2,9 +2,15 @@
 
 `manifest.json` is generated from successful real Arduino builds. Every part records its original flash offset, byte size and SHA-256; paths are relative to the manifest URL for GitHub Pages, Cloudflare and self-hosted static deployments.
 
-Version **0.3.0-lan-http** provides local Wi-Fi setup, HTTP control and the `/harness-link` connection window. The default bridge address is **http://igent.local**. Connecting does not use a connection code; the legacy `pairingCodeRequired` compatibility field is always `false`. Open **http://igent.local/settings** to change the hostname; use the saved hostname instead if it has been changed. Normal onboarding does not install a CA certificate, and website servers do not forward control commands. The Bluetooth name is **iPhone Agent Bridge**. Client enrollment, per-client tokens, phone input verification, writer leases and timed segments remain in place. Bluetooth pairing no longer depends on a hidden two-minute web enrollment window; obsolete, unregistered bonds can be reclaimed when the bond store is full.
+The current product source is **0.4.0-rtc-direct**. Harness control uses a single-page WebRTC Direct connection; local HTTP remains for Wi-Fi setup, `/settings` and clipboard Shortcuts. The Bluetooth name is **iPhone Agent Bridge**. First-use USB or settings-page return links import the actual RTC address; no persistent helper tab or connection code is needed.
 
-The browser-side local-window test passed five read-only GET/POST requests, including both-tabs-hidden requests during screen sharing, on Safari 27.0.1. `physicalValidation:false` remains correct: that browser transport test did not establish this firmware’s complete phone-control loop. The latest C3 code-free candidate also restores the local-window handshake when Safari does not expose `window.opener`, while preserving the connection nonce and return instructions. It is undergoing separate physical readback; no successful phone pairing or input result is inferred from compilation. See [phone transport evidence](../../../docs/research/ios-lan-probe20261018.json).
+`RtcIdentity.h` and `rtc-defaults.json` provide the same long-lived communication certificate/fingerprint for every board. Users do not install a CA or maintain per-device certificates. Board identity, browser tokens, phone input proof and writer leases remain separate authorization checks.
+
+The final C3 candidate uses source `1299070b61333af8b5dd9227b2e2132d216cc01ad4811cc4860c4ef8e4c43523` and application SHA-256 `0ca0500ee626f8eece9b39cd76957d21ca42d43347b08d577ff0c03f355a4b6e` (1,558,032 bytes). [Final Safari evidence](../../../docs/research/rtc-control-final-safari-20261019.json) records the flashed boot, a 7000-byte request and reconnect passing all eight checks, an HTTP 200 empty clipboard result, and Japanese device settings. Phone HID and the combined phone workflow still require their own checks.
+
+Earlier transport evidence: on 2026-10-19, the complete C3 production candidate passed eight desktop-browser checks in both [Chrome](../../../docs/research/rtc-control-chrome-20261019.json) and [Safari 27.0.1](../../../docs/research/rtc-control-safari-20261019.json), including a 7000-byte request, authorization checks and disconnect/reconnect. Its application SHA-256 is `f4bbb07aa39d3c9325d74319b0b266076ace2819787b9c5d712052293a815c1f`, built from source `8ec1b81184bfaa8fbde0842f326154b27a59b4dfd5b803379eb16f46fe4dbf1d`. BLE initialized and advertised with one saved bond and no connected phone. This establishes the desktop-to-board transport path; phone HID, background capture, Shortcut use and combined task acceptance remain separate.
+
+The full phone workflow is undergoing hardware acceptance. [Phone prototype results](../../../docs/research/rtc-direct-c3-iphone-20261019.json) include short successes and intermittent failures; they do not establish complete product acceptance. The exact downloadable firmware version and validation fields come from the release's manifest.
 
 ## Hardware profiles
 
@@ -19,16 +25,9 @@ Chip-name labels stay untranslated (`ESP32-C3`, `ESP32-S3`, `ESP32-C6`, `ESP32`)
 
 ## Current compiled artifacts
 
-All four profiles were compiled from the same 18-file source SHA-256 `db8b9b0b54e247ebb3eea13712fe85df2fcb8e002fabc3a3f37b9fdfa1ff3732` with the pinned dependencies below. C3 was compiled first for physical readback, then its exact binaries were included alongside S3, C6 and ESP32 builds from those identical source files. `profileBuiltAt` records each build date. No serial port was opened by this build.
+`manifest.json` and `build-report.json` are the authoritative record for the binaries in this directory: firmware version, source hashes, pinned dependencies and per-profile build results. Each application and auxiliary image has its own byte count and SHA-256. The clean builder verifies the current source allowlist before publication, so an older binary is not presented as a new RTC build merely because the source has changed.
 
-| Profile | Application bytes | Application SHA-256 |
-|---|---:|---|
-| ESP32-C3 | 1,430,544 | `db7cb27559ede41510bd6d8406c626f5f158612d1b8fe8e2f6b82fbbec912d4b` |
-| ESP32-S3 | 1,288,368 | `3122b92b429efc4c570cfcc2b4deddfe0c8c4d8679c53cf6b090a45e4444e1e7` |
-| ESP32-C6 | 1,591,856 | `a97e7dd1e9a9967bb491aad4af4d8fbcc1c6428f4c248e24685a07f4b327f784` |
-| ESP32 | 1,364,704 | `901edfb444f88a9be5ebadcfd40080f94d36f013938a587a8731e67cee0b9f72` |
-
-The previous 0.2 firmware's CA-verified C3 test remains historical evidence; it is not physical acceptance of this version.
+Build verification opens no serial port. Hardware results are recorded separately from compilation and hash checks.
 
 ## Manifest
 
@@ -57,6 +56,7 @@ python3 tools/build_firmware.py --parallel 2 --jobs 4
 python3 tools/build_firmware.py --verify-only
 python3 tools/build_firmware_test.py
 ./tests/firmware/run.sh
+sh tests/firmware/rtc/run.sh
 ```
 
 Requires ESP32 Arduino 3.3.11, ArduinoJson 7.4.3 and NimBLE-Arduino 2.5.1. Install libraries manually using Library Manager or `arduino-cli lib install "ArduinoJson@7.4.3" "NimBLE-Arduino@2.5.1"`; choose the pinned core in Boards Manager. Project-local NimBLE 2.5.1 is also supported.
@@ -68,5 +68,3 @@ Browser USB flashing additionally requires Web Serial; an iPhone Safari tab does
 For repeat builds, `--work-dir /absolute/dedicated/cache` retains compiler artifacts. Staging is still limited to the public source allowlist; unexpected files cause a failure. This cache never opens a port and must not be used for local credential files. `--verify-only` checks each current source hash and the combined provenance hash as well as published binary hashes/offsets.
 
 C3/S3/C6 use MSYS pools 8/8. The classic ESP32 SDK omits the second pool size, so that target preserves its disabled second pool (8/0) rather than enabling an undefined allocation; its physical two-phone throughput remains unverified. Effective values are available in USB diagnostics.
-
-The preceding Bluetooth-pairing-fix C3 candidate was flashed to the authorized test board on 2026-10-18 with all four segment checks passing. Wi-Fi recovered, and nine actual HTTP checks passed; see [new C3 report](../../../docs/research/device-bridge-pairing-live-20261018.json). That record is historical evidence for the preceding candidate, not physical acceptance of the current code-free and Safari-handshake build. Bluetooth pairing and phone paste are not inferred from those HTTP checks.

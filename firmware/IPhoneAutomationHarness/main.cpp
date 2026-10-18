@@ -24,8 +24,9 @@
 #endif
 #include "config.example.h"
 #include "src/SecureService.h"
+#include "src/RtcBridge.h"
 
-SET_LOOP_TASK_STACK_SIZE(8192);
+SET_LOOP_TASK_STACK_SIZE(6144);
 static_assert(CONFIG_BT_NIMBLE_MAX_CONNECTIONS==2&&CONFIG_BT_NIMBLE_MAX_BONDS==2,"Arduino build_opt.h must configure the actual NimBLE host");
 static_assert(iah::MaxEvents==128,"board report storage must match LAN limit");
 
@@ -132,6 +133,16 @@ Preferences preferences;
 Core* core=nullptr;
 SemaphoreHandle_t coreMutex=nullptr;
 iah::SecureService* secureService=nullptr;
+iah::RtcBridge* rtcBridge=nullptr;TaskHandle_t rtcTaskHandle=nullptr;
+void rtcTask(void*){
+ bool initialized=false;
+ for(;;){
+  bool network=WiFi.status()==WL_CONNECTED&&secureService->networkReady();
+  if(initialized&&!network){rtcBridge->stop();initialized=false;}
+  if(!initialized&&network){initialized=rtcBridge->begin([](String request){return secureService->dispatchRtc(std::move(request),rtcBridge->peerAddress());},[]{secureService->rtcDisconnected();},[]{return secureService->rtcCanReplace();});if(!initialized)vTaskDelay(pdMS_TO_TICKS(2000));}
+  if(initialized)rtcBridge->loop();vTaskDelay(1);
+ }
+}
 String boardId,bootId,hostname;
 bool mdnsStarted=false,httpStarted=false;
 uint64_t nowMs(){return static_cast<uint64_t>(esp_timer_get_time())/1000;}
@@ -304,7 +315,7 @@ void bleDiagnostic(){
  Serial.print("IAH_BLE ");serializeJson(out,Serial);Serial.println();
 }
 void wifiDiagnostic(){
- String ssid,password;savedNetwork(ssid,password);JsonDocument out;out["format"]="iah-wifi-diagnostic/1";out["wifiConfigured"]=!ssid.isEmpty();out["wifiConnected"]=WiFi.status()==WL_CONNECTED;out["wifiStatus"]=(int)WiFi.status();out["wifiMode"]=(int)WiFi.getMode();out["configuredSsidBytes"]=ssid.length();out["configuredPasswordBytes"]=password.length();out["attemptedSsidMatchesStored"]=WiFi.SSID()==ssid;out["lastDisconnectReason"]=wifiLastReason.load();out["disconnectCount"]=wifiDisconnects.load();out["connectionCount"]=wifiConnections.load();out["gotIpCount"]=wifiGotIps.load();out["lastEvent"]=wifiLastEvent.load();out["lastEventAtMs"]=wifiLastEventMs.load();out["txPowerQuarterDbm"]=(int)WiFi.getTxPower();out["savedTxPowerQuarterDbm"]=preferences.getInt("rfPower",-1);out["freeHeap"]=ESP.getFreeHeap();out["largestFreeBlock"]=heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT);out["loopStackHighWaterBytes"]=uxTaskGetStackHighWaterMark(nullptr);out["nimbleHostMaxConnections"]=CONFIG_BT_NIMBLE_MAX_CONNECTIONS;out["nimbleHostMaxBonds"]=CONFIG_BT_NIMBLE_MAX_BONDS;out["coreMaxEvents"]=MaxEvents;out["replayTombstoneBytes"]=SeenBytes;out["replayStorage"]="rtc";out["nimblePreferredMtu"]=CONFIG_BT_NIMBLE_ATT_PREFERRED_MTU;out["nimbleMsys1Blocks"]=CONFIG_BT_NIMBLE_MSYS_1_BLOCK_COUNT;out["nimbleMsys2Blocks"]=CONFIG_BT_NIMBLE_MSYS_2_BLOCK_COUNT;out["maxRequestBytes"]=WireMaxRequestBytes;out["httpReady"]=secureService->networkReady();if(WiFi.status()==WL_CONNECTED){out["rssi"]=WiFi.RSSI();out["localIp"]=WiFi.localIP().toString();}Serial.print("IAH_WIFI ");serializeJson(out,Serial);Serial.println();
+ String ssid,password;savedNetwork(ssid,password);JsonDocument out;out["format"]="iah-wifi-diagnostic/1";out["wifiConfigured"]=!ssid.isEmpty();out["wifiConnected"]=WiFi.status()==WL_CONNECTED;out["wifiStatus"]=(int)WiFi.status();out["wifiMode"]=(int)WiFi.getMode();out["configuredSsidBytes"]=ssid.length();out["configuredPasswordBytes"]=password.length();out["attemptedSsidMatchesStored"]=WiFi.SSID()==ssid;out["lastDisconnectReason"]=wifiLastReason.load();out["disconnectCount"]=wifiDisconnects.load();out["connectionCount"]=wifiConnections.load();out["gotIpCount"]=wifiGotIps.load();out["lastEvent"]=wifiLastEvent.load();out["lastEventAtMs"]=wifiLastEventMs.load();out["txPowerQuarterDbm"]=(int)WiFi.getTxPower();out["savedTxPowerQuarterDbm"]=preferences.getInt("rfPower",-1);out["freeHeap"]=ESP.getFreeHeap();out["largestFreeBlock"]=heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT);out["loopStackHighWaterBytes"]=uxTaskGetStackHighWaterMark(nullptr);out["nimbleHostMaxConnections"]=CONFIG_BT_NIMBLE_MAX_CONNECTIONS;out["nimbleHostMaxBonds"]=CONFIG_BT_NIMBLE_MAX_BONDS;out["coreMaxEvents"]=MaxEvents;out["replayTombstoneBytes"]=SeenBytes;out["replayStorage"]="rtc";out["nimblePreferredMtu"]=CONFIG_BT_NIMBLE_ATT_PREFERRED_MTU;out["nimbleMsys1Blocks"]=CONFIG_BT_NIMBLE_MSYS_1_BLOCK_COUNT;out["nimbleMsys2Blocks"]=CONFIG_BT_NIMBLE_MSYS_2_BLOCK_COUNT;out["maxRequestBytes"]=WireMaxRequestBytes;out["httpReady"]=secureService->networkReady();out["rtcReady"]=rtcBridge&&rtcBridge->ready();out["rtcConnected"]=rtcBridge&&rtcBridge->connected();out["rtcDtlsConnected"]=rtcBridge&&rtcBridge->dtlsConnected();out["rtcLastError"]=rtcBridge?rtcBridge->lastError():0;out["rtcLastChunk"]=rtcBridge?rtcBridge->lastSctpChunk():-1;out["rtcAbortCause"]=rtcBridge?rtcBridge->lastAbortCause():0;out["rtcCompletedRequests"]=rtcBridge?rtcBridge->completedRequests():0;out["rtcMaxSctpBytes"]=rtcBridge?rtcBridge->maxSctpBytes():0;out["rtcDataFlagsSeen"]=rtcBridge?rtcBridge->dataFlagsSeen():0;out["rtcStackHighWaterBytes"]=rtcTaskHandle?uxTaskGetStackHighWaterMark(rtcTaskHandle):0;if(WiFi.status()==WL_CONNECTED){out["rssi"]=WiFi.RSSI();out["localIp"]=WiFi.localIP().toString();}Serial.print("IAH_WIFI ");serializeJson(out,Serial);Serial.println();
 }
 bool radioMaintenanceAllowed(){CoreLock lock(coreMutex);return !core->busy()&&!secureService->networkReady();}
 void wifiPower(JsonDocument& d){
@@ -350,12 +361,13 @@ void setup(){
  if(ssid.length()){WiFi.mode(WIFI_STA);WiFi.setAutoReconnect(true);applySavedPower();WiFi.begin(ssid.c_str(),password.c_str());}
  startBle();sink.beginRouting();
  secureService=new SecureService(*core,sink,preferences,coreMutex,boardId,bootId,hostname,wifiGotIps);secureService->begin(ssid.isEmpty());
-Serial.println("{\"firmware\":\"0.3.0-lan-http\",\"physicalValidation\":false}");
+ rtcBridge=new iah::RtcBridge();if(xTaskCreatePinnedToCore(rtcTask,"iah-rtc",8192,nullptr,1,&rtcTaskHandle,0)!=pdPASS)Serial.println("{\"event\":\"rtc_task_failed\"}");
+Serial.println("{\"firmware\":\"0.4.0-rtc-direct\",\"physicalValidation\":false}");
 }
 void loop(){
  syncPeers();{CoreLock lock(coreMutex);core->tick(nowMs());}configureSerial();secureService->loop();
  if(WiFi.status()==WL_CONNECTED){
-  if(!mdnsStarted){mdnsStarted=MDNS.begin(hostname.c_str());if(mdnsStarted){MDNS.addService("iah","tcp",80);MDNS.addServiceTxt("iah","tcp","transport","http");MDNS.addServiceTxt("iah","tcp","boardId",boardId.c_str());MDNS.addServiceTxt("iah","tcp","protocolVersion","1");}}
+  if(!mdnsStarted){mdnsStarted=MDNS.begin(hostname.c_str());if(mdnsStarted){MDNS.addService("iah","tcp",80);MDNS.addServiceTxt("iah","tcp","transport","webrtc-direct");MDNS.addService("iah-rtc","udp",18948);MDNS.addServiceTxt("iah","tcp","boardId",boardId.c_str());MDNS.addServiceTxt("iah","tcp","protocolVersion","1");}}
 
  }
  // HTTP receives and parses on its own task; only admission/result access takes

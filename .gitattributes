@@ -7,3 +7,5 @@
 
 # Preserve the upstream license byte for byte, including its original padding.
 apps/web/firmware/licenses/TinyCrypt-LICENSE -whitespace
+# Preserve the exact upstream TLS source bytes and their recorded hashes.
+firmware/IPhoneAutomationHarness/src/RtcTls/** -whitespace

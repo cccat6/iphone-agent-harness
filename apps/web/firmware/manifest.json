@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
-  "firmwareVersion": "0.3.0-lan-http",
+  "firmwareVersion": "0.4.0-rtc-direct",
   "executionEnabled": true,
   "physicalValidation": false,
   "requiresManualTrust": false,
-  "stage": "lan-window-phone-validation-pending",
+  "stage": "rtc-control-phone-validation-pending",
   "profiles": [
     {
       "id": "esp32c3",
@@ -35,8 +35,8 @@
         {
           "path": "esp32c3/application.bin",
           "offset": 65536,
-          "sha256": "db7cb27559ede41510bd6d8406c626f5f158612d1b8fe8e2f6b82fbbec912d4b",
-          "size": 1430544
+          "sha256": "0ca0500ee626f8eece9b39cd76957d21ca42d43347b08d577ff0c03f355a4b6e",
+          "size": 1558032
         }
       ]
     },
@@ -69,8 +69,8 @@
         {
           "path": "esp32s3/application.bin",
           "offset": 65536,
-          "sha256": "3122b92b429efc4c570cfcc2b4deddfe0c8c4d8679c53cf6b090a45e4444e1e7",
-          "size": 1288368
+          "sha256": "7c5270194f9fa57f4c91ba2fe3a6f94a3966b98fd76d6ec02e7a3b9dd1649da8",
+          "size": 1400512
         }
       ]
     },
@@ -103,8 +103,8 @@
         {
           "path": "esp32c6/application.bin",
           "offset": 65536,
-          "sha256": "a97e7dd1e9a9967bb491aad4af4d8fbcc1c6428f4c248e24685a07f4b327f784",
-          "size": 1591856
+          "sha256": "ead6b75e363cab793589d267f5d2b3cd14dae1f8dadfc92fed63df452c37c786",
+          "size": 1719328
         }
       ]
     },
@@ -137,8 +137,8 @@
         {
           "path": "esp32/application.bin",
           "offset": 65536,
-          "sha256": "901edfb444f88a9be5ebadcfd40080f94d36f013938a587a8731e67cee0b9f72",
-          "size": 1364704
+          "sha256": "494909174c7d337c41f2ecacd90aebc7ab0e29d03411fdbf971fde622ae2a924",
+          "size": 1479936
         }
       ]
     }

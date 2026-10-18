@@ -1,57 +1,49 @@
-# LAN device client and task writer lifecycle
+# Device client and task writer lifecycle
 
-2026-10-18. `apps/web/core/device.js` implements the browser side of the Arduino protocol. This is protocol code with mock acceptance, not evidence that Safari has connected to a physical board. This work did not access the LAN, open a serial port, flash firmware or send real HID input.
+`apps/web/core/device.js` implements the device protocol. `apps/web/core/device-rtc.js` supplies its normal browser transport. The logical `/v1` routes stay the same; Harness requests travel over one WebRTC Direct data channel rather than browser HTTP requests to the LAN.
 
-## Current LAN connection
+## Connection and saved information
 
-The normal device origin is `http://igent.local` by default, a configured custom `.local` name, or a private IPv4 HTTP address. Public HTTP, localhost, credentials in URLs, paths, query strings and fragments are rejected. `DeviceClient` keeps its existing protocol API and accepts a fetch adapter.
+`DeviceRTCTransport` connects from the existing Harness page. It uses the imported `rtc:{ip,port,fingerprint}` or the project defaults at `/firmware/rtc-defaults.json` with the saved local address. The USB setup link and the bridge's `/settings` return link supply the actual LAN IP, avoiding dependence on browser resolution of a device name. The return link navigates back in the same tab, then its fragment is removed. In the 2026-10-19 Safari check, HTTP `igent.local/settings` resolved and returned the correct import link, while using `igent.local` directly as an RTC candidate timed out. The first-use flow therefore obtains the numeric address from settings or USB rather than promising automatic mDNS discovery inside WebRTC.
 
-On Safari, the Connect button opens the ESP32's `/harness-link` page in a separate tab. `DeviceWindowTransport.open()` is called before the first storage/network await, preserving the browser's user gesture. Every connection uses a unique window name and nonce. The local page issues same-origin HTTP requests to the device; it communicates directly with the Harness tab using `postMessage`. No website server forwards commands.
+The adapter creates a peer with no ICE servers, keeps the browser-generated local offer unchanged, constructs the Direct v2 remote answer and opens negotiated ordered data channel 0. No persistent helper tab, external signaling service, TURN server or cloud command relay is part of this flow. HTTP remains available for local setup, management and Shortcuts.
 
-Connection readiness requires a successful identity round trip **while the local connection tab is hidden and Harness is visible**. A response while the local page is in front is insufficient. Closed/reloaded windows and timeouts invalidate the page's phone-input proof. Reconnection is explicit. Requests that may have executed are never automatically replayed.
+The shared RTC certificate is communication configuration distributed with the firmware and website. It does not identify an individual board. Device identity checks still compare `boardId`, `bootId` and saved metadata; browser enrollment returns a separate token, and the phone input test verifies the actual input target. The compatibility `publicKeyFingerprint` identity label is distinct from the DTLS certificate fingerprint in `rtc.fingerprint`.
 
-The transport permits only the fixed `/v1` GET/POST routes and four JSON/authentication headers, with bounded body sizes, pending requests, timeouts and cancellation. It verifies the exact window object, origin, connection nonce, helper instance and request ID. The browser still needs the device connection tab to remain open.
+Pairing does not use a connection code. Ordinary settings retain the address and identity metadata; the separate browser-local credential record retains its token without asking for another password. Restoring that record does not restore fresh phone input proof.
 
-The Safari UI always uses the local connection window; there is no alternative Direct LAN selector. The protocol client retains injectable fetch for tests and other trusted callers. The tested Safari 27.0.1 did not permit direct HTTP fetch/POST/WebSocket from the HTTPS site. The local-window foreground experiment and five GET/POST requests, including both-tabs-hidden requests during screen sharing, passed over about 21 seconds. This does not establish indefinite background operation or physical ESP32/HID behavior. See [the connection evidence](../research/ios-lan-probe20261018.json).
-
-## Device pairing and saved connections
-
-The pairing code comes from the Wi-Fi setup page or USB setup information. The setup return link carries it in the URL fragment, which is removed on entry and never submitted to the website. Pairing returns a separate per-client token. Ordinary settings store only device address, stable client ID and device identity metadata; a separate browser-local credential record holds the token without an additional user password. Restoring it still requires a new phone-input test.
-
-For HTTP, the legacy `publicKeyFingerprint` field is a stable device identity label derived from the random owner code. It is **not a TLS or encrypted-channel claim**. The actual input target is checked through the phone's trusted keyboard events before control is enabled.
-
-The client retains compatibility with explicitly configured HTTPS origins and an expected fingerprint for older firmware. Private-CA installation belongs to that legacy route; it is not part of current onboarding.
-
-## Input target proof
-
-The client sends Bearer authentication and a fresh `X-Request-Id` on authenticated requests. Binding is distinct from board pairing:
-
-1. `getBinding()` returns the authenticated client ID and target list.
-2. `startChallenge(targetId)` requires a connected, encrypted, subscribed target. The HTTP result gives only the challenge ID and eight-character length, never its nonce.
-3. The focused phone input receives the actual eight digits through HID. UI code must collect trusted keyboard events; it should be ready before starting the request because input can arrive before the HTTP acknowledgement.
-4. `confirmChallenge(targetId,{challengeId,observedNonce})` submits only the observed digits. Binding becomes verified only on the exact board/boot/client/target response.
-
-The client rejects wrong identities, missing readiness and a challenge start response that leaks nonce fields. A status of `typing` is not successful target proof.
-
-Targets expose `{targetId,connected,encrypted,hidSubscribed,inputState,running}`. No display name or `bonded` field is assumed by this client.
-
-## API used by UI and Harness
+## Transport contract
 
 ```js
-DeviceClient.createURL(value) // normalized local HTTP or HTTPS origin
-new DeviceClient({baseUrl,expectedFingerprint?,fetchImpl?})
+const transport = new DeviceRTCTransport({baseUrl, rtc, onDisconnect});
+await transport.open({signal});
+const device = new DeviceClient({baseUrl, fetchImpl: transport.fetch});
+```
+
+The adapter permits the fixed identity, capability, binding, clock, pairing, phone-control and clipboard routes. It normalizes the supported JSON/authentication headers and returns a normal `Response` to `DeviceClient`.
+
+One RPC is active at a time; up to eight browser requests may wait. Frames contain `{v,type,id,n,seq,end,data}` and are at most 512 UTF-8 bytes. All non-final decoded chunks are 256 bytes. Request envelopes are at most 12,288 bytes and response envelopes 16,384 bytes. `n` is assigned when a queued request actually starts, increases from 1 for each connection, and is echoed in the response. `id` remains the UUID correlation key; `seq` orders chunks within that RPC.
+
+A queued request cancelled before sending is removed without consuming `n`. Cancelling or timing out an active request closes the peer and rejects the remaining queue. Mutations are not replayed after cancellation, disconnection or reconnection. The request-number and framing implementation is shared with the [firmware contract](secure-lan.md#transport-and-rpc).
+
+## Input proof
+
+Authenticated calls carry a Bearer token and request ID. `getBinding()` returns the current targets. `startChallenge(targetId)` requires connected, encrypted, subscribed Bluetooth input and returns only the challenge ID, length and expiry. The UI focuses its trusted-key collector before requesting the test, because HID digits may arrive before the response.
+
+`confirmChallenge(targetId,{challengeId,observedNonce})` submits the eight digits actually received. Verification must match the current board, boot, browser and target. A `typing` response, saved token or Bluetooth pairing record alone does not establish proof. Target status includes connectivity, HID subscription, released/unknown input state and running state.
+
+## Client API
+
+```js
 device.identity({signal})
 device.capabilities({signal})
 device.clockSync(3,{signal})
-device.pinIdentity(expectedFingerprint,{signal})
-device.pair({clientId?,setupPassword?,expectedFingerprint?},{signal})
-device.exportCredentials()                    // private; store only in the local-credential record
+device.pair({clientId?,expectedFingerprint?},{signal})
+device.exportCredentials()
 device.restoreCredentials(record)
-device.clearCredentials()                    // local forget, not remote release
-
+device.clearCredentials()
 device.getBinding({signal})
-device.targets({signal})                     // array from getBinding
-
+device.targets({signal})
 device.startChallenge(targetId,{signal})
 device.confirmChallenge(targetId,{challengeId,observedNonce},{signal})
 device.claimLease({writerId?,leaseId?,ttlMs?},{signal})
@@ -63,73 +55,28 @@ device.release(binding,{signal})
 device.endRun({writerId,signal})
 ```
 
-Safe getters include `paired`, `clientId`, `boardId`, `bootId`, `targetId`, `leaseId`, `leaseVerified`, `identityVerified` and `bindingVerified`; `status()` is safe for display. `pinIdentity` reports `fingerprintVerified`; this is not the same as a completed client pairing or target proof.
+Display getters include `paired`, `clientId`, `boardId`, `bootId`, `targetId`, `leaseId`, `leaseVerified`, `identityVerified` and `bindingVerified`. `status()` is safe for the UI. Clipboard methods prepare, query and cancel a target-bound temporary text job; the Shortcut confirms the actual copy separately.
 
-## Short lease, long model wait
+## Lease and execution lifecycle
 
-A writer lease lasts at most 15 seconds, while a model can take longer. The Task owns coordination, not the model. The trusted caller passes the current `runId` as `writerId`:
+The Task, rather than the model, owns the writer ID and its short lease. Between plans it may claim a verified, idle and released target. During a plan it may only renew the same unexpired lease; it cannot continue an old segment under a replacement lease. Concurrent same-writer renewal is serialized, and another run cannot take the active lease.
 
-- Between plans, `allowClaim:true` may claim a bound, released, idle target or reclaim after expiration using a new random fencing lease ID.
-- During an executing plan, `allowClaim:false` permits only same-ID renewal. Expiration, boot changes or a new baseline stop that plan; they never resume old segments under a replacement lease.
-- Another writer's active local lease is not shared or replaced; context returns `writerBusy` with execution disabled. Board admission must also prevent another tab using the same client token from replacing an active lease with a new ID.
-- Concurrent same-writer claims and renewals are serialized. Renewals preserve the lease ID; fresh claims never intentionally reuse a previous ID.
-- The root Harness may run a task-owned heartbeat while waiting for the model. It must use `allowClaim:false`, stop it in finally, and treat failure as lost coordination. This timer is not a browser background-life guarantee.
-- `endRun({writerId})` releases and invalidates only that writer's lease. If another run owns the lease, it does not send an HTTP release. A separate bounded cleanup signal allows release after the main run was cancelled.
+Task-owned renewal continues during a long model request where browser scheduling permits it. Stopping the run aborts this work, waits for bounded plan cleanup and then releases its own writer. Renewal is not a guarantee that Safari will run indefinitely in the background.
 
-The execution context includes board/boot/client/target/lease IDs, orientation epoch, identity/binding/lease flags, input state, normalized capability limits and clock estimate. Missing binding never opens phone tools. All readiness flags and the board's `executionEnabled` must hold. A lease alone does not prove input is released; a claim must explicitly return `inputState:'released'`. A renewal during motion may return `unknown` and must not fabricate release.
+Execution context includes the full board/boot/browser/target/lease scope, orientation epoch, current capabilities, released-input state and clock estimate. A fresh running or unknown status replaces older released-input evidence immediately. Missing or expired capabilities must be read before segment admission.
 
-## Receipt and unknown delivery
+The plan executor measures every complete wire segment before dispatch, including identity, plan and hash metadata. An oversized later gesture rejects the whole plan before earlier gestures run. Each segment is checked again after asynchronous hashing. The transport's envelope limit does not raise the board's smaller `maxRequestBytes` or event limits, and held gestures are not split to bypass those limits.
 
-The plan adapter uses the canonical segment SHA-256 and verifies the exact identity scope. Segment bodies go directly to `/v1/targets/:targetId/segments`; the client never retries a mutation automatically. Duplicate segment submission is rejected locally; callers query the existing ID instead. A result 404 is `DEVICE_RESULT_UNKNOWN`, not evidence that the command was never delivered.
+## Receipts, capture and disconnection
 
-Receipts must match board, boot, target, client, segment and known hash/plan IDs. Successful HID submission with a positive release flag establishes stack submission and released input only; visible phone outcome still requires a frame. Cancellation, unknown delivery, wrong scope and failed release stop dependent work.
+Receipts must match board, boot, target, browser, segment and known payload/plan IDs. Successful HID submission and release do not prove the visible app result; the browser observes that through a screenshot. A missing receipt is `DEVICE_RESULT_UNKNOWN`, not evidence that an operation was never sent. Callers query the existing segment ID instead of repeating a mutation with a new ID.
 
-Release always sends `{leaseId,cancelPending:true,invalidateLease:true}`. Only `status:'released'`, `leaseInvalidated:true` and `releaseSubmitted:true` establish a confirmed release. Lease state is cleared even if release fails; input stays unknown in that case. Boot changes clear leases, frame-dependent execution baselines and cached state.
+A confirmed release requires released status, lease invalidation and successful release submission. Failed cleanup leaves input unknown. A boot change clears leases and image-dependent execution baselines. Stopping or replacing screen sharing invalidates in-flight capture results and aborts non-Chat runs before a late model response can use an old image.
 
-Requests carry bounded JSON (256 KiB response, 96 KiB direct host request ceiling; the local-window adapter is limited to 8 KiB; segments additionally honor the advertised `capabilities.maxRequestBytes`), a timeout, external cancellation, no ambient cookies and no referrer. Errors expose stable codes without echoing token, owner password or response body. Common UI codes include `DEVICE_HTTPS_REQUIRED`, `DEVICE_IDENTITY_UNVERIFIED`, `DEVICE_IDENTITY_MISMATCH`, `DEVICE_BINDING_UNVERIFIED`, `DEVICE_TARGET_NOT_READY`, `DEVICE_WRITER_BUSY`, `DEVICE_LEASE_EXPIRED`, `DEVICE_RESULT_UNKNOWN`, `DEVICE_REBOOTED` and `DEVICE_TLS_OR_NETWORK_ERROR`.
+Bridge state is included in model context. Existing conversations can continue when the bridge is absent, but phone-input tools fail with that explicit reason. The Chat runtime does not claim a writer or access phone tools. New-session UI entry still checks the required connection and input test.
 
-## Validation status
+Metadata caching is bounded between its normal 750 ms floor and 5 seconds, adapting to observed request latency. Explicit binding/capability responses take effect immediately; caching does not replace board-side admission or prove released input.
 
-`tests/web/device.test.mjs`: 21 mock tests pass, including the actual plan executor consuming the actual DeviceClient through a fake HTTPS backend. Existing core tests remain compatible; the combined smoke test passed, followed by an additional running-renewal state test. Coverage includes pin-before-password, nonce proof, encrypted-export boundary, writer isolation, renew serialization, expiration/reclaim fencing, reboot, hash/target validation, unknown results, no duplicate dispatch, release ownership, bounded JSON and reader cancellation.
+## Verification
 
-The mock tests do not validate real ESP32 HTTP service, CORS, mDNS, BLE timing, USB setup output or real phone input. Those still need physical acceptance against the compiled Arduino implementation.
-
-## Runtime lifecycle regression check
-
-The final Harness review added a separate run-lifecycle signal, combined with external cancellation and each frame node's sampler signal. A timed-out frame that finishes later cannot read a fresh execution context, claim a lease, or resume work after `endRun`. Reading target metadata after a capture always uses `allowClaim:false`.
-
-The built-in plan executor already performs bounded cancellation cleanup. Harness now waits for that cleanup before its final writer release, avoiding concurrent `plan.release` and `endRun` requests. Injected executors remain interruptible; late capture callbacks still lose their lifecycle permission. Stopping a run clears the five-second renewal timer and aborts pending heartbeat work before final cleanup. Neither normal completion nor cancellation transfers writer ownership to another run.
-
-`tests/web/device-runtime.test.mjs` covers heartbeat ownership and termination, no heartbeat for chat/plan, late-frame fencing, cleanup ordering, no replacement claim during a plan, and the actual Harness → DeviceClient → plan adapter contract through a fake HTTPS backend. Together with Harness, runtime-integration and plan tests, the final targeted run passed **72 tests**. Positive capture fixtures use a one-second test budget to tolerate simultaneous firmware compilation; explicit stalled-frame/result cases retain 100ms deadlines. Production timing limits were not relaxed. This is mock/runtime evidence, not a physical-phone acceptance result.
-
-A fresh binding response that reports the bound target as running, nonreleased or missing immediately replaces any old host-side released-input evidence with `unknown`. A still-valid owned lease is coordination authority, not proof that input is released; input-plan preflight must reject the new unknown state. R1's unchanged independent regression covers this stale-state transition.
-
-## Firmware request-memory admission
-
-The complete plan preflight compiles every actual wire segment and measures its UTF-8 JSON body, including all identity/lease/plan metadata, a 36-character segment UUID and a 64-character hash. A later oversized gesture rejects the whole batch before any earlier gesture is submitted. The same full-batch check is repeated against fresh capabilities before the first dispatch; each actual segment's events and request size are checked again after asynchronous hashing immediately before dispatch. `DeviceClient.submitSegment()` independently enforces its currently known request-byte limit before/after hashing, before recording or sending the segment.
-
-The product firmware advertises `maxRequestBytes:8192` and `maxEvents:128`. The accepted-motion mock fixture uses a separate 256-event capacity and a 40 ms advertised report interval; this does not change the product limit. Actual limits and timing come from the successful capability response. The 98,304-byte compatibility default applies only to a successfully read legacy report lacking the byte-limit field, not to failed or missing discovery. A held gesture is never split across network segments to fit the limit: excessive paths fail explicitly, so the next plan can shorten or sparsify the motion without destroying release velocity. No automatic interpolation reduction is introduced here.
-
-Four new cross-module mock tests cover tap-before-oversized-swipe zero dispatch, accepted complete 8 KB sparse paths, exact envelope byte accounting, a request-capability shrink while hashing, and direct DeviceClient rejection without unknown input or HTTP dispatch. These tests validate JavaScript integration only; they do not establish C3 physical memory capacity or actual iPhone gesture results.
-
-Capability absence is not evidence of legacy firmware. Independent `claimLease() → submitSegment()` obtains `/v1/capabilities` whenever its cache is missing or expired, including a post-hash refresh if needed. A failed read stops before segment submission or input-state mutation. The 98,304-byte compatibility default applies only after a successful capability report lacks `maxRequestBytes`. R2's unchanged independent regression and two additional cache/discovery tests cover unknown, expired, failed and positively queried legacy cases.
-
-Chat never queries the input bridge: the core constructs `chatExecutionContext()` with all execution-verification flags false, unknown input and an unbound screen, without calling the injected live context, capture setup or device `endRun`. The app has the same early mode guard. Existing stored conversations remain readable offline. The application now requires a current device connection and completed input test before creating a conversation or sending a message, including Chat; this UI gate does not grant phone tools to the Chat runtime. A strict adapter-access test exercises two model rounds with a local Skill-list call.
-
-## Screen-sharing stop boundary
-
-`ScreenCapture.subscribe(listener)` returns an unsubscribe function. An owned stream/recorder stop clears both references and advances `orientationEpoch` before recorder or track callbacks, then emits `{type:'stopped',orientationEpoch}`. Stopping an already idle capture is a no-op. Observer exceptions cannot prevent resource cleanup; a delayed ended event from a replaced stream cannot stop its replacement.
-
-`grab()` retains its starting stream/track identity. After bitmap retrieval and each asynchronous blob/data-URL operation it rejects stopped/replaced sources with `CAPTURE_SOURCE_CHANGED`; bitmap cleanup runs even when the late result is discarded. This is source-lifecycle fencing, not a new OS rotation-event strategy.
-
-Every non-Chat Harness run subscribes to capture stop and aborts that run. A pending model reply cannot later execute an old-frame plan; an already submitted plan follows existing bounded input-release and run-owned lease cleanup. The subscription is removed in finally on success, failure or cancellation. Chat never accesses this API, and older synthetic adapters without `subscribe` retain their trusted-context contract. Seven offline lifecycle tests include real ScreenCapture with fake tracks/encoders, a model waiting after an observed frame, source replacement, listener removal and release-before-endRun ordering. No real screen, model request or HID was used.
-
-## Metadata cache under measured transport latency
-
-The default metadata cache retains its 750 ms floor for low-latency clients, but expands to five times the high-water successful HTTP round-trip observed by that DeviceClient, capped at 5,000 ms. A caller-supplied `cacheMs` (including zero) remains a fixed override. Clearing credentials also clears the observed timing history. Binding and capability checks still execute; they may use those bounded cached reports instead of restarting two costly HTTPS handshakes on every synchronous state guard.
-
-Unknown or expired capabilities must still be fetched before segment admission. An explicit `getBinding()` always applies fresh unknown/running state immediately. Explicitly fetched capability changes govern post-hash admission immediately. Expired leases, boot changes and board-side request fencing are unchanged; the cache is not new evidence of released input or a replacement for server admission.
-
-Eight offline regressions integrate the actual DeviceClient and plan executor with a fake monotonic clock advanced by 1.0 or 1.3 seconds per request. Before the change, all six normal/warm checks failed: even Home exhausted the 15s plan wall budget, and each warm context repeated two handshakes. After the bounded adaptive cache, Home takes 2.6–3.0 simulated seconds and two gestures with a capture take 4.025–5.225s; warm sequences make zero repeated requests after any first stale report is refreshed. Additional cases retain the five-second stale/reboot cutoff and immediate explicit binding invalidation. See [the measured fixture report](../research/device-rtt-budget-verification.json) for counts and limitations. These are finite synthetic transport measurements, not real C3 or phone performance acceptance.
-
-Connection codes have been removed. `pair()` uses a code-free token enrollment. Any legacy supplied password is ignored and never sent; a bridge still reporting a required code prompts a firmware update. New setup links contain only the address and board ID.
+Browser tests cover framing, queue ordering, cancellation, setup imports and the real DeviceClient/plan integration using mocks. Firmware host tests cover SCTP loss/reordering/duplicates, RPC limits and the final-response/next-request race. [Phone prototype measurements](../research/rtc-direct-c3-iphone-20261019.json) remain distinct from integrated production RTC/BLE and actual phone-operation acceptance.

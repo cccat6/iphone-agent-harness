@@ -2,6 +2,9 @@ import { getBrowserCompatibility } from './core/compatibility.js';
 import { SITE_CONFIG } from './site-config.js';
 import { t, getLocale, getLocalePreference, setLocale, subscribe, SUPPORTED_LOCALES, translateText, translationKey, localizeError, registerErrorCatalog, skillMetadata } from './i18n.js';
 import { openStore } from './core/store.js';
+import { importSessionFile as restoreSessionFile, exportSessionFile } from './core/session-files.js';
+import { createHistoryWindow } from './core/history-window.js';
+import { createHistoryImages } from './ui/history-images.js';
 import { readImportFile, sessionBackupBlob, SESSION_BACKUP_BYTES, BACKUP_ERRORS } from './core/backup-files.js';
 import { createHarness, chatExecutionContext } from './core/harness.js';
 import { setCredential, hasCredential, getCredential } from './core/credentials.js';
@@ -9,6 +12,7 @@ import { createDevicePanel } from './ui/device-panel.js';
 import { mountUsbSetup } from './ui/usb-setup.js';
 import { setLocalizedText, refreshLocalizedText } from './ui/localized-status.js';
 import { createClipboardController } from './core/clipboard.js';
+import { createDeviceClipboard } from './core/device-clipboard.js';
 import { mountClipboardPanel } from './ui/clipboard.js';
 import { screenCapture, normalizeImageSettings } from './core/capture.js';
 import { normalizeContextSettings } from './core/context.js';
@@ -16,6 +20,7 @@ import { modelContextMetadata } from './core/models.js';
 import { sealCredentials, unsealCredentials } from './core/auth.js';
 import { createMCPAccess } from './core/mcp.js';
 import { mountSessionSearch } from './ui/session-search.js';
+import { mountViewport } from './ui/viewport.js';
 import { createMCPSettings } from './ui/mcp-settings.js';
 import { discoverModels } from './core/providers.js';
 import { installBuiltinSkills, downloadSkill } from './core/skills.js';
@@ -31,6 +36,8 @@ const escapeHTML = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&
 const state = { store:null, harness:null, device:null, devicePanel:null, mcpAccess:null, mcpPanel:null, settings:{}, sessions:[], current:null, messages:[], messageLimit:80, hasOlder:false, archived:false, running:false, submitting:false, runGeneration:0, pending:null, skills:[], catalog:[], skillTab:'local', providerEdit:null, providerModels:[], drafts:new Map(), abort:null, lastError:null };
 const capture = screenCapture;
 const clipboard=createClipboardController({isCurrent:({sessionId,targetId})=>state.current?.id===sessionId&&deviceStatus().inputVerified&&deviceStatus().targetId===targetId});
+const deviceClipboard=createDeviceClipboard({getDevice:()=>activeInputBridge(),isCurrent:({sessionId,targetId})=>state.current?.id===sessionId&&deviceStatus().inputVerified&&deviceStatus().targetId===targetId});
+clipboard.subscribe(snapshot=>{if(!snapshot||snapshot.status!=='awaiting_user_action')deviceClipboard.cancel();});
 registerErrorCatalog(BACKUP_ERRORS);
 const vaultPassphrases=new Map();let vaultWrite=Promise.resolve();
 setCodexTokenObserver(({id,event})=>{
@@ -97,11 +104,16 @@ function renderDeviceStatus(){
   $('#conversation-device').textContent=t('device.state.'+key);$('#conversation-device').classList.toggle('connected',Boolean(value.inputVerified));
   $('#new-session').setAttribute('aria-label',t('session.new'));$('#new-session').setAttribute('aria-describedby','home-device-status');
 }
-async function refreshSessions() { const request=state.sessionListGeneration=(state.sessionListGeneration||0)+1;const sessions=await state.store.listSessions({archived:state.archived,search:$('#session-search').value});if(request!==state.sessionListGeneration)return;state.sessions=sessions;renderSessions(); }
+async function refreshSessions() { state.sessionListCursors=[];state.sessionListBefore=null;const request=state.sessionListGeneration=(state.sessionListGeneration||0)+1;const sessions=await state.store.listSessions({archived:state.archived,search:$('#session-search').value,limit:81});if(request!==state.sessionListGeneration)return;state.sessions=sessions.slice(0,80);state.sessionListMore=sessions.length>80;renderSessions(); }
+async function pageSessions(back=false){const cursor=back?state.sessionListCursors.at(-1):state.sessions.at(-1);if(!back&&!state.sessionListMore||back&&!state.sessionListCursors.length)return;const request=state.sessionListGeneration=(state.sessionListGeneration||0)+1,sessions=await state.store.listSessions({archived:state.archived,search:$('#session-search').value,limit:81,before:cursor});if(request!==state.sessionListGeneration)return;if(back)state.sessionListCursors.pop();else state.sessionListCursors.push(state.sessionListBefore);state.sessionListBefore=cursor;state.sessions=sessions.slice(0,80);state.sessionListMore=sessions.length>80;renderSessions();$('#sessions').scrollTop=0;}
+
 function renderSessions() {
   $('#archive-toggle').textContent=t('session.backList');$('#archive-toggle').hidden=!state.archived;$('#list-label').textContent=t(state.archived?'session.archived':'session.listTitle');
   const sessions=[...state.sessions].sort((a,b)=>Number(b.pinned)-Number(a.pinned) || new Date(b.updatedAt)-new Date(a.updatedAt));
   $('#sessions').innerHTML=sessions.length?sessions.map(session=>`<button class="session-row ${state.current?.id===session.id?'active':''}" data-session="${escapeHTML(session.id)}"><span class="row-title"><span>${escapeHTML(session.title||t('session.new'))}</span>${session.pinned?`<span class="row-pin">${t('session.pinned')}</span>`:''}</span><small>${escapeHTML(modeLabel(session.mode)||'对话')} · ${dateLabel(session.updatedAt)}</small></button>`).join(''):`<div class="list-empty"><strong>${escapeHTML(t(state.archived?'session.noArchive':$('#session-search').value?'session.noMatch':'session.emptyTitle'))}</strong>${!state.archived&&!$('#session-search').value?`<p>${escapeHTML(t(deviceSessionAvailable()?'session.empty':'session.connectStart'))}</p>`:''}</div>`;
+  if(state.sessionListCursors?.length)$('#sessions').insertAdjacentHTML('afterbegin',`<button class="secondary-button history-page" id="sessions-previous">${escapeHTML(t('session.previousPage'))}</button>`);
+  if(state.sessionListMore)$('#sessions').insertAdjacentHTML('beforeend',`<button class="secondary-button history-page" id="sessions-next">${escapeHTML(t('session.nextPage'))}</button>`);
+  if($('#sessions-previous'))$('#sessions-previous').onclick=guard(()=>pageSessions(true));if($('#sessions-next'))$('#sessions-next').onclick=guard(()=>pageSessions(false));
   $$('[data-session]').forEach(button=>button.onclick=guard(()=>openSession(button.dataset.session)));
 }
 function renderModelOptions() {
@@ -114,23 +126,49 @@ function renderModelOptions() {
 }
 function updateModeDescription() { $('#mode-description').textContent=t(modeDescriptions[$('#mode-select').value]); }
 async function newSession({fromSubmit=false}={}) { if(!(fromSubmit?deviceSessionAvailable():await state.devicePanel?.ensureReady?.())){await showDevices();toast(t('device.startHint'));return null;} if((state.running||state.submitting)&&!fromSubmit)throw new Error('请先停止当前任务，再切换会话。');const session=await state.store.createSession({title:t('session.new'),mode:$('#mode-select').value||'chat',modelId:$('#model-select').value||state.settings.activeProviderId||providers()[0]?.id||''}); await refreshSessions(); await openSession(session.id,{fromSubmit}); $('#message-input').focus();return session; }
-async function openSession(id,{fromSubmit=false}={}) { if(state.submitting&&!fromSubmit)throw new Error('请先停止当前任务，再切换会话。'); if(state.current)state.drafts.set(state.current.id,$('#message-input').value); if(state.running && state.current?.id!==id)throw new Error('请先停止当前任务，再切换会话。'); if(state.current?.id!==id)clipboard.clear();state.current=await state.store.getSession(id); if(!state.current)throw new Error('未找到这条会话。'); state.messages=await state.store.getMessages(id,{limit:80,includeImages:false,includeInternal:false}); state.hasOlder=state.messages.length===80;state.messageLimit=80; state.lastError=null; state.pending=null; $('#app').classList.add('in-conversation'); $('#session-title').textContent=state.current.title||t('session.new'); $('#session-subtitle').textContent=t('session.savedHere',{mode:modeLabel(state.current.mode||'chat')}); $('#session-menu').hidden=false; $('#mode-select').value=state.current.mode||'chat'; $('#message-input').value=state.drafts.get(id)||'';resizeInput(); renderModelOptions(); updateModeDescription(); renderSessions();renderClipboard(); renderMessages(); }
+function historyWindow(){return state.history||(state.history=createHistoryWindow(state.store));}
+function applyHistory(page){if(!page)return false;state.messages=page.messages;state.hasOlder=page.hasOlder;state.hasNewer=page.hasNewer;state.messageLimit=page.messages.length;return true;}
+async function openSession(id,{fromSubmit=false}={}) {
+  if(state.submitting&&!fromSubmit)throw new Error('请先停止当前任务，再切换会话。');
+  if(state.current)state.drafts.set(state.current.id,$('#message-input').value);
+  if(state.running&&state.current?.id!==id)throw new Error('请先停止当前任务，再切换会话。');
+  const request=state.sessionOpenGeneration=(state.sessionOpenGeneration||0)+1;
+  const session=await state.store.getSession(id);if(request!==state.sessionOpenGeneration)return;
+  if(!session)throw new Error('未找到这条会话。');
+  const page=await historyWindow().load(id);if(request!==state.sessionOpenGeneration||!page)return;
+  if(state.current?.id!==id)clipboard.clear();state.current=session;applyHistory(page);
+  state.lastError=null;state.pending=null;$('#app').classList.add('in-conversation');$('#session-title').textContent=session.title||t('session.new');$('#session-subtitle').textContent=t('session.savedHere',{mode:modeLabel(session.mode||'chat')});$('#session-menu').hidden=false;$('#mode-select').value=session.mode||'chat';$('#message-input').value=state.drafts.get(id)||'';resizeInput();renderModelOptions();updateModeDescription();renderSessions();renderClipboard();renderMessages();
+}
+async function pageHistory(direction){
+  const region=$('#conversation'),first=[...region.querySelectorAll('[data-message-id]')].find(node=>node.offsetTop+node.offsetHeight>=region.scrollTop),anchor=first?{id:first.dataset.messageId,offset:first.offsetTop-region.scrollTop}:null;
+  const id=state.current?.id,page=await historyWindow().page(direction);if(!page||state.current?.id!==id)return;
+  applyHistory(page);renderMessages({scrollToEnd:false});
+  if(anchor){const node=[...region.querySelectorAll('[data-message-id]')].find(item=>item.dataset.messageId===anchor.id);if(node)region.scrollTop=node.offsetTop-anchor.offset;}
+}
 function welcome() { return `<section class="welcome"><div class="welcome-icon" aria-hidden="true">⌘</div><div class="eyebrow">IPHONE AGENT HARNESS</div><h2>从想法，到手机上的行动。</h2><p>连接你自己的模型。用对话制定计划，借助设备完成操作。会话与 Skills 留在你的浏览器里。</p><div class="welcome-cards"><button class="welcome-card" data-welcome="chat"><span>↗</span><strong>先聊聊你的想法</strong><small>梳理需求，或把目标变成计划</small></button><button class="welcome-card" data-welcome="devices"><span>▣</span><strong>连接你的设备</strong><small>查看输入桥与屏幕共享设置</small></button></div></section>`; }
-function renderMessages() {
-  const region=$('#conversation');
-  region.innerHTML=state.messages.length?(state.hasOlder?'<button id="load-older-messages" class="secondary-button" style="display:block;margin:0 auto 25px">加载较早的消息</button>':'')+state.messages.slice(-state.messageLimit).map(message=>`<article class="message ${escapeHTML(message.role)}"><div class="message-label">${escapeHTML(({user:'你',assistant:'Harness',system:'系统',tool:'操作记录'})[message.role]||message.role)}</div><div class="message-body">${escapeHTML(message.text)}</div></article>`).join(''):welcome();
-  if($('#load-older-messages'))$('#load-older-messages').onclick=guard(async()=>{const height=region.scrollHeight;const older=await state.store.getMessages(state.current.id,{beforeSeq:state.messages[0]?.seq,limit:80,includeImages:false,includeInternal:false});state.hasOlder=older.length===80;state.messages=[...older,...state.messages];state.messageLimit=state.messages.length;renderMessages();region.scrollTop=region.scrollHeight-height;});
-  if(state.pending!==null) { const article=document.createElement('article'); article.className='message assistant pending'; article.innerHTML='<div class="message-label">Harness</div><div class="message-body"></div>'; $('.message-body',article).textContent=state.pending; region.append(article); }
-  if(state.lastError) { const node=document.createElement('div');node.className='error-notice';setLocalizedText(node,()=>localizeError(state.lastError));region.append(node); }
+function renderMessages({scrollToEnd=true}={}) {
+  const region=$('#conversation'),nearEnd=region.scrollHeight-region.scrollTop-region.clientHeight<100;
+  const renderGeneration=state.historyRenderGeneration=(state.historyRenderGeneration||0)+1;state.historyScrollPause=true;requestAnimationFrame(()=>{if(state.historyRenderGeneration===renderGeneration)state.historyScrollPause=false;});
+  const earlier=state.hasOlder?`<button id="load-older-messages" class="secondary-button history-page">${escapeHTML(t('session.older'))}</button>`:'';
+  const later=state.hasNewer?`<button id="load-newer-messages" class="secondary-button history-page">${escapeHTML(t('session.newer'))}</button>`:'';
+  state.historyImages?.destroy();
+  region.innerHTML=state.messages.length?earlier+state.messages.map(message=>`<article data-message-id="${escapeHTML(message.id)}" class="message ${escapeHTML(message.role)}"><div class="message-label">${escapeHTML(message.role==='assistant'?'Harness':t(({user:'session.you',system:'session.system',tool:'session.tool'})[message.role]||'session.system'))}</div><div class="message-body">${escapeHTML(message.text)}</div>${message.textLength>message.text.length?`<div class="message-text-paging"><button class="secondary-button" data-text-page="previous" data-offset="0" hidden>${escapeHTML(t('session.previousText'))}</button><button class="secondary-button" data-text-page="next" data-offset="0">${escapeHTML(t('session.nextText'))}</button></div>`:''}${message.frameRefs?.length?`<div class="message-images">${message.frameRefs.map(ref=>`<img data-frame-ref="${escapeHTML(ref)}" alt="${escapeHTML(t('session.screenshot'))}" decoding="async" style="max-width:100%;height:auto;min-height:80px">`).join('')}</div>`:''}</article>`).join('')+later:welcome();
+  if($('#load-older-messages'))$('#load-older-messages').onclick=guard(()=>pageHistory('older'));
+  if($('#load-newer-messages'))$('#load-newer-messages').onclick=guard(()=>pageHistory('newer'));
+  $$('[data-text-page]',region).forEach(button=>button.onclick=guard(async()=>{const article=button.closest('[data-message-id]'),id=article.dataset.messageId,offset=Math.max(0,Number(button.dataset.offset)+(button.dataset.textPage==='next'?32768:-32768));button.disabled=true;try{const page=await state.store.getMessageText(id,{offset});if(!article.isConnected||!page)return;$('.message-body',article).textContent=page.text;const previous=$('[data-text-page="previous"]',article),next=$('[data-text-page="next"]',article);for(const control of [previous,next])control.dataset.offset=String(offset);previous.hidden=offset===0;next.hidden=offset+page.text.length>=page.textLength;article.scrollIntoView({block:'start'});}finally{button.disabled=false;}}));
+  region.onscroll=()=>{if(!state.historyScrollPause&&region.scrollTop<100&&state.hasOlder&&!state.running)void pageHistory('older').catch(report);};
+  if(state.pending!==null){const article=document.createElement('article');article.className='message assistant pending';article.innerHTML='<div class="message-label">Harness</div><div class="message-body"></div>';$('.message-body',article).textContent=state.pending;region.append(article);}
+  if(state.lastError){const node=document.createElement('div');node.className='error-notice';setLocalizedText(node,()=>localizeError(state.lastError));region.append(node);}
   $$('[data-welcome]').forEach(button=>button.onclick=guard(async()=>{if(button.dataset.welcome==='devices')return showDevices();if(!state.current)await newSession();$('#message-input').focus();}));
-  region.scrollTop=region.scrollHeight;
+  if(scrollToEnd&&(nearEnd||!state.running)&&!state.hasNewer)region.scrollTop=region.scrollHeight;
+  state.historyImages=createHistoryImages({store:state.store,root:region});state.historyImages.mount();
 }
 function setRunning(running) { state.running=running; $('#send-message').hidden=running; $('#stop-run').hidden=!running; $('#mode-select').disabled=running; $('#model-select').disabled=running; $('#run-status').hidden=!running; if(!running)$('#run-status').textContent=''; }
 function onHarnessEvent(event) {
   if(event.internal||event.message?.internal)return;
   if(event.type==='status') { $('#run-status').textContent=({awaiting_model:'正在等待模型回复…',compacting:'正在整理上下文…',executing:'正在处理工具请求…',completed:'本轮已完成',needs_user:'需要补充信息或连接设备',unknown:'操作结果待核对',budget_exhausted:'达到本轮预算，进度已保存',cancelled:'已停止',failed:'本轮未完成'})[event.status]||event.status; }
   if(event.type==='delta') { state.pending=(state.pending||'')+event.text; renderMessages(); }
-  if(event.type==='message' && event.message) { const message=event.message;if(!state.messages.some(existing=>existing.id===message.id))state.messages.push(message);if(message.role==='assistant')state.pending=null;renderMessages(); }
+  if(event.type==='message' && event.message) { const message=event.message;applyHistory(historyWindow().append(message));if(message.role==='assistant')state.pending=null;renderMessages(); }
   if(event.type==='error') { state.lastError=localizeError(event.message);renderMessages(); }
 }
 async function sendMessage(event,textOverride=null,modeOverride=null) {
@@ -151,8 +189,8 @@ async function sendMessage(event,textOverride=null,modeOverride=null) {
   }finally{
     try{
       if(generation!==null&&generation===state.runGeneration){
-        const messages=await state.store.getMessages(sessionId,{limit:80,includeImages:false,includeInternal:false}),session=await state.store.getSession(sessionId);
-        if(generation===state.runGeneration&&state.current?.id===sessionId){state.pending=null;state.messages=messages;state.hasOlder=messages.length===80;state.messageLimit=80;state.current=session;$('#session-title').textContent=session.title;await refreshSessions();renderMessages();}
+        const page=await historyWindow().load(sessionId),session=await state.store.getSession(sessionId);
+        if(generation===state.runGeneration&&state.current?.id===sessionId){state.pending=null;applyHistory(page);state.current=session;$('#session-title').textContent=session.title;await refreshSessions();renderMessages();}
       }
     }finally{if(generation!==null&&generation===state.runGeneration){state.abort=null;setRunning(false);}state.submitting=false;resolveCompletion?.();}
   }
@@ -160,7 +198,7 @@ async function sendMessage(event,textOverride=null,modeOverride=null) {
 
 function renderClipboard(){
   state.clipboardView?.destroy();if(!state.current)return;
-  state.clipboardView=mountClipboardPanel($('#clipboard-panel'),{controller:clipboard,sessionId:state.current.id,continueAfterCopy:true,onCopied:async receipt=>{
+  state.clipboardView=mountClipboardPanel($('#clipboard-panel'),{controller:clipboard,deviceClipboard,sessionId:state.current.id,continueAfterCopy:true,onCopied:async receipt=>{
     try{
       await state.store.addEvent(receipt.sessionId,{type:'clipboard.copied',payload:receipt});
       const completion=state.runCompletion;if(completion)await completion;
@@ -182,8 +220,8 @@ async function showSessionMenu() {
     if(action==='pin')await state.store.updateSession(session.id,{pinned:!session.pinned});
     if(action==='archive')await state.store.updateSession(session.id,{archived:!session.archived});
     if(action==='copy'){await navigator.clipboard.writeText(session.id);toast('会话 ID 已复制。');}
-    if(action==='export'){download(sessionBackupBlob(await state.store.exportSession(session.id)),`session-${session.id}.json`);toast('会话已导出。');}
-    if(action==='delete'){if(!confirm(t('confirm.deleteSession')))return;if(state.running)throw new Error('请先停止任务。');await state.store.deleteSession(session.id);state.drafts.delete(session.id);$('#message-input').value='';resizeInput();state.current=null;state.messages=[];$('#session-menu').hidden=true;$('#session-title').textContent='iPhone Agent Harness';$('#session-subtitle').textContent='';renderMessages();}
+    if(action==='export'){download(await exportSessionFile(state.store,session.id),`session-${session.id}.json`);toast('会话已导出。');}
+    if(action==='delete'){if(!confirm(t('confirm.deleteSession')))return;if(state.running)throw new Error('请先停止任务。');await state.store.deleteSession(session.id);state.drafts.delete(session.id);$('#message-input').value='';resizeInput();state.current=null;historyWindow().clear();state.messages=[];state.hasOlder=false;state.hasNewer=false;$('#session-menu').hidden=true;$('#session-title').textContent='iPhone Agent Harness';$('#session-subtitle').textContent='';renderMessages();}
     await refreshSessions();if(state.current)await openSession(session.id);
   }));$('#action-dialog').showModal();
 }
@@ -202,7 +240,7 @@ async function requestStorageProtection({notify=false}={}) {
 }
 function importSessionFile(){
   if(state.running||state.submitting){toast(t('session.stopBeforeImport'));return;}
-  chooseFile('.json,application/json',async text=>{const session=await state.store.importSession(JSON.parse(text),{titleSuffix:t('session.importSuffix'),fallbackTitle:t('session.importFallback')});await refreshSessions();await openSession(session.id);toast(t('status.sessionImported'));},SESSION_BACKUP_BYTES);
+  const input=$('#file-input');input.value='';input.accept='.json,application/json';input.onchange=guard(async()=>{const file=input.files[0];if(!file)return;const session=await restoreSessionFile(state.store,file,{titleSuffix:t('session.importSuffix'),fallbackTitle:t('session.importFallback')});await refreshSessions();await openSession(session.id);toast(t('status.sessionImported'));});input.click();
 }
 function panelBack(action){
   const header=$('.panel-header');header.insertAdjacentHTML('afterbegin',`<button type="button" id="panel-back" class="icon-button" aria-label="${escapeHTML(t('common.back'))}">‹</button>`);$('#panel-back').onclick=guard(action);
@@ -599,7 +637,7 @@ async function boot() {
   $('#panel-dialog').addEventListener('close',()=>{state.panelGeneration=(state.panelGeneration||0)+1;state.devicePanel?.dispose();discardProviderDraft();state.codexAbort?.abort();state.modelsAbort?.abort();state.mcpPanel?.disposeView();});
   $$('dialog').forEach(dialog=>dialog.addEventListener('close',()=>{if(dialog.contains(toastNode))hideToast(toastNode);}));
   $$('dialog').forEach(dialog=>dialog.addEventListener('click',event=>{if(event.target===dialog){const rect=dialog.getBoundingClientRect();if(event.clientX<rect.left||event.clientX>rect.right||event.clientY<rect.top||event.clientY>rect.bottom)dialog.close();}}));
-  const resizeViewport=()=>{const view=window.visualViewport;if(!view||view.scale!==1)return;document.documentElement.style.setProperty('--viewport-height',view.height+'px');document.documentElement.style.setProperty('--viewport-top',view.offsetTop+'px');document.body.classList.toggle('keyboard-visible',view.height<window.innerHeight-120);};window.visualViewport?.addEventListener('resize',resizeViewport);window.visualViewport?.addEventListener('scroll',resizeViewport);resizeViewport();
+  mountViewport();
   renderDeviceStatus();renderModelOptions();renderMessages();await refreshSessions();$('#app').inert=false;localizeView();renderPlatform();
   const params=new URLSearchParams(location.search);const sessionId=params.get('session');if(sessionId)await openSession(sessionId);if(pendingDeviceSetup)await showDevices();
 }

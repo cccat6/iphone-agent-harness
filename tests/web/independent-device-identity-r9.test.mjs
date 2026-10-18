@@ -21,7 +21,7 @@ function panelFixture(t,store,clientFactory){
  const root={isConnected:true,querySelector:field,querySelectorAll:()=>[],closest:()=>null};
  const holder={querySelector:()=>root,contains:element=>element===root};
  patch(t,'document',{documentElement:{},querySelector:()=>({}),createElement:()=>({}),head:{append(){}}});
- const panel=createDevicePanel({store,clientFactory,capture:{active:false},openPanel(){},getPanelRoot:()=>holder});
+ const panel=createDevicePanel({store,clientFactory,bridgeFactory:()=>({open:async()=>{},close(){}}),capture:{active:false},openPanel(){},getPanelRoot:()=>holder});
  const fill=()=>{field('[data-address]').value=endpoint;field('[data-fingerprint]').value=fingerprint;field('[data-pin-confirmed]').checked=true;};
  t.after(()=>panel.dispose());return {panel,field,fill};
 }

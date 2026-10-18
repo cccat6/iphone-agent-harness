@@ -1,4 +1,5 @@
 import {abortable,checkAbort} from './control.js';
+import {validateRTCConfiguration} from './device-rtc.js';
 import {readText,readBytes} from './http.js';
 // Flashing is reachable only through an explicit user click. No auto-port probing.
 const fail=(code,message)=>Object.assign(new Error(message),{code});
@@ -57,7 +58,7 @@ export function parseDeviceSetupLine(line,{profile=false}={}){
   if(profile){if(value.format!=='iah-profile/1'||!(value.publicKeyFingerprint===null||typeof value.publicKeyFingerprint==='string'&&/^[a-f0-9]{64}$/i.test(value.publicKeyFingerprint))||(value.mobileconfig!==null&&(typeof value.mobileconfig!=='string'||value.mobileconfig.length>60000)))throw fail('flash_setup_invalid','Invalid certificate profile response');return value;}
   if(value.format!=='iah-setup/1'||typeof value.boardId!=='string'||!value.boardId||typeof value.hostname!=='string'||!/^[-a-z0-9]+\.local$/i.test(value.hostname)||typeof value.apSsid!=='string'||new TextEncoder().encode(value.apSsid).length>32||typeof value.apPassword!=='string'||value.apPassword.length<8||value.apPassword.length>63||typeof value.caReady!=='boolean')throw fail('flash_setup_invalid','Invalid USB setup fields');
   let url;try{url=new URL(value.httpUrl||value.httpsUrl);}catch{throw fail('flash_setup_invalid','Invalid controller address');}if(!['https:','http:'].includes(url.protocol)||url.pathname!=='/'||url.search||url.hash||url.hostname!==value.hostname.toLowerCase()||url.username||url.password)throw fail('flash_setup_invalid','Invalid controller address');
-  if(value.caReady&&!/^[a-f0-9]{64}$/i.test(value.publicKeyFingerprint||''))throw fail('flash_setup_invalid','Missing controller fingerprint');const {setupPassword,owner,...information}=value;return information;
+  if(value.caReady&&!/^[a-f0-9]{64}$/i.test(value.publicKeyFingerprint||''))throw fail('flash_setup_invalid','Missing controller fingerprint');const {setupPassword,owner,...information}=value;if(value.rtc){try{information.rtc=validateRTCConfiguration(value.rtc,{fallbackHost:value.hostname});}catch{throw fail('flash_setup_invalid','Invalid device RTC configuration');}}return information;
 }
 export async function readDeviceSetup({port,profile=false,serial=globalThis.navigator?.serial,signal,timeoutMs=10000}={}){
   if(flashing||serialReading)throw fail('flash_busy','Firmware operation is already running');if(!port&&!serial?.requestPort)throw fail('flash_unsupported','Web Serial is unavailable');

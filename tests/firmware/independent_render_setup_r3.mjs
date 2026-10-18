@@ -6,7 +6,7 @@ const scripts=Object.fromEntries(['helper','setup'].map(name=>[name,fs.readFileS
 function environment(languages=['en'],hash=''){
  const nodes=new Map();
  const node=selector=>{if(!nodes.has(selector))nodes.set(selector,{hidden:true,disabled:false,textContent:'',querySelector:s=>node(selector+' '+s)});return nodes.get(selector);};
- const context={navigator:{languages},location:{hash,pathname:'/harness-link'},history:{replaceState(){}},window:{opener:{postMessage(){},focus(){}}},document:{documentElement:{},querySelector:node,addEventListener(){}},crypto:webcrypto,URLSearchParams,TextEncoder,TextDecoder,Uint8Array,AbortController,setTimeout,clearTimeout,addEventListener(){},console};
+ const context={navigator:{languages},location:{hash,pathname:'/harness-link'},history:{replaceState(){}},window:{opener:{postMessage(){},focus(){}}},document:{documentElement:{},querySelector:node,addEventListener(){}},crypto:webcrypto,URL,URLSearchParams,TextEncoder,TextDecoder,Uint8Array,AbortController,setTimeout,clearTimeout,addEventListener(){},console};
  vm.createContext(context);return {context,node};
 }
 for(const [languages,expected] of [[['zh-TW'],'zh-Hant'],[['zh_HK'],'zh-Hant'],[['zh-CN'],'zh-Hans'],[['xx','de-AT'],'de'],[['xx'],'en'],[['fr-CA'],'fr']])for(const script of Object.values(scripts)){

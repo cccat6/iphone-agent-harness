@@ -2,12 +2,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import vm from 'node:vm';
+import {createHistoryWindow} from '../../apps/web/core/history-window.js';
 const app=await readFile(new URL('../../apps/web/app.js',import.meta.url),'utf8');
 function fixture(existing){
  const calls=[],nodes=new Map();
  const $=selector=>{if(!nodes.has(selector))nodes.set(selector,{value:selector==='#message-input'?'Can you explain this?':selector==='#mode-select'?'chat':'provider',textContent:'',hidden:false});return nodes.get(selector);};
  const state={current:existing?{id:'s',mode:'chat'}:null,drafts:new Map(),runGeneration:0,devicePanel:{ensureReady:async()=>false},store:{updateSession:async()=>{},getMessages:async()=>[],getSession:async()=>({id:'s',title:'S'})},harness:{run:async x=>calls.push(x)}};
- const sandbox={state,$,getBrowserCompatibility:()=>({supportedForHarness:true}),selectedProvider:()=>({id:'provider'}),showDevices:async()=>calls.push('devices'),toast:()=>{},t:x=>x,setRunning:value=>{state.running=value;},AbortController,resizeInput(){},refreshSessions:async()=>{},renderMessages(){},report:error=>{throw error;}};
+ const sandbox={createHistoryWindow,state,$,getBrowserCompatibility:()=>({supportedForHarness:true}),selectedProvider:()=>({id:'provider'}),showDevices:async()=>calls.push('devices'),toast:()=>{},t:x=>x,setRunning:value=>{state.running=value;},AbortController,resizeInput(){},refreshSessions:async()=>{},renderMessages(){},report:error=>{throw error;}};
+ vm.runInNewContext(app.slice(app.indexOf('function historyWindow()'),app.indexOf('async function openSession(')),sandbox);
  vm.runInNewContext(app.slice(app.indexOf('async function sendMessage('),app.indexOf('function renderClipboard()')),sandbox);
  return {state,calls,send:()=>sandbox.sendMessage({preventDefault(){}})};
 }

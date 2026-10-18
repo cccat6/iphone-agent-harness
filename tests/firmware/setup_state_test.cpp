@@ -14,6 +14,10 @@ int main(){
  assert(certificateTimeValid("20261018000000","20261018000001","20261018000000"));assert(certificateTimeValid("20261018000000","20261018000001","20261018000001"));
  assert(!certificateTimeValid("bad","20261018000001","20261018000000"));
 
+ SavedNetworkRetry retry;
+ assert(!retry.due(true,false,0));assert(!retry.due(true,false,14999));assert(retry.due(true,false,15000));assert(!retry.due(true,false,15001));assert(retry.due(true,false,30000));assert(retry.due(true,false,45000));assert(!retry.due(true,false,100000));
+ assert(!retry.due(true,true,100001));assert(!retry.due(true,false,100002));assert(retry.due(true,false,115002));
+ assert(!retry.due(false,false,115003));assert(!retry.due(false,false,200000));assert(!retry.due(true,false,200001));assert(retry.due(true,false,215001));
  WifiJoinState join;
  // Existing association cannot be mistaken for the just-submitted candidate.
  join.begin(100,7);assert(join.poll(true,true,true,7,101)==WifiJoinState::Decision::None);assert(!join.canFinish(true,true,true));

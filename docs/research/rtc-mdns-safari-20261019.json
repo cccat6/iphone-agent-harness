@@ -1,0 +1,15 @@
+{
+  "startedAt": "2026-10-18T21:06:17.967Z",
+  "phoneInputSent": false,
+  "rows": [
+    {
+      "test": "failure",
+      "passed": false,
+      "code": "DEVICE_RTC_CONNECT_TIMEOUT",
+      "message": "DEVICE_RTC_CONNECT_TIMEOUT"
+    }
+  ],
+  "passed": false,
+  "scope": "Safari macOS RTC host candidate igent.local timed out; HTTP mDNS resolution independently succeeded. Use same-tab HTTP settings import of numeric RTC address.",
+  "host": "igent.local"
+}

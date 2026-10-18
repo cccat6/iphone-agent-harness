@@ -11,6 +11,19 @@ class SetupDeadline {
  bool due(bool active,uint64_t now)const{return active&&at_&&now>=at_;}
  void closed(){at_=0;}
 };
+// A bounded restart recovers an association attempt stuck during BLE startup.
+// Explicit provisioning owns the radio while it is joining a candidate network.
+class SavedNetworkRetry {
+ uint64_t next_=0;unsigned attempts_=0;
+ public:
+ bool due(bool eligible,bool connected,uint64_t now){
+  if(connected||!eligible){next_=0;attempts_=0;return false;}
+  if(attempts_>=3)return false;
+  if(!next_){next_=now+15000;return false;}
+  if(now<next_)return false;
+  next_=now+15000;++attempts_;return true;
+ }
+};
 // Candidate Wi-Fi is not saved until a fresh GOT_IP event confirms this attempt.
 class WifiJoinState {
  public: enum class Phase {Idle,Joining,Committing,Connected,Failed};enum class Decision {None,Commit,Fail};

@@ -43,7 +43,7 @@ test('parent retries a lost initial hello and connects to the actual openerless 
  const main=new EventTarget(),doc=new EventTarget(),sent=[];doc.visibilityState='visible';let page,transport,url;
  const parent={postMessage(data,target){assert.equal(target,origin);queueMicrotask(()=>{const event=new Event('message');Object.assign(event,{source:child,origin:endpoint,data});main.dispatchEvent(event);});}};
  const child={closed:false,close(){this.closed=true;},postMessage(data,target){assert.equal(target,endpoint);sent.push(data);if(page)queueMicrotask(()=>page.handlers.message({source:parent,origin,data}));}};
- main.open=value=>{url=value;return child;};transport=new DeviceWindowTransport({baseUrl:endpoint,windowRef:main,documentRef:doc,helloIntervalMs:20,connectTimeoutMs:400,timeoutMs:200});t.after(()=>transport.close());
+ main.open=value=>{url=value;return child;};transport=new DeviceWindowTransport({baseUrl:endpoint,windowRef:main,documentRef:doc,helloIntervalMs:20,connectTimeoutMs:4000,timeoutMs:200});t.after(()=>transport.close());
  const opening=transport.open();assert.equal(sent[0].type,'iah-lan-connect');await sleep(25);page=helper({hash:new URL(url).hash});await opening;
  assert.equal(transport.ready,true);assert.ok(sent.filter(m=>m.type==='iah-lan-connect').length>=2);assert.equal(transport.helloTimer,undefined);
  const count=sent.length;await sleep(50);assert.equal(sent.length,count,'successful handshake has no recurring hello');

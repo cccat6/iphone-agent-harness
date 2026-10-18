@@ -36,6 +36,7 @@ async function loadConfiguration(){
  if(hash.has('config')){const encoded=hash.get('config');if(!encoded||encoded.length>2048||!/^[A-Za-z0-9_-]+$/.test(encoded))throw Error('配置片段无效');value=JSON.parse(atob(encoded.replaceAll('-','+').replaceAll('_','/')));}
  else if(hash.has('ip'))value={version:1,ip:hash.get('ip'),port:Number(hash.get('port')),fingerprint:hash.get('fingerprint')};
  else{const requested=new URLSearchParams(location.search).get('config')||'./rtc-direct-config.json',url=new URL(requested,location.href);if(url.origin!==location.origin||url.username||url.password||url.hash)throw Error('配置只能来自本站');const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),8000);try{const response=await fetch(url,{credentials:'omit',cache:'no-store',redirect:'error',signal:controller.signal});if(!response.ok)throw Error('测试配置尚未就绪');const text=await response.text();if(text.length>8192)throw Error('测试配置过大');value=JSON.parse(text);}finally{clearTimeout(timer);}}
+ if(value?.retired===true){config=null;report.configuration={retired:true};$('#endpoint').textContent='原型测试已结束，正式 C3 已使用新的控制协议。';state('请返回 Harness 连接 ESP32 桥。');controls();show();return;}
  config=validateDirectConfig(value);report.configuration=config;$('#endpoint').textContent=(typeof value.label==='string'?value.label.slice(0,80):'局域网测试端')+'：'+config.ip+':'+config.port+'（UDP）';state(typeof RTCPeerConnection==='undefined'?'此浏览器没有 WebRTC 接口。':'配置已就绪。');controls();
 }
 loadConfiguration().catch(error=>{state(error.message,'fail');controls();});show();controls();

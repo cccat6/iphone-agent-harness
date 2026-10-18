@@ -36,15 +36,19 @@ jobs:
       - run: npm ci
       - run: python3 -m pip install jsonschema==4.25.1
       - name: Web and contract checks
+        env:
+          CXX: clang++
         run: |
           npm test
           python3 tools/validate_design_specs.py
-          ./tests/firmware/run.sh
+          python3 tools/fetch_test_headers.py
+          ARDUINOJSON_INCLUDE=build/test-headers ./tests/firmware/run.sh
           IAH_R7_CANCEL_POSITION_REPRO=1 python3 tests/firmware/independent_router_r7.py
           python3 tests/firmware/independent_router_r8.py
-          python3 tools/fetch_test_headers.py
           ./tests/firmware/run_canonical.sh build/test-headers
           ./tests/firmware/run_html_render.sh build/test-headers
+          ARDUINOJSON_INCLUDE=build/test-headers sh tests/firmware/rtc/run.sh
+          python3 tools/verify_rtc_tls_link_test.py
           python3 tools/build_firmware_test.py
           python3 tools/firmware_release_test.py
       - name: Reuse firmware for unchanged sources and build configuration

@@ -18,7 +18,7 @@ else
   c++ -std=c++17 -Wall -Wextra -Werror -pedantic "$@" "$source_path" -o "$binary_path"
 fi
 }
-for source_path in "$project_root/tests/firmware/core_test.cpp" "$project_root/tests/firmware/admission_test.cpp"; do
+for source_path in "$project_root/tests/firmware/core_test.cpp" "$project_root/tests/firmware/admission_test.cpp" "$project_root/tests/firmware/clipboard_mailbox_test.cpp"; do
   compile_test "$source_path"
   "$binary_path"
 done
@@ -40,3 +40,11 @@ python3 "$project_root/tests/firmware/ble_router_test.py"
 
 python3 "$project_root/tests/firmware/ble_pairing_test.py"
 python3 "$project_root/tests/firmware/ble_bond_lifecycle_test.py"
+python3 "$project_root/tests/firmware/clipboard_shortcut_test.py"
+
+# RTC JSON parsing uses the production strict reader and pinned ArduinoJson.
+json_include=${ARDUINOJSON_INCLUDE:-"$HOME/Documents/Arduino/libraries/ArduinoJson/src"}
+compile_test "$project_root/tests/firmware/strict_json_test.cpp" -I "$json_include"
+"$binary_path"
+compile_test "$project_root/tests/firmware/clipboard_wire_test.cpp" -I "$json_include"
+"$binary_path"

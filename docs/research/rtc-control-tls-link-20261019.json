@@ -1,0 +1,16 @@
+{
+  "recordContentBytes": 2048,
+  "tlsUnitsCompiled": 20,
+  "sdkTlsMembers": [],
+  "verifiedLiveSymbols": [
+    "mbedtls_ssl_setup",
+    "mbedtls_ssl_handshake",
+    "mbedtls_ssl_session_reset",
+    "mbedtls_ssl_read",
+    "mbedtls_ssl_write",
+    "mbedtls_ssl_cookie_check",
+    "mbedtls_ssl_handshake_server_step",
+    "mbedtls_ssl_handshake_client_step"
+  ],
+  "linkMapSha256": "7395fee50e134d7e5f08bcffbe901cb798a0df56b28f4146504caad9b5fdc45f"
+}

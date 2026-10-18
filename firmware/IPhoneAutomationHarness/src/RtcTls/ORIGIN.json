@@ -1,0 +1,514 @@
+{
+  "mbedtlsRepository": "https://github.com/espressif/mbedtls",
+  "mbedtlsCommit": "9d669eadb1955d348986b9280156710aaaadf79f",
+  "espIdfRepository": "https://github.com/espressif/esp-idf",
+  "espIdfTag": "v5.5.5",
+  "espIdfCommit": "b774170ff46c393eeb5e495ea37936038d3f4f4f",
+  "licenseChoice": "Apache-2.0",
+  "sourceFiles": {
+    "aesce.h": {
+      "origin": "library/aesce.h",
+      "upstreamSha256": "554a363178d24668d52a8036ecd403b43aa43ca02748fec168fea4079da6cf28",
+      "localSha256": "554a363178d24668d52a8036ecd403b43aa43ca02748fec168fea4079da6cf28",
+      "patch": "none"
+    },
+    "aesni.h": {
+      "origin": "library/aesni.h",
+      "upstreamSha256": "43dfab1deb659d5e3da152fdc6341c354a93135010bd27eae696d5b1a3d311d6",
+      "localSha256": "43dfab1deb659d5e3da152fdc6341c354a93135010bd27eae696d5b1a3d311d6",
+      "patch": "none"
+    },
+    "alignment.h": {
+      "origin": "library/alignment.h",
+      "upstreamSha256": "76979a482c57089aecd8c2370474f19ce983fe9dad2e99925a1645364b44d0a1",
+      "localSha256": "76979a482c57089aecd8c2370474f19ce983fe9dad2e99925a1645364b44d0a1",
+      "patch": "none"
+    },
+    "base64_internal.h": {
+      "origin": "library/base64_internal.h",
+      "upstreamSha256": "a6d1c16c6e57eaf9a20266c28e57a4ac55db69179e34f355fa2aed5196344587",
+      "localSha256": "a6d1c16c6e57eaf9a20266c28e57a4ac55db69179e34f355fa2aed5196344587",
+      "patch": "none"
+    },
+    "bignum_core.h": {
+      "origin": "library/bignum_core.h",
+      "upstreamSha256": "dfb4e8d91439c695175848c341ac0993797942a959598dfdbff3d05087823864",
+      "localSha256": "dfb4e8d91439c695175848c341ac0993797942a959598dfdbff3d05087823864",
+      "patch": "none"
+    },
+    "bignum_core_invasive.h": {
+      "origin": "library/bignum_core_invasive.h",
+      "upstreamSha256": "502ecdb0e785711a5a0cd9a318e9868501856fbff9f4a9a65c051964dba8b215",
+      "localSha256": "502ecdb0e785711a5a0cd9a318e9868501856fbff9f4a9a65c051964dba8b215",
+      "patch": "none"
+    },
+    "bignum_internal.h": {
+      "origin": "library/bignum_internal.h",
+      "upstreamSha256": "4eba771567115b06edb44e2ac5ad1cdad9be7baab568942beb7a6a62ef23847f",
+      "localSha256": "4eba771567115b06edb44e2ac5ad1cdad9be7baab568942beb7a6a62ef23847f",
+      "patch": "none"
+    },
+    "bignum_mod.h": {
+      "origin": "library/bignum_mod.h",
+      "upstreamSha256": "734a0ba272bc72ddfae51cc677258e6ef8e8cfcd65b6925cf78f2fea59ae996f",
+      "localSha256": "734a0ba272bc72ddfae51cc677258e6ef8e8cfcd65b6925cf78f2fea59ae996f",
+      "patch": "none"
+    },
+    "bignum_mod_raw.h": {
+      "origin": "library/bignum_mod_raw.h",
+      "upstreamSha256": "6aab39228a6108d0be8916f89ca87576a4cab3133aa4208114fd15b6bf0356c3",
+      "localSha256": "6aab39228a6108d0be8916f89ca87576a4cab3133aa4208114fd15b6bf0356c3",
+      "patch": "none"
+    },
+    "bignum_mod_raw_invasive.h": {
+      "origin": "library/bignum_mod_raw_invasive.h",
+      "upstreamSha256": "117aa1edde39685fdd9ed64ccbb550a47578b7124cc52a929e6ed3c1c2f43c55",
+      "localSha256": "117aa1edde39685fdd9ed64ccbb550a47578b7124cc52a929e6ed3c1c2f43c55",
+      "patch": "none"
+    },
+    "block_cipher_internal.h": {
+      "origin": "library/block_cipher_internal.h",
+      "upstreamSha256": "cfaf450de93abf79ae6efc3b66f2c97e4389730f48b50abd323929a0e4ce30aa",
+      "localSha256": "cfaf450de93abf79ae6efc3b66f2c97e4389730f48b50abd323929a0e4ce30aa",
+      "patch": "none"
+    },
+    "bn_mul.h": {
+      "origin": "library/bn_mul.h",
+      "upstreamSha256": "245587dbae16540f6109d0e670f544d1a3c512edc3c463541a0d02ccb512aa10",
+      "localSha256": "245587dbae16540f6109d0e670f544d1a3c512edc3c463541a0d02ccb512aa10",
+      "patch": "none"
+    },
+    "check_crypto_config.h": {
+      "origin": "library/check_crypto_config.h",
+      "upstreamSha256": "880f5c95273e75f8c83abf972eb640c31596236f5dcac4aa3fe3caadf65bd068",
+      "localSha256": "880f5c95273e75f8c83abf972eb640c31596236f5dcac4aa3fe3caadf65bd068",
+      "patch": "none"
+    },
+    "cipher_invasive.h": {
+      "origin": "library/cipher_invasive.h",
+      "upstreamSha256": "341de23dfc22eccdd51201042ee6872de82bcaec96a650e5ae5100aba72caa6b",
+      "localSha256": "341de23dfc22eccdd51201042ee6872de82bcaec96a650e5ae5100aba72caa6b",
+      "patch": "none"
+    },
+    "cipher_wrap.h": {
+      "origin": "library/cipher_wrap.h",
+      "upstreamSha256": "a3741799bff6784116725db4204e75bb645191ea7f87a94ff2cae0b2dc565ff6",
+      "localSha256": "a3741799bff6784116725db4204e75bb645191ea7f87a94ff2cae0b2dc565ff6",
+      "patch": "none"
+    },
+    "common.h": {
+      "origin": "library/common.h",
+      "upstreamSha256": "adfd493f8ecb11f87f7e75f270a97cbd05d1902345ef32db51d39c076e4f8fde",
+      "localSha256": "adfd493f8ecb11f87f7e75f270a97cbd05d1902345ef32db51d39c076e4f8fde",
+      "patch": "none"
+    },
+    "constant_time_impl.h": {
+      "origin": "library/constant_time_impl.h",
+      "upstreamSha256": "5afbdaa93eaa2c750c4f3f2d0338409d8e15845823f870a39744d1cc197b4e60",
+      "localSha256": "5afbdaa93eaa2c750c4f3f2d0338409d8e15845823f870a39744d1cc197b4e60",
+      "patch": "none"
+    },
+    "constant_time_internal.h": {
+      "origin": "library/constant_time_internal.h",
+      "upstreamSha256": "cb5acff773c6129b5dcc29052dc927d9aa474a2e6b7f7e27e5fac0e7d7023463",
+      "localSha256": "cb5acff773c6129b5dcc29052dc927d9aa474a2e6b7f7e27e5fac0e7d7023463",
+      "patch": "none"
+    },
+    "ctr.h": {
+      "origin": "library/ctr.h",
+      "upstreamSha256": "63331eb36d8ea69b4b4dcd2ec059582bcabf51a8ea891db26d37ab033967789f",
+      "localSha256": "63331eb36d8ea69b4b4dcd2ec059582bcabf51a8ea891db26d37ab033967789f",
+      "patch": "none"
+    },
+    "debug.c": {
+      "origin": "library/debug.c",
+      "upstreamSha256": "1d7199ee90602fbd87e682ab40b87f1d1de2f4a269cd0c5c463bdf4c97d8aecd",
+      "localSha256": "9850f9d25a9a32ed76e81a4a6e46ba1b67240f94e0aa4e78e5559f3bad06fe2c",
+      "patch": "prepend RtcTlsConfig.h"
+    },
+    "debug_internal.h": {
+      "origin": "library/debug_internal.h",
+      "upstreamSha256": "281f30a42928aed6866a47454e8487921809b27ff396cec4e9d472a3f1e4f387",
+      "localSha256": "281f30a42928aed6866a47454e8487921809b27ff396cec4e9d472a3f1e4f387",
+      "patch": "none"
+    },
+    "ecp_internal_alt.h": {
+      "origin": "library/ecp_internal_alt.h",
+      "upstreamSha256": "f6d3594e9e3cab0d3d79bb9c3b054ac2558559ba6456299b6b230b0718c5abda",
+      "localSha256": "f6d3594e9e3cab0d3d79bb9c3b054ac2558559ba6456299b6b230b0718c5abda",
+      "patch": "none"
+    },
+    "ecp_invasive.h": {
+      "origin": "library/ecp_invasive.h",
+      "upstreamSha256": "0339f77b866fbc4ed3431fcf32f751b85d0b82a14e752597d2b648d3fdc8de15",
+      "localSha256": "0339f77b866fbc4ed3431fcf32f751b85d0b82a14e752597d2b648d3fdc8de15",
+      "patch": "none"
+    },
+    "entropy_poll.h": {
+      "origin": "library/entropy_poll.h",
+      "upstreamSha256": "0a31c6cf0e23be40374c4204143625b61710d95777b63e8644aec527cb1d0443",
+      "localSha256": "0a31c6cf0e23be40374c4204143625b61710d95777b63e8644aec527cb1d0443",
+      "patch": "none"
+    },
+    "esp_platform_time.c": {
+      "origin": "components/mbedtls/port/esp_platform_time.c",
+      "upstreamSha256": "fa464318a72cef8fff011dcd0fa9f9b21d2464fa088822e6b68c07ce03645aa6",
+      "localSha256": "dce8aaaf72a0905da5d62bac19b96187f7966c7228d584c152d164571f428e3b",
+      "patch": "prepend RtcTlsConfig.h"
+    },
+    "lmots.h": {
+      "origin": "library/lmots.h",
+      "upstreamSha256": "b99b298ffb0bf7a8a0e9d9d67db5f3784bf72fde98445d97826345e8e3e34e6b",
+      "localSha256": "b99b298ffb0bf7a8a0e9d9d67db5f3784bf72fde98445d97826345e8e3e34e6b",
+      "patch": "none"
+    },
+    "mbedtls_debug.c": {
+      "origin": "components/mbedtls/port/mbedtls_debug.c",
+      "upstreamSha256": "238d9801496f7dd6368a7f402f164afc0369025f800e98341f9c0f0ddda3c828",
+      "localSha256": "227f6986d24ebe1c43d9bbac514c3f31cd3b2c7ff55521c88a2f650435d9583c",
+      "patch": "prepend RtcTlsConfig.h"
+    },
+    "md_psa.h": {
+      "origin": "library/md_psa.h",
+      "upstreamSha256": "f0e399c9efe9b4a79b67da247945fb54407b2aaa3bc2a60c38c3472fb54751ab",
+      "localSha256": "f0e399c9efe9b4a79b67da247945fb54407b2aaa3bc2a60c38c3472fb54751ab",
+      "patch": "none"
+    },
+    "md_wrap.h": {
+      "origin": "library/md_wrap.h",
+      "upstreamSha256": "383077e483c60893f8256db246a7bd1fb1fc30bc7dd8e15133d2cb16b9dc5c82",
+      "localSha256": "383077e483c60893f8256db246a7bd1fb1fc30bc7dd8e15133d2cb16b9dc5c82",
+      "patch": "none"
+    },
+    "mps_common.h": {
+      "origin": "library/mps_common.h",
+      "upstreamSha256": "3dfffd9855b73ebfdd08ee764f24e8eb09f5a1e3a0333f1e8e23d33ae81328aa",
+      "localSha256": "3dfffd9855b73ebfdd08ee764f24e8eb09f5a1e3a0333f1e8e23d33ae81328aa",
+      "patch": "none"
+    },
+    "mps_error.h": {
+      "origin": "library/mps_error.h",
+      "upstreamSha256": "bdf857247917b234f0264500345f8a3025a2dfdb85c726c0480f4973bea4bd4a",
+      "localSha256": "bdf857247917b234f0264500345f8a3025a2dfdb85c726c0480f4973bea4bd4a",
+      "patch": "none"
+    },
+    "mps_reader.c": {
+      "origin": "library/mps_reader.c",
+      "upstreamSha256": "b54dd060387dd4e01b993b3d579c64f36b125c8ab694f686aa727be8673266fd",
+      "localSha256": "f9ff7c00c2d93571b917f6a4f0c0cd37c892de32c43721701558e42426dd9340",
+      "patch": "prepend RtcTlsConfig.h"
+    },
+    "mps_reader.h": {
+      "origin": "library/mps_reader.h",
+      "upstreamSha256": "5210c86b7808831d74d2a8425efab2b7286d4fedcaafbed6354e1311b2046bdd",
+      "localSha256": "5210c86b7808831d74d2a8425efab2b7286d4fedcaafbed6354e1311b2046bdd",
+      "patch": "none"
+    },
+    "mps_trace.c": {
+      "origin": "library/mps_trace.c",
+      "upstreamSha256": "c66424d20cb5371e6881eac9943252b74b13ba45d59a0e3485c27c3231ca7e7a",
+      "localSha256": "f934cef1907bc78faa73ad2f0f9ece085a135ccddf3269e6c3984ca2d3297528",
+      "patch": "prepend RtcTlsConfig.h"
+    },
+    "mps_trace.h": {
+      "origin": "library/mps_trace.h",
+      "upstreamSha256": "a3f50e5620a829ac8781db1cf82c019609a4e210e1a8e5960295d926aa273051",
+      "localSha256": "a3f50e5620a829ac8781db1cf82c019609a4e210e1a8e5960295d926aa273051",
+      "patch": "none"
+    },
+    "net_sockets.c": {
+      "origin": "components/mbedtls/port/net_sockets.c",
+      "upstreamSha256": "d015844989a31b72044da5f9469198b798b498b528472b6c4db211e8300a94c0",
+      "localSha256": "fd09bed5ad785d4b672447dd7e7a15acb5b198e2d5deb75fedce9392ca33a05e",
+      "patch": "prepend RtcTlsConfig.h"
+    },
+    "padlock.h": {
+      "origin": "library/padlock.h",
+      "upstreamSha256": "31a39d0a3d6d8b569ab20e1f5e0b6cc576c2997f0b7f2d4b175586963199fd5f",
+      "localSha256": "31a39d0a3d6d8b569ab20e1f5e0b6cc576c2997f0b7f2d4b175586963199fd5f",
+      "patch": "none"
+    },
+    "pk_internal.h": {
+      "origin": "library/pk_internal.h",
+      "upstreamSha256": "53eb8041def4909442a539ffbf8e3464cd453df2dc0d4cb0d5b5d0367ac33f44",
+      "localSha256": "53eb8041def4909442a539ffbf8e3464cd453df2dc0d4cb0d5b5d0367ac33f44",
+      "patch": "none"
+    },
+    "pk_wrap.h": {
+      "origin": "library/pk_wrap.h",
+      "upstreamSha256": "4e5a90f444c6296aa4cf5cca9375c10be84fdcdc7bccc1d93d2a054d1019e0cf",
+      "localSha256": "4e5a90f444c6296aa4cf5cca9375c10be84fdcdc7bccc1d93d2a054d1019e0cf",
+      "patch": "none"
+    },
+    "pkwrite.h": {
+      "origin": "library/pkwrite.h",
+      "upstreamSha256": "bb9f55bbd5707ecb7fb8e52103148289ef6d118b6a46f433f3df10251d35dc1f",
+      "localSha256": "bb9f55bbd5707ecb7fb8e52103148289ef6d118b6a46f433f3df10251d35dc1f",
+      "patch": "none"
+    },
+    "psa_crypto_aead.h": {
+      "origin": "library/psa_crypto_aead.h",
+      "upstreamSha256": "b5edd072d6ca8a54319940a2918c84bbc6f9e0f096c037d5f21f3c7d0f55fc1e",
+      "localSha256": "b5edd072d6ca8a54319940a2918c84bbc6f9e0f096c037d5f21f3c7d0f55fc1e",
+      "patch": "none"
+    },
+    "psa_crypto_cipher.h": {
+      "origin": "library/psa_crypto_cipher.h",
+      "upstreamSha256": "2db07a79c66da2a951227a714fb0f5391f64c740a6d210bb1af5b5e454cb65df",
+      "localSha256": "2db07a79c66da2a951227a714fb0f5391f64c740a6d210bb1af5b5e454cb65df",
+      "patch": "none"
+    },
+    "psa_crypto_core.h": {
+      "origin": "library/psa_crypto_core.h",
+      "upstreamSha256": "730395ed9213ede4a9b821a78f5f7f22bc1416fb51f5b5300cbb1f3658eac14a",
+      "localSha256": "730395ed9213ede4a9b821a78f5f7f22bc1416fb51f5b5300cbb1f3658eac14a",
+      "patch": "none"
+    },
+    "psa_crypto_core_common.h": {
+      "origin": "library/psa_crypto_core_common.h",
+      "upstreamSha256": "c57b2c11636815f8482158f7b82b6ea3448f676278526a0a71b266b5535460e9",
+      "localSha256": "c57b2c11636815f8482158f7b82b6ea3448f676278526a0a71b266b5535460e9",
+      "patch": "none"
+    },
+    "psa_crypto_driver_wrappers.h": {
+      "origin": "library/psa_crypto_driver_wrappers.h",
+      "upstreamSha256": "3dcacf15533857e5a9f41d674bf7125e4896c0855ecabfe1d051a77e61f156f5",
+      "localSha256": "3dcacf15533857e5a9f41d674bf7125e4896c0855ecabfe1d051a77e61f156f5",
+      "patch": "none"
+    },
+    "psa_crypto_driver_wrappers_no_static.h": {
+      "origin": "library/psa_crypto_driver_wrappers_no_static.h",
+      "upstreamSha256": "9f55a031408bcd97e495d9fbb17d7dea99ca61081fd089ff8c3133cf8f2b7d7d",
+      "localSha256": "9f55a031408bcd97e495d9fbb17d7dea99ca61081fd089ff8c3133cf8f2b7d7d",
+      "patch": "none"
+    },
+    "psa_crypto_ecp.h": {
+      "origin": "library/psa_crypto_ecp.h",
+      "upstreamSha256": "c91e3a3d6e85569209711051523ff4cc478aab8126ec9e931dc41d354e48b1f3",
+      "localSha256": "c91e3a3d6e85569209711051523ff4cc478aab8126ec9e931dc41d354e48b1f3",
+      "patch": "none"
+    },
+    "psa_crypto_ffdh.h": {
+      "origin": "library/psa_crypto_ffdh.h",
+      "upstreamSha256": "a0e5137b1724fc4a97361c7515206e0ea8da93afd42d5f4cec518ceb2d905224",
+      "localSha256": "a0e5137b1724fc4a97361c7515206e0ea8da93afd42d5f4cec518ceb2d905224",
+      "patch": "none"
+    },
+    "psa_crypto_hash.h": {
+      "origin": "library/psa_crypto_hash.h",
+      "upstreamSha256": "64393f07001809d66b1d7dd2660bff61f6ed46997cfcd8d3a4fa5558c324de2f",
+      "localSha256": "64393f07001809d66b1d7dd2660bff61f6ed46997cfcd8d3a4fa5558c324de2f",
+      "patch": "none"
+    },
+    "psa_crypto_invasive.h": {
+      "origin": "library/psa_crypto_invasive.h",
+      "upstreamSha256": "ef2562d1a4f6ab23e48c43fd1ff9d56ef66dff3152a75566441e10b4b1d4fd16",
+      "localSha256": "ef2562d1a4f6ab23e48c43fd1ff9d56ef66dff3152a75566441e10b4b1d4fd16",
+      "patch": "none"
+    },
+    "psa_crypto_its.h": {
+      "origin": "library/psa_crypto_its.h",
+      "upstreamSha256": "880f792a1dce84f9fb661355d04dce8144b30f9dbc8ba22c2d0a697cd9605552",
+      "localSha256": "880f792a1dce84f9fb661355d04dce8144b30f9dbc8ba22c2d0a697cd9605552",
+      "patch": "none"
+    },
+    "psa_crypto_mac.h": {
+      "origin": "library/psa_crypto_mac.h",
+      "upstreamSha256": "1d3d6bb5bcd2052ef8be653b3d7db5bd0fd31ce1a56380ee2bce27de98dc1d46",
+      "localSha256": "1d3d6bb5bcd2052ef8be653b3d7db5bd0fd31ce1a56380ee2bce27de98dc1d46",
+      "patch": "none"
+    },
+    "psa_crypto_pake.h": {
+      "origin": "library/psa_crypto_pake.h",
+      "upstreamSha256": "bebea5eb9d854f90004b85f6ec907fa26ee505d53109fce068583247879876df",
+      "localSha256": "bebea5eb9d854f90004b85f6ec907fa26ee505d53109fce068583247879876df",
+      "patch": "none"
+    },
+    "psa_crypto_random.h": {
+      "origin": "library/psa_crypto_random.h",
+      "upstreamSha256": "d85ae6878e90f968987a82133a4ad9a0c5a4084f3722d70614142ea21d91ff94",
+      "localSha256": "d85ae6878e90f968987a82133a4ad9a0c5a4084f3722d70614142ea21d91ff94",
+      "patch": "none"
+    },
+    "psa_crypto_random_impl.h": {
+      "origin": "library/psa_crypto_random_impl.h",
+      "upstreamSha256": "34570ef88e61ea09d3234fef8403101051640f12aa131d33b163e9b818074f82",
+      "localSha256": "34570ef88e61ea09d3234fef8403101051640f12aa131d33b163e9b818074f82",
+      "patch": "none"
+    },
+    "psa_crypto_rsa.h": {
+      "origin": "library/psa_crypto_rsa.h",
+      "upstreamSha256": "f691e8445d555d216c2a086bf28d92f3804b4f07685211636782bd59e6c88089",
+      "localSha256": "f691e8445d555d216c2a086bf28d92f3804b4f07685211636782bd59e6c88089",
+      "patch": "none"
+    },
+    "psa_crypto_se.h": {
+      "origin": "library/psa_crypto_se.h",
+      "upstreamSha256": "39a26b6be83ae274eaecaec21e9685c95a85aee5d6c2aada29f42def35e978e4",
+      "localSha256": "39a26b6be83ae274eaecaec21e9685c95a85aee5d6c2aada29f42def35e978e4",
+      "patch": "none"
+    },
+    "psa_crypto_slot_management.h": {
+      "origin": "library/psa_crypto_slot_management.h",
+      "upstreamSha256": "c42741242c1986c0524d6144f50fc23d493b02b40265cc9567f11a9c2fde91ed",
+      "localSha256": "c42741242c1986c0524d6144f50fc23d493b02b40265cc9567f11a9c2fde91ed",
+      "patch": "none"
+    },
+    "psa_crypto_storage.h": {
+      "origin": "library/psa_crypto_storage.h",
+      "upstreamSha256": "c659aeaafec9652947907932741abb0cd7f56af863572b08a4a1a48b7ced91d4",
+      "localSha256": "c659aeaafec9652947907932741abb0cd7f56af863572b08a4a1a48b7ced91d4",
+      "patch": "none"
+    },
+    "psa_util_internal.h": {
+      "origin": "library/psa_util_internal.h",
+      "upstreamSha256": "342d2699a1ad757d27325be03b06501b4e3acc46d8e72ddcda6238ecdcca447b",
+      "localSha256": "342d2699a1ad757d27325be03b06501b4e3acc46d8e72ddcda6238ecdcca447b",
+      "patch": "none"
+    },
+    "rsa_alt_helpers.h": {
+      "origin": "library/rsa_alt_helpers.h",
+      "upstreamSha256": "ca0e1ff5c83c7c527ad9ff957ccefd99ea300206ef1140b6472bbbc6dd45e917",
+      "localSha256": "ca0e1ff5c83c7c527ad9ff957ccefd99ea300206ef1140b6472bbbc6dd45e917",
+      "patch": "none"
+    },
+    "rsa_internal.h": {
+      "origin": "library/rsa_internal.h",
+      "upstreamSha256": "b95d6f3b0c148c4e68c1eafab60f3f68ab452dc2f4471d64ec576f8595e7d2ad",
+      "localSha256": "b95d6f3b0c148c4e68c1eafab60f3f68ab452dc2f4471d64ec576f8595e7d2ad",
+      "patch": "none"
+    },
+    "ssl_cache.c": {
+      "origin": "library/ssl_cache.c",
+      "upstreamSha256": "e317a52b5ac69c280d8d8a2c5ac190f71a8827fc4a9ab1557a207fc3d864e171",
+      "localSha256": "2e252a467ead975c7c06ac4a7f1d3b7a802ee88fdb1a1d089ee99f654eda97aa",
+      "patch": "prepend RtcTlsConfig.h"
+    },
+    "ssl_ciphersuites.c": {
+      "origin": "library/ssl_ciphersuites.c",
+      "upstreamSha256": "c1ea9c74805e037bc1f67eca7aecfcc4e9151bd5dfc944ecbc688c2b0c624ca7",
+      "localSha256": "cacf4613abc1d4600c2068df1d08215c173437311fe062dd23feae1013efa6ed",
+      "patch": "prepend RtcTlsConfig.h"
+    },
+    "ssl_ciphersuites_internal.h": {
+      "origin": "library/ssl_ciphersuites_internal.h",
+      "upstreamSha256": "b8263632ab930997989cdf7cc09d35bedf5c416507d758b157b3b3973251cf27",
+      "localSha256": "b8263632ab930997989cdf7cc09d35bedf5c416507d758b157b3b3973251cf27",
+      "patch": "none"
+    },
+    "ssl_client.c": {
+      "origin": "library/ssl_client.c",
+      "upstreamSha256": "04e1817be5846b22afb175748f04df396092f657d8a18b249ca7f0becba050b3",
+      "localSha256": "fa050b0f760844909d7a61972f365173e7370558f2be97879cdbf43bb3d3a433",
+      "patch": "prepend RtcTlsConfig.h"
+    },
+    "ssl_client.h": {
+      "origin": "library/ssl_client.h",
+      "upstreamSha256": "410a3488d6b9fb4e991540640dc76ffccd8cfacf523fea478f632bad2bf0b3c2",
+      "localSha256": "410a3488d6b9fb4e991540640dc76ffccd8cfacf523fea478f632bad2bf0b3c2",
+      "patch": "none"
+    },
+    "ssl_cookie.c": {
+      "origin": "library/ssl_cookie.c",
+      "upstreamSha256": "574d9592d590d17d8fe0b189418180544f7fd27b76f9621aa57ed7c0d6e38552",
+      "localSha256": "a2d5e5092571c3cb40c5cc99959122d91e3d9f32c946110446b06f3b44a9ad96",
+      "patch": "prepend RtcTlsConfig.h"
+    },
+    "ssl_debug_helpers.h": {
+      "origin": "library/ssl_debug_helpers.h",
+      "upstreamSha256": "8139b3473a6ed6f1d27520814d2fa0cd0a46829696f03358ddc7b0de2921d05f",
+      "localSha256": "8139b3473a6ed6f1d27520814d2fa0cd0a46829696f03358ddc7b0de2921d05f",
+      "patch": "none"
+    },
+    "ssl_debug_helpers_generated.c": {
+      "origin": "library/ssl_debug_helpers_generated.c",
+      "upstreamSha256": "b8dfb4bb9945b420f48d7f429db27eda6ab4f8a7d3dd43c91c54ff306fc509d2",
+      "localSha256": "e0bbcdcbc1a0008794100a7ac2e2687878aabeb0f2addf3dd8c798cfe84d3904",
+      "patch": "prepend RtcTlsConfig.h"
+    },
+    "ssl_misc.h": {
+      "origin": "library/ssl_misc.h",
+      "upstreamSha256": "38e5e3da1f3074c67a86a3605048a00e9326a59eda1b3a0dcc4fa7a12cb7901a",
+      "localSha256": "38e5e3da1f3074c67a86a3605048a00e9326a59eda1b3a0dcc4fa7a12cb7901a",
+      "patch": "none"
+    },
+    "ssl_msg.c": {
+      "origin": "library/ssl_msg.c",
+      "upstreamSha256": "7365ec47a2e1e133693bad61ca6caa27c73d953279716f0a6bfb073e3a32f9fa",
+      "localSha256": "6253b6b8af4ba5af8000cecfb89db8cd1a5f1949638620d09db67c1c41607c32",
+      "patch": "prepend RtcTlsConfig.h"
+    },
+    "ssl_ticket.c": {
+      "origin": "library/ssl_ticket.c",
+      "upstreamSha256": "2efcf8b2e5dac0df0fbc26d80bcd50cc3e00580230dace64dfa608c550c33f48",
+      "localSha256": "4ddf9817b133971141126a5d83bb72a2cf27fd34515ff81c9bb35c4991a86da6",
+      "patch": "prepend RtcTlsConfig.h"
+    },
+    "ssl_tls.c": {
+      "origin": "library/ssl_tls.c",
+      "upstreamSha256": "89509f760211ad2034d6a5dd3297d997bc2a50a96aa4d4dac3cdd2c8ec3d5bd1",
+      "localSha256": "0255eef2e2f948704800e8d7fb9e0d742c29fac47e32edbc2a94c324a3a3e0d7",
+      "patch": "prepend RtcTlsConfig.h"
+    },
+    "ssl_tls12_client.c": {
+      "origin": "library/ssl_tls12_client.c",
+      "upstreamSha256": "21bda346c8f1272ff087fea6a2d156c07a37e7c258da2bbfcd152854976a2986",
+      "localSha256": "5065c790b78b83d713f036e04b0083c974e8a1e2cf9b5e6f4c8723ce4d18dca0",
+      "patch": "prepend RtcTlsConfig.h"
+    },
+    "ssl_tls12_server.c": {
+      "origin": "library/ssl_tls12_server.c",
+      "upstreamSha256": "87c0d4432253564b439a0d851ee4bd7f4b814dcce3b87c50de35ab17a008b97f",
+      "localSha256": "76d8c7d5b6b0a8b1acecc4e4ddc7ba08d581cbb0c3fc2aa977ef4a25093f4f55",
+      "patch": "prepend RtcTlsConfig.h"
+    },
+    "ssl_tls13_client.c": {
+      "origin": "library/ssl_tls13_client.c",
+      "upstreamSha256": "e31e24f681f22c24db21a4012b7dec2992914fa495e894f283a47313bfee6fb0",
+      "localSha256": "c422e3ac961b40553e37df89f662f344e974ea76fa1d72c119391e77fc2f1684",
+      "patch": "prepend RtcTlsConfig.h"
+    },
+    "ssl_tls13_generic.c": {
+      "origin": "library/ssl_tls13_generic.c",
+      "upstreamSha256": "26901c2aaf7b584c991836ed36448f88f616028ad2086de5b880d53f73cb648d",
+      "localSha256": "93749a8ec18d848bc18e7a0b486da1cf9257c0623ff90b9c7a2bb670713fc5bb",
+      "patch": "prepend RtcTlsConfig.h"
+    },
+    "ssl_tls13_invasive.h": {
+      "origin": "library/ssl_tls13_invasive.h",
+      "upstreamSha256": "f65a2ee6c7a9b2b1407f219e9c0ad19f7ca2b0357bb1d9fc9faafaf7e86662c5",
+      "localSha256": "f65a2ee6c7a9b2b1407f219e9c0ad19f7ca2b0357bb1d9fc9faafaf7e86662c5",
+      "patch": "none"
+    },
+    "ssl_tls13_keys.c": {
+      "origin": "library/ssl_tls13_keys.c",
+      "upstreamSha256": "9a38abaa2bd372fca190f018786a1001c831e8db31010c6a88e2987f66125a68",
+      "localSha256": "849e2f6d4a642041bf7920051d679eecdc8418d17b6b53a3cebdaeb8259e2dde",
+      "patch": "prepend RtcTlsConfig.h"
+    },
+    "ssl_tls13_keys.h": {
+      "origin": "library/ssl_tls13_keys.h",
+      "upstreamSha256": "6a0ac8d34a0deb9d8e41ac863c9a08a7db1d4d7fdacfed62923607858f52b6df",
+      "localSha256": "6a0ac8d34a0deb9d8e41ac863c9a08a7db1d4d7fdacfed62923607858f52b6df",
+      "patch": "none"
+    },
+    "ssl_tls13_server.c": {
+      "origin": "library/ssl_tls13_server.c",
+      "upstreamSha256": "71337bfff6ab72e9818d38b0265f66f5c0f2a2d2e4c3ffcec0b5f0d647d0e7dc",
+      "localSha256": "7f94239126ea2f7b7f7544a7b1ba66115f0667dba72dcdc5486afa4105bf5e05",
+      "patch": "prepend RtcTlsConfig.h"
+    },
+    "threading_internal.h": {
+      "origin": "library/threading_internal.h",
+      "upstreamSha256": "08347420c45a7b160e3b0732be31708f9a3a0d2683d9e3038d77909f010cfe98",
+      "localSha256": "08347420c45a7b160e3b0732be31708f9a3a0d2683d9e3038d77909f010cfe98",
+      "patch": "none"
+    },
+    "x509_internal.h": {
+      "origin": "library/x509_internal.h",
+      "upstreamSha256": "cff993cc6af31de0b42a009ef25320ea2c6657a9e8e32ffef43aadb00a640f41",
+      "localSha256": "cff993cc6af31de0b42a009ef25320ea2c6657a9e8e32ffef43aadb00a640f41",
+      "patch": "none"
+    }
+  }
+}
