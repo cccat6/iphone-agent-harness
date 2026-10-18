@@ -226,5 +226,8 @@ class Core {
   t->lease=Lease{};return Code::Accepted;
  }
  bool busy()const{for(const auto& t:targets_)if(t.running)return true;return false;}
+ // Empty slots start releasePending=true; offline phones cannot receive a release.
+ // Neither should prevent local settings or an idle restart.
+ bool configurationBusy(uint64_t now)const{for(const auto& t:targets_)if(!t.id.empty()&&(t.running||t.lease.expiresAt>now||(t.connHandle!=InvalidHandle&&t.releasePending)))return true;return false;}
 };
 }

@@ -10,7 +10,7 @@ f.onsubmit=async e=>{e.preventDefault();f.querySelector('button').disabled=true;
  while(Date.now()<until){await new Promise(resolve=>setTimeout(resolve,800));let status;try{const response=await setupFetch('/connection-status');if(!response.ok)continue;status=await response.json();}catch{continue;}if(status.status==='failed')throw Error('connection failed');if(status.status==='connected'&&status.configured===true){connected=status;break;}}
  if(!connected)throw Error('connection timeout');
  const done=await setupFetch('/finish',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({setupPassword:owner})});if(!done.ok)throw Error('connection not ready');
- const code={v:1,url:connected.httpUrl,id:connected.boardId,owner};const encoded=btoa(JSON.stringify(code)).replaceAll('+','-').replaceAll('/','_').replace(/=+$/,'');back.href='https://igent.cc/#device='+encoded;back.hidden=false;out.textContent=copy[5];
+ const code={v:1,url:connected.httpUrl,id:connected.boardId,pairingCodeRequired:connected.pairingCodeRequired===true};if(code.pairingCodeRequired)code.owner=owner;const encoded=btoa(JSON.stringify(code)).replaceAll('+','-').replaceAll('/','_').replace(/=+$/,'');back.href='https://igent.cc/#device='+encoded;back.hidden=false;out.textContent=copy[5];
  }catch(e){out.textContent=copy[6];f.querySelector('button').disabled=false}};
 </script>)HTML";
 template<class Text> Text renderWifiSetupPage(const Text& owner){return renderHtmlJson(WifiSetupPageStart,owner,WifiSetupPageEnd);}

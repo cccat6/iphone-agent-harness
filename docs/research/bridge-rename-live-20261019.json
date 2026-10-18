@@ -1,0 +1,19 @@
+{
+  "checkedAt": "2026-10-18T17:27:33.310Z",
+  "scope": "Real C3 hostname change and restart, restored to igent.local with code off. No Wi-Fi changes or phone input.",
+  "checks": [
+    {
+      "name": "change-address-acknowledged",
+      "passed": true
+    },
+    {
+      "name": "new-hostname-persists-after-actual-restart",
+      "passed": true
+    },
+    {
+      "name": "default-address-restored-after-actual-restart",
+      "passed": true
+    }
+  ],
+  "passed": true
+}

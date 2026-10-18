@@ -4,7 +4,7 @@
 
 ## Current LAN connection
 
-The normal device origin is `http://harness-<id>.local` or a private IPv4 HTTP address. Public HTTP, localhost, credentials in URLs, paths, query strings and fragments are rejected. `DeviceClient` keeps its existing protocol API and accepts a fetch adapter.
+The normal device origin is `http://igent.local` by default, a configured custom `.local` name, or a private IPv4 HTTP address. Public HTTP, localhost, credentials in URLs, paths, query strings and fragments are rejected. `DeviceClient` keeps its existing protocol API and accepts a fetch adapter.
 
 On Safari, the Connect button opens the ESP32's `/harness-link` page in a separate tab. `DeviceWindowTransport.open()` is called before the first storage/network await, preserving the browser's user gesture. Every connection uses a unique window name and nonce. The local page issues same-origin HTTP requests to the device; it communicates directly with the Harness tab using `postMessage`. No website server forwards commands.
 
@@ -44,7 +44,7 @@ device.identity({signal})
 device.capabilities({signal})
 device.clockSync(3,{signal})
 device.pinIdentity(expectedFingerprint,{signal})
-device.pair({clientId?,setupPassword,expectedFingerprint?},{signal})
+device.pair({clientId?,setupPassword?,expectedFingerprint?},{signal})
 device.exportCredentials()                    // private; store only in the local-credential record
 device.restoreCredentials(record)
 device.clearCredentials()                    // local forget, not remote release
@@ -131,3 +131,5 @@ The default metadata cache retains its 750 ms floor for low-latency clients, but
 Unknown or expired capabilities must still be fetched before segment admission. An explicit `getBinding()` always applies fresh unknown/running state immediately. Explicitly fetched capability changes govern post-hash admission immediately. Expired leases, boot changes and board-side request fencing are unchanged; the cache is not new evidence of released input or a replacement for server admission.
 
 Eight offline regressions integrate the actual DeviceClient and plan executor with a fake monotonic clock advanced by 1.0 or 1.3 seconds per request. Before the change, all six normal/warm checks failed: even Home exhausted the 15s plan wall budget, and each warm context repeated two handshakes. After the bounded adaptive cache, Home takes 2.6–3.0 simulated seconds and two gestures with a capture take 4.025–5.225s; warm sequences make zero repeated requests after any first stale report is refreshed. Additional cases retain the five-second stale/reboot cutoff and immediate explicit binding invalidation. See [the measured fixture report](../research/device-rtt-budget-verification.json) for counts and limitations. These are finite synthetic transport measurements, not real C3 or phone performance acceptance.
+
+The connection code is disabled by default. `pair()` sends an empty code in this mode. If identity explicitly reports `pairingCodeRequired:true`, an empty code produces `DEVICE_CONNECTION_CODE_REQUIRED`; server rejection of an incorrect code produces `DEVICE_CONNECTION_CODE_INVALID`. Changing these options is available on the device at `/settings`.

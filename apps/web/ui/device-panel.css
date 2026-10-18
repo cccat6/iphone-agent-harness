@@ -11,3 +11,9 @@
 .device-step pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:.75rem;line-height:1.6}
 .device-status{white-space:pre-wrap;overflow-wrap:anywhere}.device-status.error{border-color:#c55346;color:#a53228}
 @media(max-width:430px){.device-step{padding:13px}.device-step .panel-actions>button{flex:1 1 100%}}
+.device-bridge-state{font-weight:600;margin:0 0 6px;font-size:.9rem}
+.device-bridge-address{font-size:.8rem;overflow-wrap:anywhere;color:var(--muted,#666);margin:0 0 12px}
+.device-configuration{border-top:1px solid var(--border,#dedede);padding-top:12px;margin:14px 0}
+.device-configuration>summary{font-size:.88rem;font-weight:500}
+.device-onboarding [hidden]{display:none!important}
+.device-settings-link{display:inline-block;margin-top:14px;font-size:.88rem}

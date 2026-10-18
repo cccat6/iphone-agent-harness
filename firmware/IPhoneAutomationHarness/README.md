@@ -19,6 +19,14 @@ python3 tools/build_firmware_test.py
 
 The development Mac needs `--build-property tools.ctags.cmd.path=/usr/bin/true` for its incompatible bundled ctags; that workaround is valid here because setup/loop are ordinary C++. Scripts compile clean allowlisted sources and never copy `config.local.h`, old relay headers, Wi-Fi secrets or model credentials into public downloads. They contain no upload command and open no serial ports. Firmware manifests list only successful builds, with actual offset/size/SHA-256 values. Source and build provenance is in `apps/web/firmware/build-report.json`.
 
+## Daily connection and optional settings
+
+A bridge that already knows the home Wi-Fi reconnects by itself. Its default address is **http://igent.local**; no connection code is required by default. In Harness, connect to that address and retain the local connection tab. Bluetooth pairing and the phone input test are separate from Wi-Fi setup.
+
+Open **http://igent.local/settings** (or the bridge’s IP address followed by `/settings`) to change its local device name or enable a connection code. The page obtains its own browser token; with code protection enabled, a new browser supplies the displayed connection code first. Existing authorized browsers retain their tokens. Changing the name restarts the idle bridge and returns its new address. A running task or active control lease must stop first. The generated code stays visible if a name change and code activation are saved together.
+
+`IAH_HOSTNAME` defaults to `"igent"` and `IAH_PAIRING_CODE_REQUIRED` to `false` in `config.example.h`. A saved `bridgeSettings` NVS record overrides these compilation defaults. Older firmware without that record upgrades to the defaults while preserving Wi-Fi, Bluetooth bonds, board identity and existing browser grants. Multiple bridges can be assigned different names through their IP-address settings pages.
+
 ## First configuration
 
 1. After flashing, click **Read device information** on the desktop page. Keep the device Wi-Fi name/password and phone setup link.
@@ -28,9 +36,9 @@ The development Mac needs `--build-property tools.ctags.cmd.path=/usr/bin/true` 
 5. Pair **iPhone Agent Bridge** in Bluetooth settings and enable AssistiveTouch. Full Keyboard Access may remain on or off. Bluetooth pairing works before connecting the webpage and has no browser-triggered time limit.
 6. Run the connection test. The board automatically types eight digits into the focused field. Confirm the result before starting screen sharing and a task.
 
-Direct LAN fetch remains an advanced option for compatible browsers. The tested Safari 27.0.1 blocked direct HTTP/WS from the public HTTPS page. Local-window foreground GET/POST succeeded, but five GET/POST requests including both-tabs-hidden requests during screen sharing subsequently passed over about 21 seconds. Current physical firmware/HID control still needs separate validation. See [connection evidence](../../docs/research/ios-lan-probe20261018.json).
+The tested Safari 27.0.1 blocked direct HTTP/WS from the public HTTPS page. Local-window foreground GET/POST succeeded, but five GET/POST requests including both-tabs-hidden requests during screen sharing subsequently passed over about 21 seconds. Current physical firmware/HID control still needs separate validation. See [connection evidence](../../docs/research/ios-lan-probe20261018.json).
 
-The owner code and per-client token still authorize control. The compatibility field `publicKeyFingerprint` is a stable identity label in HTTP mode, not a certificate or encrypted-channel assertion. No cloud service forwards device operations.
+A connection code is optional; per-client tokens and verified phone input remain required for control. The compatibility field `publicKeyFingerprint` is a stable identity label in HTTP mode, not a certificate or encrypted-channel assertion. No cloud service forwards device operations.
 
 ## Local serial contract
 
@@ -50,7 +58,7 @@ Newline-delimited JSON at 115200. Serial is configuration/status only; it accept
 
 Use the current Unix timestamp rather than the illustrative value. `setup-config` validates exact fields and supplies owner proof internally for the physical USB operation. The reply acknowledges `configurationAccepted:true` and `status:"connecting"`; `secureConfigured` remains false until connection has actually been established. Check `status` for `configurationStatus:"connected"` before requesting `setup-finish`. A fresh IP event for the submitted SSID is required before saving the candidate network as one NVS record. Failed joins leave the previous saved network intact and keep setup Wi-Fi open; a failed saved-network boot automatically opens setup after 30 seconds. An automatically opened setup network remains open until setup is completed, even if the saved network later becomes reachable. No reply echoes Wi-Fi credentials.
 
-`setup-info` returns `IAH_SETUP` plus the board ID, device Wi-Fi information, owner code, `httpUrl`, `transport:"http"`, `caReady:false`, `manualTrustRequired:false` and stable identity label. The desktop UI keeps these values in memory and masks the connection code and setup link. `setup-profile` remains parseable for old tooling but returns no profile in this version. `setup-window` cancels input and stops the HTTP service before reopening setup Wi-Fi.
+`setup-info` returns `IAH_SETUP` plus the board ID, device Wi-Fi information, optional connection code (`setupPassword` is empty when disabled), `pairingCodeRequired`, `httpUrl`, `transport:"http"`, `caReady:false`, `manualTrustRequired:false` and stable identity label. The desktop UI keeps these values in memory and masks the connection code and setup link. `setup-profile` remains parseable for old tooling but returns no profile in this version. `setup-window` cancels input and stops the HTTP service before reopening setup Wi-Fi.
 
 `wifi-diagnostic` reports connection state, disconnect reason, counters, credential byte lengths, current IP, power setting and heap metrics without printing the credentials. `wifi-power` accepts 8.5, 11, 13, 15, 17 or 19.5 dBm and persists that maximum. `wifi-reconnect` reuses the saved network. Both radio mutations are USB-only and require the network service and current input to be stopped.
 

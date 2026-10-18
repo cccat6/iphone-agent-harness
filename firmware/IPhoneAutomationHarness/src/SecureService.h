@@ -15,12 +15,15 @@
 #include "Wire.h"
 #include "LanBridgePage.h"
 #include "WifiSetupPage.h"
+#include "BridgeSettings.h"
+#include "BridgeSettingsPage.h"
 namespace iah {
 class CoreLock {SemaphoreHandle_t mutex_;public:explicit CoreLock(SemaphoreHandle_t m):mutex_(m){xSemaphoreTake(m,portMAX_DELAY);}~CoreLock(){xSemaphoreGive(mutex_);}};
 class SecureService {
  Core& core_;Sink& sink_;Preferences& prefs_;SemaphoreHandle_t mutex_;String board_,boot_,host_,owner_,apPassword_,origin_;
  std::atomic<uint32_t>& wifiEpoch_;WifiJoinState wifiJoin_;String candidateNetwork_,candidateSsid_,candidatePassword_,candidateOrigin_,previousNetwork_;bool startCandidate_=false;
  WebServer ap_{80};httpd_handle_t http_=nullptr;std::atomic_bool maintenance_{false};Pki pki_;Admission auth_;bool apActive_=false,configComplete_=false,storageReady_=false;SetupDeadline setupDeadline_;uint64_t httpRetryAt_=0;
+ BridgeSettings bridgeSettings_;std::atomic<uint64_t> restartAt_{0};
  uint64_t challengeNext_=0;size_t challengeEvent_=0;uint16_t challengeHandle_=InvalidHandle;
  static uint64_t now(){return esp_timer_get_time()/1000;}
  static String header(httpd_req_t* r,const char* key){size_t size=httpd_req_get_hdr_value_len(r,key);if(!size||size>512)return "";std::vector<char> data(size+1);if(httpd_req_get_hdr_value_str(r,key,data.data(),data.size())!=ESP_OK)return "";return data.data();}
@@ -33,6 +36,7 @@ class SecureService {
  bool read(httpd_req_t* r,JsonDocument& doc,size_t limit=2048){if(r->content_len<=0||r->content_len>limit)return false;Reader reader{r,r->content_len};auto e=deserializeJson(doc,reader,DeserializationOption::NestingLimit(8));if(e||!doc.is<JsonObject>())return false;for(int c=reader.read();c>=0;c=reader.read())if(c!=32&&c!=9&&c!=10&&c!=13)return false;return reader.left==0;}
  Grant* authenticate(httpd_req_t* r){String auth=header(r,"Authorization");if(auth.length()!=71||!auth.startsWith("Bearer "))return nullptr;String token=auth.substring(7);return auth_.authenticate(sha256Hex(token).c_str(),origin_.c_str());}
  bool saveGrant(const Grant& grant){size_t i=MaxClients;for(size_t n=0;n<MaxClients;n++)if(auth_.grants()[n].active&&auth_.grants()[n].clientId==grant.clientId){i=n;break;}if(i==MaxClients)for(size_t n=0;n<MaxClients;n++)if(!auth_.grants()[n].active){i=n;break;}if(i==MaxClients)return false;JsonDocument doc;doc["id"]=grant.clientId;doc["hash"]=grant.tokenHash;doc["origin"]=grant.origin;doc["target"]=grant.targetId;String text;serializeJson(doc,text);String key="grant"+String(i);return prefs_.putString(key.c_str(),text)==text.length()&&prefs_.getString(key.c_str(),"")==text;}
+ void addSettings(JsonDocument& d){addIdentity(d);d["hostname"]=bridgeSettings_.hostname;d["pairingCodeRequired"]=bridgeSettings_.pairingCodeRequired;if(bridgeSettings_.pairingCodeRequired)d["connectionCode"]=owner_;d["newURL"]="http://"+String(bridgeSettings_.hostname.c_str())+".local";}
  void addIdentity(JsonDocument& d){d["boardId"]=board_;d["bootId"]=boot_;}
  void addTargets(JsonDocument& d){auto list=d["targets"].to<JsonArray>();for(const auto& t:core_.targets())if(!t.id.empty()){auto row=list.add<JsonObject>();row["targetId"]=t.id;row["connected"]=t.connHandle!=InvalidHandle;row["encrypted"]=t.encrypted;row["hidSubscribed"]=t.subscribed;row["inputReleased"]=!t.releasePending;bool challenge=auth_.typing(now())&&auth_.target()==t.id;row["inputState"]=(!t.releasePending&&!t.running&&!challenge)?"released":"unknown";row["running"]=t.running||challenge;}}
  void receipt(JsonDocument& d,const Result& result){addIdentity(d);d["targetId"]=result.targetId;d["clientId"]=result.clientId;d["segmentId"]=result.segmentId;d["planId"]=result.planId;d["payloadHash"]=result.payloadHash;d["status"]=statusName(result.status);d["releaseSubmitted"]=result.releaseSubmitted;d["acceptedAtDeviceMs"]=result.acceptedAt;d["startedAtDeviceMs"]=result.startedAt;d["endedAtDeviceMs"]=result.endedAt;d["submitted"]=result.submitted;d["maxLatenessMs"]=result.maxLatenessMs;}
@@ -53,8 +57,8 @@ class SecureService {
   bool localHost=hostHeader==localName||hostHeader==localName+":80"||hostHeader==localIp||hostHeader==localIp+":80";
   bool localOrigin=browserOrigin.isEmpty()||browserOrigin=="http://"+localName||browserOrigin=="http://"+localName+":80"||browserOrigin=="http://"+localIp||browserOrigin=="http://"+localIp+":80";
   if(header(r,"X-Harness-Window")=="1"&&localHost&&localOrigin)browserOrigin=origin_;
-  if(r->method==HTTP_GET&&String(r->uri)=="/harness-link"){
-   String page=renderLanBridgePage(origin_);
+  if(r->method==HTTP_GET&&(String(r->uri)=="/harness-link"||String(r->uri)=="/settings"||String(r->uri)=="/")){
+   String page=String(r->uri)=="/harness-link"?renderLanBridgePage(origin_):String(renderBridgeSettingsPage());
    httpd_resp_set_type(r,"text/html; charset=utf-8");httpd_resp_set_hdr(r,"Cache-Control","no-store");httpd_resp_set_hdr(r,"Referrer-Policy","no-referrer");httpd_resp_set_hdr(r,"X-Frame-Options","DENY");httpd_resp_set_hdr(r,"Content-Security-Policy","default-src 'none'; connect-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'");httpd_resp_set_hdr(r,"Connection","close");auto sent=httpd_resp_send(r,page.c_str(),page.length());return sent==ESP_OK?ESP_FAIL:sent;
   }
   if(browserOrigin.length()&&browserOrigin!=origin_)return error(r,403,"origin_not_allowed");
@@ -68,7 +72,7 @@ class SecureService {
   auto parts=path(r->uri);if(parts.size()<2||parts[0]!="v1")return error(r,404,"not_found");
   if(r->method==HTTP_GET&&parts[1]=="identity"){
    JsonDocument d;addIdentity(d);d["protocolVersion"]=1;d["hostname"]=host_+".local";d["publicKeyFingerprint"]=pki_.caFingerprint;
-   d["firmwareVersion"]="0.3.0-lan-http";d["transport"]="http";d["tls"]=false;d["requiresManualTrust"]=false;d["pairingAvailable"]=true;return send(r,200,d);
+   d["firmwareVersion"]="0.3.0-lan-http";d["transport"]="http";d["tls"]=false;d["requiresManualTrust"]=false;d["pairingAvailable"]=true;d["pairingCodeRequired"]=bridgeSettings_.pairingCodeRequired;return send(r,200,d);
   }
   if(r->method==HTTP_GET&&parts[1]=="clock"){JsonDocument d;addIdentity(d);d["deviceTimeMs"]=now();return send(r,200,d);}
   if(r->method==HTTP_GET&&parts[1]=="capabilities"){
@@ -87,7 +91,9 @@ class SecureService {
   if(r->method==HTTP_POST&&parts.size()==2&&parts[1]=="pair"){
    JsonDocument body;if(!read(r,body)||!fields(body.as<JsonObjectConst>(),{"clientId","setupPassword"}))return error(r,400,"invalid_pair_request");
    String client=body["clientId"]|"",password=body["setupPassword"]|"";
-   if(!validId(client.c_str())||!constantEqual(password.c_str(),owner_.c_str()))return error(r,403,"owner_proof_required");
+   if(!validId(client.c_str()))return error(r,400,"invalid_client_id");
+   if(bridgeSettings_.pairingCodeRequired&&password.isEmpty())return error(r,403,"connection_code_required");
+   if(bridgeSettings_.pairingCodeRequired&&!constantEqual(password.c_str(),owner_.c_str()))return error(r,403,"connection_code_invalid");
    String token=randomHex(32),hash=sha256Hex(token);
    return lockedReply(r,[&](JsonDocument& d)->Decision{
     if(maintenance_||core_.busy()||auth_.active(now()))return {409,"board_busy"};
@@ -101,6 +107,18 @@ class SecureService {
   Grant grant;bool authenticated=false;
   {CoreLock lock(mutex_);auto current=authenticate(r);if(current){grant=*current;authenticated=true;}}
   if(!authenticated)return error(r,401,"invalid_client_credential");
+  if(parts.size()==2&&parts[1]=="settings"){
+   if(r->method==HTTP_GET)return lockedReply(r,[&](JsonDocument& d)->Decision{addSettings(d);return {200,""};});
+   if(r->method!=HTTP_POST)return error(r,404,"not_found");
+   JsonDocument body;if(!read(r,body,512)||!fields(body.as<JsonObjectConst>(),{"hostname","pairingCodeRequired"})||!body["hostname"].is<const char*>()||!body["pairingCodeRequired"].is<bool>()||!validBridgeHostname(body["hostname"].as<const char*>()))return error(r,400,"invalid_bridge_settings");
+   return lockedReply(r,[&](JsonDocument& d)->Decision{
+    if(maintenance_||core_.configurationBusy(now())||auth_.active(now()))return {409,"board_busy"};
+    String encoded;serializeJson(body,encoded);String previous=prefs_.getString("bridgeSettings","");
+    if(prefs_.putString("bridgeSettings",encoded)!=encoded.length()||prefs_.getString("bridgeSettings","")!=encoded){if(previous.length())prefs_.putString("bridgeSettings",previous);else prefs_.remove("bridgeSettings");return {503,"settings_persistence_failed"};}
+    bridgeSettings_=readBridgeSettings(encoded.c_str());bool restart=host_!=bridgeSettings_.hostname.c_str();
+    addSettings(d);d["restartRequired"]=restart;if(restart){maintenance_=true;restartAt_=now()+2000;}return {200,""};
+   });
+  }
   if(r->method==HTTP_GET&&parts.size()==2&&parts[1]=="binding"){
    return lockedReply(r,[&](JsonDocument& d)->Decision{addIdentity(d);d["clientId"]=grant.clientId;
     if(grant.targetId.empty())d["targetId"]=nullptr;else d["targetId"]=grant.targetId;
@@ -229,6 +247,7 @@ class SecureService {
  const String& publicFingerprint()const{return pki_.caFingerprint;}
  SecureService(Core& core,Sink& sink,Preferences& prefs,SemaphoreHandle_t mutex,const String& board,const String& boot,const String& host,std::atomic<uint32_t>& wifiEpoch):core_(core),sink_(sink),prefs_(prefs),mutex_(mutex),board_(board),boot_(boot),host_(host),wifiEpoch_(wifiEpoch){}
  void begin(bool needsWifi){
+  bridgeSettings_=readBridgeSettings(prefs_.getString("bridgeSettings", "").c_str());
   owner_=prefs_.getString("owner","");apPassword_=prefs_.getString("apPass","");origin_=prefs_.getString("origin","https://igent.cc");JsonDocument network;if(!deserializeJson(network,prefs_.getString("network","")))origin_=network["origin"]|"https://igent.cc";configComplete_=!needsWifi;if(owner_.isEmpty()){owner_=randomHex(32);prefs_.putString("owner",owner_);}if(apPassword_.isEmpty()){apPassword_=randomHex(12);prefs_.putString("apPass",apPassword_);}storageReady_=prefs_.getString("owner","")==owner_&&prefs_.getString("apPass","")==apPassword_;if(!storageReady_){Serial.println("{\"error\":\"ownership_storage_not_ready\"}");return;}pki_.caFingerprint=sha256Hex(owner_); // Stable board identity label, not a TLS certificate proof.
   for(size_t i=0;i<MaxClients;i++){JsonDocument doc;auto text=prefs_.getString(("grant"+String(i)).c_str(),"");if(!deserializeJson(doc,text)){std::string id=doc["id"]|"",hash=doc["hash"]|"",origin=doc["origin"]|"",target=doc["target"]|"";if(!core_.target(target))target.clear();if(auth_.install(id,hash,origin,target)&&!target.empty())core_.bindClient(id,target);}}
   ap_.on("/",HTTP_GET,[this]{
@@ -238,12 +257,12 @@ class SecureService {
    ap_.send(200,"text/html; charset=utf-8",page);
   });
   ap_.on("/configure",HTTP_POST,[this]{if(!apRequest()||ap_.header("Origin")!="http://192.168.4.1"){ap_.send(403,"application/json","{\"error\":\"protected_ap_origin_required\"}");return;}JsonDocument body;if(ap_.arg("plain").length()>2048||deserializeJson(body,ap_.arg("plain"))||!configure(body)){ap_.send(403,"application/json","{\"error\":\"configuration_rejected\"}");return;}JsonDocument reply;reply["accepted"]=true;reply["status"]="connecting";reply["httpUrl"]="http://"+host_+".local";reply["boardId"]=board_;reply["publicKeyFingerprint"]=pki_.caFingerprint;reply["manualTrustRequired"]=false;String out;serializeJson(reply,out);ap_.sendHeader("Cache-Control","no-store");ap_.send(202,"application/json",out);});
-  ap_.on("/connection-status",HTTP_GET,[this]{if(!apRequest()){ap_.send(403,"application/json","{\"error\":\"setup_only\"}");return;}JsonDocument reply;bool connected=!startCandidate_&&wifiJoin_.canFinish(configComplete_,WiFi.status()==WL_CONNECTED,hasNetworkAddress());reply["status"]=connected?"connected":wifiJoin_.name();reply["configured"]=connected;reply["httpUrl"]="http://"+host_+".local";reply["boardId"]=board_;String out;serializeJson(reply,out);ap_.sendHeader("Cache-Control","no-store");ap_.send(200,"application/json",out);});
+  ap_.on("/connection-status",HTTP_GET,[this]{if(!apRequest()){ap_.send(403,"application/json","{\"error\":\"setup_only\"}");return;}JsonDocument reply;bool connected=!startCandidate_&&wifiJoin_.canFinish(configComplete_,WiFi.status()==WL_CONNECTED,hasNetworkAddress());reply["status"]=connected?"connected":wifiJoin_.name();reply["configured"]=connected;reply["pairingCodeRequired"]=bridgeSettings_.pairingCodeRequired;reply["httpUrl"]="http://"+host_+".local";reply["boardId"]=board_;String out;serializeJson(reply,out);ap_.sendHeader("Cache-Control","no-store");ap_.send(200,"application/json",out);});
   ap_.on("/finish",HTTP_POST,[this]{JsonDocument d;if(!apRequest()||ap_.header("Origin")!="http://192.168.4.1"||deserializeJson(d,ap_.arg("plain"))||!constantEqual(std::string(d["setupPassword"]|""),owner_.c_str())||!configComplete_){ap_.send(403,"text/plain","Owner proof required");return;}if(!finishSetup()){ap_.send(409,"application/json","{\"error\":\"wifi_not_connected\"}");return;}ap_.send(200,"application/json","{\"configured\":true}");});
   ap_.on("/ca.mobileconfig",HTTP_GET,[this]{if(!apRequest()||pki_.certPem.isEmpty()){ap_.send(403,"text/plain","Use the protected setup AP after configuration.");return;}auto profile=pki_.mobileconfig(board_);ap_.sendHeader("Cache-Control","no-store");ap_.sendHeader("Content-Disposition","attachment; filename=igent-device-ca.mobileconfig");ap_.send(200,"application/x-apple-aspen-config",profile);});
   ap_.onNotFound([this]{ap_.send(403,"application/json","{\"error\":\"setup_only\"}");});const char* headers[]={"Origin"};ap_.collectHeaders(headers,1);if(needsWifi)openSetup();
  }
- void setupInfo(){JsonDocument info;info["format"]="iah-setup/1";info["storageReady"]=storageReady_;info["boardId"]=board_;info["bootId"]=boot_;info["apSsid"]="iPhone-Harness-"+board_.substring(4);info["apPassword"]=apPassword_;info["setupPassword"]=owner_;info["hostname"]=host_+".local";info["httpUrl"]="http://"+host_+".local";info["httpsUrl"]=nullptr;info["transport"]="http";info["manualTrustRequired"]=false;info["caReady"]=false;info["apActive"]=apActive_;if(pki_.caFingerprint.length())info["publicKeyFingerprint"]=pki_.caFingerprint;else info["publicKeyFingerprint"]=nullptr;if(apActive_&&!pki_.certPem.isEmpty())info["caProfileUrl"]="http://192.168.4.1/ca.mobileconfig";else info["caProfileUrl"]=nullptr;Serial.print("IAH_SETUP ");serializeJson(info,Serial);Serial.println();}
+ void setupInfo(){JsonDocument info;info["format"]="iah-setup/1";info["storageReady"]=storageReady_;info["boardId"]=board_;info["bootId"]=boot_;info["apSsid"]="iPhone-Harness-"+board_.substring(4);info["apPassword"]=apPassword_;info["setupPassword"]=bridgeSettings_.pairingCodeRequired?owner_:String("");info["pairingCodeRequired"]=bridgeSettings_.pairingCodeRequired;info["hostname"]=host_+".local";info["httpUrl"]="http://"+host_+".local";info["httpsUrl"]=nullptr;info["transport"]="http";info["manualTrustRequired"]=false;info["caReady"]=false;info["apActive"]=apActive_;if(pki_.caFingerprint.length())info["publicKeyFingerprint"]=pki_.caFingerprint;else info["publicKeyFingerprint"]=nullptr;if(apActive_&&!pki_.certPem.isEmpty())info["caProfileUrl"]="http://192.168.4.1/ca.mobileconfig";else info["caProfileUrl"]=nullptr;Serial.print("IAH_SETUP ");serializeJson(info,Serial);Serial.println();}
  void openSetup(){
   setupDeadline_.opened();maintenance_=true;
   if(http_){
@@ -258,6 +277,7 @@ class SecureService {
  bool networkReady()const{return http_!=nullptr;}
  void loop(){
   if(!storageReady_)return;
+  if(restartAt_.load()&&now()>=restartAt_.load()){{CoreLock lock(mutex_);if(core_.configurationBusy(now())||auth_.active(now()))return;}ESP.restart();return;}
   if(!http_)ap_.handleClient();
   updateNetwork();
   if(setupDeadline_.due(apActive_,now())){ap_.stop();WiFi.softAPdisconnect(true);apActive_=false;setupDeadline_.closed();}

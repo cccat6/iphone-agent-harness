@@ -113,3 +113,11 @@ All actual HID notifications execute as bounded jobs on NimBLE's default host ev
 Pointer cleanup uses host-owned last-submitted coordinates scoped to the same peer generation. Coordinates change only after a pointer notify succeeds; enqueueing an unsubmitted move does not change them. A cancelled move releases at the previous submitted position. An already committed move releases at its committed position, including an abandoned caller; later releases cannot jump back to stale Core coordinates. Pose writes and reads use the short Peer lock, while Route bindings remain Core-thread-owned.
 
 C3/S3/C6 use MSYS pools 8/8. The classic ESP32 SDK omits the second pool size, so that target preserves its disabled second pool (8/0) rather than enabling an undefined allocation; its physical two-phone throughput remains unverified. Effective values are available in USB diagnostics.
+
+## Default address and optional connection code
+
+The current default mDNS name is `igent.local`, with the connection code disabled. `/v1/identity` exposes `pairingCodeRequired`. The existing `/v1/pair` request retains a `setupPassword` field but accepts an empty string by default; when explicitly enabled, missing and incorrect codes return distinct 403 reasons. Browser tokens and phone input verification remain separate requirements.
+
+The device serves its local management page at `/settings` and `/`. An enrolled browser uses Bearer-authenticated GET/POST `/v1/settings` to inspect or change `{hostname,pairingCodeRequired}`. Only an authenticated response exposes the generated code when enabled. A changed hostname is persisted and returned as `newURL`, then the idle bridge restarts. Active input, valid leases and connected unresolved releases prevent settings mutation; empty target slots or offline release flags do not.
+
+Default no-code USB and AP return links omit owner credentials. `IAH_HOSTNAME` and `IAH_PAIRING_CODE_REQUIRED` provide compile-time defaults; saved local management settings override them. The optional Wi-Fi setup page keeps its internal owner field for its existing AP-only configuration protocol, without making the user enter a code.

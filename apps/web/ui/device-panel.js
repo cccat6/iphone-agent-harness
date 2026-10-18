@@ -4,6 +4,8 @@ import {DeviceClient} from '../core/device.js';
 import {getLocale, subscribe, localizeError} from '../i18n.js';
 import {DEVICE_MESSAGES} from '../locales/device.js';
 
+const DEFAULT_BRIDGE_URL='http://igent.local';
+export function defaultBridgeEndpoint(value){return !value||/^http:\/\/harness-[a-f0-9]{12}\.local$/.test(value)?DEFAULT_BRIDGE_URL:value;}
 const escapeHTML=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 const normalizedFingerprint=value=>String(value||'').replace(/[\s:]/g,'').toLowerCase();
 const sameProof=(proof,client)=>Boolean(proof&&client?.identityVerified&&client.bindingVerified&&['boardId','bootId','clientId','targetId'].every(key=>proof[key]===client[key]));
@@ -16,7 +18,7 @@ export function trustedNonceDigit(event){
 
 /** Fixed device onboarding UI. No network request or input is sent before a user action. */
 export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDeviceChange=()=>{},onSettingsChange=()=>{},isBusy=()=>false,onToast=()=>{},clientFactory=options=>new DeviceClient(options),bridgeFactory=options=>new DeviceWindowTransport(options)}={}){
-  let transport=null;
+  let transport=null,legacyEndpoint='';
   let client=null,proof=null,targets=[],targetId='',root=null,dialog=null,controller=null,operation=0,working=false;
   let challenge=null,nonce='',armed=false,challengeTimer=null,unsubscribe=null,settings={},statusKey='notPaired',statusDetail='',checkedAt=null;
   let connectionActive=false,pendingSetup=null,connectionEpoch=0,monitorTimer=null,refreshTask=null,disposed=false;
@@ -25,7 +27,7 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
   const copy=(key,params={})=>Object.entries(params).reduce((text,[name,value])=>text.replaceAll('{'+name+'}',String(value)),(DEVICE_MESSAGES[getLocale()]||DEVICE_MESSAGES.en)[key]||key);
   const node=selector=>root?.querySelector(selector);
   const mounted=()=>Boolean(root?.isConnected&&getPanelRoot()?.contains(root));
-  const getState=()=>{const connected=Boolean(connectionActive&&client?.paired&&client.identityVerified),bluetoothConnected=Boolean(targets.some(target=>target.targetId===(proof?.targetId||targetId)&&target.connected&&target.encrypted&&target.hidSubscribed)),inputVerified=connected&&bluetoothConnected&&sameProof(proof,client),ready=Boolean(inputVerified);return {connected,bluetoothConnected,inputVerified,ready,sharing:Boolean(capture.active),boardId:connected?client.boardId:null,targetId:inputVerified?client.targetId:null,status:working?'connecting':ready?(capture.active?'sharing':'ready'):connected?'needs-input-test':'disconnected'};};
+  const getState=()=>{const connected=Boolean(connectionActive&&client?.paired&&client.identityVerified),bluetoothConnected=Boolean(connected&&targets.some(target=>target.targetId===(proof?.targetId||targetId)&&target.connected&&target.encrypted&&target.hidSubscribed)),inputVerified=connected&&bluetoothConnected&&sameProof(proof,client),ready=Boolean(inputVerified);return {connected,bluetoothConnected,inputVerified,ready,sharing:Boolean(capture.active),boardId:connected?client.boardId:null,targetId:inputVerified?client.targetId:null,status:working?'connecting':ready?(capture.active?'sharing':'ready'):connected?'needs-input-test':'disconnected'};};
   const publish=()=>onDeviceChange(getState().ready?client:null,getState());
   const setStatus=(key,detail='')=>{statusKey=key;statusDetail=detail;renderStatus();publish();};
   function invalidateProof(){proof=null;publish();}
@@ -36,22 +38,29 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
     const heading=root.closest('#panel-content')?.querySelector('.panel-header');if(heading){for(const [selector,key] of [['h2','title'],['p','subtitle']]){const element=heading.querySelector(selector);if(element){element.dataset.noI18n='';element.textContent=copy(key);}}}
     for(const element of root.querySelectorAll('[data-device-text]'))element.textContent=copy(element.dataset.deviceText);
     renderStatus();
-    const verified=getState().inputVerified,ready=verified;
+    const state=getState(),connected=state.connected,verified=state.inputVerified,ready=verified;
+    node('[data-bridge-state]').textContent=copy(connected?'bridgeConnected':'bridgeDisconnected');
+    node('[data-bridge-address]').textContent=connected?client.baseUrl.origin:defaultBridgeEndpoint(settings.deviceEndpoint);
+    node('[data-bridge-settings]').hidden=!connected;node('[data-bridge-settings]').href=connected?client.baseUrl.origin+'/settings':'#';
+    node('[data-connect-help]').hidden=connected;
+    node('[data-test-controls]').hidden=!connected;
+    node('[data-connect-shortcut]').hidden=connected;
+    node('[data-connect-shortcut]').disabled=working||isBusy();
     const entered=node('[data-address]').value.trim();node('[data-legacy-pin]').hidden=!entered.startsWith('https:')||entered.includes('#device=');
     node('[data-target]').replaceChildren(...targets.map(target=>{const option=document.createElement('option');option.value=target.targetId;option.textContent=copy('targetLabel',{id:target.targetId})+' · '+copy(target.connected&&target.encrypted&&target.hidSubscribed?'targetReady':'targetUnavailable');option.disabled=!(target.connected&&target.encrypted&&target.hidSubscribed);return option;}));
-    if(!targets.length){const option=document.createElement('option');option.value='';option.textContent=copy('noTargets');node('[data-target]').append(option);}
+    if(!targets.length){const option=document.createElement('option');option.value='';option.textContent=copy(connected?'noTargets':'bridgeRequired');node('[data-target]').append(option);}
     node('[data-target]').value=targetId;
-    node('[data-target]').disabled=working||isBusy()||!client?.paired;
+    node('[data-target]').disabled=working||isBusy()||!connected||!targets.some(usableTarget);
     const selected=targets.find(target=>target.targetId===targetId),available=selected?.connected&&selected.encrypted&&selected.hidSubscribed;
-    node('[data-disconnect]').disabled=working||isBusy()||!client?.paired;
-    node('[data-pair]').disabled=working||isBusy();node('[data-refresh]').disabled=working||isBusy()||!client?.paired;
-    node('[data-start-challenge]').disabled=working||isBusy()||!available;
+    node('[data-disconnect]').disabled=working||isBusy()||!connected;
+    node('[data-pair]').textContent=copy(connected?'reconnect':'pair');node('[data-pair]').disabled=working||isBusy();node('[data-refresh]').disabled=working||isBusy()||!connected;
+    node('[data-start-challenge]').disabled=working||isBusy()||!connected||!available;
     node('[data-confirm-challenge]').disabled=working||isBusy()||!challenge||nonce.length!==8;
     node('[data-start-sharing]').disabled=working||isBusy()||!ready||capture.active;
     node('[data-stop-sharing]').disabled=working||isBusy()||!capture.active;
     node('[data-control-check]').disabled=working||isBusy()||!ready;
     node('[data-sharing-state]').textContent=copy(capture.active?'sharingReady':'sharingOff');
-    node('[data-binding-state]').textContent=copy(verified?'bound':client?.paired?'needsFreshChallenge':'notPaired');
+    node('[data-binding-state]').textContent=copy(verified?'bound':!connected?'bridgeRequired':state.bluetoothConnected?'phoneConnectedNeedsTest':'noTargets');
     const snapshot=client?.status();node('[data-device-metadata]').textContent=snapshot?[copy('boardLabel')+': '+(snapshot.boardId||'—'),copy('targetLabelShort')+': '+(snapshot.targetId||'—'),checkedAt?copy('lastChecked')+': '+new Intl.DateTimeFormat(getLocale(),{hour:'2-digit',minute:'2-digit',second:'2-digit'}).format(checkedAt):''].filter(Boolean).join('\n'):'';
   }
   async function savePublicSettings(patch){settings=await store.saveSettings(patch);onSettingsChange(settings);}
@@ -84,7 +93,7 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
   }
   function foreground(){if(globalThis.document?.visibilityState==='visible')void checkConnection();}
   globalThis.document?.addEventListener?.('visibilitychange',foreground);
-  async function refresh(signal){
+  async function refresh(signal,recoverExpiredCredential=null){
     const tested=client,epoch=connectionEpoch;
     if(!tested?.paired)return false;
     if(refreshTask?.client===tested&&refreshTask.epoch===epoch)return refreshTask.promise;
@@ -95,7 +104,16 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
     task.promise=(async()=>{
       try{
         await tested.identity({signal:abort.signal});
-        const binding=await tested.getBinding({signal:abort.signal});
+        let binding;
+        try{binding=await tested.getBinding({signal:abort.signal});}
+        catch(error){
+          // Only an explicit reconnect may renew an expired saved credential.
+          // Limit recovery to this read; never replay input, timeouts or denials.
+          if(error.code!=='DEVICE_AUTH_EXPIRED'||error.status!==401||!recoverExpiredCredential||!current()||abort.signal.aborted)throw error;
+          await recoverExpiredCredential(abort.signal);
+          if(!current()||abort.signal.aborted)return false;
+          binding=await tested.getBinding({signal:abort.signal});
+        }
         if(!current()||abort.signal.aborted||armed)return false;
         targets=binding.targets;checkedAt=new Date();connectionActive=true;
         // A lost Bluetooth link invalidates this page's proof permanently. A later
@@ -119,13 +137,16 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
   }
   async function open({isCurrent=()=>true}={}){
     close();const opening=operation;settings=await store.getSettings();if(opening!==operation||!isCurrent())return null;
-    statusKey=sameProof(proof,client)?'bound':client?.paired?'needsFreshChallenge':'notPaired';
+    legacyEndpoint=settings.deviceEndpoint&&defaultBridgeEndpoint(settings.deviceEndpoint)!==settings.deviceEndpoint?settings.deviceEndpoint:'';
+    statusKey=getState().ready?'bound':getState().connected?'needsFreshChallenge':'notPaired';
     if(!document.querySelector('link[data-device-panel-style]')){const style=document.createElement('link');style.rel='stylesheet';style.href=new URL('./device-panel.css',import.meta.url).href;style.dataset.devicePanelStyle='';document.head.append(style);}
     openPanel(copy('title'),copy('subtitle'),`<div class="device-onboarding" data-no-i18n>
-      <details class="device-step"><summary data-device-text="prepareTitle"></summary><ol><li data-device-text="prepareUsb"></li><li data-device-text="prepareWifi"></li><li data-device-text="prepareCa"></li><li data-device-text="prepareBluetooth"></li><li data-device-text="settingsHelp"></li></ol></details>
-      <section class="device-step"><h3 data-device-text="pairTitle"></h3><label class="field"><span data-device-text="address"></span><input data-address type="url" inputmode="url" autocapitalize="none" autocomplete="off" spellcheck="false" placeholder="http://harness-abcdef.local" value="${escapeHTML(pendingSetup?.baseUrl||settings.deviceEndpoint||'')}"></label><label class="field"><span data-device-text="ownerPassword"></span><input data-owner-password type="password" autocomplete="off" autocapitalize="none" spellcheck="false" value="${escapeHTML(pendingSetup?.setupPassword||'')}"></label><details data-legacy-pin><summary data-device-text="advanced"></summary><label class="field"><span data-device-text="fingerprint"></span><textarea data-fingerprint rows="2" autocapitalize="none" autocomplete="off" spellcheck="false">${escapeHTML(settings.deviceFingerprint||'')}</textarea></label><label class="device-check"><input data-pin-confirmed type="checkbox"><span data-device-text="fingerprintConfirmed"></span></label></details><div class="panel-actions"><button type="button" class="primary" data-pair data-device-text="pair"></button><button type="button" class="secondary-button" data-disconnect data-device-text="disconnect"></button></div></section>
-      <section class="device-step"><h3 data-device-text="bindTitle"></h3><p class="quiet-note" data-binding-state></p><label class="field"><span data-device-text="target"></span><select data-target></select></label><button type="button" class="secondary-button" data-refresh data-device-text="refresh"></button><label class="field device-nonce-field"><span data-device-text="nonceLabel"></span><input data-nonce type="text" readonly inputmode="none" autocomplete="off" autocapitalize="none" spellcheck="false" aria-describedby="device-nonce-help"><small id="device-nonce-help" data-device-text="nonceHelp"></small></label><div class="panel-actions"><button type="button" class="secondary-button" data-start-challenge data-device-text="startChallenge"></button><button type="button" class="primary" data-confirm-challenge data-device-text="confirmChallenge"></button></div></section>
+      <section class="device-step device-bridge-card"><h3 data-device-text="pairTitle"></h3><p class="device-bridge-state" data-bridge-state></p><p class="device-bridge-address" data-bridge-address></p><p class="quiet-note" data-connect-help data-device-text="connectHelp"></p>
+      <details class="device-configuration" data-configuration ${pendingSetup?'open':''}><summary data-device-text="configureBridge"></summary><label class="field"><span data-device-text="address"></span><input data-address type="url" inputmode="url" autocapitalize="none" autocomplete="off" spellcheck="false" placeholder="http://igent.local" value="${escapeHTML(pendingSetup?.baseUrl||defaultBridgeEndpoint(settings.deviceEndpoint))}"></label><label class="field"><span data-device-text="ownerPassword"></span><input data-owner-password type="password" autocomplete="off" autocapitalize="none" spellcheck="false" value="${escapeHTML(pendingSetup?.setupPassword||'')}"></label><details data-legacy-pin><summary data-device-text="advanced"></summary><label class="field"><span data-device-text="fingerprint"></span><textarea data-fingerprint rows="2" autocapitalize="none" autocomplete="off" spellcheck="false">${escapeHTML(settings.deviceFingerprint||'')}</textarea></label><label class="device-check"><input data-pin-confirmed type="checkbox"><span data-device-text="fingerprintConfirmed"></span></label></details></details><div class="panel-actions"><button type="button" class="primary" data-pair data-device-text="pair"></button><button type="button" class="secondary-button" data-disconnect data-device-text="disconnect"></button></div><a class="device-settings-link" data-bridge-settings target="_blank" rel="noopener noreferrer" data-device-text="manageBridge"></a></section>
+      <section class="device-step"><h3 data-device-text="bindTitle"></h3><p class="quiet-note" data-binding-state></p><button type="button" class="secondary-button" data-connect-shortcut data-device-text="pair"></button><div data-test-controls><label class="field"><span data-device-text="target"></span><select data-target></select></label><button type="button" class="secondary-button" data-refresh data-device-text="refresh"></button><label class="field device-nonce-field"><span data-device-text="nonceLabel"></span><input data-nonce type="text" readonly inputmode="none" autocomplete="off" autocapitalize="none" spellcheck="false" aria-describedby="device-nonce-help"><small id="device-nonce-help" data-device-text="nonceHelp"></small></label><div class="panel-actions"><button type="button" class="secondary-button" data-start-challenge data-device-text="startChallenge"></button><button type="button" class="primary" data-confirm-challenge data-device-text="confirmChallenge"></button></div></div></section>
       <section class="device-step"><h3 data-device-text="settingsTitle"></h3><p class="quiet-note" data-device-text="settingsHelp"></p><div class="panel-actions"><button type="button" class="primary" data-start-sharing data-device-text="startSharing"></button><button type="button" class="secondary-button" data-stop-sharing data-device-text="stopSharing"></button></div><p class="quiet-note" data-sharing-state></p></section>
+      <details class="device-step"><summary data-device-text="prepareTitle"></summary><p class="quiet-note" data-device-text="wifiOptional"></p><ol><li data-device-text="prepareUsb"></li><li data-device-text="prepareWifi"></li><li data-device-text="prepareCa"></li></ol></details>
+      <details class="device-step"><summary data-device-text="phoneGuide"></summary><ol><li data-device-text="prepareBluetooth"></li><li data-device-text="settingsHelp"></li></ol></details>
       <details class="device-step"><summary data-device-text="advanced"></summary><p class="quiet-note" data-device-text="connectionSaved"></p><pre data-device-metadata></pre><button type="button" class="secondary-button" data-control-check data-device-text="checkControl"></button></details><div class="status-box device-status" data-device-status role="status" aria-live="polite"></div></div>`);
     root=getPanelRoot().querySelector('.device-onboarding');node('[data-address]').addEventListener('input',()=>{node('[data-fingerprint]').value='';node('[data-pin-confirmed]').checked=false;renderState();});dialog=root.closest('dialog');dialog?.addEventListener('close',close);unsubscribe=subscribe(renderState);
     function connection(configuration,signal){
@@ -137,7 +158,7 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
       const ready=bridge.open({signal});ready.catch(()=>{});return {bridge,ready};
     }
     node('[data-disconnect]').onclick=()=>{if(working||isBusy())return;stopMonitor();connectionEpoch++;transport?.close();transport=null;connectionActive=false;client?.clearCredentials();client=null;targets=[];targetId='';resetChallenge();invalidateProof();setStatus('notPaired');renderState();};
-    node('[data-pair]').onclick=()=>action(async({signal,current})=>{
+    const connect=()=>{if(working||isBusy())return;if(!node('[data-address]').value.trim()){node('[data-configuration]').open=true;node('[data-address]').focus();return;}return action(async({signal,current})=>{
       const configuration=values(),passwordInput=node('[data-owner-password]'),setupPassword=configuration.setupPassword||passwordInput.value;passwordInput.value='';pendingSetup=null;
       const preferredId=client?.paired&&client.baseUrl?.origin===configuration.baseUrl?client.clientId:undefined;
       // Open before the first await so Safari can associate this window with the Connect click.
@@ -146,25 +167,39 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
        const clientId=await store.ensureDeviceClientId(configuration.baseUrl,{preferredId});await ready;if(!valid(current))return;
        resetChallenge();invalidateProof();client=null;targets=[];targetId='';setStatus('pairing');
        const candidate=clientFactory({...configuration,...(bridge?{fetchImpl:bridge.fetch}:{})});
-       const saved=setupPassword?null:await store.getLocalCredential('device:'+configuration.baseUrl);
+       let saved=setupPassword?null:await store.getLocalCredential('device:'+configuration.baseUrl);
+       // Preserve an existing board credential across the automatic hostname change.
+       // pinIdentity below still checks the old board fingerprint before it is used.
+       if(!saved&&!setupPassword&&legacyEndpoint&&configuration.baseUrl===DEFAULT_BRIDGE_URL){const previous=await store.getLocalCredential('device:'+legacyEndpoint);if(previous)saved={...previous,baseUrl:configuration.baseUrl};}
        if(!valid(current))return;
+       const enroll=async(enrollmentId,enrollmentSignal=signal,expectedFingerprint=configuration.expectedFingerprint)=>{
+        try{await candidate.pair({...configuration,clientId:enrollmentId,setupPassword,expectedFingerprint},{signal:enrollmentSignal});}
+        catch(error){if(error.code==='DEVICE_CONNECTION_CODE_REQUIRED'&&valid(current)){node('[data-configuration]').open=true;node('[data-owner-password]').focus();throw componentError('pairingCodeRequired');}throw error;}
+       };
        if(saved){candidate.restoreCredentials(saved);await candidate.pinIdentity(saved.expectedFingerprint,{signal});}
-       else await candidate.pair({...configuration,clientId,setupPassword},{signal});
+       else await enroll(clientId);
        if(configuration.boardId&&candidate.boardId!==configuration.boardId){candidate.clearCredentials();throw componentError('invalidAddress');}
-       if(!valid(current)){candidate.clearCredentials();return;}client=candidate;transport=bridge;connectionActive=true;await refresh(signal);if(!valid(current))return;
+       if(!valid(current)){candidate.clearCredentials();return;}client=candidate;transport=bridge;connectionActive=true;
+       await refresh(signal,saved?async recoverySignal=>{
+        await store.deleteLocalCredential('device:'+configuration.baseUrl);
+        if(!valid(current)||recoverySignal.aborted)return;
+        await enroll(saved.clientId,recoverySignal,saved.expectedFingerprint||saved.publicKeyFingerprint);
+       }:null);if(!valid(current))return;
        await store.saveLocalCredential('device:'+configuration.baseUrl,client.exportCredentials());
-       await savePublicSettings({deviceEndpoint:configuration.baseUrl,deviceFingerprint:client.status().publicKeyFingerprint});retained=true;setStatus('paired');startMonitor();
+       await savePublicSettings({deviceEndpoint:configuration.baseUrl,deviceFingerprint:client.status().publicKeyFingerprint});retained=true;node('[data-configuration]').open=false;setStatus(getState().bluetoothConnected?'phoneConnectedNeedsTest':'paired');startMonitor();
       }finally{if(!retained){bridge?.close();if(transport===bridge)transport=null;connectionActive=false;invalidateProof();}}
     });
+    };
+    node('[data-pair]').onclick=connect;node('[data-connect-shortcut]').onclick=connect;
     node('[data-refresh]').onclick=()=>action(async({signal,current})=>{await refresh(signal);if(valid(current))setStatus(sameProof(proof,client)?'bound':'needsFreshChallenge');});
-    node('[data-target]').onchange=()=>{if(working||isBusy()){renderState();return;}resetChallenge();invalidateProof();targetId=node('[data-target]').value;setStatus('needsFreshChallenge');renderState();};
+    node('[data-target]').onchange=()=>{if(working||isBusy()||!getState().connected){renderState();return;}resetChallenge();invalidateProof();targetId=node('[data-target]').value;setStatus('needsFreshChallenge');renderState();};
     node('[data-nonce]').addEventListener('keydown',event=>{
       if(!armed||document.activeElement!==event.currentTarget||nonce.length>=8)return;
       const digit=trustedNonceDigit(event);if(digit===null)return;event.preventDefault();nonce+=digit;event.currentTarget.value='●'.repeat(nonce.length);setStatus(nonce.length===8?'nonceReady':'receiving');renderState();
     });
     node('[data-nonce]').addEventListener('paste',event=>event.preventDefault());
     node('[data-start-challenge]').onclick=()=>{
-      if(working||isBusy())return;resetChallenge();invalidateProof();armed=true;
+      if(working||isBusy()||!getState().connected||!targets.some(target=>target.targetId===targetId&&usableTarget(target)))return;resetChallenge();invalidateProof();armed=true;
       const field=node('[data-nonce]');field.focus({preventScroll:true});
       if(document.activeElement!==field){armed=false;setStatus('focusNonce');return;}
       setStatus('receiving');const selected=targetId;
@@ -191,7 +226,7 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
       try{await tested.claimLease({writerId},{signal});claimed=true;await tested.endRun({writerId});claimed=false;if(valid(current)){checkedAt=new Date();setStatus('controlChecked');}}
       finally{if(claimed){try{await tested.endRun({writerId});}catch{invalidateProof();}}}
     });
-    renderState();return root;
+    renderState();if(getState().connected)void checkConnection();return root;
   }
   function destroy(){disposed=true;stopMonitor();connectionEpoch++;globalThis.document?.removeEventListener?.('visibilitychange',foreground);globalThis.removeEventListener?.('pagehide',destroy);close();transport?.close();transport=null;connectionActive=false;targets=[];invalidateProof();}
   globalThis.addEventListener?.('pagehide',destroy,{once:true});

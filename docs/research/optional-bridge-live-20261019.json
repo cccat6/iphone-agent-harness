@@ -1,0 +1,52 @@
+{
+  "checkedAt": "2026-10-18T17:23:06.078Z",
+  "scope": "Real C3 HTTP management and token enrollment; code temporarily enabled then restored off; no phone input, no Wi-Fi reprovisioning and no hostname change.",
+  "checks": [
+    {
+      "name": "fixed-host-and-code-off",
+      "passed": true
+    },
+    {
+      "name": "production-client-enrolls-with-empty-code",
+      "passed": true
+    },
+    {
+      "name": "phone-list-readable-over-lan",
+      "passed": true,
+      "connectedPhones": 0
+    },
+    {
+      "name": "management-still-requires-browser-token",
+      "passed": true
+    },
+    {
+      "name": "default-settings-no-owner-secret",
+      "passed": true
+    },
+    {
+      "name": "enable-optional-code-without-restarting",
+      "passed": true
+    },
+    {
+      "name": "enabled-code-required-and-wrong-code-rejected",
+      "passed": true
+    },
+    {
+      "name": "enabled-code-accepts-correct-code",
+      "passed": true
+    },
+    {
+      "name": "restored-requested-default-code-off",
+      "passed": true
+    },
+    {
+      "name": "invalid-name-rejected-without-changing-settings",
+      "passed": true
+    },
+    {
+      "name": "actual-management-page-served",
+      "passed": true
+    }
+  ],
+  "passed": true
+}

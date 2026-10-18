@@ -19,11 +19,11 @@
 #define IAH_EXTERNAL_SEEN 1
 #include "src/Core.h"
 #include "src/HidReportMap.h"
-#include "src/SecureService.h"
 #if __has_include("config.local.h")
 #include "config.local.h"
 #endif
 #include "config.example.h"
+#include "src/SecureService.h"
 
 SET_LOOP_TASK_STACK_SIZE(8192);
 static_assert(CONFIG_BT_NIMBLE_MAX_CONNECTIONS==2&&CONFIG_BT_NIMBLE_MAX_BONDS==2,"Arduino build_opt.h must configure the actual NimBLE host");
@@ -342,7 +342,7 @@ void configureSerial(){
 void setup(){
  Serial.begin(115200);preferences.begin("iah-product",false);coreMutex=xSemaphoreCreateMutex();
  char id[32];snprintf(id,sizeof(id),"iah-%012llx",(unsigned long long)ESP.getEfuseMac());boardId=id;
- snprintf(id,sizeof(id),"boot-%08lx%08lx",(unsigned long)esp_random(),(unsigned long)esp_random());bootId=id;hostname="harness-"+boardId.substring(4);
+ snprintf(id,sizeof(id),"boot-%08lx%08lx",(unsigned long)esp_random(),(unsigned long)esp_random());bootId=id;hostname=readBridgeSettings(preferences.getString("bridgeSettings", "").c_str()).hostname.c_str();
  core=new iah::Core(boardId.c_str(),bootId.c_str(),sink,replayStorage);
  for(size_t i=0;i<iah::MaxTargets;i++){String a="bond"+String(i),b="target"+String(i);auto identity=preferences.getString(a.c_str(),""),target=preferences.getString(b.c_str(),"");if(identity.length()&&target.length())core->registerBond(target.c_str(),identity.c_str());}
  WiFi.onEvent(wifiEvent);

@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 ROOT = Path(__file__).resolve().parents[1]
 SKETCH = ROOT / 'firmware' / 'IPhoneAutomationHarness'
 CORE_VERSION = '3.3.11'
-SOURCE_FILES = ('IPhoneAutomationHarness.ino', 'main.cpp', 'config.example.h', 'ResourceLimits.h', 'build_opt.h', 'src/Core.h', 'src/Canonical.h', 'src/SetupState.h', 'src/HidReportMap.h', 'src/Admission.h', 'src/Pki.h', 'src/Wire.h', 'src/SecureService.h', 'src/LanBridgePage.h', 'src/HtmlJson.h', 'src/WifiSetupPage.h')
+SOURCE_FILES = ('IPhoneAutomationHarness.ino', 'main.cpp', 'config.example.h', 'ResourceLimits.h', 'build_opt.h', 'src/Core.h', 'src/Canonical.h', 'src/SetupState.h', 'src/HidReportMap.h', 'src/Admission.h', 'src/Pki.h', 'src/Wire.h', 'src/SecureService.h', 'src/LanBridgePage.h', 'src/HtmlJson.h', 'src/WifiSetupPage.h', 'src/BridgeSettings.h', 'src/BridgeSettingsPage.h')
 
 PROFILES = {
     'esp32c3': {'label': 'ESP32-C3', 'board': 'ESP32C3 Dev Module', 'usbCdc': True,

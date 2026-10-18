@@ -18,6 +18,15 @@ struct Fixture {
   s.events[0].buttons=1;s.events[1].atMs=100;s.events[1].x=7000;s.events[1].buttons=1;s.events[2].atMs=100;s.events[2].x=7000;return s;}
 };
 int main(){size_t cases=0;
+ {Fake sink;Core core{"settings-board","settings-boot",sink};assert(!core.configurationBusy(0));
+  assert(core.registerBond("phone","id-phone")==Code::Accepted);assert(core.target("phone")->releasePending);assert(!core.configurationBusy(0));
+  assert(core.connect("id-phone",11,true,true,true)==Code::Accepted);assert(!core.configurationBusy(0));
+  core.target("phone")->releasePending=true;assert(core.configurationBusy(0));core.target("phone")->releasePending=false;
+  assert(core.bindClient("client","phone")==Code::Accepted);assert(core.lease("phone","client","lease",1000,0)==Code::Accepted);assert(core.configurationBusy(999));assert(!core.configurationBusy(1000));
+  core.target("phone")->running=true;assert(core.configurationBusy(1000));core.target("phone")->running=false;
+  core.disconnect(11,1001);assert(core.target("phone")->releasePending);assert(!core.configurationBusy(1001));
+  core.target("phone")->lease.expiresAt=2000;assert(core.configurationBusy(1001));assert(!core.configurationBusy(2000));cases++;}
+
  {Fixture f;auto a=f.plan(),b=f.plan("segment-b",true);assert(f.core.accept(a,0)==Code::Accepted);assert(f.core.accept(b,0)==Code::Accepted);f.core.tick(0);assert(f.sink.sent.size()==2);assert(f.sink.sent[0].conn==11&&f.sink.sent[1].conn==22);f.core.tick(100);assert(f.sink.sent.size()==6);assert(f.sink.sent[2].event.buttons==1&&f.sink.sent[3].event.buttons==0);assert(f.core.result("client-a",a.segmentId)->status==Status::Completed);cases++;}
  {Fixture f;auto s=f.plan();assert(f.core.accept(s,0)==Code::Accepted);assert(f.core.accept(s,0)==Code::Duplicate);auto changed=s;changed.payloadHash[0]='b';assert(f.core.accept(changed,0)==Code::Conflict);f.core.tick(0);f.core.tick(100);assert(f.core.accept(s,200)==Code::Duplicate);assert(f.sink.sent.size()==3);cases++;}
  {Fixture f;auto s=f.plan();s.bootId="old-boot";assert(f.core.accept(s,0)==Code::StaleBoot);s=f.plan();s.clientId="client-b";assert(f.core.accept(s,0)==Code::Unauthorized);assert(f.core.lease("target-a","client-b","steal",1000,0)==Code::Unauthorized);cases++;}

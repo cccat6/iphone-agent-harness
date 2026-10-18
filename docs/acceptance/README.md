@@ -38,11 +38,13 @@ The client supports Streamable HTTP. Access tokens stay in the current page’s 
 
 ## Phone and ESP32 connection
 
-1. Install the current firmware from the desktop flashing page. Choose **Read device information** and keep the device Wi-Fi name/password and phone setup link.
-2. Connect your phone to the device Wi-Fi, open `http://192.168.4.1`, and enter your home Wi-Fi name and password. Wait for the page to confirm the connection, then switch back to your home Wi-Fi. Incorrect details can be retried on that page.
-3. Open the setup link on your phone and choose **Connect**. When the device connection tab opens, return to Harness and **keep the device connection tab open**. No certificate installation is needed.
-4. Pair with **iPhone Agent Bridge** in Bluetooth settings. Return to Harness, select this phone and start the input test. The device enters eight digits automatically; confirm once they arrive.
-5. Enable AssistiveTouch using the setup guide, then return to Harness and start screen sharing. Full Keyboard Access does not need to be turned off; there are no confirmation checkboxes. You can then use Task mode for phone actions.
+The default bridge address is **http://igent.local**, and a connection code is off by default. Harness fills the address automatically. Tap **Connect ESP32 bridge** to open its local connection tab, then return to Harness and keep that tab open. An existing live browser connection does not need this step again.
+
+A bridge already on your home Wi-Fi needs no provisioning. Only a new unconfigured board needs the optional first-time Wi-Fi guide. System Bluetooth pairing is separate from the webpage's network connection; once the webpage connects, it can read the phone list and run the input test.
+
+Saved connection details are reused. **Add or change bridge** is optional, for a custom address or a bridge that has explicitly enabled a code. Open **http://igent.local/settings** (or the custom address) to change the local hostname or enable/disable a connection code. Changing the hostname restarts the idle bridge and provides its new address. Multiple bridges can use distinct custom names.
+
+Pair the phone with **iPhone Agent Bridge**, run the eight-digit input test and confirm it, then enable AssistiveTouch and share the screen. Full Keyboard Access need not be disabled.
 
 Commands travel between the phone and ESP32 over the local network; the website server does not forward them. Closing the device connection tab disconnects it. After reconnecting, repeat the phone input test.
 

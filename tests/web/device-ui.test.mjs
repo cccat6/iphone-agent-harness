@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {trustedNonceDigit} from '../../apps/web/ui/device-panel.js';
+import {trustedNonceDigit,defaultBridgeEndpoint} from '../../apps/web/ui/device-panel.js';
 import {DEVICE_MESSAGES} from '../../apps/web/locales/device.js';
 
 // DOM-origin isTrusted cannot be set by browser scripts; the shape here tests the
@@ -18,4 +18,10 @@ test('device onboarding has all eight locales with matching placeholders',()=>{
   const locales=['en','zh-Hans','zh-Hant','ja','ru','de','fr','es'];
   assert.deepEqual(Object.keys(DEVICE_MESSAGES).sort(),locales.sort());
   for(const locale of locales){assert.deepEqual(Object.keys(DEVICE_MESSAGES[locale]).sort(),Object.keys(DEVICE_MESSAGES.en).sort());for(const [key,text] of Object.entries(DEVICE_MESSAGES[locale])){assert.ok(text.trim(),locale+':'+key);assert.deepEqual((text.match(/\{\w+\}/g)||[]).sort(),(DEVICE_MESSAGES.en[key].match(/\{\w+\}/g)||[]).sort(),locale+':'+key);}}
+});
+
+test('only the previous automatic bridge hostname migrates to the shared default',()=>{
+ assert.equal(defaultBridgeEndpoint(''),'http://igent.local');
+ assert.equal(defaultBridgeEndpoint('http://harness-b0e4b4e05380.local'),'http://igent.local');
+ for(const address of ['http://my-bridge.local','http://harness-abcdef.local','https://harness-b0e4b4e05380.local','http://192.168.0.125','http://harness-b0e4b4e05380.local:8080'])assert.equal(defaultBridgeEndpoint(address),address);
 });
