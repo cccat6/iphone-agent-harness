@@ -27,6 +27,11 @@ To test a different implementation with the reference client:
 build/rtc-direct/probe -client-config build/rtc-direct/other-endpoint.json
 ```
 
+An optional `-client-diagnostic build/rtc-direct/client-dtls.log` records only
+DTLS handshake stages, alerts and the transport failure reason in a mode-600,
+32-KiB-bounded local file. ICE/connection states are also reported. It does not
+enable packet dumps, SDP logging, ICE credential logging or TLS key logging.
+
 ## Browser contract
 
 Public configuration: `version: 1`, `ip`, `port`, `fingerprint` (SHA-256 colon hex), `transport: "webrtc-direct-v2"`, `maxMessageBytes: 512`. `host` and `fingerprintSHA256` repeat the corresponding values for diagnostic compatibility.

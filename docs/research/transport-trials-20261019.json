@@ -5,7 +5,7 @@
     "WebRTC Direct v2",
     "BLE extension"
   ],
-  "currentStage": "WebRTC Direct Safari foreground works; diagnostics false failure repaired; background and C3 pending",
+  "currentStage": "C3 prototype deployed; awaiting iPhone direct foreground/background result",
   "phoneFeatureFlag": "User reports no Local Network Access option on iOS 27.0.1",
   "boardPreflight": {
     "hostname": "igent.local",
@@ -111,15 +111,70 @@
     "goSelfTestPassed": true,
     "chromeForegroundPassed": true,
     "macSafariForegroundEchoPassed": true,
-    "certificate": "one shared self-signed test certificate; private key kept outside tracked sources"
+    "certificate": "one shared self-signed test certificate; private key kept outside tracked sources",
+    "serviceStoppedBeforePhoneC3Trial": true
   },
   "rtcDiagnostics": {
-    "deploymentId": "945fc08cd191455bb768e624a26b94f1",
+    "deploymentId": "eb84c913f62647828f5f9234c6bf3a37",
     "fullWebTestsPassed": 553,
     "publishedAssetsVerified": 136,
     "safariStatisticsFalseFailureFixed": true,
     "macSafariAfterFix": "3 matching echoes, success with explicit incomplete-statistics note",
-    "phoneBackground": "pending",
-    "c3": "prototype compiling; not flashed"
+    "phoneBackground": "passed",
+    "c3": "flashed and three echoes passed in Chrome and macOS Safari; iPhone trial pending"
+  },
+  "phoneWebRTCBackground": {
+    "evidence": "Summary extracted from user-pasted JSON and reference server selected-pair log",
+    "startedAt": "2026-10-18T18:49:44.978Z",
+    "finishedAt": "2026-10-18T18:50:12.847Z",
+    "foregroundEchoMs": [
+      11,
+      10,
+      8
+    ],
+    "backgroundEchoMs": [
+      60,
+      50,
+      52,
+      91,
+      55
+    ],
+    "allFiveRequestedHidden": true,
+    "allFiveReceivedHidden": true,
+    "allNoncesMatched": true,
+    "screenRecorderCallbacksContinuedHidden": true,
+    "screenCaptureStoppedByTest": true,
+    "referenceSelectedRemote": "192.168.0.116:61814",
+    "referenceTransport": "udp",
+    "browserIPStatisticsRedacted": true,
+    "publicCARequired": false,
+    "externalSignaling": false,
+    "TURN": false,
+    "phoneInputSent": false,
+    "scopeLimit": "about 25 seconds of scheduled echo testing, not unlimited background execution or C3/BLE acceptance"
+  },
+  "c3Prototype": {
+    "applicationSha256": "ec96708d9592eb6d9b0f945cfea008b2876f3bb129b2368eb942efe3cc72e770",
+    "sourceSha256": "a2f3ef536a8df8c28b5dbca9a2a58911755f0032ffa20a19f4827c6c173b9b1e",
+    "flashed": true,
+    "serialPort": "/dev/cu.usbmodem1101",
+    "offset": 65536,
+    "applicationBytes": 1049040,
+    "flashVerified": true,
+    "nvsPreserved": true,
+    "bluetoothHidEnabled": false,
+    "chromeForegroundEchoes": 3,
+    "macSafariForegroundEchoes": 3,
+    "endpoint": "192.168.0.125:18948",
+    "dtlsReadyFreeHeap": 158992,
+    "dtlsMinimumHeap": 141848,
+    "echoFreeHeap": 160904,
+    "phoneValidation": "pending",
+    "pionClient": "failed; likely extra SRTP handshake expectation, actual browsers passed",
+    "limitations": [
+      "simplified SCTP without complete retransmission or fragmentation",
+      "no BLE coexistence validation",
+      "not production firmware"
+    ]
   }
 }

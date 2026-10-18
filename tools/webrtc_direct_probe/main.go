@@ -12,6 +12,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"math/big"
 	"net"
@@ -305,8 +306,44 @@ func (s *server) accept(u, remote, pwd string, addr *net.UDPAddr, p *peer) {
 	log.Printf("peer=%d accepted stunSource=%s transport=udp", p.number, addr.String())
 }
 
-func selfTest(c publicConfig) error {
-	engine := webrtc.SettingEngine{}
+// Only protocol-stage messages are retained; never SDP, credentials, packets or
+// TLS key logs. This writer bounds the optional local diagnostic file at 32 KiB.
+type diagnosticWriter struct {
+	mu     sync.Mutex
+	output io.Writer
+	bytes  int
+}
+
+func (w *diagnosticWriter) Write(p []byte) (int, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	s := string(p)
+	allowed := strings.Contains(s, "[handshake:") || strings.Contains(s, "<- Alert") || strings.Contains(s, "-> Alert") || strings.Contains(s, "use cipher suite") || strings.Contains(s, "Failed to start manager") || strings.Contains(s, "handshake parse failed")
+	if allowed && w.bytes+len(p) <= 32768 {
+		n, e := w.output.Write(p)
+		w.bytes += n
+		if e != nil {
+			return n, e
+		}
+	}
+	return len(p), nil
+}
+func selfTest(c publicConfig, diagnosticPath string) error {
+	logger := logging.NewDefaultLoggerFactory()
+	logger.DefaultLogLevel = logging.LogLevelDisabled
+	if diagnosticPath != "" {
+		f, e := os.OpenFile(diagnosticPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
+		if e != nil {
+			return e
+		}
+		defer f.Close()
+		if e = f.Chmod(0600); e != nil {
+			return e
+		}
+		logger.Writer = &diagnosticWriter{output: f}
+		logger.ScopeLevels = map[string]logging.LogLevel{"dtls": logging.LogLevelTrace, "pc": logging.LogLevelWarn}
+	}
+	engine := webrtc.SettingEngine{LoggerFactory: logger}
 	engine.SetIncludeLoopbackCandidate(true)
 	engine.SetICEMulticastDNSMode(ice.MulticastDNSModeDisabled)
 	engine.SetNetworkTypes([]webrtc.NetworkType{webrtc.NetworkTypeUDP4})
@@ -315,6 +352,8 @@ func selfTest(c publicConfig) error {
 		return err
 	}
 	defer pc.Close()
+	pc.OnConnectionStateChange(func(s webrtc.PeerConnectionState) { log.Printf("client connection=%s", s.String()) })
+	pc.OnICEConnectionStateChange(func(s webrtc.ICEConnectionState) { log.Printf("client ice=%s", s.String()) })
 	id := uint16(0)
 	yes := true
 	dc, err := pc.CreateDataChannel("probe", &webrtc.DataChannelInit{ID: &id, Negotiated: &yes, Ordered: &yes})
@@ -383,6 +422,7 @@ func main() {
 	port := flag.Int("port", 18948, "UDP listen port")
 	testOnly := flag.Bool("self-test", false, "run loopback client against reference listener and exit")
 	clientConfig := flag.String("client-config", "", "run client against public endpoint JSON and exit")
+	clientDiagnostic := flag.String("client-diagnostic", "", "optional bounded mode-600 protocol-stage log (no SDP or passwords)")
 	flag.Parse()
 	if *clientConfig != "" {
 		data, err := os.ReadFile(*clientConfig)
@@ -393,7 +433,7 @@ func main() {
 		if json.Unmarshal(data, &c) != nil {
 			log.Fatal("invalid endpoint")
 		}
-		if err = selfTest(c); err != nil {
+		if err = selfTest(c, *clientDiagnostic); err != nil {
 			log.Fatal("client test failed: ", err)
 		}
 		log.Print("client echo passed")
@@ -428,7 +468,7 @@ func main() {
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 	if *testOnly {
 		cfg.IP = "127.0.0.1"
-		if err = selfTest(cfg); err != nil {
+		if err = selfTest(cfg, *clientDiagnostic); err != nil {
 			log.Fatal("self test failed: ", err)
 		}
 		log.Print("self test echo passed")
