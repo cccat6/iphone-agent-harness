@@ -17,3 +17,18 @@
 .device-configuration>summary{font-size:.88rem;font-weight:500}
 .device-onboarding [hidden]{display:none!important}
 .device-settings-link{display:inline-block;margin-top:14px;font-size:.88rem}
+/* Connection steps keep their order visible while prerequisites are missing. */
+.device-info-step{background:var(--surface-raised,var(--surface,#fff));border-color:var(--accent,#268578)}
+.device-step[data-unavailable="true"]{border-style:dashed;background:var(--surface-subtle,var(--surface,#fff))}
+.device-step[data-unavailable="true"] h3{color:var(--muted,#666)}
+.device-step fieldset{border:0;padding:0;margin:0;min-width:0}
+.device-step fieldset:disabled button,.device-step fieldset:disabled input,.device-step fieldset:disabled select{opacity:.55;cursor:default}
+.device-step>p,.device-step fieldset>p{line-height:1.55;overflow-wrap:anywhere}
+.device-progress{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;min-height:24px;margin:12px 0 0;font-size:.88rem;line-height:1.5;color:var(--muted,#666);overflow-wrap:anywhere}
+.device-progress [data-progress-message]{min-width:0}
+.device-progress [data-progress-elapsed]{flex:0 0 auto;white-space:nowrap;font-variant-numeric:tabular-nums}
+.device-progress.error{color:#a53228}
+.device-error-details{margin-top:10px;font-size:.8rem;color:var(--muted,#666)}
+.device-error-details>summary{font-weight:400;font-size:inherit;cursor:pointer}
+.device-error-details>pre{margin:8px 0 0;font-size:.75rem;line-height:1.5}
+@media(max-width:600px){.device-onboarding{gap:14px}.device-step h3{line-height:1.45}.device-info-step .panel-actions{gap:8px}}

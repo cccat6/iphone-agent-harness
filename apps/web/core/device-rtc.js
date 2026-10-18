@@ -34,8 +34,17 @@ function decodeFrame(raw){
  const binary=atob(frame.data);if(binary.length<1||binary.length>CHUNK)throw error('DEVICE_RTC_PROTOCOL_ERROR');return {...frame,bytes:Uint8Array.from(binary,char=>char.charCodeAt(0))};
 }
 export class DeviceRTCTransport{
- constructor({baseUrl,rtc=null,defaults=null,bootstrapFetch=globalThis.fetch,Peer=globalThis.RTCPeerConnection,onDisconnect=()=>{},connectTimeoutMs=30000,timeoutMs=8000}={}){
-  this.baseUrl=createDeviceURL(baseUrl);this.requestedRTC=rtc;this.defaults=defaults;this.bootstrapFetch=bootstrapFetch;this.Peer=Peer;this.onDisconnect=onDisconnect;this.connectTimeoutMs=Math.min(30000,connectTimeoutMs);this.timeoutMs=timeoutMs;this.closed=false;this.ready=false;this.queue=[];this.active=null;this.requestNumber=0;this.fetch=this.fetch.bind(this);
+ constructor({baseUrl,rtc=null,defaults=null,bootstrapFetch=globalThis.fetch,Peer=globalThis.RTCPeerConnection,onDisconnect=()=>{},onProgress=()=>{},connectTimeoutMs=30000,timeoutMs=8000}={}){
+  this.baseUrl=createDeviceURL(baseUrl);this.requestedRTC=rtc;this.defaults=defaults;this.bootstrapFetch=bootstrapFetch;this.Peer=Peer;this.onDisconnect=onDisconnect;this.onProgress=onProgress;this.connectTimeoutMs=Math.min(30000,connectTimeoutMs);this.timeoutMs=timeoutMs;this.closed=false;this.ready=false;this.queue=[];this.active=null;this.requestNumber=0;this.fetch=this.fetch.bind(this);
+ }
+ publishProgress(phase){
+  const dtls=this.pc?.sctp?.transport;
+  const value={phase,ice:this.pc?.iceConnectionState||'new',connection:this.pc?.connectionState||'new',dtls:dtls?.state||'new',channel:this.channel?.readyState||'connecting'};
+  try{this.onProgress(value);}catch{}
+ }
+ trackProgress(){
+  if(this.closed)return;const dtls=this.pc?.sctp?.transport;if(dtls&&this.observedDTLS!==dtls){this.observedDTLS=dtls;dtls.addEventListener?.('statechange',()=>this.trackProgress());}
+  this.publishProgress(this.channel?.readyState==='open'?'ready':dtls?.state==='connected'?'channel':['connected','completed'].includes(this.pc?.iceConnectionState)?'handshake':'network');
  }
  async configuration(signal){
   if(this.requestedRTC)return validateRTCConfiguration(this.requestedRTC,{fallbackHost:new URL(this.baseUrl).hostname});
@@ -50,18 +59,18 @@ export class DeviceRTCTransport{
   if(signal?.aborted){this.openAbort();return this.opening;}
   this.openTimer=setTimeout(()=>this.close(error('DEVICE_RTC_CONNECT_TIMEOUT')),this.connectTimeoutMs);
   (async()=>{
-   if(typeof this.Peer!=='function')throw error('DEVICE_RTC_UNSUPPORTED');this.rtc=await this.configuration(this.controller.signal);if(this.closed)return;
-   this.pc=new this.Peer({iceServers:[],iceTransportPolicy:'all',bundlePolicy:'max-bundle',iceCandidatePoolSize:0});
+   if(typeof this.Peer!=='function')throw error('DEVICE_RTC_UNSUPPORTED');this.publishProgress('configuration');this.rtc=await this.configuration(this.controller.signal);if(this.closed)return;
+   this.publishProgress('network');this.pc=new this.Peer({iceServers:[],iceTransportPolicy:'all',bundlePolicy:'max-bundle',iceCandidatePoolSize:0});
    for(const event of ['connectionstatechange','iceconnectionstatechange'])this.pc.addEventListener(event,()=>{
-    if(this.closed)return;const states=[this.pc.connectionState,this.pc.iceConnectionState];
+    if(this.closed)return;this.trackProgress();const states=[this.pc.connectionState,this.pc.iceConnectionState];
     if(states.some(state=>state==='failed'||state==='closed')){this.close(error('DEVICE_RTC_DISCONNECTED'));return;}
     if(states.includes('disconnected')){if(!this.disconnectTimer)this.disconnectTimer=setTimeout(()=>this.close(error('DEVICE_RTC_DISCONNECTED')),Math.min(8000,this.timeoutMs));}
     else{clearTimeout(this.disconnectTimer);this.disconnectTimer=null;}
    });
    this.channel=this.pc.createDataChannel('iah-rpc',{negotiated:true,id:0,ordered:true});
-   this.channel.addEventListener('open',()=>{if(this.closed)return;this.ready=true;clearTimeout(this.openTimer);signal?.removeEventListener('abort',this.openAbort);this.resolveOpen(this);});
+   this.channel.addEventListener('open',()=>{if(this.closed)return;this.ready=true;this.publishProgress('ready');clearTimeout(this.openTimer);signal?.removeEventListener('abort',this.openAbort);this.resolveOpen(this);});
    this.channel.addEventListener('close',()=>this.close(error('DEVICE_RTC_CLOSED')));this.channel.addEventListener('error',()=>this.close(error('DEVICE_RTC_DISCONNECTED')));this.channel.addEventListener('message',event=>this.receive(event.data));
-   const offer=await this.pc.createOffer();if(this.closed)return;await this.pc.setLocalDescription(offer);if(this.closed)return;await this.pc.setRemoteDescription(deviceRTCAnswer(this.pc.localDescription.sdp,this.rtc));
+   const offer=await this.pc.createOffer();if(this.closed)return;await this.pc.setLocalDescription(offer);if(this.closed)return;await this.pc.setRemoteDescription(deviceRTCAnswer(this.pc.localDescription.sdp,this.rtc));this.trackProgress();
   })().catch(cause=>this.close(cause?.code?cause:error('DEVICE_RTC_CONNECT_FAILED')));
   return this.opening;
  }

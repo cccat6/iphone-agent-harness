@@ -55,7 +55,23 @@ class SecureService {
  struct Reader {httpd_req_t* req;size_t left;uint8_t bytes[256];size_t at=0,size=0;int read(){if(at==size){if(!left)return -1;int count=httpd_req_recv(req,(char*)bytes,std::min(left,sizeof(bytes)));if(count<=0){left=0;return -1;}left-=count;at=0;size=count;}return bytes[at++];}size_t readBytes(char* output,size_t count){size_t n=0;for(;n<count;n++){int c=read();if(c<0)break;output[n]=(char)c;}return n;}};
  bool read(Request* r,JsonDocument& doc,size_t limit=2048){if(r->rtc){if(!r->body.length()||r->body.length()>limit)return false;return strictJsonObject(doc,r->body.c_str(),r->body.length());}if(r->content_len<=0||r->content_len>limit)return false;Reader reader{r->http,r->content_len};auto e=deserializeJson(doc,reader,DeserializationOption::NestingLimit(8));if(e||!doc.is<JsonObject>())return false;for(int c=reader.read();c>=0;c=reader.read())if(c!=32&&c!=9&&c!=10&&c!=13)return false;return reader.left==0;}
  Grant* authenticate(Request* r){String auth=header(r,"Authorization");if(auth.length()!=71||!auth.startsWith("Bearer "))return nullptr;String token=auth.substring(7);return auth_.authenticate(sha256Hex(token).c_str(),origin_.c_str());}
- bool saveGrant(const Grant& grant){size_t i=MaxClients;for(size_t n=0;n<MaxClients;n++)if(auth_.grants()[n].active&&auth_.grants()[n].clientId==grant.clientId){i=n;break;}if(i==MaxClients)for(size_t n=0;n<MaxClients;n++)if(!auth_.grants()[n].active){i=n;break;}if(i==MaxClients)return false;JsonDocument doc;doc["id"]=grant.clientId;doc["hash"]=grant.tokenHash;doc["origin"]=grant.origin;doc["target"]=grant.targetId;String text;serializeJson(doc,text);String key="grant"+String(i);return prefs_.putString(key.c_str(),text)==text.length()&&prefs_.getString(key.c_str(),"")==text;}
+ bool saveGrantAt(size_t slot,const Grant& grant){
+  if(slot>=MaxClients||!grant.active)return false;
+  JsonDocument doc;doc["id"]=grant.clientId;doc["hash"]=grant.tokenHash;doc["origin"]=grant.origin;doc["target"]=grant.targetId;String text;serializeJson(doc,text);
+  String key="grant"+String(slot),previous=prefs_.getString(key.c_str(),"");
+  if(prefs_.putString(key.c_str(),text)==text.length()&&prefs_.getString(key.c_str(),"")==text)return true;
+  // NVS commits one key atomically. Keep the previous durable record on refusal
+  // or a failed read-back; callers leave the live Admission unchanged.
+  if(prefs_.getString(key.c_str(),"")!=previous){if(previous.length())prefs_.putString(key.c_str(),previous);else prefs_.remove(key.c_str());}
+  return false;
+ }
+ bool saveGrant(const Grant& grant){size_t i=MaxClients;for(size_t n=0;n<MaxClients;n++)if(auth_.grants()[n].active&&auth_.grants()[n].clientId==grant.clientId){i=n;break;}if(i==MaxClients)for(size_t n=0;n<MaxClients;n++)if(!auth_.grants()[n].active){i=n;break;}return i<MaxClients&&saveGrantAt(i,grant);}
+ bool protectedEnrollmentClient(const Grant& grant){
+  for(const auto& id:rtcClients_)if(!id.empty()&&id==grant.clientId)return true;
+  if(!clipboardClient_.isEmpty()&&grant.clientId==clipboardClient_.c_str())return true;
+  for(const auto& target:core_.targets())if(target.lease.clientId==grant.clientId&&(target.lease.expiresAt>now()||target.running))return true;
+  return false;
+ }
  void addSettings(JsonDocument& d){addIdentity(d);d["hostname"]=bridgeSettings_.hostname;d["newURL"]="http://"+String(bridgeSettings_.hostname.c_str())+".local";d["harnessURL"]=origin_+"/";addRtc(d);}
  void addRtc(JsonDocument& d){auto rtc=d["rtc"].to<JsonObject>();if(WiFi.status()==WL_CONNECTED)rtc["ip"]=WiFi.localIP().toString();rtc["port"]=18948;rtc["fingerprint"]=RtcIdentity::fingerprint;}
  void addIdentity(JsonDocument& d){d["boardId"]=board_;d["bootId"]=boot_;}
@@ -148,7 +164,7 @@ class SecureService {
   }
   if(r->method==HTTP_GET&&parts[1]=="identity"){
    JsonDocument d;addIdentity(d);d["protocolVersion"]=1;d["hostname"]=host_+".local";d["publicKeyFingerprint"]=pki_.caFingerprint;
-   d["firmwareVersion"]="0.4.0-rtc-direct";addRtc(d);d["transport"]="webrtc-direct";d["tls"]=false;d["requiresManualTrust"]=false;d["pairingAvailable"]=true;d["pairingCodeRequired"]=false;return send(r,200,d);
+   d["firmwareVersion"]="0.4.0-rtc-direct";d["harnessURL"]=origin_+"/";addRtc(d);d["transport"]="webrtc-direct";d["tls"]=false;d["requiresManualTrust"]=false;d["pairingAvailable"]=true;d["pairingCodeRequired"]=false;return send(r,200,d);
   }
   if(r->method==HTTP_GET&&parts[1]=="clock"){JsonDocument d;addIdentity(d);d["deviceTimeMs"]=now();return send(r,200,d);}
   if(r->method==HTTP_GET&&parts[1]=="capabilities"){
@@ -172,10 +188,11 @@ class SecureService {
    String token=randomHex(32),hash=sha256Hex(token);
    return lockedReply(r,[&](JsonDocument& d)->Decision{
     if(maintenance_||core_.busy()||auth_.active(now()))return {409,"board_busy"};
-    Admission candidate=auth_;
-    if(!candidate.install(client.c_str(),hash.c_str(),origin_.c_str()))return {409,"client_capacity"};
-    if(!saveGrant(*candidate.client(client.c_str())))return {503,"credential_persistence_failed"};
-    auth_=std::move(candidate);if(r->rtc)rememberRtcClient(client.c_str());
+    auto enrolled=auth_.enroll(client.c_str(),hash.c_str(),origin_.c_str(),now(),[this](const Grant& grant){return protectedEnrollmentClient(grant);},[this](size_t slot,const Grant& grant){return saveGrantAt(slot,grant);});
+    if(enrolled==Admission::Enrollment::Capacity)return {409,"client_capacity"};
+    if(enrolled==Admission::Enrollment::PersistenceFailed)return {503,"credential_persistence_failed"};
+    if(enrolled!=Admission::Enrollment::Accepted)return {409,"board_busy"};
+    if(r->rtc)rememberRtcClient(client.c_str());
     addIdentity(d);d["clientId"]=client;d["token"]=token;d["hostname"]=host_+".local";d["publicKeyFingerprint"]=pki_.caFingerprint;return {200,""};
    });
   }

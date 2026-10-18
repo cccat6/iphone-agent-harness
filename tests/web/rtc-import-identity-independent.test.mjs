@@ -20,5 +20,5 @@ test('one-time RTC import retains board identity even when form shows only local
  t.after(()=>panel.destroy());await panel.open();assert.equal(field('[data-address]').value,endpoint);await field('[data-pair]').onclick();
  assert.equal(panel.getState().connected,false,'An imported board ID must reject another board at the imported address');
  assert.equal(pairCalls,0,'Wrong imported identity is rejected before enrollment');assert.equal(cleared,true);assert.equal(await store.getLocalCredential('device:'+endpoint),null);
- await field('[data-pair]').onclick();assert.equal(panel.getState().connected,false,'Retry must retain the imported board ID');assert.equal(pairCalls,0,'Retry must not enroll the wrong board');assert.equal(await store.getLocalCredential('device:'+endpoint),null);assert.equal((await store.getSettings()).deviceEndpoint,undefined);
+ await field('[data-pair]').onclick();assert.equal(panel.getState().connected,false,'Retry must retain the imported board ID');assert.equal(pairCalls,0,'Retry must not enroll the wrong board');assert.equal(await store.getLocalCredential('device:'+endpoint),null);assert.equal((await store.getSettings()).deviceEndpoint,endpoint);assert.equal((await store.getSettings()).deviceBoardId,'expected-board');
 });

@@ -6,7 +6,7 @@ Use Safari on an iPhone or iPad. One Harness page connects the ESP32 bridge, sha
 
 ## Check these eight steps
 
-1. **Connect the ESP32 bridge.** Put the phone and bridge on the same Wi-Fi. On first use, open the connection link supplied by the desktop installer, or visit `http://igent.local/settings` on the phone and choose **Return to Harness** to import its details. Then choose **Settings → Devices → Connect ESP32 bridge**. A board already configured for this Wi-Fi needs no new provisioning.
+1. **Get the bridge information, then connect.** Join the same Wi-Fi as the bridge. Open Devices in Harness, choose **Get bridge information**, then **Return to device connection** when the information is ready. Choose **Connect ESP32 bridge** next. The browser saves the information before connecting and hides this first step on later visits. The setup link from the desktop installer can also import it; a configured board does not need Wi-Fi provisioning again.
 
 2. **Verify phone input.** Pair **iPhone Agent Bridge** in iOS Bluetooth settings and enable AssistiveTouch using the tutorial. Back in Harness, start the connection test, wait for the bridge to type eight digits and confirm. Full Keyboard Access can remain on or off. There is no connection code to type manually.
 

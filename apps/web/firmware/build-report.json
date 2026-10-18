@@ -1,20 +1,20 @@
 {
-  "builtAt": "2026-10-18T21:45:28.201111+00:00",
+  "builtAt": "2026-10-18T23:20:19.564432+00:00",
   "dependencies": {
     "arduinoEsp32": "3.3.11",
     "NimBLE-Arduino": "2.5.1",
     "ArduinoJson": "7.4.3"
   },
-  "sourceSha256": "1299070b61333af8b5dd9227b2e2132d216cc01ad4811cc4860c4ef8e4c43523",
+  "sourceSha256": "4fe6d6f4aa4f5b2c5bccb5e312bc52cf52144811aba85f206db5c151360e1ceb",
   "sourceFiles": {
     "IPhoneAutomationHarness.ino": "37feb9fe2dee7989b3a1ba21c34912238a03572f7c5338c471bf3cf66ee33167",
     "ResourceLimits.h": "28abf59b2e419885a3d81d6dcbc7b156a11709aa491d8c4a0a16e902b6f3831a",
     "build_opt.h": "a0f100f642c14b2ec613aac33270f5d41185269cfb80055777331420fc0f8955",
     "config.example.h": "920a5f5c61e3df5299cd3855d35117d159ae04685ce439f5301d77bf509373b7",
     "main.cpp": "5feb9e29e9c4003ec2e4b3fdee5a165abb4ee969dc2f85a1ea3192082c7fb562",
-    "src/Admission.h": "acdb35be6e5756104593f1c6e5b95a016043860a231026e1c1d94df01fb5c51c",
+    "src/Admission.h": "d132511ed263a01c128bfecac08f1f8bd8cc13e1f03e14111b6d34929aa6404c",
     "src/BridgeSettings.h": "362e554eb32a6e4ca32e35605ba062eba207f0deecc892f6d190398cd51c117d",
-    "src/BridgeSettingsPage.h": "0b4dfc3075ca3de1495f1d0e2b8319a2ef8866f6045b028f9415bc6b7f05d668",
+    "src/BridgeSettingsPage.h": "7419be88d32d042380cfce9aafa11f79421117cf279ddfbf020725baed81a0ba",
     "src/Canonical.h": "1bf42934d802b3eab3921723c7f1a1af94e89527d01ef2b6355cbcd6928048ff",
     "src/ClipboardMailbox.h": "75ca3090f0e8c31a4f6e5023388818da89d1b82e4c7d1496e8d8c30ac14c8296",
     "src/ClipboardWire.h": "7897c094a693c4036009c818ad0e3fb3fa7dae4c549ff798b4120c20c92ec4ad",
@@ -112,7 +112,7 @@
     "src/RtcTls/ssl_tls13_server.c": "7f94239126ea2f7b7f7544a7b1ba66115f0667dba72dcdc5486afa4105bf5e05",
     "src/RtcTls/threading_internal.h": "08347420c45a7b160e3b0732be31708f9a3a0d2683d9e3038d77909f010cfe98",
     "src/RtcTls/x509_internal.h": "cff993cc6af31de0b42a009ef25320ea2c6657a9e8e32ffef43aadb00a640f41",
-    "src/SecureService.h": "dcf6191b4a1f08e75fb4a7d62f888d28b8febd03973645d23ca2c997a8f8fd47",
+    "src/SecureService.h": "68c5888865266ef4f72d80b2c96437710aade0f0691d3f55bbfb5a9b2286148d",
     "src/SetupState.h": "18cde7744e8a1973a423ba12c3eef9967c89c616b1856b8df3c3d91be06f6002",
     "src/StrictJson.h": "0a476d23a4e862f381cccb515c0d2bc26d265f0c587bb3c92ef8a71cfe1ba337",
     "src/WifiSetupPage.h": "a8ccacaa257b6d9398533a8fe9ba91b102f1e4b718a6a21a930d213b469046e8",
@@ -126,7 +126,7 @@
       "fqbn": "esp32:esp32:esp32c3:CDCOnBoot=cdc,FlashMode=dio,FlashSize=4M,PartitionScheme=huge_app",
       "compiled": true,
       "summary": [
-        "Sketch uses 1557877 bytes (49%) of program storage space. Maximum is 3145728 bytes.",
+        "Sketch uses 1566923 bytes (49%) of program storage space. Maximum is 3145728 bytes.",
         "Global variables use 47560 bytes (14%) of dynamic memory, leaving 280120 bytes for local variables. Maximum is 327680 bytes."
       ],
       "rtcTlsLink": {
@@ -143,7 +143,7 @@
           "mbedtls_ssl_handshake_server_step",
           "mbedtls_ssl_handshake_client_step"
         ],
-        "linkMapSha256": "0e782cb01b67a86ebf878b141f4d79aaa330f466ff1f3416083036dcefb61408"
+        "linkMapSha256": "13254bef5f389bd853d245d6ffd26bf01fa63d2ea496ce3c2674dc07cbd4174f"
       }
     },
     {
@@ -151,7 +151,7 @@
       "fqbn": "esp32:esp32:esp32s3:USBMode=hwcdc,CDCOnBoot=cdc,FlashMode=dio,FlashSize=4M,PartitionScheme=huge_app,PSRAM=disabled",
       "compiled": true,
       "summary": [
-        "Sketch uses 1400365 bytes (44%) of program storage space. Maximum is 3145728 bytes.",
+        "Sketch uses 1409397 bytes (44%) of program storage space. Maximum is 3145728 bytes.",
         "Global variables use 56112 bytes (17%) of dynamic memory, leaving 271568 bytes for local variables. Maximum is 327680 bytes."
       ],
       "rtcTlsLink": {
@@ -168,7 +168,7 @@
           "mbedtls_ssl_handshake_server_step",
           "mbedtls_ssl_handshake_client_step"
         ],
-        "linkMapSha256": "e3caee1beeaaa47c39c10168d0472a0093820c2b961f67d783368a9798ae7119"
+        "linkMapSha256": "5ffa4deec7caebe39abb28e2b2f84239148da680d0ca8066fb1b29a05cd1eafc"
       }
     },
     {
@@ -176,7 +176,7 @@
       "fqbn": "esp32:esp32:esp32c6:CDCOnBoot=cdc,FlashMode=dio,FlashSize=4M,PartitionScheme=huge_app",
       "compiled": true,
       "summary": [
-        "Sketch uses 1719216 bytes (54%) of program storage space. Maximum is 3145728 bytes.",
+        "Sketch uses 1728266 bytes (54%) of program storage space. Maximum is 3145728 bytes.",
         "Global variables use 52672 bytes (16%) of dynamic memory, leaving 275008 bytes for local variables. Maximum is 327680 bytes."
       ],
       "rtcTlsLink": {
@@ -193,7 +193,7 @@
           "mbedtls_ssl_handshake_server_step",
           "mbedtls_ssl_handshake_client_step"
         ],
-        "linkMapSha256": "6c91154a134755763eaae03ee0840f6837d9f99f755e79d8957f76d0ddf53e1a"
+        "linkMapSha256": "358d0a3ad47d8499cfc5deb6e1c0d93907a51c9ade94db9120d20ec3a00f39ea"
       }
     },
     {
@@ -201,7 +201,7 @@
       "fqbn": "esp32:esp32:esp32:FlashMode=dio,FlashSize=4M,PartitionScheme=huge_app,PSRAM=disabled",
       "compiled": true,
       "summary": [
-        "Sketch uses 1479792 bytes (47%) of program storage space. Maximum is 3145728 bytes.",
+        "Sketch uses 1488884 bytes (47%) of program storage space. Maximum is 3145728 bytes.",
         "Global variables use 60132 bytes (18%) of dynamic memory, leaving 267548 bytes for local variables. Maximum is 327680 bytes."
       ],
       "rtcTlsLink": {
@@ -218,7 +218,7 @@
           "mbedtls_ssl_handshake_server_step",
           "mbedtls_ssl_handshake_client_step"
         ],
-        "linkMapSha256": "9218e0f7fd0cf5d03adbcb77f047699d724701d13eb627d8faddc6ceb818d0a3"
+        "linkMapSha256": "11dfdb49390ee2acedd5e12e9ebb2b0a4770da728a34a89f5a4898c30ecdab23"
       }
     }
   ],
@@ -227,11 +227,5 @@
       "chip": "esp32s2",
       "reason": "No Bluetooth LE radio"
     }
-  ],
-  "profileBuiltAt": {
-    "esp32c3": "2026-10-18T21:30:07.166448+00:00",
-    "esp32s3": "2026-10-18T21:45:28.201111+00:00",
-    "esp32c6": "2026-10-18T21:45:28.201111+00:00",
-    "esp32": "2026-10-18T21:45:28.201111+00:00"
-  }
+  ]
 }

@@ -1,3 +1,4 @@
+import {pendingDeviceSetupReturn} from './core/device-setup.js';
 import { getBrowserCompatibility } from './core/compatibility.js';
 import { SITE_CONFIG } from './site-config.js';
 import { t, getLocale, getLocalePreference, setLocale, subscribe, SUPPORTED_LOCALES, translateText, translationKey, localizeError, registerErrorCatalog, skillMetadata } from './i18n.js';
@@ -621,7 +622,8 @@ async function renderFlashPage(){
 
 
 async function boot() {
-  const pendingDeviceSetup=location.hash.startsWith('#device=');
+  const returningDeviceSetup=pendingDeviceSetupReturn({consume:true});
+  const pendingDeviceSetup=location.hash.startsWith('#device=')||returningDeviceSetup;
   renderPlatform();
   state.store=await openStore();void requestStorageProtection();await installBuiltinSkills(state.store);state.settings=await state.store.getSettings()||{};state.skills=await state.store.listSkills();
   state.devicePanel=createDevicePanel({store:state.store,capture,openPanel:panel,getPanelRoot:()=>$('#panel-content .panel-body'),onDeviceChange:(device,summary)=>{state.device=device;state.deviceStatus=summary;const pending=clipboard.getSnapshot();if(pending&&(!summary.inputVerified||summary.targetId!==pending.targetId))clipboard.clear();renderDeviceStatus();},onSettingsChange:settings=>{state.settings=settings;},isBusy:()=>state.running||state.submitting,onToast:toast});
@@ -640,5 +642,6 @@ async function boot() {
   mountViewport();
   renderDeviceStatus();renderModelOptions();renderMessages();await refreshSessions();$('#app').inert=false;localizeView();renderPlatform();
   const params=new URLSearchParams(location.search);const sessionId=params.get('session');if(sessionId)await openSession(sessionId);if(pendingDeviceSetup)await showDevices();
+  window.addEventListener('pageshow',event=>{if(event.persisted&&pendingDeviceSetupReturn({consume:true}))void showDevices().catch(report);});
 }
 boot().catch(error=>{console.error(error);state.bootError=error;$('#app').inert=true;renderPlatform();toast(localizeError(error));});

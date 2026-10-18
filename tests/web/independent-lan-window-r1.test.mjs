@@ -67,15 +67,17 @@ test('independent LAN R1: actual helper bounds UTF-8 bytes and rejects malformed
 });
 
 function patch(t,key,value){const old=Object.getOwnPropertyDescriptor(globalThis,key);Object.defineProperty(globalThis,key,{configurable:true,writable:true,value});t.after(()=>old?Object.defineProperty(globalThis,key,old):delete globalThis[key]);}
-test('independent LAN R1: panel opens connection window before pending storage allocation and cancels it on panel close',async t=>{
+test('independent LAN R1: panel saves bridge information before RTC opens and cancels pending allocation on close',async t=>{
  const fields=new Map(),field=selector=>{if(!fields.has(selector))fields.set(selector,{value:'',checked:false,dataset:{},classList:{toggle(){}},addEventListener(){},replaceChildren(){},append(){}});return fields.get(selector);};
  const root={isConnected:true,querySelector:field,querySelectorAll:()=>[],closest:()=>null},holder={querySelector:()=>root,contains:element=>element===root};
  patch(t,'document',{documentElement:{},querySelector:()=>({}),createElement:()=>({}),head:{append(){}}});
- const store=await openStore({memory:true}),allocation=defer(),order=[];let factories=0,closed=0;
- store.ensureDeviceClientId=()=>{order.push('storage');return allocation.promise;};
- const panel=createDevicePanel({store,capture:{active:false},openPanel(){},getPanelRoot:()=>holder,clientFactory:()=>{factories++;throw Error('no client expected');},bridgeFactory:()=>({open({signal}){order.push('popup');return new Promise((resolve,reject)=>signal.addEventListener('abort',()=>{closed++;reject(Error('cancelled'));},{once:true}));},close(){}})});
+ const store=await openStore({memory:true}),allocation=defer(),entered=defer(),order=[];let factories=0,closed=0;
+ await store.saveSettings({deviceEndpoint:endpoint,deviceRTC:{ip:'192.168.0.125',port:18948,fingerprint:'a'.repeat(64)}});
+ const save=store.saveSettings.bind(store);store.saveSettings=async value=>{order.push('information');return save(value);};
+ store.ensureDeviceClientId=()=>{order.push('storage');entered.resolve();return allocation.promise;};
+ const panel=createDevicePanel({store,capture:{active:false},openPanel(){},getPanelRoot:()=>holder,clientFactory:()=>{factories++;throw Error('no client expected');},bridgeFactory:()=>({open({signal}){order.push('rtc');return new Promise((resolve,reject)=>signal.addEventListener('abort',()=>{closed++;reject(Error('cancelled'));},{once:true}));},close(){}})});
  t.after(()=>panel.dispose());await panel.open();field('[data-address]').value=endpoint;
- const pending=field('[data-pair]').onclick();assert.deepEqual(order,['popup','storage']);
+ const pending=field('[data-pair]').onclick();await entered.promise;assert.deepEqual(order,['information','rtc','storage']);
  panel.dispose();allocation.resolve('review-client');await pending;assert.equal(closed,1);assert.equal(factories,0);assert.equal(panel.getDevice(),null);
 });
 
@@ -87,10 +89,10 @@ test('independent LAN R1: legacy HTTPS USB info stays readable without advertisi
  assert.ok(container.innerHTML.includes(info.httpsUrl));assert.ok(container.innerHTML.includes(DEVICE_MESSAGES[getLocale()].upgradeFirmware));assert.ok(!container.innerHTML.includes(DEVICE_MESSAGES[getLocale()].setupLink));
 });
 
-test('independent LAN R1: malformed or legacy incoming setup fragments are erased before rejection',()=>{
+test('independent LAN R1: malformed or legacy incoming setup fragments remain available after rejection',()=>{
  const legacy=btoa(JSON.stringify({v:1,url:'https://review-r1.local',id:'review-board',owner:'e'.repeat(64)})).replaceAll('+','-').replaceAll('/','_').replace(/=+$/,'');
  for(const fragment of ['device=malformed','device='+legacy]){
   let erased=false;const location=new URL(harnessOrigin+'/?lang=en#'+fragment);
-  assert.throws(()=>takeDeviceSetupLink(location,{state:null,replaceState(state,title,url){assert.equal(url,'/?lang=en');erased=true;}}));assert.equal(erased,true);
+  assert.throws(()=>takeDeviceSetupLink(location,{state:null,replaceState(state,title,url){assert.equal(url,'/?lang=en');erased=true;}}));assert.equal(erased,false);assert.equal(location.hash,'#'+fragment);
  }
 });

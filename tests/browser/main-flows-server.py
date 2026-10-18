@@ -8,7 +8,9 @@ class Handler(SimpleHTTPRequestHandler):
  def do_GET(self):
   if self.path.startswith('/apps/web/?fixture='):
    fixture=Path('tests/browser/main-flows.html').read_text();start=fixture.index('const bootstrap=()=>{')+len('const bootstrap=()=>{');end=fixture.index('\n};\nasync function loadApp',start)
-   html=Path('apps/web/index.html').read_text().replace('<head>','<head><base href="/apps/web/"><script>'+fixture[start:end]+'</script>')
+   bootstrap=fixture[start:end]
+   if 'fixture=connection-guidance' in self.path:bootstrap=bootstrap.replace('primary-flow-repair:', 'connection-guidance:')
+   html=Path('apps/web/index.html').read_text().replace('<head>','<head><base href="/apps/web/"><script>'+bootstrap+'</script>')
    if 'fixture=mobile-viewport' in self.path:
     html=html.replace('<head>','<head><script>'+Path('tests/browser/viewport-fixture.js').read_text()+'</script>')
    self.send_response(200);self.send_header('Content-Type','text/html; charset=utf-8');self.end_headers();self.wfile.write(html.encode());return

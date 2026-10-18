@@ -9,7 +9,8 @@ import {getLocalePreference,setLocale,SUPPORTED_LOCALES} from '../../apps/web/i1
 import {DEVICE_MESSAGES} from '../../apps/web/locales/device.js';
 import {ERROR_CATALOG} from '../../apps/web/core/error-catalog.js';
 
-const endpoint='https://identity-r9.local',fingerprint='d'.repeat(64);
+const endpoint='https://identity-r9.local',panelEndpoint='http://identity-r9.local',fingerprint='d'.repeat(64);
+const rtc={ip:'192.168.0.125',port:18948,fingerprint};
 const deferred=()=>{let resolve;const promise=new Promise(r=>{resolve=r;});return {promise,resolve};};
 function patch(t,key,value){const old=Object.getOwnPropertyDescriptor(globalThis,key);Object.defineProperty(globalThis,key,{configurable:true,writable:true,value});t.after(()=>old?Object.defineProperty(globalThis,key,old):delete globalThis[key]);}
 
@@ -22,7 +23,7 @@ function panelFixture(t,store,clientFactory){
  const holder={querySelector:()=>root,contains:element=>element===root};
  patch(t,'document',{documentElement:{},querySelector:()=>({}),createElement:()=>({}),head:{append(){}}});
  const panel=createDevicePanel({store,clientFactory,bridgeFactory:()=>({open:async()=>{},close(){}}),capture:{active:false},openPanel(){},getPanelRoot:()=>holder});
- const fill=()=>{field('[data-address]').value=endpoint;field('[data-fingerprint]').value=fingerprint;field('[data-pin-confirmed]').checked=true;};
+ const fill=(address=endpoint)=>{field('[data-address]').value=address;field('[data-fingerprint]').value=fingerprint;field('[data-pin-confirmed]').checked=true;};
  t.after(()=>panel.dispose());return {panel,field,fill};
 }
 
@@ -37,17 +38,20 @@ test('independent R9: canonical aliases converge while settings writers retain e
  assert.deepEqual(await store.getSettings(),before);
 });
 
-test('independent R9: closing the panel during local ID allocation prevents owner pairing and clears its password field',async t=>{
+test('independent R9: closing the panel during local ID allocation retains bridge information without pairing',async t=>{
  const store=await openStore({memory:true}),entered=deferred(),allocated=deferred();let factories=0;
+ await store.saveSettings({deviceEndpoint:panelEndpoint,deviceRTC:rtc});
  store.ensureDeviceClientId=async()=>{entered.resolve();return allocated.promise;};
- const f=panelFixture(t,store,()=>{factories++;throw new Error('must not create a network client');});await f.panel.open();f.fill();
+ const f=panelFixture(t,store,()=>{factories++;throw new Error('must not create a network client');});await f.panel.open();f.fill(panelEndpoint);
  const pending=f.field('[data-pair]').onclick();await entered.promise;f.panel.dispose();allocated.resolve('existing-public-id');await pending;
- assert.equal(factories,0);assert.equal(f.panel.getDevice(),null);assert.equal((await store.getSettings()).deviceEndpoint,undefined);
+ assert.equal(factories,0);assert.equal(f.panel.getDevice(),null);assert.equal((await store.getSettings()).deviceEndpoint,panelEndpoint);const savedRTC=(await store.getSettings()).deviceRTC;assert.equal(savedRTC.ip,rtc.ip);assert.equal(savedRTC.port,rtc.port);assert.equal(savedRTC.fingerprint.replaceAll(':','').toLowerCase(),fingerprint);
 });
 
 for(const preexisting of [false,true])test(`independent R9: saved local credential ${preexisting?'respects an existing ID':'keeps a stable ID'} after clearing the saved credential`,async t=>{
+ const endpoint=panelEndpoint;
  const store=await openStore({memory:true}),legacyId='restored-r9-client',storedId=preexisting?await store.ensureDeviceClientId(endpoint):null;
  const record={format:'iah-device-credential/1',baseUrl:endpoint,expectedFingerprint:fingerprint,publicKeyFingerprint:fingerprint,boardId:'board-r9',clientId:legacyId,token:'legacy-token-r9-1234567890',hostname:'identity-r9.local'};
+ await store.saveSettings({deviceEndpoint:endpoint,deviceRTC:rtc});
  await store.saveLocalCredential('device:'+endpoint,record);
  const pairs=[],clients=[];const fetchImpl=async(url,options={})=>{
   const identity={boardId:'board-r9',bootId:'boot-r9',hostname:'identity-r9.local',publicKeyFingerprint:fingerprint};
@@ -56,7 +60,7 @@ for(const preexisting of [false,true])test(`independent R9: saved local credenti
   assert.equal(url.pathname,'/v1/binding');const owner=options.headers.Authorization.includes('legacy-token')?legacyId:pairs.at(-1).clientId;
   return Response.json({...identity,clientId:owner,bindingVerified:false,targetId:null,targets:[]});
  };
- const f=panelFixture(t,store,options=>{const client=new DeviceClient({...options,fetchImpl});clients.push(client);return client;});await f.panel.open();f.fill();
+ const f=panelFixture(t,store,options=>{const client=new DeviceClient({...options,fetchImpl});clients.push(client);return client;});await f.panel.open();f.fill(endpoint);
  await f.field('[data-pair]').onclick();assert.equal(clients.length,1);assert.equal(clients[0].clientId,legacyId);assert.equal(f.panel.getDevice(),null);
  const retainedId=await store.ensureDeviceClientId(endpoint);await store.deleteLocalCredential('device:'+endpoint);await f.field('[data-pair]').onclick();assert.equal(pairs.length,1);assert.equal(pairs[0].clientId,storedId||retainedId);assert.equal(await store.ensureDeviceClientId(endpoint),storedId||retainedId);assert.equal(clients[1].bindingVerified,false);assert.equal(f.panel.getDevice(),null);
  const settings=await store.getSettings();assert.equal((await store.getLocalCredential('device:'+endpoint)).token,'fresh-token-r9-1234567890');assert.equal(settings.deviceEndpoint,endpoint);assert.equal(JSON.stringify(settings).includes(record.token),false);assert.equal(JSON.stringify(settings).includes('synthetic-owner-r9'),false);
@@ -64,7 +68,7 @@ for(const preexisting of [false,true])test(`independent R9: saved local credenti
 
 test('independent R9: displayed device form validation detail follows locale without another action',async t=>{
  const prior=getLocalePreference();t.after(()=>setLocale(prior));setLocale('en');const store=await openStore({memory:true}),f=panelFixture(t,store,()=>{throw new Error('no request expected');});
- await f.panel.open();f.fill();f.field('[data-fingerprint]').value='invalid';await f.field('[data-pair]').onclick();
+ await store.saveSettings({deviceEndpoint:panelEndpoint,deviceRTC:rtc});await f.panel.open();f.fill();f.field('[data-fingerprint]').value='invalid';await f.field('[data-pair]').onclick();
  assert.ok(f.field('[data-device-status]').textContent.includes(DEVICE_MESSAGES.en.invalidFingerprint));
  for(const {code} of SUPPORTED_LOCALES){setLocale(code);assert.ok(f.field('[data-device-status]').textContent.includes(DEVICE_MESSAGES[code].invalidFingerprint),code+': '+f.field('[data-device-status]').textContent);assert.equal(f.field('[data-fingerprint]').value,'invalid');}
 });

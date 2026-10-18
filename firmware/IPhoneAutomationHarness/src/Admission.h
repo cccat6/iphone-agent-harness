@@ -2,6 +2,7 @@
 #include <array>
 #include <string>
 #include <cstdint>
+#include <utility>
 #include "Core.h"
 namespace iah {
 inline bool constantEqual(const std::string& a,const std::string& b){size_t size=a.size()>b.size()?a.size():b.size();uint32_t difference=static_cast<uint32_t>(a.size()^b.size());for(size_t i=0;i<size;i++)difference|=(i<a.size()?static_cast<unsigned char>(a[i]):0)^(i<b.size()?static_cast<unsigned char>(b[i]):0);return difference==0;}
@@ -16,6 +17,22 @@ class Admission {
  bool install(const std::string& id,const std::string& hash,const std::string& origin,const std::string& target=""){
   if(!validId(id)||hash.size()!=64||origin.empty())return false;
   auto g=client(id);if(!g)for(auto& item:grants_)if(!item.active){g=&item;break;}if(!g)return false;auto oldTarget=g->targetId;*g={id,hash,origin,target.empty()?oldTarget:target,true,0};return true;
+ }
+ enum class Enrollment {Accepted,Capacity,PersistenceFailed,Invalid,Busy};
+ // Enrollment may reuse only an unbound, idle browser slot. Persist the exact
+ // replacement slot before changing the live registry; bound identities survive.
+ template<class Protected,class Persist> Enrollment enroll(const std::string& id,const std::string& hash,const std::string& origin,uint64_t now,Protected protectedClient,Persist persist){
+  if(!validId(id)||hash.size()!=64||origin.empty())return Enrollment::Invalid;
+  if(active(now))return Enrollment::Busy;
+  size_t slot=MaxClients;
+  for(size_t i=0;i<MaxClients;i++)if(grants_[i].active&&grants_[i].clientId==id){slot=i;break;}
+  if(slot==MaxClients)for(size_t i=0;i<MaxClients;i++)if(!grants_[i].active){slot=i;break;}
+  if(slot==MaxClients)for(size_t i=0;i<MaxClients;i++)if(grants_[i].targetId.empty()&&!protectedClient(grants_[i])){slot=i;break;}
+  if(slot==MaxClients)return Enrollment::Capacity;
+  Admission candidate=*this;auto previousTarget=candidate.grants_[slot].clientId==id?candidate.grants_[slot].targetId:std::string{};
+  candidate.grants_[slot]={id,hash,origin,previousTarget,true,0};
+  if(!persist(slot,candidate.grants_[slot]))return Enrollment::PersistenceFailed;
+  *this=std::move(candidate);return Enrollment::Accepted;
  }
  const std::array<Grant,MaxClients>& grants()const{return grants_;}
  void forgetTarget(const std::string& target){
