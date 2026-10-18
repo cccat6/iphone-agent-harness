@@ -45,4 +45,6 @@ npm run preview
 
 Macから実機C3へのCA・DNS検証付きHTTPSと製品クライアントの所有者ペアリングは成功しました。電話入力は送信していません。最終イメージの確認とSafari・電話実機の受け入れは別途必要です。[実機クライアント記録](../research/device-client-live-verification.json)。
 
+手動リリース：通常の push では Actions は実行されません。明示的な依頼時だけ、未変更のファームウェアを再利用し、変更された ESP32／C3／S3／C6 をビルドして Release に公開し、同じバイナリを Web サイトへデプロイします。[手順と認証情報の設定](../architecture/manual-release.md)。
+
 [MIT License](../../LICENSE) · [Third-party notices](../../THIRD_PARTY_NOTICES.md)

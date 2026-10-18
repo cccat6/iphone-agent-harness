@@ -30,3 +30,7 @@ Live service evidence: [deployment-verification.json](../research/deployment-ver
 ## Self-hosted page routing
 
 Serve the contents of `build/site` under HTTPS. The host must return `index.html` for the explicit document routes `/`, `/main`, `/skills` and `/flash` (or the equivalent paths below a chosen base directory), while missing scripts and other assets remain true 404s. Do not use an unconditional HTML fallback for every path. The included Cloudflare Worker and local preview implement these rules; an arbitrary static host needs equivalent routing configuration. Uploading files alone does not establish that direct links and reloads on clean routes work. A community write service is optional and configured separately; browser access to model/device services still requires their TLS and CORS support.
+
+## Manual publication policy
+
+Ordinary pushes no longer run GitHub Actions. The owner must explicitly request each release. The [manual release workflow](manual-release.md) selects or compiles four firmware profiles, publishes their binaries to GitHub Releases, includes the same bytes in the website, deploys Cloudflare and verifies served files. Its new execution is separate from the historical acceptance evidence above; the required Cloudflare repository secret must first be provisioned.

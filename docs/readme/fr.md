@@ -45,4 +45,6 @@ Liste complète de recette : [English](../acceptance/README.md) · [简体中文
 
 Sur Mac, le HTTPS avec validation CA/DNS et l’association du propriétaire par le client du produit ont réussi avec le vrai C3. Aucune commande téléphonique n’a été envoyée. L’image finale et Safari/le téléphone nécessitent une recette distincte. [Rapport du client réel](../research/device-client-live-verification.json).
 
+Les publications démarrent uniquement sur demande explicite ; un push ordinaire ne lance pas Actions. Le processus réutilise le firmware inchangé, compile les versions ESP32/C3/S3/C6 modifiées et publie les mêmes fichiers binaires dans Releases et sur le site. [Procédure et configuration du jeton](../architecture/manual-release.md).
+
 [MIT License](../../LICENSE) · [Third-party notices](../../THIRD_PARTY_NOTICES.md)

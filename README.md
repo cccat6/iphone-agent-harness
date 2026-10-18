@@ -66,4 +66,6 @@ Acceptance checklist: [English](docs/acceptance/README.md) · [简体中文](doc
 
 Real Mac checks have now passed CA/DNS-verified HTTPS and production-client owner pairing against the C3. They sent no phone input; final-image verification and Safari/phone acceptance remain separate. See the [live C3 client record](docs/research/device-client-live-verification.json).
 
+Manual releases: ordinary pushes never run Actions. A requested run reuses unchanged firmware, builds changed ESP32/C3/S3/C6 firmware, publishes binaries to Releases and deploys the same files with the website. [Release workflow and credential setup](docs/architecture/manual-release.md).
+
 [MIT License](LICENSE) · [Third-party notices](THIRD_PARTY_NOTICES.md)

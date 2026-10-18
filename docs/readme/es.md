@@ -45,4 +45,6 @@ Lista completa de aceptación: [English](../acceptance/README.md) · [简体中�
 
 En Mac pasaron HTTPS con validación de CA/DNS y el emparejamiento del propietario mediante el cliente del producto con el C3 real. No se enviaron entradas al teléfono. La imagen final y Safari/el teléfono requieren aceptación por separado. [Informe del cliente real](../research/device-client-live-verification.json).
 
+Las publicaciones se ejecutan solo bajo petición explícita; un push normal no activa Actions. Se reutiliza el firmware sin cambios, se compilan las versiones ESP32/C3/S3/C6 modificadas y se publican los mismos binarios en Releases y en el sitio web. [Proceso y configuración del token](../architecture/manual-release.md).
+
 [MIT License](../../LICENSE) · [Third-party notices](../../THIRD_PARTY_NOTICES.md)

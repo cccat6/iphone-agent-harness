@@ -45,4 +45,6 @@ Safari 到區域網路 ESP32 的直接連線、安全設定與目標證明、慣
 
 Mac已通過真實C3的CA／DNS驗證HTTPS及產品用戶端擁有者配對，未傳送手機輸入；最終映像核驗與Safari／手機驗收仍須分別完成。見[實機用戶端記錄](../research/device-client-live-verification.json)。
 
+手動發布：一般推送不會觸發 Actions。明確要求後才執行，重用未變更的韌體，編譯變更的 ESP32／C3／S3／C6 韌體，將二進位檔發布至 Release，並隨網站部署同一批檔案。[發布流程與憑證設定](../architecture/manual-release.md)。
+
 [MIT License](../../LICENSE) · [Third-party notices](../../THIRD_PARTY_NOTICES.md)

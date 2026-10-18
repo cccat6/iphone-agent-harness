@@ -2,6 +2,8 @@
 import {readFile,writeFile,readdir} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import {createRequire} from 'node:module';
+import {parseArgs} from 'node:util';
+const {values}=parseArgs({options:{output:{type:'string'}}});
 const require=createRequire(import.meta.url),{fetch,EnvHttpProxyAgent}=require('undici');
 const dispatcher=new EnvHttpProxyAgent(),origin='https://igent.cc',root=new URL('../build/site/',import.meta.url);
 const digest=bytes=>createHash('sha256').update(bytes).digest('hex');
@@ -21,6 +23,6 @@ try{
 }catch{checks.push({path:'network',passed:false});}
 finally{await dispatcher.close();}
 const report={checkedAt:new Date().toISOString(),origin,passed:checks.length===paths.length&&checks.every(x=>x.passed),checks};
-await writeFile(new URL('../docs/research/release-site-verification.json',import.meta.url),JSON.stringify(report,null,2)+'\n');
+await writeFile(values.output||new URL('../docs/research/release-site-verification.json',import.meta.url),JSON.stringify(report,null,2)+'\n');
 console.log(JSON.stringify({passed:report.passed,verifiedFiles:checks.filter(x=>x.passed).length,expectedFiles:paths.length,failed:checks.filter(x=>!x.passed).map(x=>x.path)}));
 if(!report.passed)process.exitCode=1;

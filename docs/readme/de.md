@@ -45,4 +45,6 @@ Vollständige Abnahmecheckliste: [English](../acceptance/README.md) · [简体�
 
 Auf dem Mac wurden HTTPS mit CA-/DNS-Prüfung und die Besitzerkopplung des Produktclients mit dem echten C3 erfolgreich geprüft. Es wurden keine Telefoneingaben gesendet. Das endgültige Image sowie Safari und Telefon benötigen eine eigene Abnahme. [Client-Prüfbericht](../research/device-client-live-verification.json).
 
+Releases starten nur auf ausdrückliche Anforderung; normale Pushes lösen keine Actions aus. Unveränderte Firmware wird wiederverwendet, geänderte Firmware für ESP32/C3/S3/C6 gebaut. Dieselben Binärdateien werden in Releases und auf der Website veröffentlicht. [Ablauf und Token-Einrichtung](../architecture/manual-release.md).
+
 [MIT License](../../LICENSE) · [Third-party notices](../../THIRD_PARTY_NOTICES.md)

@@ -1,28 +1,105 @@
-name: Checks
+name: Manual release
 on:
-  push:
-  pull_request:
+  workflow_dispatch:
+
+# Only an explicit request starts this workflow. Pushes, PRs and tags do not.
 permissions:
   contents: read
+concurrency:
+  group: igent-production-release
+  cancel-in-progress: false
+
+env:
+  CLOUDFLARE_SEND_METRICS: 'false'
+
 jobs:
-  web-and-contracts:
+  release:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 90
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '22.13.0'
           cache: npm
+      - name: Check deployment credential
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
+            echo '::error::Set repository secret CLOUDFLARE_API_TOKEN before requesting a release.'
+            exit 1
+          fi
       - run: npm ci
-      - run: npm test
-      - run: npm run build
       - run: python3 -m pip install jsonschema==4.25.1
-      - run: python3 tools/validate_design_specs.py
-      - run: ./tests/firmware/run.sh
-      - run: IAH_R7_CANCEL_POSITION_REPRO=1 python3 tests/firmware/independent_router_r7.py
-      - run: python3 tests/firmware/independent_router_r8.py
-      - run: python3 tools/fetch_test_headers.py
-      - run: ./tests/firmware/run_canonical.sh build/test-headers
-      - run: python3 tools/build_firmware_test.py
-      - run: python3 tools/build_firmware.py --verify-only
+      - name: Web and contract checks
+        run: |
+          npm test
+          python3 tools/validate_design_specs.py
+          ./tests/firmware/run.sh
+          IAH_R7_CANCEL_POSITION_REPRO=1 python3 tests/firmware/independent_router_r7.py
+          python3 tests/firmware/independent_router_r8.py
+          python3 tools/fetch_test_headers.py
+          ./tests/firmware/run_canonical.sh build/test-headers
+          python3 tools/build_firmware_test.py
+          python3 tools/firmware_release_test.py
+      - name: Reuse firmware for unchanged sources and build configuration
+        id: firmware
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 tools/firmware_release.py plan
+      - name: Install pinned Arduino toolchain only when compilation is needed
+        if: steps.firmware.outputs.compile == 'true'
+        run: |
+          mkdir -p "$RUNNER_TEMP/iah-arduino-cli"
+          curl --fail --location --retry 3 \
+            https://github.com/arduino/arduino-cli/releases/download/v1.5.1/arduino-cli_1.5.1_Linux_64bit.tar.gz \
+            --output "$RUNNER_TEMP/iah-arduino-cli/cli.tar.gz"
+          printf '%s  %s\n' 28a8e119c498a25607821c36cb2dc49e8463941b261a0d99091baa7bc692dd2b \
+            "$RUNNER_TEMP/iah-arduino-cli/cli.tar.gz" | sha256sum --check --strict
+          tar -xzf "$RUNNER_TEMP/iah-arduino-cli/cli.tar.gz" -C "$RUNNER_TEMP/iah-arduino-cli" arduino-cli
+          echo "$RUNNER_TEMP/iah-arduino-cli" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/iah-arduino-cli/arduino-cli" core update-index \
+            --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          "$RUNNER_TEMP/iah-arduino-cli/arduino-cli" core install esp32:esp32@3.3.11 \
+            --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          "$RUNNER_TEMP/iah-arduino-cli/arduino-cli" lib install 'NimBLE-Arduino@2.5.1' 'ArduinoJson@7.4.3'
+      - name: Compile ESP32, ESP32-C3, ESP32-S3 and ESP32-C6
+        if: steps.firmware.outputs.compile == 'true'
+        run: |
+          python3 tools/build_firmware.py --parallel 1 --jobs 2
+          python3 tools/firmware_release.py seal
+      - name: Verify exact firmware inputs and all binary parts
+        run: |
+          python3 tools/build_firmware.py --verify-only
+          python3 tools/firmware_release.py verify
+      - name: Build website with the selected firmware binaries
+        run: |
+          npm run build
+          ./node_modules/.bin/wrangler deploy --dry-run --outdir build/worker-dry-run
+      - name: Publish or reuse immutable firmware Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 tools/firmware_release.py publish
+      - name: Deploy website and firmware together to Cloudflare
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          ./node_modules/.bin/wrangler d1 execute igent-skills --remote --file apps/web/api/schema.sql --yes
+          ./node_modules/.bin/wrangler deploy
+      - name: Verify every deployed file, including online-flashing binaries
+        run: node tools/verify_release_site.mjs --output build/deployed-site-verification.json
+      - name: Keep release evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: release-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          if-no-files-found: ignore
+          path: |
+            build/firmware-plan.json
+            apps/web/firmware/build-inputs.json
+            apps/web/firmware/build-report.json
+            build/deployed-site-verification.json

@@ -50,4 +50,6 @@ npm run preview
 
 Mac已通过真实C3的CA／DNS校验HTTPS和产品客户端所有者配对，未发送手机输入；最终镜像核验与Safari／手机验收仍需分别完成。见[实机客户端记录](../research/device-client-live-verification.json)。
 
+手动发布：普通推送不触发 Actions。明确要求后才运行，复用未变化固件，编译变更的 ESP32／C3／S3／C6 固件，将二进制发布到 Release，并随网站部署同一批文件。[发布流程与凭据配置](../architecture/manual-release.zh-Hans.md)。
+
 [MIT License](../../LICENSE) · [Third-party notices](../../THIRD_PARTY_NOTICES.md)
