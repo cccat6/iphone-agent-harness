@@ -1,0 +1,64 @@
+{
+  "date": "2026-10-19",
+  "routeOrder": [
+    "Safari LNA HTTP",
+    "WebRTC Direct v2",
+    "BLE extension"
+  ],
+  "currentStage": "WebRTC Direct v2 prototype in progress",
+  "phoneFeatureFlag": "User reports no Local Network Access option on iOS 27.0.1",
+  "boardPreflight": {
+    "hostname": "igent.local",
+    "boardId": "iah-b0e4b4e05380",
+    "bootId": "boot-8d29c35c92b7c036",
+    "wifiConnected": true,
+    "httpProbe": 200,
+    "corsPreflight": 204,
+    "allowedOrigin": "https://igent.cc",
+    "phoneInputSent": false
+  },
+  "diagnostic": {
+    "path": "/diagnostics/lna.html",
+    "opensAuxiliaryWindow": false,
+    "cloudRelay": false,
+    "foreground": "explicit-local GET in user click, ordinary GET, nonce POST",
+    "background": "five read-only GET rounds during capture; automatic capture cleanup",
+    "privateSessionsRead": false,
+    "capturesStoredOrUploaded": false
+  },
+  "validation": {
+    "fullWebTestsBeforeFinalGestureOrderingFix": 539,
+    "finalTargetedTests": 11,
+    "independentReview": "initial activation-order finding fixed; rereview no new findings",
+    "publishedAssetsVerified": 132
+  },
+  "cloudflareDeploymentId": "b57e7ee065644829b0ebe291dc6d5111",
+  "firmwareChanged": false,
+  "githubActionsDispatched": false,
+  "nextRouteConditions": {
+    "WebRTC Direct": "only if phone HTTP authorization route fails; single-board shared test certificate/key/fingerprint, no certificate-management service",
+    "BLE": "last resort; custom GATT commands and HID coexistence; separate clipboard acceptance"
+  },
+  "clipboard": {
+    "foregroundCopy": "available",
+    "shortcutsHttpMailbox": "not implemented; requires Wi-Fi if adopted",
+    "pureBle": "does not provide native clipboard writing automatically; HTTP mailbox unavailable without board networking"
+  },
+  "phoneHttpResult": {
+    "reportedByUser": "ESP32和Mac都未通过",
+    "passed": false,
+    "authorizationPromptObserved": "not reported",
+    "fixtureSafariRequestsObserved": 0,
+    "featureFlagAvailable": false,
+    "decision": "Stop current Safari HTTP route; proceed to WebRTC Direct"
+  },
+  "desktopChrome": {
+    "observedInUI": true,
+    "browser": "Chrome 154",
+    "origin": "https://igent.cc",
+    "deviceMdns": "0/3 passed",
+    "deviceIPv4": "3/3 passed",
+    "fixtureIPv4": "3/3 passed",
+    "interpretation": "HTTP service/CORS and probe are usable in Chrome; mDNS endpoint failure is separate; not Safari proof"
+  }
+}
