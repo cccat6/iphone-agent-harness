@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "label": "Mac 参考端（仅测试通信）",
+  "ip": "192.168.0.107",
+  "port": 18948,
+  "fingerprint": "6D:26:26:CC:2C:8A:1B:D7:2F:3E:D5:2D:E8:A0:38:25:74:C1:B6:98:EB:E8:1D:E4:6D:92:37:1A:53:2D:5D:55",
+  "phoneInputSent": false
+}

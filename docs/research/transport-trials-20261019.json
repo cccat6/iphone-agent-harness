@@ -5,7 +5,7 @@
     "WebRTC Direct v2",
     "BLE extension"
   ],
-  "currentStage": "WebRTC Direct v2 prototype in progress",
+  "currentStage": "WebRTC Direct Safari foreground works; diagnostics false failure repaired; background and C3 pending",
   "phoneFeatureFlag": "User reports no Local Network Access option on iOS 27.0.1",
   "boardPreflight": {
     "hostname": "igent.local",
@@ -60,5 +60,66 @@
     "deviceIPv4": "3/3 passed",
     "fixtureIPv4": "3/3 passed",
     "interpretation": "HTTP service/CORS and probe are usable in Chrome; mDNS endpoint failure is separate; not Safari proof"
+  },
+  "phoneWebRTC": {
+    "evidence": "Summary extracted from user-pasted diagnostic JSON",
+    "safariVersion": "27.0.1",
+    "endpoint": "192.168.0.107:18948",
+    "runs": [
+      {
+        "startedAt": "2026-10-18T18:41:52.166Z",
+        "captureAtConnect": true,
+        "echoMs": [
+          8,
+          10,
+          9
+        ],
+        "nonceMatched": true
+      },
+      {
+        "startedAt": "2026-10-18T18:42:06.944Z",
+        "captureAtConnect": false,
+        "echoMs": [
+          13,
+          8,
+          12
+        ],
+        "nonceMatched": true
+      }
+    ],
+    "ice": "connected",
+    "dtls": "connected",
+    "channel": "open",
+    "candidateTypes": [
+      "host",
+      "host"
+    ],
+    "candidateProtocol": "udp",
+    "statisticsAddresses": null,
+    "originalUIReportedFailure": true,
+    "actualForegroundEchoPassed": true,
+    "failureReason": "Diagnostic treated unavailable getStats addresses as network failure and closed a working connection",
+    "backgroundAttempted": false,
+    "phoneInputSent": false
+  },
+  "rtcReference": {
+    "host": "192.168.0.107",
+    "udpPort": 18948,
+    "externalSignaling": false,
+    "externalSTUN": false,
+    "TURN": false,
+    "goSelfTestPassed": true,
+    "chromeForegroundPassed": true,
+    "macSafariForegroundEchoPassed": true,
+    "certificate": "one shared self-signed test certificate; private key kept outside tracked sources"
+  },
+  "rtcDiagnostics": {
+    "deploymentId": "945fc08cd191455bb768e624a26b94f1",
+    "fullWebTestsPassed": 553,
+    "publishedAssetsVerified": 136,
+    "safariStatisticsFalseFailureFixed": true,
+    "macSafariAfterFix": "3 matching echoes, success with explicit incomplete-statistics note",
+    "phoneBackground": "pending",
+    "c3": "prototype compiling; not flashed"
   }
 }
