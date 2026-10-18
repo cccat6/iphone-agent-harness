@@ -1,3 +1,4 @@
+import {createDeviceURL} from './device.js';
 import {imageData} from './attachments.js';
 const DB_NAME='iphone-automation-harness', VERSION=2;
 const uid=()=>crypto.randomUUID();
@@ -16,14 +17,50 @@ function frameRecord(sessionId,frame,metadata={}){
   return {id,sessionId,createdAt:Date.now(),frameId:frame.frameId||id,...metadata,...Object.fromEntries(Object.entries(frame).filter(([k])=>fields.includes(k))),assetRef:'local-asset:'+id};
 }
 export async function openStore({memory=false,name=DB_NAME}={}){
-  let db;
+  let db=null,opening=null,closed=false;
   const names=['sessions','messages','settings','skills','frames','runs','events'];
-  if(!memory){if(!globalThis.indexedDB)throw new Error('此浏览器不能使用本地数据库');db=await new Promise((resolve,reject)=>{const r=indexedDB.open(name,VERSION);r.onupgradeneeded=()=>{for(const k of names)if(!r.result.objectStoreNames.contains(k))r.result.createObjectStore(k,{keyPath:'id'});for(const k of ['messages','events']){const s=r.transaction.objectStore(k);if(!s.indexNames.contains('sessionId'))s.createIndex('sessionId','sessionId');if(!s.indexNames.contains('sessionSeq'))s.createIndex('sessionSeq',['sessionId','seq'],{unique:true});}for(const k of ['frames','runs']){const s=r.transaction.objectStore(k);if(!s.indexNames.contains('sessionId'))s.createIndex('sessionId','sessionId');}};r.onsuccess=()=>{r.result.onversionchange=()=>r.result.close();resolve(r.result);};r.onerror=()=>reject(r.error);r.onblocked=()=>reject(new Error('请关闭此网站的旧版窗口后重试'));});}
+  const unavailable=()=>Object.assign(new Error('Local database is closed'),{code:'STORE_CLOSED'});
+  function disconnect(connection){if(db===connection)db=null;try{connection.close();}catch{}}
+  async function connection(){
+    if(closed)throw unavailable();
+    if(db)return db;
+    if(opening)return opening;
+    if(!globalThis.indexedDB)throw new Error('此浏览器不能使用本地数据库');
+    // Safari may retire a connection when a page is suspended. Share reopening
+    // between concurrent UI requests; never turn a persistent store into RAM.
+    opening=new Promise((resolve,reject)=>{
+      let settled=false;
+      const r=indexedDB.open(name,VERSION);
+      r.onupgradeneeded=()=>{for(const k of names)if(!r.result.objectStoreNames.contains(k))r.result.createObjectStore(k,{keyPath:'id'});for(const k of ['messages','events']){const s=r.transaction.objectStore(k);if(!s.indexNames.contains('sessionId'))s.createIndex('sessionId','sessionId');if(!s.indexNames.contains('sessionSeq'))s.createIndex('sessionSeq',['sessionId','seq'],{unique:true});}for(const k of ['frames','runs']){const s=r.transaction.objectStore(k);if(!s.indexNames.contains('sessionId'))s.createIndex('sessionId','sessionId');}};
+      r.onsuccess=()=>{
+        const opened=r.result;
+        if(settled||closed){opened.close();if(!settled){settled=true;reject(unavailable());}return;}
+        opened.onversionchange=()=>disconnect(opened);
+        opened.onclose=()=>{if(db===opened)db=null;};
+        db=opened;settled=true;resolve(opened);
+      };
+      r.onerror=()=>{if(!settled){settled=true;reject(r.error?.name==='VersionError'?Object.assign(new Error('Local database was upgraded; reload this page'),{code:'STORE_VERSION_CHANGED'}):r.error);}};
+      r.onblocked=()=>{if(!settled){settled=true;reject(new Error('请关闭此网站的旧版窗口后重试'));}};
+    }).finally(()=>{opening=null;});
+    return opening;
+  }
+  if(!memory)await connection();
   let ram=Object.fromEntries(names.map(k=>[k,new Map()])),queue=Promise.resolve();
   async function transaction(stores,mode,work,{signal}={}){
-    const check=()=>{if(signal?.aborted)throw signal.reason||new DOMException('Operation cancelled','AbortError');};check();
-    if(!db){const run=async()=>{check();const before=mode==='readwrite'?clone(ram):null;const api=Object.fromEntries(stores.map(k=>[k,{get:async id=>clone(ram[k].get(id)),all:async()=>clone([...ram[k].values()]),put:async v=>ram[k].set(v.id,clone(v)),delete:async id=>ram[k].delete(id),bySession:async id=>clone([...ram[k].values()].filter(v=>v.sessionId===id)),page:async(id,o={})=>{let list=[...ram[k].values()].filter(v=>v.sessionId===id&&v.seq>(o.afterSeq||0)&&v.seq<(o.beforeSeq??Infinity)&&(o.includeInternal!==false||!v.internal)).sort((a,b)=>a.seq-b.seq);if(o.direction==='prev')list.reverse();return clone(list.slice(0,o.limit??Infinity));}}]));try{const value=await work(api);check();return value;}catch(e){if(before)ram=before;throw e;}};const result=queue.then(run);queue=result.catch(()=>{});return result;}
-    const t=db.transaction(stores,mode),done=new Promise((resolve,reject)=>{t.oncomplete=resolve;t.onerror=()=>reject(t.error);t.onabort=()=>reject(t.error||new Error('本地写入被中止'));});
+    const check=()=>{if(closed)throw unavailable();if(signal?.aborted)throw signal.reason||new DOMException('Operation cancelled','AbortError');};check();
+    if(memory){const run=async()=>{check();const before=mode==='readwrite'?clone(ram):null;const api=Object.fromEntries(stores.map(k=>[k,{get:async id=>clone(ram[k].get(id)),all:async()=>clone([...ram[k].values()]),put:async v=>ram[k].set(v.id,clone(v)),delete:async id=>ram[k].delete(id),bySession:async id=>clone([...ram[k].values()].filter(v=>v.sessionId===id)),page:async(id,o={})=>{let list=[...ram[k].values()].filter(v=>v.sessionId===id&&v.seq>(o.afterSeq||0)&&v.seq<(o.beforeSeq??Infinity)&&(o.includeInternal!==false||!v.internal)).sort((a,b)=>a.seq-b.seq);if(o.direction==='prev')list.reverse();return clone(list.slice(0,o.limit??Infinity));}}]));try{const value=await work(api);check();return value;}catch(e){if(before)ram=before;throw e;}};const result=queue.then(run);queue=result.catch(()=>{});return result;}
+    let t;
+    for(let attempt=0;attempt<2;attempt++){
+      const active=await connection();check();
+      try{t=active.transaction(stores,mode);break;}
+      catch(error){
+        // No transaction has started, so reopening cannot duplicate a write.
+        // Once work begins, any failure is surfaced without replaying it.
+        if(error?.name!=='InvalidStateError'||attempt)throw error;
+        disconnect(active);
+      }
+    }
+    const done=new Promise((resolve,reject)=>{t.oncomplete=resolve;t.onerror=()=>reject(t.error);t.onabort=()=>reject(t.error||new Error('本地写入被中止'));});
     const abortTransaction=()=>{try{t.abort();}catch{}};signal?.addEventListener('abort',abortTransaction,{once:true});if(signal?.aborted)abortTransaction();
     const req=r=>new Promise((resolve,reject)=>{r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});
     const api=Object.fromEntries(stores.map(k=>{const s=t.objectStore(k);return [k,{get:id=>req(s.get(id)),all:()=>req(s.getAll()),put:v=>req(s.put(v)),delete:id=>req(s.delete(id)),bySession:id=>req(s.index('sessionId').getAll(id)),page:(id,o={})=>new Promise((resolve,reject)=>{const lo=o.afterSeq||0,hi=o.beforeSeq??Number.MAX_SAFE_INTEGER;if(lo>=hi){resolve([]);return;}const range=IDBKeyRange.bound([id,lo],[id,hi],true,true),r=s.index('sessionSeq').openCursor(range,o.direction||'next'),out=[];r.onerror=()=>reject(r.error);r.onsuccess=()=>{const c=r.result;if(!c||out.length>=(o.limit??Infinity)){resolve(out);return;}if(o.includeInternal!==false||!c.value.internal)out.push(c.value);c.continue();};})}];}));
@@ -40,10 +77,9 @@ export async function openStore({memory=false,name=DB_NAME}={}){
     async searchMessages(sessionId,query,{limit=12,beforeSeq}={}){if(!query||String(query).length>200)throw new Error('搜索词为空或过长');const rows=await store.getMessages(sessionId,{beforeSeq,limit:2000,includeImages:false});const matches=rows.filter(m=>m.text.toLowerCase().includes(query.toLowerCase())).slice(-Math.min(limit,30));return {messages:matches.map(({providerState,...message})=>message),nextBeforeSeq:rows[0]?.seq||null,examined:rows.length,hasMore:rows.length===2000};},
     getSettings:()=>transaction(['settings'],'readonly',async s=>(await s.settings.get('settings'))?.value||{providers:[],activeProviderId:''}),
     async ensureDeviceClientId(endpoint,{preferredId}={}){
-      const url=new URL(endpoint);if(url.protocol!=='https:'||url.username||url.password||url.pathname!=='/'||url.search||url.hash||/[?#]/.test(String(endpoint)))throw new Error('Invalid device origin');
+      const origin=createDeviceURL(endpoint);
       const valid=value=>typeof value==='string'&&/^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$/.test(value);
       if(preferredId!==undefined&&!valid(preferredId))throw new Error('Invalid device client ID');
-      const origin=url.origin;
       return transaction(['settings'],'readwrite',async s=>{
         const old=(await s.settings.get('settings'))?.value||{},ids=old.deviceClientIds&&typeof old.deviceClientIds==='object'&&!Array.isArray(old.deviceClientIds)?old.deviceClientIds:{};
         if(Object.hasOwn(ids,origin)&&valid(ids[origin]))return ids[origin];
@@ -65,6 +101,6 @@ export async function openStore({memory=false,name=DB_NAME}={}){
     async createSkill(skill){return transaction(['skills'],'readwrite',async s=>{if(await s.skills.get(skill.id))throw Object.assign(new Error('SKILL_EXISTS'),{code:'SKILL_EXISTS'});const value=safeSettings(clone(skill));await s.skills.put(value);return value;});},
     async compareAndSwapSkill(skill,expectedDigest){return transaction(['skills'],'readwrite',async s=>{const old=await s.skills.get(skill.id);if(!old||old.provenance?.digest!==expectedDigest)throw Object.assign(new Error('SKILL_CONFLICT'),{code:'SKILL_CONFLICT'});const value=safeSettings(clone(skill));await s.skills.put(value);return value;});},
     deleteSkill:id=>transaction(['skills'],'readwrite',s=>s.skills.delete(id)),
-    close(){db?.close();},persistent:!memory,
+    close(){closed=true;if(db)disconnect(db);},persistent:!memory,
   };return store;
 }

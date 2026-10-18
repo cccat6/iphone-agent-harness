@@ -1,47 +1,48 @@
-# Protected LAN transport v0.2
+# Direct LAN transport v0.3
 
 Status: implemented source, host-tested admission/state invariants; compiled/hardware acceptance reported separately in build artifacts. `physicalValidation:false` remains deliberate. No model, screenshot or session data is stored on ESP32.
 
-## Ownership and initial trust
+## Current connection and ownership
 
 ```mermaid
 sequenceDiagram
-  participant U as User / local USB browser
-  participant E as ESP32
-  participant I as iPhone settings
-  participant W as Trusted Web origin
-  U->>E: Explicit setup-info
-  E-->>U: Private owner/AP material, CA state
-  U->>E: Physical setup-config or protected WPA2 AP configuration
-  E->>E: Generate per-board CA and 365-day leaf; commit PKI
-  E-->>U: Public mobileconfig + CA fingerprint
-  U->>I: Install matching profile; manually enable trust
-  U->>E: setup-finish
-  E->>E: Stop AP HTTP; start HTTPS 443
-  W->>E: Verify HTTPS and manually pinned fingerprint
-  W->>E: pair(clientId, setupPassword)
-  E-->>W: Per-client token; BLE pairing window
-  W->>I: Focus challenge field, then pair BLE
-  W->>E: Start selected-target challenge
-  E->>I: Eight digits via directed HID only
-  I->>W: Trusted keydown observations
-  W->>E: confirm(challengeId, observedNonce)
-  E-->>W: Durable target-bound client grant
+  participant U as User
+  participant W as Harness HTTPS tab
+  participant H as Device HTTP tab
+  participant E as ESP32 on home Wi-Fi
+  participant I as iPhone Bluetooth input
+  U->>E: Configure home Wi-Fi once
+  U->>W: Open setup return link and tap Connect
+  W->>H: Open a unique local connection window
+  U->>W: Return to Harness, keep device tab open
+  W->>H: Identity request via browser postMessage
+  H->>E: Same-origin HTTP GET
+  E-->>H: Device identity
+  H-->>W: Identity response, helper hidden
+  W->>H: Pair with device code
+  H->>E: HTTP pair request
+  E-->>W: Per-client token through local window
+  W->>E: Start selected-phone input test through local window
+  E->>I: Eight digits via Bluetooth HID
+  I->>W: Trusted keyboard events
+  W->>E: Confirm received digits; claim writer lease
 ```
 
-The owner/AP codes are random per board and printed only by explicit USB `setup-info`. CSPRNG generation happens after the BLE controller is enabled. Configuration is owner-authenticated inside the one-client WPA2 AP; HTTP control does not exist. Certificates are generated only with an authenticated current clock. The user installs and trusts the CA; JavaScript cannot automate or bypass that platform decision.
+The device's Wi-Fi password and pairing code are random per board. The Wi-Fi setup page requires possession of the device Wi-Fi connection and fills the owner code internally. The current firmware waits for a new IP event on the submitted SSID before saving Wi-Fi settings. Failed joins keep setup Wi-Fi open and preserve the previous saved network; `/finish` rejects until actually connected. A failed saved-network boot opens setup after 30 seconds. The firmware starts HTTP port 80 after setup, advertises that port through mDNS, serves `/harness-link`, and does not generate a CA for normal onboarding. No cloud service forwards control data.
 
-The server certificate SAN contains its unique `.local` name and AP IP, not arbitrary future DHCP addresses. Use the hostname. Private-CA trust and mDNS routing must still be validated on the target Safari. A fingerprint read from an untrusted discovery response is not an authenticated fingerprint.
+The local connection page checks the configured Harness origin, exact opener, nonce and request ID. Only fixed API routes and headers can pass through. Its same-origin requests carry `X-Harness-Window: 1`; the server accepts that path only with its own Host and same-origin/no-Origin requests, then retains the normal client token, target proof, writer lease, replay and timing checks. The header alone is never an input credential.
+
+For HTTP, `publicKeyFingerprint` is a stable identity label derived from the random owner code, not a certificate or encryption proof. Older HTTPS/CA behavior is historical compatibility, not a user setup requirement. Direct HTTP from the HTTPS page failed on the tested Safari 27.0.1; a local-window GET/POST experiment passed. Five read-only local-window HTTP requests, including both-tabs-hidden requests during screen sharing, subsequently passed over about 21 seconds. Physical ESP32/HID acceptance remains separate.
 
 ## REST contract
 
-All paths below use HTTPS port 443. Except public GET identity/clock/capabilities, requests require `Origin` exactly matching the owner-configured origin and `Authorization: Bearer <token>`. Tokens are random 256-bit values, returned once by pair; only their SHA-256 hashes are persisted. Default origin is `https://igent.cc`.
+All paths below use HTTP port 80 in the current firmware. Except public GET identity/clock/capabilities, requests require the configured Harness origin (or the validated same-origin local-window route) and `Authorization: Bearer <token>`. Tokens are random 256-bit values, returned once by pair; only their SHA-256 hashes are persisted. Default origin is `https://igent.cc`.
 
 | Method / path | Request | Successful response |
 |---|---|---|
-| GET `/v1/identity` | none | boardId, bootId, hostname, protocolVersion, publicKeyFingerprint (CA DER SHA-256 lower hex), firmwareVersion, tls, requiresManualTrust |
+| GET `/v1/identity` | none | boardId, bootId, hostname, protocolVersion, publicKeyFingerprint (stable HTTP identity label), firmwareVersion, tls, requiresManualTrust |
 | GET `/v1/clock` | none | boardId, bootId, deviceTimeMs |
-| GET `/v1/capabilities` | none | executionEnabled, operations, maxEvents=128, maxRequestBytes=8192, reportIntervalMs=40, pointerSettleMs=20, maxSegmentMs=5000, maxHoldMs=3000, maxLeaseMs=15000, maxTargets=2, maxClients=8, maxConcurrentTls=1, physicalValidation=false, heap metrics |
+| GET `/v1/capabilities` | none | executionEnabled, operations, maxEvents=128, maxRequestBytes=8192, reportIntervalMs=40, pointerSettleMs=20, maxSegmentMs=5000, maxHoldMs=3000, maxLeaseMs=15000, maxTargets=2, maxClients=8, maxConcurrentRequests=2, physicalValidation=false, heap metrics |
 | POST `/v1/pair` | `{clientId,setupPassword}` | 200 `{clientId,token,boardId,bootId,hostname,publicKeyFingerprint}` |
 | GET `/v1/binding` | none | boardId, bootId, clientId, targetId or null, bindingVerified, targets[] with connected/encrypted/hidSubscribed/inputState/running |
 | POST `/v1/targets/:id/challenge/start` | `{}` | 202 `{challengeId,targetId,length:8,expiresInMs:30000,expiresAtDeviceMs,status:"typing",boardId,bootId}` |
@@ -62,7 +63,7 @@ Claim requires idle, known released input. Renew accepts only the same authentic
 
 ```mermaid
 flowchart LR
-  TLS[TLS task: request receive / parse / SHA-256] --> Lock[Short Core mutex]
+  HTTP[HTTP task: request receive / parse / SHA-256] --> Lock[Short Core mutex]
   BLE[NimBLE callback: fixed snapshots / atomic pairing gate] --> Loop[loop: peer reconciliation + tick]
   Loop --> Lock
   Lock --> A[Target A lease / segment / directed handle]
@@ -72,43 +73,38 @@ flowchart LR
   Unlock --> Close[Complete REST response and close session]
 ```
 
-TLS uses priority 1, equal to the Arduino loop, instead of monopolizing the single-core C3 at a higher priority. Parsing, canonical hashing and TLS handshake do not hold Core's mutex. NimBLE callbacks never acquire it, preventing lock inversion with directed notify. Main loop stack is 8 KB; PKI generation uses a temporary 16 KB task during protected setup, and the TLS handler keeps 12 KB. RSA RNG callbacks yield so initial generation does not starve the idle watchdog.
+The HTTP task runs at priority 1, alongside the Arduino loop. Parsing, canonical hashing and network writes do not hold the Core mutex. NimBLE callbacks never acquire it. The main loop and HTTP handler each use an 8 KB stack. Normal setup performs no RSA/CA generation.
 
-One client TLS slot is a conservative memory choice. Every completed REST/OPTIONS request closes the socket explicitly, preventing a Safari keep-alive connection from permanently owning the slot. A two-second receive/send limit and LRU remain enabled. This is sequential service for multiple clients, not verified simultaneous HTTPS capacity.
-
-ESP-IDF allocates `max_open_sockets` client sessions and additionally reserves three internal sockets. A setting of one is not internally reduced to zero; start still can fail for allocation, LWIP budget or task reasons. The firmware marks ready only after successful TLS start and handler registration. Sources: [IDF main implementation](https://github.com/espressif/esp-idf/blob/v5.5.2/components/esp_http_server/src/httpd_main.c), [session implementation](https://github.com/espressif/esp-idf/blob/v5.5.2/components/esp_http_server/src/httpd_sess.c). Actual available heap and two-phone fairness must be measured on hardware.
+The HTTP server accepts two socket sessions, with a two-second send/receive limit. Each REST response explicitly closes its session; request handling remains sequential. The local helper page has a separate bounded request map, not a second firmware control engine. Physical two-phone fairness still needs testing.
 
 ## Durable configuration and failures
 
 Wi-Fi and permitted origin commit as one NVS JSON value, with readback before success. Client grants use a candidate copy: persist successfully before replacing the active RAM token/binding. Failures do not acknowledge a new credential whose token was never returned.
 
-PKI updates first commit an invalid marker. CA, private keys, leaf and expiry are then written/read back and cryptographically checked; the final valid marker is set only afterward. Boot refuses mixed/unfinished materials. Load checks leaf/private matching, CA signature and expiry consistency. No shared key is compiled into the sketch. A failed update is a visible setup failure, not a usable leaf with an unverified private key.
+Normal HTTP configuration does not read or update old private-CA materials. Existing Wi-Fi and owner credentials remain in NVS. Current setup reports `manualTrustRequired:false`. The device's pairing and client-token records still use readback/commit checks before becoming active.
 
-Cancelling, expired leases, disconnected BLE, notify failure and missed timing request releases for the same target only. TLS queue/handshake delays do not turn into fabricated precise gestures; Core records a timing miss and stops. Screenshots remain Web barriers after released input, or a separate parallel sampling window during a complete gesture. ESP32 never fabricates a screenshot acknowledgment.
+Cancelling, expired leases, disconnected BLE, notify failure and missed timing request releases for the same target only. Network/window scheduling delays do not turn into fabricated precise gestures; Core records a timing miss and stops. Screenshots remain Web barriers after released input, or a separate parallel sampling window during a complete gesture. ESP32 never fabricates a screenshot acknowledgment.
 
 The API does not provide unattended discovery trust, a cloud relay, stdio MCP, shell commands, arbitrary JSON-to-HID forwarding or executable plugin loading. Device management and private Web sessions remain distinct.
 
 ## Remaining physical gates
 
-- Read-only setup info and NVS reset/reboot persistence using only the authorized board.
-- Real CA generation duration, memory and power-interruption recovery.
-- iOS profile installation/full trust and exact hostname/SAN validation.
-- Two authorized phones alternating HTTPS requests without starvation; CA/hostname-verified C3 HTTPS and owner enrollment already passed on the final build.
-- Stable bond identity with rotated private addresses and reconnects.
-- HID challenge on the intended phone, wrong-target rejection and bounded failed proof.
-- End-to-end gestures, release during cancellation/lease expiry, timing under TLS load and screen barriers.
+- Fresh firmware on the physical C3, Wi-Fi onboarding and hidden-helper request round trips.
+- Both Safari tabs backgrounded while screen sharing and another app is foreground.
+- Actual Bluetooth pairing, eight-digit input proof, gestures, cancellation and screenshot barriers.
+- Two phones using one board without cross-target input or request starvation.
 
-The earlier source-only implementation/host-test pass used no serial port or physical board. Root later flashed the authorized C3 without erasing NVS and passed six production DeviceClient checks on final 13-source SHA-256 `4b4ebc2e65b3a7b1ebac4b4463c67ae2cb805f3ef85c1eece9e23bb1b435f8f0`, including CA/hostname-verified HTTPS, owner enrollment and refusal of unverified-phone control. No HID challenge, lease or phone input was sent. The final source/application hashes and exact scope are in `docs/research/device-client-live-verification.json`; the earlier TLS report remains historical evidence.
+The previous 0.2 HTTPS firmware's CA-verified tests remain historical evidence in [the earlier device report](../research/device-client-live-verification.json). They do not validate the current HTTP-window firmware.
 
 ### USB radio diagnostics
 
-Read-only `wifi-diagnostic` reports status, disconnect reason, event counters, configured credential byte lengths and SSID equality only; it never prints credentials. The SSID equality field uses `WiFi.SSID()` and may be false simply because the disconnected driver reports an empty SSID; it does not establish which credentials were actually transmitted. Optional `wifi-power` and `wifi-reconnect` are physical USB maintenance operations and are refused while HTTPS or a segment is running. A saved power limit is applied at boot, and reconnect reuses the existing network/CA. They permit a measured low-power comparison without assuming that signal strength or board type caused an authentication failure. See the firmware README for exact JSON.
+Read-only `wifi-diagnostic` reports status, disconnect reason, event counters, configured credential byte lengths and SSID equality only; it never prints credentials. The SSID equality field uses `WiFi.SSID()` and may be false simply because the disconnected driver reports an empty SSID; it does not establish which credentials were actually transmitted. Optional `wifi-power` and `wifi-reconnect` are physical USB maintenance operations and are refused while the HTTP service or a segment is running. A saved power limit is applied at boot, and reconnect reuses the existing network. They permit a measured low-power comparison without assuming that signal strength or board type caused an authentication failure. See the firmware README for exact JSON.
 
-The current product Core has 128 events per target. Its 7168-byte, 16-probe boot-local replay filter lives in RTC RAM and is explicitly cleared on each new Core/boot ID; it remains fail-closed and can falsely reject new IDs when saturated. Host tests include retained storage and stale-boot replay. The ordinary heap is reserved for BLE/TLS/JSON rather than an always-resident replay bitmap.
+The current product Core has 128 events per target. Its 7168-byte, 16-probe boot-local replay filter lives in RTC RAM and is explicitly cleared on each new Core/boot ID; it remains fail-closed and can falsely reject new IDs when saturated. Host tests include retained storage and stale-boot replay. The ordinary heap is reserved for BLE/HTTP/JSON rather than an always-resident replay bitmap.
 
-### Setup reopening and trusted-time repair
+### Setup reopening
 
-The portable SetupDeadline state is used by the actual service: repeated finish does not extend the deadline, already-finished requests leave no pending deadline, and opening a new AP window clears every previous finish deadline. Provision reuse checks CA and leaf validity against the authenticated configuration time. A future/expired leaf is reissued; a conflicting CA validity interval reissues CA+leaf and changes the CA DER fingerprint. USB/AP configuration reports `trustProfileChanged` and `manualTrustRequired`; users must reinstall/enable trust for the new profile and explicitly update the expected fingerprint. Boot-time load still tolerates absent wall-clock time and does not claim real TLS acceptance.
+The portable SetupDeadline state remains in use: repeated finish does not extend the deadline, already-finished requests leave no pending deadline, and reopening the setup Wi-Fi clears the previous finish deadline. HTTP setup does not issue, renew or ask users to trust certificates.
 
 ### BLE connection-generation fence
 

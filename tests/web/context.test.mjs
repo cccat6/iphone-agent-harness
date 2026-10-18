@@ -20,7 +20,7 @@ const tick=()=>new Promise(r=>setImmediate(r));
 async function until(fn){for(let i=0;i<100&&!fn();i++)await new Promise(r=>setTimeout(r,1));assert.ok(fn());}
 
 test('settings normalize conservative defaults and keep target plus reserve below trigger',()=>{
- assert.deepEqual(normalizeContextSettings(),{autoCompact:true,triggerTokens:24000,targetTokens:8000,reserveTokens:4000,maxImages:8,strategy:'model',imageTokens:1200});
+ assert.deepEqual(normalizeContextSettings(),{schemaVersion:2,autoCompact:true,triggerTokens:750000,targetTokens:32000,reserveTokens:4000,maxImages:8,strategy:'model',imageTokens:1200});
  const small=normalizeContextSettings({triggerTokens:1024,targetTokens:9000,reserveTokens:8000,maxImages:999,strategy:'unknown'});assert.ok(small.targetTokens+small.reserveTokens<small.triggerTokens);assert.equal(small.maxImages,24);assert.equal(small.strategy,'model');
  assert.equal(normalizeContextSettings({autoCompact:false,strategy:'extractive'}).autoCompact,false);
 });
@@ -85,9 +85,9 @@ test('image selection changes once at a boundary and new images append without a
  const roomy={...compactSettings,maxImages:8};const raw=new Memory([{role:'user',text:'look',frameRefs:['local-asset:a','local-asset:b']}]);const before=await run(raw,{settings:roomy});raw.add({role:'assistant',text:'append'});const after=await run(raw,{settings:roomy});assert.deepEqual(after.messages.slice(0,before.messages.length),before.messages);
 });
 
-test('explicit extractive mode reads every source range and labels its lossiness',async()=>{
- const store=new Memory(history());const result=await run(store,{settings:{...compactSettings,strategy:'extractive'},pageSize:2,invoke:()=>assert.fail('extractive strategy must not invoke a model')});
- assert.equal(result.compacted,true);assert.equal(result.checkpoint.kind,'evidence-excerpts');assert.match(result.checkpoint.text,/Lossy extractive/);assert.match(result.checkpoint.note,/Lossy/);assert.equal(result.checkpoint.sourceMessageCount,result.checkpoint.throughSeq);assert.equal(result.metrics.summaryCalls,0);assert.ok(result.metrics.pagesRead>10);paired(result.messages);
+test('legacy extractive preference migrates to real model summary',async()=>{
+ const store=new Memory(history()),m=model();const result=await run(store,{settings:{...compactSettings,strategy:'extractive'},pageSize:2,invoke:m.invoke});
+ assert.equal(result.compacted,true);assert.equal(result.checkpoint.kind,'model-summary');assert.equal(result.checkpoint.sourceMessageCount,result.checkpoint.throughSeq);assert.ok(result.metrics.summaryCalls>0);assert.ok(result.metrics.pagesRead>10);paired(result.messages);
 });
 
 test('disabled auto compaction preserves all messages and images while still reporting estimated over-budget state',async()=>{
@@ -110,7 +110,45 @@ test('failed later compaction preserves an existing checkpoint byte for byte',as
  await assert.rejects(run(store,{invoke:async()=>{throw new Error('new summary unavailable');}}),/unavailable/);assert.deepEqual(store.session.checkpoint,prior);assert.equal(store.writes.length,writes);
 });
 
-test('image-only boundaries also respect a smaller estimated token target',async()=>{
+test('image-only boundaries do not use the internal text-compaction target as an early trigger',async()=>{
  const store=new Memory([{role:'user',text:'look',frameRefs:['local-asset:a','local-asset:b','local-asset:c']}]);
- const result=await run(store,{settings:{...compactSettings,targetTokens:1500,maxImages:2,imageTokens:1200}});assert.equal(result.compacted,true);assert.equal(result.metrics.targetReached,true);assert.equal(result.messages[0].frameRefs.length,1);assert.equal(store.framesRead,0);
+ const result=await run(store,{settings:{...compactSettings,maxImages:2,imageTokens:1200}});assert.equal(result.compacted,true);assert.equal(result.metrics.summaryCalls,0);assert.equal(result.messages[0].frameRefs.length,2);assert.equal(store.framesRead,0);
+});
+
+
+test('750k default migrates legacy defaults and ignores retired strategy and target controls',()=>{
+ const legacy=normalizeContextSettings({triggerTokens:24000,targetTokens:1,strategy:'extractive'});
+ assert.equal(legacy.triggerTokens,750000);assert.equal(legacy.strategy,'model');assert.equal(legacy.targetTokens,32000);
+ assert.equal(normalizeContextSettings({schemaVersion:2,triggerTokens:24000}).triggerTokens,24000);
+ assert.equal(normalizeContextSettings({triggerTokens:42000}).triggerTokens,42000);
+ assert.deepEqual(normalizeContextSettings({targetTokens:900000}),normalizeContextSettings({targetTokens:1}));
+});
+
+test('large-window compaction summarizes a 750k conversation in bounded whole-context requests, not 16k fragments',async()=>{
+ const store=new Memory([{role:'user',text:'Keep the full task outcome.'},...Array.from({length:80},(_,i)=>({role:i%2?'user':'assistant',text:`record-${i} `+'a'.repeat(40000)}))]),m=model();
+ const result=await run(store,{settings:{triggerTokens:750000},invoke:m.invoke});
+ assert.equal(result.compacted,true);assert.ok(m.calls.length<=2,`unexpected ${m.calls.length} summary requests`);assert.ok(m.calls.length>0);
+ assert.equal(result.metrics.sourceMessagesSummarized,result.checkpoint.throughSeq);assert.equal(store.writes.length,1);
+ const seen=m.calls.flatMap(c=>JSON.parse(c.messages[1].text).messages.map(m=>m.seq));assert.deepEqual(seen,Array.from({length:result.checkpoint.throughSeq},(_,i)=>i+1));
+});
+
+test('known provider capacity compacts before the user threshold without guessing capacity from model name',async()=>{
+ const store=new Memory(history()),m=model();const result=await run(store,{settings:{triggerTokens:750000},provider:{model:'known',contextWindowTokens:8192},invoke:m.invoke});
+ assert.equal(result.compacted,true);assert.ok(m.calls.length>0);
+ const unreported=new Memory(history()),unreportedModel=model();const unchanged=await run(unreported,{settings:{triggerTokens:750000},provider:{model:'small-model-name'},invoke:unreportedModel.invoke});
+ assert.equal(unchanged.compacted,false);assert.equal(unreportedModel.calls.length,0);
+});
+
+
+test('nine-plus screenshots across many tool groups select recent images without summarizing or losing any text',async()=>{
+ const rows=[{role:'user',text:'Keep my original goal and every operation receipt.'}];
+ for(let i=0;i<12;i++)rows.push({role:'assistant',text:`Plan ${i}`,toolCalls:[{id:`observe-${i}`,name:'phone_observe',arguments:{count:1}}]},{role:'tool',toolCallId:`observe-${i}`,text:`Observed result ${i}`,frameRefs:[`local-asset:frame-${i}`]});
+ const store=new Memory(rows),m=model(),settings={triggerTokens:750000};
+ const first=await run(store,{settings,invoke:m.invoke,pageSize:3});
+ assert.equal(first.metrics.compactionReason,'images');assert.equal(first.checkpoint.throughSeq,0);assert.equal(first.metrics.sourceMessagesSummarized,0);assert.equal(m.calls.length,0);assert.equal(store.framesRead,0);
+ assert.deepEqual(first.messages.map(row=>row.text),store.rows.map(row=>row.text));assert.equal(first.messages.length,store.rows.length);paired(first.messages);
+ assert.deepEqual(first.messages.flatMap(row=>row.frameRefs||[]),Array.from({length:8},(_,i)=>`local-asset:frame-${i+4}`));
+ const same=await run(store,{settings,invoke:m.invoke});assert.deepEqual(same.messages,first.messages);assert.equal(same.compacted,false);
+ store.add({role:'assistant',text:'Continue from the last observed state.'});const appended=await run(store,{settings,invoke:m.invoke});assert.equal(appended.compacted,false);assert.deepEqual(appended.messages.slice(0,-1),first.messages);assert.equal(m.calls.length,0);
+ store.add({role:'user',text:'New screenshot',frameRefs:['local-asset:frame-new']});const nextImage=await run(store,{settings,invoke:m.invoke});assert.equal(nextImage.checkpoint.throughSeq,0);assert.equal(nextImage.messages.length,store.rows.length);assert.deepEqual(nextImage.messages.map(row=>row.text),store.rows.map(row=>row.text));assert.equal(m.calls.length,0);assert.equal(nextImage.messages.flatMap(row=>row.frameRefs||[]).length,8);assert.equal(store.rows.filter(row=>row.frameRefs?.length).length,13);
 });

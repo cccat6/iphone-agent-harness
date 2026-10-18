@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {ScreenCapture} from '../../apps/web/core/capture.js';
+import {ScreenCapture,normalizeImageSettings} from '../../apps/web/core/capture.js';
 import {createHarness} from '../../apps/web/core/harness.js';
 import {openStore} from '../../apps/web/core/store.js';
 const deferred=()=>{let resolve;return {promise:new Promise(r=>resolve=r),resolve:v=>resolve(v)}};
@@ -20,3 +20,20 @@ test('stream replacement fences an old encoder and delayed old track end cannot 
 function trackSubscriptions(capture){const subscribe=capture.subscribe.bind(capture),state={count:0};capture.subscribe=listener=>{state.count++;const remove=subscribe(listener);let removed=false;return ()=>{if(!removed){state.count--;removed=true;}remove();};};return state;}
 test('capture listeners are removed on normal completion and remain unobserved in Chat',async t=>{const {capture}=fixture(t);await capture.start();const listeners=trackSubscriptions(capture),{store,session}=await setup();await createHarness({store,capture,getContext:()=>ctx(capture.orientationEpoch),invoke:async()=>({text:'done',toolCalls:[]})}).run({sessionId:session.id,text:'No input needed.'});assert.equal(listeners.count,0);capture.subscribe=()=>{throw new Error('Chat must never subscribe to capture');};await createHarness({store,capture,getContext:()=>{throw new Error('Chat cannot query device');},invoke:async()=>({text:'done',toolCalls:[]})}).run({sessionId:session.id,mode:'chat',text:'Chat without capture.'});capture.stop();});
 test('system stop during a submitted segment fences input, releases before lease cleanup and removes the listener',async t=>{const {capture,stream}=fixture(t);await capture.start();const epoch=capture.orientationEpoch,listeners=trackSubscriptions(capture),{store,session}=await setup(),submitted=deferred(),releasing=deferred(),allowRelease=deferred();let homes=0,ends=0;const h=createHarness({store,capture,getContext:()=>ctx(epoch),device:{submitSegment:async()=>{homes++;submitted.resolve();return new Promise(()=>{});},getResult:async()=>{},release:async q=>{releasing.resolve();await allowRelease.promise;return {...q,status:'released',leaseInvalidated:true,releaseSubmitted:true};},endRun:async()=>{ends++;}},invoke:async()=>home(session.id,epoch)});const run=h.run({sessionId:session.id,text:'One Home.'}).catch(e=>e);await submitted.promise;assert.equal(listeners.count,1);stream.track.readyState='ended';stream.track.dispatchEvent(new Event('ended'));await releasing.promise;assert.equal(ends,0);allowRelease.resolve();const result=await run;assert.equal(result.status,'cancelled');assert.equal(homes,1);assert.equal(ends,1);assert.equal(listeners.count,0);assert.equal(h.running,false);assert.equal((await store.getEvents(session.id)).filter(e=>e.type==='run.ended').at(-1).payload.status,'cancelled');});
+
+
+test('all quality presets encode the entire original image with no crop or resize, including legacy maxSide',async t=>{
+ const {capture}=fixture(t,{grabFrame:async()=>({width:1170,height:2532,close(){}})}),encodings=[],draws=[],sizes=[];
+ class Canvas{constructor(w,h){sizes.push([w,h]);}getContext(){return {drawImage:(...args)=>draws.push(args.slice(1))};}async convertToBlob(options){encodings.push(options);return new Blob(['jpeg'],{type:'image/jpeg'});}}
+ globals(t,{OffscreenCanvas:Canvas});await capture.start();
+ for(const [preset,quality]of [['compact',.65],['balanced',.8],['high',.92]]){
+  capture.configure({qualityPreset:preset,maxSide:320});const frame=await capture.grab();assert.deepEqual([frame.width,frame.height,frame.scale],[1170,2532,1]);assert.equal(frame.quality,quality);assert.equal(frame.mimeType,'image/jpeg');
+ }
+ assert.deepEqual(sizes,Array(3).fill([1170,2532]));assert.deepEqual(draws,Array(3).fill([0,0,1170,2532]));assert.deepEqual(encodings.map(e=>e.quality),[.65,.8,.92]);capture.stop();
+ assert.deepEqual(normalizeImageSettings({maxSide:1280,quality:.72}),{qualityPreset:'compact',quality:.65});
+});
+
+test('oversized full-resolution JPEG asks for a lower preset without resizing or changing chosen quality',async t=>{
+ let encodes=0;const {capture}=fixture(t,{convertToBlob:async()=>{encodes++;return new Blob([new Uint8Array(5000001)],{type:'image/jpeg'});}});capture.configure({qualityPreset:'high'});await capture.start();
+ await assert.rejects(capture.grab(),{code:'CAPTURE_IMAGE_TOO_LARGE'});assert.equal(encodes,1);assert.equal(capture.imageSettings.quality,.92);capture.stop();
+});

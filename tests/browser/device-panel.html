@@ -12,7 +12,7 @@ class FixtureClient{
  async startChallenge(targetId){return {challengeId:'challenge-test',targetId,length:8,status:'typing',expiresInMs:30000};}
  async confirmChallenge(targetId,{observedNonce}){if(observedNonce!=='12345678')throw new Error('Mock proof expected 12345678. No device was contacted.');this.targetId=targetId;this.bindingVerified=true;return this.status();}
  async claimLease(){this.leaseId='lease-test';}async endRun(){this.leaseId=null;return {status:'released'};}
- status(){return {paired:this.paired,identityVerified:this.identityVerified,bindingVerified:this.bindingVerified,boardId:this.boardId,bootId:this.bootId,clientId:this.clientId,targetId:this.targetId};}
+ status(){return {paired:this.paired,identityVerified:this.identityVerified,bindingVerified:this.bindingVerified,boardId:this.boardId,bootId:this.bootId,clientId:this.clientId,targetId:this.targetId,publicKeyFingerprint:settings.deviceFingerprint};}
  exportCredentials(){return {format:'iah-device-credential/1',baseUrl:settings.deviceEndpoint,expectedFingerprint:settings.deviceFingerprint};}restoreCredentials(){this.paired=true;}clearCredentials(){this.paired=false;}
 }
 const capture={active:false,async start(){this.active=true;},stop(){this.active=false;}};

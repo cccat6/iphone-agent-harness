@@ -1,0 +1,94 @@
+{
+  "headings": [
+    {
+      "lang": "en",
+      "headings": [
+        "Settings",
+        "Accounts or API"
+      ]
+    },
+    {
+      "lang": "zh-Hant",
+      "headings": [
+        "設定",
+        "帳號或 API"
+      ]
+    },
+    {
+      "lang": "ja",
+      "headings": [
+        "設定",
+        "アカウント・API"
+      ]
+    },
+    {
+      "lang": "ru",
+      "headings": [
+        "Настройки",
+        "Аккаунты и API"
+      ]
+    },
+    {
+      "lang": "de",
+      "headings": [
+        "Einstellungen",
+        "Konten oder API"
+      ]
+    },
+    {
+      "lang": "fr",
+      "headings": [
+        "Paramètres",
+        "Comptes ou API"
+      ]
+    },
+    {
+      "lang": "es",
+      "headings": [
+        "Ajustes",
+        "Cuentas o API"
+      ]
+    },
+    {
+      "lang": "zh-Hans",
+      "headings": [
+        "设置",
+        "账号或 API"
+      ]
+    }
+  ],
+  "forms": [
+    {
+      "lang": "en",
+      "text": "Edit account or API\n\nChoose a model that supports images and tool calls to control your phone.\n\nDisplay name\nConnection type\nOpenAI-style API\nAnthropic-style API\nChatGPT account (Codex subscription)\nAPI endpoint\nUse the endpoint provided by your API service.\nDefault model\nLoad models\n1 models saved; switch them below the conversation.\nAPI key\nThe key stays in memory unless you choose encrypted storage.\nSave credentials encrypted on this device\nUnlock password\nSign in or enter an API key, then set an unlock password. Unlock when you reopen the page.\nStream replies\nSave\nCancel"
+    },
+    {
+      "lang": "zh-Hant",
+      "text": "編輯帳號或 API\n\n操作手機時，請選擇支援圖像與工具呼叫的模型。\n\n顯示名稱\n連接方式\nOpenAI 相容 API\nAnthropic 相容 API\nChatGPT 帳號（Codex 訂閱）\nAPI 端點\n填寫服務商提供的 API 端點。\n預設模型\n取得模型清單\n已儲存 1 個模型，可在對話下方切換。\nAPI 金鑰\n金鑰預設暫存；勾選下方選項可加密儲存在裝置上。\n加密儲存登入資訊或 API 金鑰\n解鎖密碼\n先登入或填寫 API 金鑰，再設定解鎖密碼。 重新開啟頁面時需要解鎖。\n串流接收回覆\n儲存\n取消"
+    },
+    {
+      "lang": "ja",
+      "text": "アカウント・APIを編集\n\n端末の操作には、画像とツール呼び出しに対応したモデルを選んでください。\n\n表示名\n接続方法\nOpenAI 互換 API\nAnthropic 互換 API\nChatGPTアカウント（Codexサブスクリプション）\nAPIエンドポイント\nAPIサービスが提供するエンドポイントを入力してください。\n既定のモデル\nモデル一覧を取得\n1 件のモデルを保存しました。会話の下部で切り替えられます。\nAPI キー\nキーは一時的に保持されます。暗号化保存を選ぶと端末に保存できます。\nログイン情報・APIキーを暗号化して保存\n解除用パスワード\nログインまたはAPIキー入力後、解除用パスワードを設定してください。 ページを開き直す際に解除が必要です。\n返信をストリーミング\n保存\nキャンセル"
+    },
+    {
+      "lang": "ru",
+      "text": "Изменить аккаунт или API\n\nДля управления телефоном выберите модель с поддержкой изображений и вызова инструментов.\n\nОтображаемое имя\nТип подключения\nAPI в формате OpenAI\nAPI в формате Anthropic\nАккаунт ChatGPT (подписка Codex)\nЭндпоинт API\nУкажите эндпоинт вашего API-сервиса.\nМодель по умолчанию\nЗагрузить модели\nСохранено моделей: 1. Их можно переключать внизу чата.\nКлюч API\nКлюч хранится временно, если не включено зашифрованное сохранение.\nСохранять данные входа или ключ API в зашифрованном виде\nПароль разблокировки\nВойдите или укажите ключ API, затем задайте пароль. При следующем открытии потребуется разблокировка.\nПотоковые ответы\nСохранить\nОтмена"
+    },
+    {
+      "lang": "de",
+      "text": "Konto oder API bearbeiten\n\nWählen Sie für die Telefonsteuerung ein Modell mit Bild- und Werkzeugunterstützung.\n\nAnzeigename\nVerbindungstyp\nOpenAI-kompatible API\nAnthropic-kompatible API\nChatGPT-Konto (Codex-Abonnement)\nAPI-Endpunkt\nGeben Sie den Endpunkt Ihres API-Anbieters ein.\nStandardmodell\nModelle laden\n1 Modelle gespeichert; unten in der Sitzung wechseln.\nAPI-Schlüssel\nDer Schlüssel bleibt im Arbeitsspeicher, sofern Sie keine verschlüsselte Speicherung wählen.\nZugangsdaten oder API-Schlüssel verschlüsselt speichern\nPasswort zum Entsperren\nMelden Sie sich an oder geben Sie einen API-Schlüssel ein und legen Sie ein Passwort fest. Beim erneuten Öffnen ist eine Entsperrung nötig.\nAntworten streamen\nSpeichern\nAbbrechen"
+    },
+    {
+      "lang": "fr",
+      "text": "Modifier le compte ou l’API\n\nPour contrôler le téléphone, choisissez un modèle compatible avec les images et les appels d’outils.\n\nNom affiché\nType de connexion\nAPI compatible OpenAI\nAPI compatible Anthropic\nCompte ChatGPT (abonnement Codex)\nPoint de terminaison API\nSaisissez le point de terminaison fourni par votre service API.\nModèle par défaut\nCharger les modèles\n1 modèles enregistrés ; changez-en sous la conversation.\nClé API\nLa clé reste en mémoire, sauf si vous choisissez le stockage chiffré.\nEnregistrer les identifiants ou la clé API chiffrés\nMot de passe de déverrouillage\nConnectez-vous ou saisissez une clé API, puis définissez un mot de passe. Déverrouillez à chaque nouvelle ouverture.\nRecevoir les réponses en continu\nEnregistrer\nAnnuler"
+    },
+    {
+      "lang": "es",
+      "text": "Editar cuenta o API\n\nPara controlar el teléfono, elige un modelo que admita imágenes y llamadas a herramientas.\n\nNombre visible\nTipo de conexión\nAPI compatible con OpenAI\nAPI compatible con Anthropic\nCuenta de ChatGPT (suscripción Codex)\nEndpoint de la API\nIntroduce el endpoint que te proporciona tu servicio de API.\nModelo predeterminado\nCargar modelos\n1 modelos guardados; cámbialos debajo de la conversación.\nClave API\nLa clave se guarda temporalmente, salvo que elijas el almacenamiento cifrado.\nGuardar los datos de acceso o la clave API cifrados\nContraseña de desbloqueo\nInicia sesión o introduce una clave API y establece una contraseña. Desbloquea al volver a abrir la página.\nRecibir respuestas en streaming\nGuardar\nCancelar"
+    },
+    {
+      "lang": "zh-Hans",
+      "text": "编辑账号或 API\n\n操作手机时，请选择支持图像和工具调用的模型。\n\n显示名称\n接入方式\nOpenAI 风格 API\nAnthropic 风格 API\nChatGPT 账号（Codex 订阅）\nAPI 端点\n填写服务商提供的 API 端点。\n默认模型\n获取模型列表\n已保存 1 个模型，均可在会话底部切换。\nAPI 密钥\n密钥默认临时保存；勾选下方选项可加密保存在设备上。\n加密保存登录信息或 API 密钥\n解锁密码\n先登录或填写 API 密钥，再设置解锁密码。 重新打开页面时需要解锁。\n流式接收回复\n保存\n取消"
+    }
+  ]
+}

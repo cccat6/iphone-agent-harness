@@ -1,6 +1,15 @@
 import {checkAbort} from './control.js';
-export function normalizeImageSettings(input={}){const maxSide=Number(input.maxSide??1280),quality=Number(input.quality??.72);if(!Number.isInteger(maxSide)||maxSide<320||maxSide>4096||!Number.isFinite(quality)||quality<.2||quality>.95)throw new Error('图片设置需为320–4096像素、0.2–0.95质量');return {maxSide,quality};}
-export function fitImage(width,height,maxSide){const scale=Math.min(1,maxSide/Math.max(width,height));return {width:Math.max(1,Math.round(width*scale)),height:Math.max(1,Math.round(height*scale)),scale};}
+export const IMAGE_QUALITY_PRESETS=Object.freeze({compact:.65,balanced:.8,high:.92});
+export function normalizeImageSettings(input={}){
+  let qualityPreset=input.qualityPreset;
+  if(!Object.hasOwn(IMAGE_QUALITY_PRESETS,qualityPreset)){
+    const legacy=Number(input.quality);
+    qualityPreset=Number.isFinite(legacy)?Object.keys(IMAGE_QUALITY_PRESETS).reduce((best,key)=>Math.abs(IMAGE_QUALITY_PRESETS[key]-legacy)<Math.abs(IMAGE_QUALITY_PRESETS[best]-legacy)?key:best,'balanced'):'balanced';
+  }
+  return {qualityPreset,quality:IMAGE_QUALITY_PRESETS[qualityPreset]};
+}
+// Preserve all source pixels. Compression only changes JPEG encoding quality.
+export function fitImage(width,height){if(!Number.isInteger(width)||!Number.isInteger(height)||width<1||height<1)throw new Error('Invalid source image dimensions');return {width,height,scale:1};}
 export class ScreenCapture {
   #listeners=new Set();
   subscribe(listener){if(typeof listener!=='function')throw new TypeError('Capture listener must be a function');this.#listeners.add(listener);return ()=>this.#listeners.delete(listener);}
@@ -43,12 +52,11 @@ export class ScreenCapture {
     const requestedAtMs=performance.now(),bitmap=await new ImageCapture(track).grabFrame();let canvas,sourceWidth,sourceHeight,width,height,scale,frameEpoch;
     try{
       current();const dimensions=bitmap.width+'x'+bitmap.height;if(this.dimensions&&this.dimensions!==dimensions)this.orientationEpoch++;this.dimensions=dimensions;frameEpoch=this.orientationEpoch;
-      sourceWidth=bitmap.width;sourceHeight=bitmap.height;({width,height,scale}=fitImage(sourceWidth,sourceHeight,this.imageSettings.maxSide));
+      sourceWidth=bitmap.width;sourceHeight=bitmap.height;({width,height,scale}=fitImage(sourceWidth,sourceHeight));
       canvas=new OffscreenCanvas(width,height);canvas.getContext('2d').drawImage(bitmap,0,0,width,height);
     }finally{bitmap.close();}
     let quality=this.imageSettings.quality,blob=await canvas.convertToBlob({type:'image/jpeg',quality});current();
-    for(let i=0;blob.size>1500000&&i<2;i++){quality=Math.max(.2,quality*.7);blob=await canvas.convertToBlob({type:'image/jpeg',quality});current();}
-    if(blob.size>5000000)throw new Error('压缩后图片仍然过大');
+    if(blob.size>5000000)throw Object.assign(new Error('JPEG image is too large; choose a lower image quality preset in Settings and try again'),{code:'CAPTURE_IMAGE_TOO_LARGE'});
     const dataUrl=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=reject;r.readAsDataURL(blob);});current();
     return {frameId:crypto.randomUUID(),targetId,orientationEpoch:frameEpoch,requestedAtMs,readyAtMs:performance.now(),mediaTimeMs:null,width,height,sourceWidth,sourceHeight,scale,quality,compressedBytes:blob.size,mimeType:'image/jpeg',blob,dataUrl};
   }

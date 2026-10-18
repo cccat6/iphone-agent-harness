@@ -7,7 +7,7 @@ GitHub Actions runs **only when the owner requests it**. Ordinary pushes, pull r
 ## What one requested run does
 
 1. Check that the deployment credential exists, install the locked Node dependencies, and run Web, contract, firmware host and release-tool tests.
-2. Compute a firmware input fingerprint from all 13 allowlisted Arduino source files, the compiler recipe, pinned dependencies, Arduino CLI version and all four board profiles. Web, README and private local configuration edits do not change it.
+2. Compute a firmware input fingerprint from all allowlisted Arduino source files, the compiler recipe, pinned dependencies, Arduino CLI version and all four board profiles. Web, README and private local configuration edits do not change it.
 3. Reuse a complete, matching published firmware Release if available. Otherwise reuse the verified checked-in binaries if their sealed build inputs match. Only if neither exists, install the pinned toolchain and compile **ESP32, ESP32-C3, ESP32-S3 and ESP32-C6**, each for 4 MB flash. Source or build-configuration changes invalidate reuse. A missing/expired Actions cache does not cause recompilation because no Actions cache is used for binary reuse.
 4. Verify source records, dependencies, profiles, USB settings, partition layout, offsets, sizes and SHA-256 hashes. The full four-profile set is mandatory. A corrupt/incomplete published Release fails explicitly instead of triggering a wasteful silent rebuild.
 5. Build the website **after** selecting the firmware. The selected binaries live at `apps/web/firmware/<profile>/*.bin`, so the clean Web build includes exactly those files and their manifest for online flashing.

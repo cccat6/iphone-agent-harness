@@ -1,0 +1,20 @@
+{
+  "checkedAt": "2026-10-18T05:23:21.899Z",
+  "scope": "Two real production-provider summary requests with the shipped summary prompt and synthetic text; no phone screen or device input. This does not claim a 750k-token live run.",
+  "requests": 2,
+  "model": "deepseek-flash",
+  "results": [
+    {
+      "protocol": "openai",
+      "passed": true,
+      "summaryCharacters": 543,
+      "elapsedMs": 2714
+    },
+    {
+      "protocol": "anthropic",
+      "passed": true,
+      "summaryCharacters": 460,
+      "elapsedMs": 2160
+    }
+  ]
+}

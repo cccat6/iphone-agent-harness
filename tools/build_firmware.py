@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 ROOT = Path(__file__).resolve().parents[1]
 SKETCH = ROOT / 'firmware' / 'IPhoneAutomationHarness'
 CORE_VERSION = '3.3.11'
-SOURCE_FILES = ('IPhoneAutomationHarness.ino', 'main.cpp', 'config.example.h', 'ResourceLimits.h', 'build_opt.h', 'src/Core.h', 'src/Canonical.h', 'src/SetupState.h', 'src/HidReportMap.h', 'src/Admission.h', 'src/Pki.h', 'src/Wire.h', 'src/SecureService.h')
+SOURCE_FILES = ('IPhoneAutomationHarness.ino', 'main.cpp', 'config.example.h', 'ResourceLimits.h', 'build_opt.h', 'src/Core.h', 'src/Canonical.h', 'src/SetupState.h', 'src/HidReportMap.h', 'src/Admission.h', 'src/Pki.h', 'src/Wire.h', 'src/SecureService.h', 'src/LanBridgePage.h', 'src/HtmlJson.h', 'src/WifiSetupPage.h')
 
 PROFILES = {
     'esp32c3': {'label': 'ESP32-C3', 'board': 'ESP32C3 Dev Module', 'usbCdc': True,
@@ -261,7 +261,7 @@ def main():
         order = {value: index for index, value in enumerate(args.profiles)}
         compiled.sort(key=lambda value: order[value['id']])
         reports.sort(key=lambda value: order[value['id']])
-    manifest = {'schemaVersion': 1, 'firmwareVersion': '0.2.0-lan', 'executionEnabled': True, 'physicalValidation': False, 'requiresManualTrust': True, 'stage': 'secure-lan-unvalidated', 'profiles': compiled}
+    manifest = {'schemaVersion': 1, 'firmwareVersion': '0.3.0-lan-http', 'executionEnabled': True, 'physicalValidation': False, 'requiresManualTrust': False, 'stage': 'lan-window-phone-validation-pending', 'profiles': compiled}
     report = {'builtAt': datetime.now(timezone.utc).isoformat(), 'dependencies': pinned, 'sourceSha256': source_hash, 'sourceFiles': source_files, 'serialPortsOpened': False, 'flashed': False, 'profiles': reports, 'excluded': [{'chip': 'esp32s2', 'reason': 'No Bluetooth LE radio'}]}
     for name, value in [('manifest.json', manifest), ('build-report.json', report)]:
         temporary_path = args.output / (name + '.tmp')

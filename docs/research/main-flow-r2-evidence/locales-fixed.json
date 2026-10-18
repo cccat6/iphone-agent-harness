@@ -1,0 +1,58 @@
+[
+  {
+    "locale": "English",
+    "headings": [
+      "  - heading \"Settings\" [level=2]",
+      "  - heading \"Accounts or API\" [level=3]"
+    ]
+  },
+  {
+    "locale": "简体中文",
+    "headings": [
+      "  - heading \"设置\" [level=2]",
+      "  - heading \"账号或 API\" [level=3]"
+    ]
+  },
+  {
+    "locale": "繁體中文",
+    "headings": [
+      "  - heading \"設定\" [level=2]",
+      "  - heading \"帳號或 API\" [level=3]"
+    ]
+  },
+  {
+    "locale": "日本語",
+    "headings": [
+      "  - heading \"設定\" [level=2]",
+      "  - heading \"アカウント・API\" [level=3]"
+    ]
+  },
+  {
+    "locale": "Русский",
+    "headings": [
+      "  - heading \"Настройки\" [level=2]",
+      "  - heading \"Аккаунты и API\" [level=3]"
+    ]
+  },
+  {
+    "locale": "Deutsch",
+    "headings": [
+      "  - heading \"Einstellungen\" [level=2]",
+      "  - heading \"Konten oder API\" [level=3]"
+    ]
+  },
+  {
+    "locale": "Français",
+    "headings": [
+      "  - heading \"Paramètres\" [level=2]",
+      "  - heading \"Comptes ou API\" [level=3]"
+    ]
+  },
+  {
+    "locale": "Español",
+    "headings": [
+      "  - heading \"Ajustes\" [level=2]",
+      "  - heading \"Cuentas o API\" [level=3]"
+    ]
+  }
+]

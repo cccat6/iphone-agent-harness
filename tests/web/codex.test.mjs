@@ -37,7 +37,7 @@ test('account mismatch and stale wrapper cannot access another registration',asy
  assert.throws(()=>registerCodexAccount('a',{access_token:token('b'),accountId:'a'}),/不匹配/);const old=register('a');register('a');assert.throws(()=>old.exportTokens(),/替换/);assert.throws(()=>old.accessToken(),/替换/);
 });
 test('models are fetched per selected account; catalog is not entitlement',async()=>{
- register('a');register('b');const out=await discoverCodexModels({accountId:'b',fetchImpl:async(url,o)=>{assert.equal(new URL(url).pathname,'/backend-api/codex/models');assert.equal(o.headers['chatgpt-account-id'],'b');assert.equal(o.headers.authorization,'Bearer '+token('b'));return Response.json({models:[{slug:'fixture',display_name:'Fixture'}]});}});assert.equal(out[0].id,'fixture');assert.equal(out[0].catalogOnly,true);
+ register('a');register('b');const out=await discoverCodexModels({accountId:'b',fetchImpl:async(url,o)=>{assert.equal(new URL(url).pathname,'/backend-api/codex/models');assert.equal(o.headers['chatgpt-account-id'],'b');assert.equal(o.headers.authorization,'Bearer '+token('b'));return Response.json({models:[{slug:'fixture',display_name:'Fixture',context_window:1048576}]});}});assert.equal(out[0].id,'fixture');assert.equal(out[0].catalogOnly,true);assert.equal(out[0].contextWindowTokens,1048576);
 });
 test('Responses SSE text fragments, usage, account headers and fixed endpoint',async()=>{
  register();let deltas='';const result=await callCodexModel({provider,messages:[{role:'system',text:'phone rules'},{role:'user',text:'hello'}],onDelta:s=>deltas+=s,fetchImpl:async(url,o)=>{assert.equal(url,CODEX_ENDPOINTS.responses);assert.equal(o.headers['chatgpt-account-id'],'a');assert.equal(o.headers.originator,'iphone_automation_harness');const body=JSON.parse(o.body);assert.equal(body.instructions,'phone rules');assert.equal(body.store,false);assert.equal(body.stream,true);return response([{type:'response.output_text.delta',delta:'手机'},completed()]);}});assert.equal(result.text,'手机完成');assert.equal(deltas,'手机完成');assert.equal(result.usage.input_tokens,7);assert.equal(result.finish,'stop');
@@ -129,4 +129,9 @@ test('oversized subscription JSON and local opaque replay are rejected without e
 test('aborting a pending response read cancels and unlocks the reader',async()=>{
  register();let began,cancelled=0;const entered=new Promise(r=>began=r),controller=new AbortController();const body=new ReadableStream({pull(){began();},cancel(){cancelled++;}});
  const pending=callCodexModel({provider,messages:[],signal:controller.signal,fetchImpl:async()=>new Response(body)});await entered;controller.abort();await assert.rejects(pending,{name:'AbortError'});assert.equal(cancelled,1);assert.equal(body.locked,false);
+});
+
+
+test('subscription HTTP and SSE context-window failures carry the recovery code without raw server text',async()=>{
+ register();for(const fetchImpl of [async()=>Response.json({error:{code:'context_length_exceeded',message:'raw sensitive request text'}},{status:400}),async()=>response([{type:'response.failed',response:{error:{code:'context_length_exceeded',message:'raw sensitive request text'}}}])])await assert.rejects(callCodexModel({provider,messages:[],fetchImpl}),e=>e.code==='CONTEXT_WINDOW_EXCEEDED'&&!e.message.includes('sensitive'));
 });

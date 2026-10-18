@@ -100,12 +100,21 @@ export function createHarness({store,onEvent=()=>{},capture=screenCapture,invoke
           await guard();const ctx=await context();
           const canExecute=mode==='task'&&ctx.identityVerified===true&&ctx.bindingVerified===true&&ctx.leaseVerified===true&&ctx.executionEnabled===true&&(typeof executePlan==='function'||typeof device?.submitSegment==='function');
           const available=[...fixedTools.filter(t=>mode!=='chat'||!['phone_observe','task_report'].includes(t.name)),...authoringTools,...(mcp?.hasAuthorizedTools?.()?mcpTools.filter(t=>mode==='task'||t.name==='mcp_list_tools'):[]),...(canExecute?[executeTool]:[])];
-          const projected=await prepareContext({store,sessionId,settings:settings.context,provider,credential,invoke,signal:runSignal,summaryPrompt:PROMPTS.summary,onEvent:emit,prefixTokens:estimateContextTokens(JSON.stringify(prefix))+estimateContextTokens(JSON.stringify(available))});
-          session.checkpoint=projected.checkpoint;
-          for(const m of projected.messages)if(m.frameRefs?.length)m.images=(await Promise.all(m.frameRefs.map(ref=>store.getFrame(ref).then(imageData)))).filter(Boolean);
-          const messages=[...prefix,...projected.messages];
-          await journal('model.started',{step:stepCount,context:projected.metrics});emit({type:'status',status:'awaiting_model'});
-          const reply=await abortable(invoke({provider,credential,messages,tools:available,signal:runSignal,onDelta:delta=>{if(!runSignal.aborted)emit({type:'delta',text:delta});}}),runSignal);await guard();
+          const contextOptions={store,sessionId,settings:settings.context,provider,credential,invoke,signal:runSignal,summaryPrompt:PROMPTS.summary,onEvent:emit,prefixTokens:estimateContextTokens(JSON.stringify(prefix))+estimateContextTokens(JSON.stringify(available))};
+          let projected=await prepareContext(contextOptions),reply;
+          for(let attempt=0;attempt<2;attempt++){
+            session.checkpoint=projected.checkpoint;
+            for(const m of projected.messages)if(m.frameRefs?.length)m.images=(await Promise.all(m.frameRefs.map(ref=>store.getFrame(ref).then(imageData)))).filter(Boolean);
+            const messages=[...prefix,...projected.messages];let emitted=false;
+            await journal('model.started',{step:stepCount,context:projected.metrics,retry:attempt});emit({type:'status',status:'awaiting_model'});
+            try{
+              reply=await abortable(invoke({provider,credential,messages,tools:available,signal:runSignal,onDelta:delta=>{if(!runSignal.aborted){emitted=true;emit({type:'delta',text:delta});}}}),runSignal);await guard();break;
+            }catch(error){
+              if(attempt||emitted||error?.code!=='CONTEXT_WINDOW_EXCEEDED'||settings.context?.autoCompact===false)throw error;
+              await guard();projected=await prepareContext({...contextOptions,force:true});
+              if(!projected.compacted)throw error;
+            }
+          }
           if(reply.usage)await journal('model.usage',{step:stepCount,usage:reply.usage,cache:reply.cache});
           const calls=callsFrom(reply);answer=await store.addMessage(sessionId,{role:'assistant',text:reply.text,toolCalls:calls,...(reply.providerState?{providerState:reply.providerState}:{})});run.pending=calls;run.settled.clear();checkAbort(runSignal);emit({type:'message',message:answer});
           if(!calls.length){status=mode==='task'?'needs_user':'completed';break;}

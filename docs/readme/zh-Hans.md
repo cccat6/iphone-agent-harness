@@ -2,36 +2,30 @@
 
 [English](../../README.md) · **简体中文** · [繁體中文](zh-Hant.md) · [日本語](ja.md) · [Русский](ru.md) · [Deutsch](de.md) · [Français](fr.md) · [Español](es.md)
 
-通过浏览器界面和 ESP32 蓝牙键鼠桥，让 AI 跨 App 操作 iPhone 与 iPad 的开源 Harness。
+通过浏览器和 ESP32 蓝牙控制器，让 AI 跨 App 操作 iPhone 与 iPad 的开源 Harness。
 
-项目以 **iOS/iPadOS 27 及以上的 Safari** 为目标。手机和平板默认进入 Harness；桌面访问显示项目主页、Skill 社区和 ESP32 设置／固件页面。暂不开发原生 App 或 Android 版本。
+面向 **iOS/iPadOS 27 及以上的 Safari**。iPhone 和 iPad 默认进入 Harness；电脑端提供项目主页、技能社区和 ESP32 在线烧录。
 
-## 当前进度
+使用说明：[简体中文](../acceptance/zh-Hans.md) · [English](../acceptance/README.md)。介绍主要界面和日常操作。
 
-Web 应用、带认证的局域网固件通信和设备接入界面已经实现。[igent.cc](https://igent.cc) 网站与签名 Skill 社区已部署。产品固件的真机验收仍在进行：编译、主机测试和浏览器模拟不能证明手机操作正确或 Safari 已能直连局域网设备。
+官网为 [igent.cc](https://igent.cc)。连接设备后，请切回 Harness，并保持“设备连接”标签页打开；不需要安装证书，操作指令也不经过云端转发。Safari 27.0.1 真机已通过约 21 秒的五轮 GET／POST 测试，包括录屏期间两个标签页都在后台的请求。这不代表可以无限后台运行，也不等于完整手机操作已验收。详见[连接结果](../architecture/lan-connection.md)。
 
-独立的 iPhone 12／iOS 27.0.1 实验已验证跨 App 取屏、后台延迟与流式请求，以及两种协议的四次真实 DeepSeek 短请求；早期实验固件也验证过键盘、Home、指针和滑动。它们不能替代新产品固件验收，也不代表无限后台保活。详见[实验记录](../research/background-api.md)和[固件边界](../architecture/firmware-implementation.md)。
+## 功能
 
-## 已包含的能力
+- **会话：**对话和图片保存在本地，支持搜索、重命名、置顶、归档及文件导入导出；提供对话、计划、任务三种模式。
+- **账号或 API：**添加多个连接，兼容 OpenAI 和 Anthropic 风格的 API 端点，获取并切换模型。ChatGPT 订阅接入及登录界面已实现，真实 Safari 订阅登录仍待验证。
+- **上下文：**由模型自动总结较早的消息，默认触发阈值为 **750,000 token**，可在设置中调整；完整会话保留在设备上。
+- **图片：**保留原始尺寸，使用 JPEG 压缩，提供节省空间、均衡、高清三个档位。
+- **技能：**包含十个内置技能，支持创作、编辑、下载和社区发布。官网社区地址已内置，也可以通过对话让 Harness 协助编写或修改自己的技能。
+- **MCP：**添加多个 Streamable HTTP 服务器，分别选择工具，在任务模式中使用。
 
-- **本地会话：**IndexedDB 会话、附件、导入导出，以及对话／计划／任务模式和取消。选中的上下文与图像仍会发送给用户配置的模型；本项目不提供云端会话数据库。
-- **模型与账号：**OpenAI／Anthropic 风格接口、真实模型目录和多账号配置。Codex 订阅设备码、刷新和 Responses 适配已实现；Safari 真实登录及旧 Codex 端点的 CORS 尚未验收，失败会明确显示。
-- **上下文管理：**可设置压缩阈值、压缩目标、回复预留、图像数量，选择模型摘要或摘录摘要。token 数为估算；缓存统计来自后端，不能保证命中缓存。
-- **图片压缩：**可设置最长边和 JPEG 质量，保留原始尺寸、缩放与时间信息。图片压缩与会话上下文压缩分别控制。
-- **10 个内置 Skill：**屏幕观察、连续观察、任务规划、手机导航、文字输入、列表滚动、拖放、恢复、验证挑战路由和 Skill 创作。底层工具固定，不动态安装可执行插件。
-- **创作与社区：**本地 P-256 作者身份、加密身份备份与跨设备恢复；只允许修改自己的 authored Skill，下载项只读。发布需要用户明确点击；可选社区 API 只保存主动公开的 Skill，已在官网部署。
+会话保存在当前浏览器，选中的消息和图片会发送给你选择的模型服务。API 密钥和登录信息默认临时保存在当前页面，也可选择加密保存在设备上。
 
-凭据默认只在内存；用户可选择加密保存到本地并输入口令解锁，不会写进静态构建。订阅接入的实现与限制见[专项说明](../research/codex-subscription.md)。
+## 代码与本地运行
 
-## 两个代码部分
+项目分为 `apps/web/`（网页、Harness 和技能社区）与 `firmware/IPhoneAutomationHarness/`（Arduino 固件）两部分。网站也支持自行托管。
 
-`apps/web/` 包含静态网页、Harness、本地数据和 Skill；`community/` 与可选 `api/` 都属于 Web。`firmware/IPhoneAutomationHarness/` 是 Arduino ESP32 框架。`prompts/`、`specs/`、`tests/`、`docs/` 是共享工程资料。
-
-网站可自行托管，单机使用不依赖社区服务器。桥接器的产品流程是首次热点配网，然后绑定目标、通过唯一 mDNS 名称重连；mDNS 本身不会解决 HTTPS、权限或认证。
-
-## 本地运行
-
-需要 Node.js 22.13 或以上；社区测试使用内置 SQLite。
+需要 Node.js 22.13 或以上：
 
 ```sh
 npm ci
@@ -40,16 +34,10 @@ npm run build
 npm run preview
 ```
 
-桌面用 localhost 预览，手机取屏需要 **HTTPS**。可把 `build/site` 部署到 Cloudflare 或配置了[页面路由](../architecture/deployment.md#self-hosted-page-routing)的自有 HTTPS 服务；产物不包含测试密钥、私人会话或下载的参考仓库。烧录工具链见[Arduino 说明](../../firmware/IPhoneAutomationHarness/README.md)。
+电脑端可以使用 localhost 预览，手机屏幕共享需要 HTTPS。部署 `build/site` 时按[页面路由说明](../architecture/deployment.md#self-hosted-page-routing)配置。支持的开发板和编译方式见 [Arduino 说明](../../firmware/IPhoneAutomationHarness/README.md)。
 
-[系统图](../architecture/system-blueprint.md) · [批量手势与取屏同步](../architecture/actions.md) · [运行时](../architecture/runtime.md) · [代码实现与上下文缓存](../architecture/harness-runtime-implementation.md) · [模型与认证](../architecture/auth-and-backends.md) · [社区归属](../architecture/skill-community.md) · [多语言](../architecture/localization.md)
+**手动发布：**普通推送不触发 GitHub Actions。明确要求后才运行，复用未变化的固件，编译变更的 ESP32／C3／S3／C6 版本，将二进制发布到 Release，并随网站部署同一批文件。[发布配置](../architecture/manual-release.zh-Hans.md)。
 
-接下来仍需验收 Safari 公网网页直连本地 ESP32、安全配网与目标证明、真实惯性滑动，以及一块 C3 同时服务两台手机的隔离。编译和自动测试不能替代这些真机结果。
-
-完整验收清单：[简体中文](../acceptance/zh-Hans.md) · [English](../acceptance/README.md)。逐项覆盖全部功能与内容，列出电脑证据和暂缓的手机步骤；电脑准备及最终发布核验由项目团队完成。
-
-Mac已通过真实C3的CA／DNS校验HTTPS和产品客户端所有者配对，未发送手机输入；最终镜像核验与Safari／手机验收仍需分别完成。见[实机客户端记录](../research/device-client-live-verification.json)。
-
-手动发布：普通推送不触发 Actions。明确要求后才运行，复用未变化固件，编译变更的 ESP32／C3／S3／C6 固件，将二进制发布到 Release，并随网站部署同一批文件。[发布流程与凭据配置](../architecture/manual-release.zh-Hans.md)。
+[系统架构](../architecture/system-blueprint.md) · [操作与截图同步](../architecture/actions.md) · [账号与 MCP](../architecture/auth-and-backends.md) · [技能归属](../architecture/skill-community.md) · [多语言](../architecture/localization.md)
 
 [MIT License](../../LICENSE) · [Third-party notices](../../THIRD_PARTY_NOTICES.md)

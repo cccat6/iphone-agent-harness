@@ -2,8 +2,16 @@ import {readFile,readdir,writeFile} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {messages} from '../apps/web/locales/messages.js';
 export async function syncAssets(root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..')) {
   const read=rel=>readFile(path.join(root,rel),'utf8');
+  // Keep the classic old-browser page aligned with the same product copy.
+  const bootstrap=await read('apps/web/bootstrap.js'),copyMatch=bootstrap.match(/  var COPY = (.+);\n/);
+  if(!copyMatch)throw new Error('Classic bootstrap locale table missing');
+  const legacyCopy=JSON.parse(copyMatch[1]);
+  for(const [locale,table] of Object.entries(legacyCopy))for(const key of Object.keys(table))if(Object.hasOwn(messages[locale],key))table[key]=messages[locale][key];
+  const syncedBootstrap=bootstrap.replace(copyMatch[0],'  var COPY = '+JSON.stringify(legacyCopy)+';\n');
+  if(syncedBootstrap!==bootstrap)await writeFile(path.join(root,'apps/web/bootstrap.js'),syncedBootstrap);
   const prompts={system:await read('prompts/system.md'),modes:await read('prompts/modes.md'),summary:await read('prompts/context-summary.md')};
   const skills=[];
   for(const dir of (await readdir(path.join(root,'apps/web/skills'),{withFileTypes:true})).sort((a,b)=>a.name.localeCompare(b.name)))if(dir.isDirectory()){

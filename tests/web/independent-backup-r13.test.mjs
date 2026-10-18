@@ -75,11 +75,14 @@ test('R13 actual chooseFile rejects early at distinct bounds and actual download
   download({still:'JSON'},'object.json');assert.deepEqual(JSON.parse(await handed[1].text()),{still:'JSON'});
 });
 
-test('R13 real application wiring, corrected locale messages and bilingual S07 remain aligned',()=>{
+test('R13 real application wiring, corrected locale messages and bilingual backup limits remain aligned',()=>{
   assert.match(app,/registerErrorCatalog\(BACKUP_ERRORS\)/);
   assert.match(app,/if\(action==='export'\)\{download\(sessionBackupBlob\(await state\.store\.exportSession\(session\.id\)\)/);
   const sessionImport=app.split('\n').find(line=>line.includes("$('#import-session').onclick="));
-  assert.match(sessionImport,/,SESSION_BACKUP_BYTES\);$/);
+  assert.match(sessionImport,/importSessionFile\(\)/);
+  const importFlow=app.slice(app.indexOf('function importSessionFile(){'),app.indexOf('function showSessionListMenu(){'));
+  assert.match(importFlow,/,SESSION_BACKUP_BYTES\);/);
+  assert.match(importFlow,/state\.store\.importSession\(JSON\.parse\(text\)/);
   for(const id of ['import-skill','import-identity']){
     const line=app.split('\n').find(line=>line.includes(`$('#${id}').onclick=`));
     assert.ok(line.includes('chooseFile('));assert.ok(!line.includes('SESSION_BACKUP_BYTES'));
@@ -94,9 +97,8 @@ test('R13 real application wiring, corrected locale messages and bilingual S07 r
     assert.match(BACKUP_ERRORS.BACKUP_TOO_LARGE.en,/Existing data in this browser is unchanged\./);
     assert.doesNotMatch(BACKUP_ERRORS.BACKUP_TOO_LARGE.en,/This session remains saved/);
     for(const path of ['README.md','zh-Hans.md']){
-      const row=readFileSync(new URL(`../../docs/acceptance/${path}`,import.meta.url),'utf8').split('\n').find(line=>line.startsWith('| S07 |'));
-      assert.ok(row.includes('64 MiB'));assert.ok(row.includes('10 MiB'));assert.ok(row.includes('UTF-8 JSON'));
-      assert.ok(row.includes('backup-files.test.mjs'));
+      const guide=readFileSync(new URL(`../../docs/acceptance/${path}`,import.meta.url),'utf8');
+      assert.ok(guide.includes('64 MiB'));assert.ok(guide.includes('10 MiB'));
     }
   } finally {setLocale('auto');}
 });

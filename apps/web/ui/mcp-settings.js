@@ -1,46 +1,103 @@
 import {getLocale,subscribe,localizeError} from '../i18n.js';
 import {MCP_MESSAGES} from '../locales/mcp.js';
+import {MCP_LIMITS} from '../core/mcp.js';
 const escapeHTML=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 export function mcpEndpointForStorage(value){
   const url=new URL(value);
-  if(url.username||url.password||url.hash){const error=new Error('MCP_INVALID_ENDPOINT');error.code='MCP_INVALID_ENDPOINT';throw error;}
+  if(url.username||url.password||url.hash||!['https:','http:'].includes(url.protocol)||(url.protocol==='http:'&&!['localhost','127.0.0.1','[::1]'].includes(url.hostname))){const error=new Error('MCP_INVALID_ENDPOINT');error.code='MCP_INVALID_ENDPOINT';throw error;}
   return url.origin+url.pathname;
 }
-/** Fixed HTTP MCP permission editor; only real directory entries can be enabled. */
-export function createMCPSettings({access,store,onSettingsChange=()=>{}}){
-  const id='default';let root=null,controller=null,sequence=0,connecting=false,unsubscribe=null,savedEndpoint='',status='disabled',failure='';
-  const copy=(key,params={})=>(MCP_MESSAGES[getLocale()]||MCP_MESSAGES.en)[key].replace(/\{(\w+)\}/g,(match,name)=>params[name]===undefined?match:String(params[name]));
-  const snapshot=()=>access.getSnapshot().find(connection=>connection.id===id);
-  const live=()=>Boolean(root?.isConnected);
-  const find=selector=>root?.querySelector(selector);
-  function disconnect(){sequence++;controller?.abort();controller=null;connecting=false;access.disconnect(id);status='disabled';failure='';}
-  function paint(){
-    if(!live())return;for(const element of root.querySelectorAll('[data-mcp-copy]'))element.textContent=copy(element.dataset.mcpCopy);
-    const value=snapshot(),allowed=new Set(value?.allowedTools||[]),enabled=value?.enabled===true;
-    find('[data-mcp-connect]').disabled=connecting;find('[data-mcp-disconnect]').disabled=!value&&!connecting;
-    const toggle=find('[data-mcp-enable]');toggle.checked=enabled;toggle.disabled=connecting||!value?.connected||!allowed.size;
-    const output=find('[data-mcp-status]');output.textContent=failure?localizeError(failure):copy(connecting?'connecting':enabled?'active':value?.connected?'connected':status,{name:value?.name||copy('server'),count:enabled?allowed.size:value?.tools?.length||0});output.classList.toggle('bad',Boolean(failure));
-    const tools=value?.connected?value.tools:[];
-    find('[data-mcp-tools]').innerHTML=tools.length?tools.map(tool=>`<label class="check-field mcp-tool-choice" style="align-items:flex-start;gap:10px;margin:14px 0"><input type="checkbox" data-mcp-tool="${escapeHTML(tool.name)}" ${allowed.has(tool.name)?'checked':''} ${connecting?'disabled':''}><span style="min-width:0;overflow-wrap:anywhere"><strong>${escapeHTML(tool.name)}</strong><small style="display:block;font-weight:400;line-height:1.7">${escapeHTML(String(tool.description||copy('noDescription')).slice(0,1200))}</small></span></label>`).join(''):value?.connected?`<p class="quiet-note">${copy('empty')}</p>`:'';
-    for(const checkbox of root.querySelectorAll('[data-mcp-tool]'))checkbox.onchange=()=>{try{const names=[...root.querySelectorAll('[data-mcp-tool]:checked')].map(input=>input.dataset.mcpTool);access.setAllowedTools(id,names);if(!names.length)access.setEnabled(id,false);failure='';paint();}catch(error){failure=error;paint();}};
+
+// Saved entries contain public connection details only. Each live connection has
+// its own cancellation generation, so editing one server cannot revive old work.
+export function createMCPSettingsModel({access,store,onSettingsChange=()=>{},onChange=()=>{}}){
+  let rows=[],writes=Promise.resolve();
+  const rowFor=id=>{const row=rows.find(row=>row.id===id);if(!row)throw new Error('MCP_NOT_CONFIGURED');return row;};
+  const snapshot=id=>access.getSnapshot().find(value=>value.id===id);
+  function stop(row){row.generation++;row.controller?.abort();row.controller=null;row.connecting=false;access.disconnect(row.id);row.failure=null;}
+  function persist(){
+    const servers=rows.flatMap(row=>row.saved?[{...row.saved}]:[]);
+    const pending=writes.catch(()=>{}).then(async()=>{const settings=await store.saveSettings({mcpServers:servers,mcpEndpoint:''});onSettingsChange(settings);return settings;});
+    writes=pending;return pending;
   }
-  function disposeView(){if(connecting)disconnect();unsubscribe?.();unsubscribe=null;root=null;}
-  function mount(container,{endpoint=''}={}){
-    disposeView();root=container;savedEndpoint=endpoint;root.dataset.noI18n='';
-    const value=snapshot();root.innerHTML=`<details class="settings-section"><summary data-mcp-copy="settingsTitle"></summary><p class="quiet-note" data-mcp-copy="help"></p><label class="field"><span data-mcp-copy="endpoint"></span><input data-mcp-endpoint type="url" inputmode="url" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="https://your-service.example/mcp" value="${escapeHTML(value?.url||endpoint)}"></label><label class="field"><span data-mcp-copy="token"></span><input data-mcp-token type="password" autocomplete="off" autocapitalize="none" spellcheck="false"></label><div class="panel-actions"><button type="button" data-mcp-connect class="secondary-button" data-mcp-copy="connect"></button><button type="button" data-mcp-disconnect class="secondary-button" data-mcp-copy="disconnect"></button></div><div class="quiet-note" data-mcp-status role="status" style="margin:14px 0;white-space:pre-wrap;overflow-wrap:anywhere"></div><h3 style="font-size:13px" data-mcp-copy="allowTitle"></h3><div data-mcp-tools></div><label class="check-field"><input type="checkbox" data-mcp-enable><span data-mcp-copy="enable"></span></label><p class="quiet-note" data-mcp-copy="modeHelp"></p><p class="quiet-note" data-mcp-copy="scopeHelp"></p><p class="quiet-note" data-mcp-copy="memoryHelp"></p><p class="quiet-note" data-mcp-copy="queryHelp"></p></details>`;
-    for(const field of [find('[data-mcp-endpoint]'),find('[data-mcp-token]')])field.oninput=()=>{disconnect();paint();};
-    find('[data-mcp-disconnect]').onclick=()=>{disconnect();find('[data-mcp-token]').value='';paint();};
-    find('[data-mcp-enable]').onchange=event=>{try{access.setEnabled(id,event.target.checked);failure='';paint();}catch(error){failure=error;paint();}};
-    find('[data-mcp-connect]').onclick=async()=>{
-      if(connecting)return;const formRoot=root,urlText=find('[data-mcp-endpoint]').value.trim(),tokenField=find('[data-mcp-token]'),token=tokenField.value.trim();tokenField.value='';disconnect();const current=sequence;controller=new AbortController();const signal=controller.signal;connecting=true;paint();
+  return {
+    load({servers=[],endpoint=''}={}){
+      for(const row of rows)if(row.connecting)stop(row);
+      const source=Array.isArray(servers)&&servers.length?servers:endpoint?[{id:'default',name:'',endpoint}]:[];
+      const ids=new Set();rows=[];
+      for(const value of source.slice(0,MCP_LIMITS.servers)){
+        if(!value||typeof value.endpoint!=='string')continue;
+        const id=typeof value.id==='string'&&/^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$/.test(value.id)&&!ids.has(value.id)?value.id:crypto.randomUUID();ids.add(id);
+        let publicEndpoint;try{publicEndpoint=mcpEndpointForStorage(value.endpoint);}catch{continue;}
+        const name=String(value.name||new URL(publicEndpoint).hostname).slice(0,120),live=snapshot(id);
+        rows.push({id,name,endpoint:live?.url||value.endpoint,saved:{id,name,endpoint:publicEndpoint},generation:0,connecting:false,controller:null,failure:null});
+      }
+      return this.getRows();
+    },
+    getRows(){return rows.map(({controller,saved,...row})=>({...row,connection:snapshot(row.id)}));},
+    add(){if(rows.length>=MCP_LIMITS.servers)throw new Error('MCP_CONFIGURATION_INVALID');const row={id:crypto.randomUUID(),name:'',endpoint:'',saved:null,generation:0,connecting:false,controller:null,failure:null};rows.push(row);onChange();return row.id;},
+    edit(id,patch){const row=rowFor(id);stop(row);if('name'in patch)row.name=String(patch.name).slice(0,120);if('endpoint'in patch)row.endpoint=String(patch.endpoint);onChange();},
+    async remove(id){const row=rowFor(id),position=rows.indexOf(row);stop(row);rows.splice(position,1);onChange();try{await persist();}catch(error){rows.splice(Math.min(position,rows.length),0,row);row.failure=error;onChange();throw error;}},
+    disconnect(id){stop(rowFor(id));onChange();},
+    async connect(id,token=''){
+      const row=rowFor(id);stop(row);const generation=row.generation,controller=new AbortController();row.controller=controller;row.connecting=true;onChange();
+      const current=()=>rows.includes(row)&&generation===row.generation&&!controller.signal.aborted;
       try{
-        const url=new URL(urlText),publicEndpoint=mcpEndpointForStorage(url.href);
-        access.configure({id,name:url.hostname,url:url.href,token});await access.connect(id,{signal});
-        if(!live()||root!==formRoot||current!==sequence||signal.aborted)return;
-        savedEndpoint=publicEndpoint;const settings=await store.saveSettings({mcpEndpoint:savedEndpoint});onSettingsChange(settings);status='connected';failure='';
-      }catch(error){if(live()&&root===formRoot&&current===sequence&&!signal.aborted){access.disconnect(id);failure=error;}}
-      finally{if(root===formRoot&&current===sequence){connecting=false;controller=null;paint();}}
-    };
+        const endpoint=mcpEndpointForStorage(row.endpoint.trim()),name=row.name.trim()||new URL(endpoint).hostname;
+        const previous=row.saved;row.saved={id,name,endpoint};try{await persist();}catch(error){if(current())row.saved=previous;throw error;}
+        if(!current())return;row.name=name;access.configure({id,name,url:row.endpoint.trim(),token});await access.connect(id,{signal:controller.signal});
+        if(!current())return;row.failure=null;
+      }catch(error){if(current()){access.disconnect(id);row.failure=error;}}
+      finally{if(current()){row.connecting=false;row.controller=null;onChange();}}
+    },
+    select(id,names){access.setAllowedTools(id,names);if(!names.length)access.setEnabled(id,false);rowFor(id).failure=null;onChange();},
+    enable(id,enabled){access.setEnabled(id,enabled);rowFor(id).failure=null;onChange();},
+    cancelPending(){for(const row of rows)if(row.connecting)stop(row);},
+  };
+}
+
+export function createMCPSettings({access,store,onSettingsChange=()=>{}}){
+  let root=null,unsubscribe=null;
+  const copy=(key,params={})=>(MCP_MESSAGES[getLocale()]||MCP_MESSAGES.en)[key].replace(/\{(\w+)\}/g,(match,name)=>params[name]===undefined?match:String(params[name]));
+  const model=createMCPSettingsModel({access,store,onSettingsChange,onChange:paint});
+  const live=()=>Boolean(root?.isConnected);
+  function paint(){
+    if(!live())return;
+    const rows=model.getRows(),list=root.querySelector('[data-mcp-servers]');
+    for(const existing of list.querySelectorAll('[data-mcp-row]'))if(!rows.some(row=>row.id===existing.dataset.mcpRow))existing.remove();
+    for(const row of rows){
+      let card=[...list.querySelectorAll('[data-mcp-row]')].find(element=>element.dataset.mcpRow===row.id);
+      if(!card){
+        card=document.createElement('section');card.dataset.mcpRow=row.id;card.className='mcp-server-card';card.style.cssText='padding:16px 0;border-bottom:1px solid var(--line)';
+        card.innerHTML=`<label class="field"><span data-mcp-copy="name"></span><input data-mcp-name maxlength="120" autocomplete="off"></label><label class="field"><span data-mcp-copy="endpoint"></span><input data-mcp-endpoint type="url" inputmode="url" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="https://example.com/mcp"></label><label class="field"><span data-mcp-copy="token"></span><input data-mcp-token type="password" autocomplete="off" autocapitalize="none" spellcheck="false"></label><div class="panel-actions"><button type="button" data-mcp-connect class="secondary-button" data-mcp-copy="connect"></button><button type="button" data-mcp-disconnect class="secondary-button" data-mcp-copy="disconnect"></button><button type="button" data-mcp-remove class="secondary-button" data-mcp-copy="remove"></button></div><div class="quiet-note" data-mcp-status role="status" style="margin:12px 0;overflow-wrap:anywhere"></div><div data-mcp-tools></div><label class="check-field"><input type="checkbox" data-mcp-enable><span data-mcp-copy="enable"></span></label>`;
+        list.append(card);
+        const find=selector=>card.querySelector(selector);
+        find('[data-mcp-name]').value=row.name;find('[data-mcp-endpoint]').value=row.endpoint;
+        find('[data-mcp-name]').oninput=event=>model.edit(row.id,{name:event.target.value});
+        find('[data-mcp-endpoint]').oninput=event=>model.edit(row.id,{endpoint:event.target.value});
+        find('[data-mcp-token]').oninput=()=>model.disconnect(row.id);
+        find('[data-mcp-connect]').onclick=()=>{const token=find('[data-mcp-token]').value.trim();find('[data-mcp-token]').value='';return model.connect(row.id,token);};
+        find('[data-mcp-disconnect]').onclick=()=>{find('[data-mcp-token]').value='';model.disconnect(row.id);};
+        find('[data-mcp-remove]').onclick=()=>model.remove(row.id).catch(()=>{});
+        find('[data-mcp-enable]').onchange=event=>model.enable(row.id,event.target.checked);
+      }
+      const find=selector=>card.querySelector(selector),value=row.connection,allowed=new Set(value?.allowedTools||[]),enabled=value?.enabled===true;
+      const nameField=find('[data-mcp-name]');if(document.activeElement!==nameField&&nameField.value!==row.name)nameField.value=row.name;
+      find('[data-mcp-connect]').disabled=row.connecting;find('[data-mcp-disconnect]').disabled=!value&&!row.connecting;
+      const toggle=find('[data-mcp-enable]');toggle.checked=enabled;toggle.disabled=row.connecting||!value?.connected||!allowed.size;
+      const output=find('[data-mcp-status]');output.textContent=row.failure?localizeError(row.failure):copy(row.connecting?'connecting':enabled?'active':value?.connected?'connected':'disabled',{count:enabled?allowed.size:value?.tools?.length||0});output.classList.toggle('bad',Boolean(row.failure));
+      const tools=value?.connected?value.tools:[];
+      find('[data-mcp-tools]').innerHTML=tools.length?`<h3 style="font-size:13px">${copy('allowTitle')}</h3>`+tools.map(tool=>`<label class="check-field mcp-tool-choice" style="align-items:flex-start;gap:10px;margin:12px 0"><input type="checkbox" data-mcp-tool="${escapeHTML(tool.name)}" ${allowed.has(tool.name)?'checked':''}><span style="min-width:0;overflow-wrap:anywhere"><strong>${escapeHTML(tool.name)}</strong><small style="display:block;font-weight:400;line-height:1.5">${escapeHTML(String(tool.description||copy('noDescription')).slice(0,1200))}</small></span></label>`).join(''):value?.connected?`<p class="quiet-note">${copy('empty')}</p>`:'';
+      for(const checkbox of card.querySelectorAll('[data-mcp-tool]'))checkbox.onchange=()=>model.select(row.id,[...card.querySelectorAll('[data-mcp-tool]:checked')].map(input=>input.dataset.mcpTool));
+    }
+    for(const element of root.querySelectorAll('[data-mcp-copy]'))element.textContent=copy(element.dataset.mcpCopy);
+    root.querySelector('[data-mcp-add]').disabled=rows.length>=MCP_LIMITS.servers;
+  }
+  function disposeView(){model.cancelPending();unsubscribe?.();unsubscribe=null;root=null;}
+  function mount(container,options={}){
+    disposeView();model.load(options);root=container;root.dataset.noI18n='';
+    root.innerHTML='<details class="settings-section"><summary data-mcp-copy="settingsTitle"></summary><p class="quiet-note" data-mcp-copy="help"></p><div data-mcp-servers></div><button type="button" class="secondary-button" data-mcp-add data-mcp-copy="add" style="margin-top:16px"></button></details>';
+    root.querySelector('[data-mcp-add]').onclick=()=>{const id=model.add();[...root.querySelectorAll('[data-mcp-row]')].find(card=>card.dataset.mcpRow===id)?.querySelector('[data-mcp-name]').focus();};
     unsubscribe=subscribe(paint);paint();
   }
   return {mount,disposeView};

@@ -49,7 +49,7 @@ Settings separate trigger, target, output reserve, image count and strategy. Est
 
 A checkpoint preserves complete tool-call groups, source ranges, the actual recent user goal and retained image references. Normal turns do not slide an image window that would invalidate the prefix every request. Image selection changes at a compaction boundary. Only the final selected references are decoded for a model request; original attachments remain local and available for export.
 
-Captures preserve aspect ratio and default to a 1280-pixel longest side and JPEG quality 0.72, both configurable. Original dimensions, scale, output dimensions and actual request/readiness times are stored with the image. IndexedDB retains a Blob rather than duplicate base64 plus binary copies. Media recording chunks are discarded instead of accumulating a full session video. Compression limits storage growth; browser eviction, private browsing and user-cleared data still require normal export/persistence controls.
+Captures retain the complete source bitmap dimensions without cropping or resizing. JPEG encoding uses one of three presets: compact (0.65), balanced (0.8, default), or high (0.92). Original dimensions, scale, output dimensions and actual request/readiness times are stored with the image. IndexedDB retains a Blob rather than duplicate base64 plus binary copies. Media recording chunks are discarded instead of accumulating a full session video. Compression limits storage growth; browser eviction, private browsing and user-cleared data still require normal export/persistence controls.
 
 ## Verification boundaries
 

@@ -16,6 +16,6 @@ test('atomic identity creation converges across concurrent calls and keeps diffe
 });
 test('migration can seed a valid restored public ID but malformed settings and endpoints do not authorize anything',async()=>{
  const store=await openStore({memory:true});assert.equal(await store.ensureDeviceClientId(endpoint,{preferredId:'restored-client'}),'restored-client');
- for(const bad of ['http://harness-one.local','https://user:pass@harness-one.local','https://harness-one.local/other','https://harness-one.local/?key=bad','https://harness-one.local/#bad'])await assert.rejects(store.ensureDeviceClientId(bad));
+ for(const bad of ['http://harness-one.example','https://user:pass@harness-one.local','https://harness-one.local/other','https://harness-one.local/?key=bad','https://harness-one.local/#bad'])await assert.rejects(store.ensureDeviceClientId(bad));
  await assert.rejects(store.ensureDeviceClientId('https://harness-two.local',{preferredId:'bad id'}));await store.saveSettings({deviceClientIds:{[endpoint]:'bad id'}});assert.match(await store.ensureDeviceClientId(endpoint),/^[a-f0-9-]{36}$/);
 });

@@ -2,9 +2,9 @@
 
 `manifest.json` is generated from successful real Arduino builds. Every part records its original flash offset, byte size and SHA-256; paths are relative to the manifest URL for GitHub Pages, Cloudflare and self-hosted static deployments.
 
-Version **0.2.0-lan** implements protected setup, per-board private CA/HTTPS, owner enrollment, client tokens, HID target proof, leases and timed segments. It replaces the earlier blanket-503 diagnostic scaffold. **`physicalValidation:false` is deliberate:** compile success, binary integrity and upload success do not prove iOS certificate trust, BLE pairing, multi-phone fairness or real gesture behavior. Check the actual manifest version instead of assuming a source update changed an existing download.
+Version **0.3.0-lan-http** provides local Wi-Fi setup, HTTP control and the `/harness-link` connection window. Normal onboarding does not install a CA certificate, and website servers do not forward control commands. Owner enrollment, per-client tokens, phone input verification, writer leases and timed segments remain in place.
 
-The board contains no shared CA key or default control token. Each board generates those at runtime. Normal LAN control uses HTTPS only; the user installs and manually trusts that board's CA. The one-client WPA2 setup AP also requires the owner code for configuration. Ordinary users need no external GPIO peripherals.
+The browser-side local-window test passed five read-only GET/POST requests, including both-tabs-hidden requests during screen sharing, on Safari 27.0.1. `physicalValidation:false` remains correct: that test did not run this firmware on a board or send HID input. See [phone transport evidence](../../../docs/research/ios-lan-probe20261018.json).
 
 ## Hardware profiles
 
@@ -19,16 +19,16 @@ Chip-name labels stay untranslated (`ESP32-C3`, `ESP32-S3`, `ESP32-C6`, `ESP32`)
 
 ## Current compiled artifacts
 
-All four profiles in the checked-in manifest were compiled from the same 13-file source SHA-256 `4b4ebc2e65b3a7b1ebac4b4463c67ae2cb805f3ef85c1eece9e23bb1b435f8f0` with the pinned dependencies below.
+All four profiles were compiled from the same 16-file source SHA-256 `ac83d1513a05c40f5a3cf0ab3b2f0c9099cefd7990cadf990902f214bc1acae7` with the pinned dependencies below. No serial port was opened by this build.
 
-| Profile | Application bytes | USB CDC |
+| Profile | Application bytes | Application SHA-256 |
 |---|---:|---|
-| ESP32-C3 | 1,511,792 | Native |
-| ESP32-S3 | 1,363,408 | Native |
-| ESP32-C6 | 1,657,472 | Native |
-| ESP32 | 1,436,784 | External UART |
+| ESP32-C3 | 1,407,760 | `9e0b755f8272cee565fadea524e750156917cf87a211126e71debd6a899f9fcc` |
+| ESP32-S3 | 1,265,952 | `d37e118a450fc641b3867731a749a6de08b3be8744a0e68fe7ae095ef441ce87` |
+| ESP32-C6 | 1,569,152 | `9dca12970a68e823cbd303ae521e67a48fd001e4b54ff5f9fae4b54638d06135` |
+| ESP32 | 1,341,536 | `ea8bd86861fe4c485ebd4c6d265603ab77313454ec1d0161022a488fab5102fa` |
 
-The final C3 binary also passed eight real production DeviceClient checks over CA/hostname-verified HTTPS; see [the exact hardware report](../../../docs/research/device-client-live-verification.json). This did not send a HID challenge, acquire a phone lease or perform gestures. The other three profiles are compile/integrity-verified, and the full phone/multi-phone acceptance gate remains open.
+The previous 0.2 firmware's CA-verified C3 test remains historical evidence; it is not physical acceptance of this version.
 
 ## Manifest
 

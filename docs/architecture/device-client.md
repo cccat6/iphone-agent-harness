@@ -1,28 +1,26 @@
-# HTTPS device client and task writer lifecycle
+# LAN device client and task writer lifecycle
 
 2026-10-18. `apps/web/core/device.js` implements the browser side of the Arduino protocol. This is protocol code with mock acceptance, not evidence that Safari has connected to a physical board. This work did not access the LAN, open a serial port, flash firmware or send real HID input.
 
-## Identity before credentials
+## Current LAN connection
 
-Use only the board's HTTPS origin, such as `https://iah-a.local`. URLs with HTTP, embedded credentials, query/hash or a non-root path are rejected. There is no HTTP fallback, redirect following, certificate-warning bypass or browser-side TLS override.
+The normal device origin is `http://harness-<id>.local` or a private IPv4 HTTP address. Public HTTP, localhost, credentials in URLs, paths, query strings and fragments are rejected. `DeviceClient` keeps its existing protocol API and accepts a fetch adapter.
 
-The user obtains the CA fingerprint and owner password from the protected provisioning channel or the explicit USB `setup-info` command. Ordinary boot/status logs must not print these secrets. The Arduino implementation owns that command and its hardware acceptance.
+On Safari, the Connect button opens the ESP32's `/harness-link` page in a separate tab. `DeviceWindowTransport.open()` is called before the first storage/network await, preserving the browser's user gesture. Every connection uses a unique window name and nonce. The local page issues same-origin HTTP requests to the device; it communicates directly with the Harness tab using `postMessage`. No website server forwards commands.
 
-```js
-const device = new DeviceClient({baseUrl});
-await device.pinIdentity(expectedFingerprint, {signal});
-await device.pair({
-  clientId: stableLocalClientId,
-  setupPassword: userSuppliedOwnerPassword,
-  expectedFingerprint
-}, {signal});
-```
+Connection readiness requires a successful identity round trip **while the local connection tab is hidden and Harness is visible**. A response while the local page is in front is insufficient. Closed/reloaded windows and timeouts invalidate the page's phone-input proof. Reconnection is explicit. Requests that may have executed are never automatically replayed.
 
-Before sending the owner password, `pair` requires the expected 64-hex CA fingerprint and compares it with the HTTPS identity response. mDNS hostname discovery and an unverified public identity response do not grant execution. On iOS, the user must install the CA belonging to their own board and enable full trust; network failure messages also mention local-network permission and CORS.
+The transport permits only the fixed `/v1` GET/POST routes and four JSON/authentication headers, with bounded body sizes, pending requests, timeouts and cancellation. It verifies the exact window object, origin, connection nonce, helper instance and request ID. The browser still needs the device connection tab to remain open.
 
-JavaScript cannot inspect the actual peer certificate chain or implement native SPKI pinning. The application fingerprint check supplements the browser's TLS validation and the user's physical-channel trust setup; it does not replace them or prove which installed CA the browser selected.
+The advanced Direct LAN option uses fetch with `targetAddressSpace: 'local'` for browsers that support it. The tested Safari 27.0.1 did not permit direct HTTP fetch/POST/WebSocket from the HTTPS site. The local-window foreground experiment and five GET/POST requests, including both-tabs-hidden requests during screen sharing, passed over about 21 seconds. This does not establish indefinite background operation or physical ESP32/HID behavior. See [the connection evidence](../research/ios-lan-probe20261018.json).
 
-`pair` returns a safe status snapshot without the bearer token. `exportCredentials()` is the deliberate secret-bearing operation, intended only for the user-encrypted vault. No ordinary settings, status or error contains the token. `restoreCredentials(record)` accepts only the same origin and requires renewed identity verification before execution. The owner password is never retained. Do not log pair request bodies or vault exports.
+## Device pairing and saved connections
+
+The pairing code comes from the Wi-Fi setup page or USB setup information. The setup return link carries it in the URL fragment, which is removed on entry and never submitted to the website. Pairing returns a separate per-client token. Ordinary settings store only device address, stable client ID and device identity metadata; optional encrypted storage holds the token. Restoring it still requires a new phone-input test.
+
+For HTTP, the legacy `publicKeyFingerprint` field is a stable device identity label derived from the random owner code. It is **not a TLS or encrypted-channel claim**. The actual input target is checked through the phone's trusted keyboard events before control is enabled.
+
+The client retains compatibility with explicitly configured HTTPS origins and an expected fingerprint for older firmware. Private-CA installation belongs to that legacy route; it is not part of current onboarding.
 
 ## Input target proof
 
@@ -40,7 +38,7 @@ Targets expose `{targetId,connected,encrypted,hidSubscribed,inputState,running}`
 ## API used by UI and Harness
 
 ```js
-DeviceClient.createURL(value) // normalized HTTPS origin
+DeviceClient.createURL(value) // normalized local HTTP or HTTPS origin
 new DeviceClient({baseUrl,expectedFingerprint?,fetchImpl?})
 device.identity({signal})
 device.capabilities({signal})
@@ -88,13 +86,13 @@ Receipts must match board, boot, target, client, segment and known hash/plan IDs
 
 Release always sends `{leaseId,cancelPending:true,invalidateLease:true}`. Only `status:'released'`, `leaseInvalidated:true` and `releaseSubmitted:true` establish a confirmed release. Lease state is cleared even if release fails; input stays unknown in that case. Boot changes clear leases, frame-dependent execution baselines and cached state.
 
-Requests carry bounded JSON (256 KiB response, 96 KiB host request ceiling; segments additionally honor the advertised `capabilities.maxRequestBytes`), a timeout, external cancellation, no ambient cookies and no referrer. Errors expose stable codes without echoing token, owner password or response body. Common UI codes include `DEVICE_HTTPS_REQUIRED`, `DEVICE_IDENTITY_UNVERIFIED`, `DEVICE_IDENTITY_MISMATCH`, `DEVICE_BINDING_UNVERIFIED`, `DEVICE_TARGET_NOT_READY`, `DEVICE_WRITER_BUSY`, `DEVICE_LEASE_EXPIRED`, `DEVICE_RESULT_UNKNOWN`, `DEVICE_REBOOTED` and `DEVICE_TLS_OR_NETWORK_ERROR`.
+Requests carry bounded JSON (256 KiB response, 96 KiB direct host request ceiling; the local-window adapter is limited to 8 KiB; segments additionally honor the advertised `capabilities.maxRequestBytes`), a timeout, external cancellation, no ambient cookies and no referrer. Errors expose stable codes without echoing token, owner password or response body. Common UI codes include `DEVICE_HTTPS_REQUIRED`, `DEVICE_IDENTITY_UNVERIFIED`, `DEVICE_IDENTITY_MISMATCH`, `DEVICE_BINDING_UNVERIFIED`, `DEVICE_TARGET_NOT_READY`, `DEVICE_WRITER_BUSY`, `DEVICE_LEASE_EXPIRED`, `DEVICE_RESULT_UNKNOWN`, `DEVICE_REBOOTED` and `DEVICE_TLS_OR_NETWORK_ERROR`.
 
 ## Validation status
 
 `tests/web/device.test.mjs`: 21 mock tests pass, including the actual plan executor consuming the actual DeviceClient through a fake HTTPS backend. Existing core tests remain compatible; the combined smoke test passed, followed by an additional running-renewal state test. Coverage includes pin-before-password, nonce proof, encrypted-export boundary, writer isolation, renew serialization, expiration/reclaim fencing, reboot, hash/target validation, unknown results, no duplicate dispatch, release ownership, bounded JSON and reader cancellation.
 
-The mock tests do not validate actual certificates, CORS, mDNS, Safari local-network permission, BLE timing, USB setup output or real phone input. Those still need physical acceptance against the compiled Arduino implementation.
+The mock tests do not validate real ESP32 HTTP service, CORS, mDNS, BLE timing, USB setup output or real phone input. Those still need physical acceptance against the compiled Arduino implementation.
 
 ## Runtime lifecycle regression check
 
@@ -112,7 +110,7 @@ The complete plan preflight compiles every actual wire segment and measures its 
 
 The product firmware advertises `maxRequestBytes:8192` and `maxEvents:128`. The accepted-motion mock fixture uses a separate 256-event capacity and a 40 ms advertised report interval; this does not change the product limit. Actual limits and timing come from the successful capability response. The 98,304-byte compatibility default applies only to a successfully read legacy report lacking the byte-limit field, not to failed or missing discovery. A held gesture is never split across network segments to fit the limit: excessive paths fail explicitly, so the next plan can shorten or sparsify the motion without destroying release velocity. No automatic interpolation reduction is introduced here.
 
-Four new cross-module mock tests cover tap-before-oversized-swipe zero dispatch, accepted complete 8 KB sparse paths, exact envelope byte accounting, a request-capability shrink while hashing, and direct DeviceClient rejection without unknown input or HTTP dispatch. These tests validate JavaScript integration only; they do not establish C3 TLS heap capacity or actual iPhone gesture results.
+Four new cross-module mock tests cover tap-before-oversized-swipe zero dispatch, accepted complete 8 KB sparse paths, exact envelope byte accounting, a request-capability shrink while hashing, and direct DeviceClient rejection without unknown input or HTTP dispatch. These tests validate JavaScript integration only; they do not establish C3 physical memory capacity or actual iPhone gesture results.
 
 Capability absence is not evidence of legacy firmware. Independent `claimLease() → submitSegment()` obtains `/v1/capabilities` whenever its cache is missing or expired, including a post-hash refresh if needed. A failed read stops before segment submission or input-state mutation. The 98,304-byte compatibility default applies only after a successful capability report lacks `maxRequestBytes`. R2's unchanged independent regression and two additional cache/discovery tests cover unknown, expired, failed and positively queried legacy cases.
 

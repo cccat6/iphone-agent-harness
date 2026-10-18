@@ -1,24 +1,27 @@
 {
-  "builtAt": "2026-10-17T22:03:24.137093+00:00",
+  "builtAt": "2026-10-18T06:12:26.033414+00:00",
   "dependencies": {
     "arduinoEsp32": "3.3.11",
     "NimBLE-Arduino": "2.5.1",
     "ArduinoJson": "7.4.3"
   },
-  "sourceSha256": "4b4ebc2e65b3a7b1ebac4b4463c67ae2cb805f3ef85c1eece9e23bb1b435f8f0",
+  "sourceSha256": "ac83d1513a05c40f5a3cf0ab3b2f0c9099cefd7990cadf990902f214bc1acae7",
   "sourceFiles": {
     "IPhoneAutomationHarness.ino": "37feb9fe2dee7989b3a1ba21c34912238a03572f7c5338c471bf3cf66ee33167",
     "ResourceLimits.h": "28abf59b2e419885a3d81d6dcbc7b156a11709aa491d8c4a0a16e902b6f3831a",
     "build_opt.h": "a0f100f642c14b2ec613aac33270f5d41185269cfb80055777331420fc0f8955",
     "config.example.h": "cad7f5ace2cea9bfc7eddf86c0e5a538ea5738f4afd7faf1f50ce21eca94fa13",
-    "main.cpp": "a4d6ff36635ae11868f3e044be734598ec0ec245b05c96d4d7abb92129b602fd",
+    "main.cpp": "f96865217ded8b73bfae0a9bbf0d3b79efa02c21c2bf20fd1cc8d3c864d7cb39",
     "src/Admission.h": "58fa33be3e13dd8aaf0d342211e670ffa7c4ab78eb906a51651a8eaec3f29a16",
     "src/Canonical.h": "1bf42934d802b3eab3921723c7f1a1af94e89527d01ef2b6355cbcd6928048ff",
     "src/Core.h": "bc6594e2749f9ee2a61c56193fdcdf530f802e8a6038af417438c1b22abce64d",
     "src/HidReportMap.h": "80fa777f8c4fadc3d1ebc3bad707e3c38b6df1b7221956ade90cff7e8acd9aa5",
+    "src/HtmlJson.h": "6882cd27144fe46335e8215f65b08c3545e7f4c1907d8b68fc97a6072a38360d",
+    "src/LanBridgePage.h": "4ddee0300abaea2f9ce7fbdc3aaa96b3085f52f385cd56eeeb5e07f573c13821",
     "src/Pki.h": "7e43c08dc5b9e1c23f2a71b19cc6625c0377521f8b0d0cb670351c2e6c41681d",
-    "src/SecureService.h": "ef99867861633e6bb43232bff472b0ec0e4dde3ac329f4316df05d5615ccb39b",
-    "src/SetupState.h": "3031424c801b77064393fb44f47d9573fa4559dd5818149c2baed6a28b5bd1a0",
+    "src/SecureService.h": "761ba96586cacc35bd4129bb154f983ee22a9c8bee9451653c81d2ff8bedae69",
+    "src/SetupState.h": "8aebf5460eab8a18f125fd807d90e2fb7016f1127ec7afb3f96bc23196ffb682",
+    "src/WifiSetupPage.h": "32d589629419789fee3d904b7ee6300aba5fd5f97773c4d58f47907a450f23a0",
     "src/Wire.h": "92d87161708ad530a90d6dbb576ff5b2e83dc7d65ea19298e31feaa8a248a5d4"
   },
   "serialPortsOpened": false,
@@ -29,8 +32,8 @@
       "fqbn": "esp32:esp32:esp32c3:CDCOnBoot=cdc,FlashMode=dio,FlashSize=4M,PartitionScheme=huge_app",
       "compiled": true,
       "summary": [
-        "Sketch uses 1511645 bytes (48%) of program storage space. Maximum is 3145728 bytes.",
-        "Global variables use 47368 bytes (14%) of dynamic memory, leaving 280312 bytes for local variables. Maximum is 327680 bytes."
+        "Sketch uses 1407607 bytes (44%) of program storage space. Maximum is 3145728 bytes.",
+        "Global variables use 46712 bytes (14%) of dynamic memory, leaving 280968 bytes for local variables. Maximum is 327680 bytes."
       ]
     },
     {
@@ -38,8 +41,8 @@
       "fqbn": "esp32:esp32:esp32s3:USBMode=hwcdc,CDCOnBoot=cdc,FlashMode=dio,FlashSize=4M,PartitionScheme=huge_app,PSRAM=disabled",
       "compiled": true,
       "summary": [
-        "Sketch uses 1363261 bytes (43%) of program storage space. Maximum is 3145728 bytes.",
-        "Global variables use 55920 bytes (17%) of dynamic memory, leaving 271760 bytes for local variables. Maximum is 327680 bytes."
+        "Sketch uses 1265809 bytes (40%) of program storage space. Maximum is 3145728 bytes.",
+        "Global variables use 55264 bytes (16%) of dynamic memory, leaving 272416 bytes for local variables. Maximum is 327680 bytes."
       ]
     },
     {
@@ -47,8 +50,8 @@
       "fqbn": "esp32:esp32:esp32c6:CDCOnBoot=cdc,FlashMode=dio,FlashSize=4M,PartitionScheme=huge_app",
       "compiled": true,
       "summary": [
-        "Sketch uses 1657360 bytes (52%) of program storage space. Maximum is 3145728 bytes.",
-        "Global variables use 52480 bytes (16%) of dynamic memory, leaving 275200 bytes for local variables. Maximum is 327680 bytes."
+        "Sketch uses 1569046 bytes (49%) of program storage space. Maximum is 3145728 bytes.",
+        "Global variables use 51808 bytes (15%) of dynamic memory, leaving 275872 bytes for local variables. Maximum is 327680 bytes."
       ]
     },
     {
@@ -56,8 +59,8 @@
       "fqbn": "esp32:esp32:esp32:FlashMode=dio,FlashSize=4M,PartitionScheme=huge_app,PSRAM=disabled",
       "compiled": true,
       "summary": [
-        "Sketch uses 1436629 bytes (45%) of program storage space. Maximum is 3145728 bytes.",
-        "Global variables use 61072 bytes (18%) of dynamic memory, leaving 266608 bytes for local variables. Maximum is 327680 bytes."
+        "Sketch uses 1341392 bytes (42%) of program storage space. Maximum is 3145728 bytes.",
+        "Global variables use 59276 bytes (18%) of dynamic memory, leaving 268404 bytes for local variables. Maximum is 327680 bytes."
       ]
     }
   ],

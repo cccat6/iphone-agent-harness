@@ -34,7 +34,7 @@ test('independent R9: canonical aliases converge while settings writers retain e
  assert.equal(first,second);assert.notEqual(await store.ensureDeviceClientId(endpoint+':444'),first);
  const settings=await store.getSettings();assert.deepEqual(settings.credentialVault,{'device:retained':vault});assert.deepEqual(settings.providers,[{id:'provider'}]);assert.equal(settings.locale,'ja');
  settings.deviceClientIds[endpoint]='mutated-return-value';assert.equal(await store.ensureDeviceClientId(endpoint),first);
- const before=await store.getSettings();for(const invalid of ['http://identity-r9.local','https://user@identity-r9.local','https://identity-r9.local:444/pair','https://identity-r9.local?','https://identity-r9.local#'])await assert.rejects(store.ensureDeviceClientId(invalid));
+ const before=await store.getSettings();for(const invalid of ['http://identity-r9.example','https://user@identity-r9.local','https://identity-r9.local:444/pair','https://identity-r9.local?','https://identity-r9.local#'])await assert.rejects(store.ensureDeviceClientId(invalid));
  assert.deepEqual(await store.getSettings(),before);
 });
 
@@ -70,18 +70,24 @@ test('independent R9: displayed device form validation detail follows locale wit
  for(const {code} of SUPPORTED_LOCALES){setLocale(code);assert.ok(f.field('[data-device-status]').textContent.includes(DEVICE_MESSAGES[code].invalidFingerprint),code+': '+f.field('[data-device-status]').textContent);assert.equal(f.field('[data-fingerprint]').value,'invalid');}
 });
 
-test('independent R9: displayed USB profile mismatch follows locale without another serial read',async t=>{
+test('USB setup link stays masked and localized without extra serial reads or certificate downloads',async t=>{
  const prior=getLocalePreference();t.after(()=>setLocale(prior));setLocale('en');const fields=new Map();let reads=0;
  const container={isConnected:true,dataset:{},innerHTML:'',querySelector:selector=>{if(!fields.has(selector))fields.set(selector,{});return fields.get(selector);},replaceChildren(){}};
- const view=mountUsbSetup({container,canRead:()=>true,readSetup:async({profile})=>{reads++;return profile?{mobileconfig:'synthetic-profile',publicKeyFingerprint:'e'.repeat(64)}:{boardId:'board-r9',apSsid:'synthetic',apPassword:'synthetic',setupPassword:'synthetic',httpsUrl:endpoint,caReady:true,publicKeyFingerprint:fingerprint};}});t.after(()=>view.dispose());
- await container.querySelector('[data-usb-read]').onclick();await container.querySelector('[data-usb-profile]').onclick();assert.ok(container.innerHTML.includes(DEVICE_MESSAGES.en.usbProfileMismatch));
- for(const {code} of SUPPORTED_LOCALES){setLocale(code);assert.ok(container.innerHTML.includes(DEVICE_MESSAGES[code].usbProfileMismatch),code+': '+container.innerHTML);}assert.equal(reads,2);
+ const view=mountUsbSetup({container,canRead:()=>true,readSetup:async()=>{reads++;return {boardId:'board-r9',apSsid:'synthetic',apPassword:'synthetic',setupPassword:'c'.repeat(64),httpUrl:'http://identity-r9.local',caReady:false,publicKeyFingerprint:fingerprint};}});t.after(()=>view.dispose());
+ await container.querySelector('[data-usb-read]').onclick();
+ for(const {code} of SUPPORTED_LOCALES){setLocale(code);assert.ok(container.innerHTML.includes(DEVICE_MESSAGES[code].setupLink),code);assert.ok(container.innerHTML.includes('type="password"'));assert.ok(!container.innerHTML.includes('data-usb-profile'));}assert.equal(reads,1);
+ await container.querySelector('[data-usb-clear]').onclick();assert.ok(!container.innerHTML.includes('data-usb-information'));
 });
 
 test('independent R9: MCP retains an error code for all eight locale changes without reconnecting',async t=>{
- const prior=getLocalePreference();t.after(()=>setLocale(prior));setLocale('en');const fields=new Map();let connects=0;
- const container={isConnected:true,dataset:{},querySelector:selector=>{if(!fields.has(selector))fields.set(selector,{value:'',classList:{toggle(){}}});return fields.get(selector);},querySelectorAll:()=>[]};
+ const prior=getLocalePreference();t.after(()=>setLocale(prior));setLocale('en');let connects=0;
+ // Structural adapter only; the native-DOM companion fixture exercises clicks,
+ // card creation, focus, multiple servers and locale rendering in a browser.
+ const element=()=>{const fields=new Map();return {isConnected:true,dataset:{},style:{},children:[],value:'',classList:{toggle(){}},
+  querySelector(selector){if(!fields.has(selector))fields.set(selector,element());return fields.get(selector);},
+  querySelectorAll(selector){return selector==='[data-mcp-row]'?this.children.filter(child=>child.dataset.mcpRow):[];},append(child){this.children.push(child);child.remove=()=>this.children.splice(this.children.indexOf(child),1);},focus(){},};};
+ const container=element();patch(t,'document',{documentElement:{},createElement:element,head:{append(){}}});
  const error=Object.assign(new Error('synthetic unlocalized diagnostic'),{code:'MCP_INVALID_ENDPOINT'}),access={getSnapshot:()=>[],disconnect(){},configure(){},async connect(){connects++;throw error;}};
- const view=createMCPSettings({access,store:await openStore({memory:true})});view.mount(container);t.after(()=>view.disposeView());container.querySelector('[data-mcp-endpoint]').value='https://mcp-r9.invalid/mcp';container.querySelector('[data-mcp-token]').value='synthetic-token-r9';await container.querySelector('[data-mcp-connect]').onclick();
- for(const {code} of SUPPORTED_LOCALES){setLocale(code);assert.equal(container.querySelector('[data-mcp-status]').textContent,ERROR_CATALOG.MCP_INVALID_ENDPOINT[code]);}assert.equal(connects,1);assert.equal(container.querySelector('[data-mcp-token]').value,'');
+ const view=createMCPSettings({access,store:await openStore({memory:true})});view.mount(container,{servers:[{id:'r9',name:'R9',endpoint:'https://mcp-r9.invalid/mcp'}]});t.after(()=>view.disposeView());const card=container.querySelector('[data-mcp-servers]').querySelectorAll('[data-mcp-row]')[0];card.querySelector('[data-mcp-token]').value='synthetic-token-r9';await card.querySelector('[data-mcp-connect]').onclick();
+ for(const {code} of SUPPORTED_LOCALES){setLocale(code);assert.equal(card.querySelector('[data-mcp-status]').textContent,ERROR_CATALOG.MCP_INVALID_ENDPOINT[code]);}assert.equal(connects,1);assert.equal(card.querySelector('[data-mcp-token]').value,'');
 });

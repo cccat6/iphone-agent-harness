@@ -1,18 +1,17 @@
 # Firmware implementation
 
-Product: iPhone Agent Harness. Current implementation is protected LAN v0.2; the earlier blanket-503 diagnostic scaffold has been replaced in source. The old physical experiment sketches remain untouched. Compiled artifacts and physical observations are separate evidence; `physicalValidation:false` remains explicit until the relevant hardware acceptance is performed.
+Product: iPhone Agent Harness. Current implementation is direct LAN v0.3; the earlier blanket-503 diagnostic scaffold has been replaced in source. The old physical experiment sketches remain untouched. Compiled artifacts and physical observations are separate evidence; `physicalValidation:false` remains explicit until the relevant hardware acceptance is performed.
 
-Detailed first configuration, CA trust and exact REST fields: [secure LAN](secure-lan.md). Reproduction and serial commands: [Arduino README](../../firmware/IPhoneAutomationHarness/README.md).
+Detailed first configuration, local connection windows and exact REST fields: [secure LAN](secure-lan.md). Reproduction and serial commands: [Arduino README](../../firmware/IPhoneAutomationHarness/README.md).
 
 ## Runtime components
 
 ```mermaid
 flowchart TD
-  Setup[Owner-protected WPA2 setup / explicit physical USB] --> NVS[Board NVS: network, CA, token hashes, bonds]
-  Setup --> CA[Per-board CA + 365-day server certificate]
-  CA --> Trust[User installs profile and manually trusts CA]
-  Trust --> TLS[HTTPS 443, exact Origin, bearer authentication]
-  TLS --> Proof[Target challenge: hidden nonce through selected HID only]
+  Setup[Device Wi-Fi setup / explicit USB] --> NVS[Board NVS: network, token hashes, bonds]
+  Setup --> HTTP[HTTP 80 and local connection window]
+  HTTP --> Origin[Configured Harness origin and client authentication]
+  Origin --> Proof[Target challenge: hidden nonce through selected HID only]
   Proof --> Grant[Persisted client-to-target grant]
   Grant --> Writer[One writer lease per target / per run]
   Writer --> Verify[Full wire schema and canonical SHA-256]
@@ -27,7 +26,7 @@ flowchart TD
   Capture --> DB[Phone-local image and session storage]
 ```
 
-`src/Admission.h` owns fixed-capacity client authentication/binding challenge state. `src/Pki.h` generates and verifies board-local certificate material and public installation profiles. `src/Wire.h` validates the fixed JSON input format. `src/SecureService.h` supplies protected setup and HTTPS REST. `src/Core.h` remains portable C++17 for host tests and timed scheduling. `main.cpp` handles Wi-Fi, mDNS, safe peer snapshots and the directed NimBLE sink.
+`src/Admission.h` owns fixed-capacity client authentication/binding challenge state. `src/Pki.h` retains shared random/hash helpers and legacy PKI utilities; normal HTTP setup does not generate a CA. `src/LanBridgePage.h` supplies the static, same-origin local connection page. `src/Wire.h` validates the fixed JSON input format. `src/SecureService.h` supplies Wi-Fi setup and HTTP REST. `src/Core.h` remains portable C++17 for host tests and timed scheduling. `main.cpp` handles Wi-Fi, mDNS, safe peer snapshots and the directed NimBLE sink.
 
 These are fixed source modules, not a runtime plugin/driver registry. LLM, Skill, media and session traffic do not pass through the board.
 
@@ -72,9 +71,9 @@ Cancel, timeout, BLE disconnect, notify failure and timing misses terminate the 
 
 Sixteen final receipts are cached. The product’s boot-local 7168-byte (57,344-bit) RTC-backed Bloom tombstones with sixteen probes prevent evicted segment or retired-lease IDs from executing again; possible false-positive refusal is fail-closed, not a reason to blindly use a new ID. The bounded filter is not an unlimited permanent exactly-once ledger. Power loss changes bootId and requires screen/state reconciliation.
 
-Network/Origin configuration commits as one NVS value. A candidate client token/grant persists successfully before becoming active in RAM. PKI uses an invalid/valid commit marker plus readback and cryptographic validation. Interrupted mixed certificate/private-key records do not start TLS. Original images, conversations and model keys stay on the phone.
+Network/Origin configuration commits as one NVS value. A candidate client token/grant persists successfully before becoming active in RAM. Normal HTTP setup does not generate or use private-CA material. Original images, conversations and model keys stay on the phone.
 
-All Core admission/result/cancel/tick access is serialized. `lockedReply` computes a decision and response object under the mutex, leaves the scope, then sends network data. TLS receive/parse/hash, response writes and certificate generation do not hold the timing mutex. One TLS session is serviced at a time; completed REST/OPTIONS sessions close explicitly, and LRU plus bounded waits prevent permanent keep-alive ownership. This is sequential multi-client service, not measured simultaneous HTTPS capacity.
+All Core admission/result/cancel/tick access is serialized. `lockedReply` computes a decision and response object under the mutex, leaves the scope, then sends network data. HTTP receive/parse/hash and response writes do not hold the timing mutex. Two socket sessions are accepted and handlers execute sequentially. Completed REST/OPTIONS sessions close explicitly, with bounded waits.
 
 ## Validation
 
@@ -82,14 +81,14 @@ All Core admission/result/cancel/tick access is serialized. `lockedReply` comput
 - **7 Admission scenario groups**: token/origin rejection, typed proof required, wrong client/target/challenge rejection, three-attempt lockout, expiry, cooldown, immutable target binding, credential rotation and bounded capacity.
 - `tests/firmware/run.sh` passes 79 scenario groups across Core 512/256/128, Admission, external replay storage, setup deadlines/certificate time, and 12 actual production BLE router interleavings. The router cases permanently cover handle/epoch reuse, queued timeout and committed-pointer release positions.
 - Six canonical-streaming scenarios run against the real pinned ArduinoJson headers; six build-tool tests cover artifacts and provenance.
-- Final C3/S3/C6/classic ESP32 profiles all compiled from the same 13-file source record; `--verify-only` checks their 16 binaries, offsets, partition bounds and current-source provenance.
+- Final C3/S3/C6/classic ESP32 profiles all compiled from the same 16-file source record; `--verify-only` checks their 16 binaries, offsets, partition bounds and current-source provenance.
 - The source targets C3/S3/C6/original ESP32; the published manifest lists only profiles that actually compiled. No S2 or H2 profile is offered.
 
-This implementation agent performed no serial I/O or flashing. Root separately flashed the final 13-source C3 build (source SHA-256 `4b4ebc2e65b3a7b1ebac4b4463c67ae2cb805f3ef85c1eece9e23bb1b435f8f0`) without erasing NVS, verified CA/hostname HTTPS and passed eight production DeviceClient checks, including owner enrollment and refusal to grant control to an unverified phone. Safari trust, pairing/challenge routing, real timing, stops/releases and two-phone fairness remain separate checks. See `docs/research/device-client-live-verification.json` for the exact source/application hashes and scope.
+The current source and all four compiled profiles are identified by [the build report](../../apps/web/firmware/build-report.json). The successful Safari local-window experiment used a read-only fixture and does not establish physical firmware/HID behavior. The older 0.2 HTTPS firmware's [device report](../research/device-client-live-verification.json) remains historical evidence.
 
 ## Resource-limited product build
 
-Arduino `build_opt.h` globally includes `ResourceLimits.h` after SDK configuration, covering the bundled NimBLE C and C++ units. The board has two host connections/bonds, peripheral-only roles and MTU 23. C3/S3/C6 use MSYS pools 8/8; classic ESP32 preserves its SDK-disabled second pool (8/0). Product event storage is 128 per target, while portable Core tests can retain 512. A separate 8192-byte UTF-8 segment request limit is advertised and returns 413 before allocating the JSON tree. This follows a real initial C3 TLS allocation failure (`mbedtls_ssl_setup -0x7F00`); listener startup is not a successful TLS handshake. Successful CA/hostname verification and real input remain distinct acceptance stages.
+Arduino `build_opt.h` globally includes `ResourceLimits.h` after SDK configuration, covering the bundled NimBLE C and C++ units. The board has two host connections/bonds, peripheral-only roles and MTU 23. C3/S3/C6 use MSYS pools 8/8; classic ESP32 preserves its SDK-disabled second pool (8/0). Product event storage is 128 per target, while portable Core tests can retain 512. A separate 8192-byte UTF-8 segment request limit is advertised and returns 413 before allocating the JSON tree. These bounded resource choices remain from earlier C3 memory measurements. Current HTTP mode removes the TLS listener; actual free heap and physical input still require device measurements.
 
 Canonical hashing now streams validated JSON into mbedTLS SHA-256 through a bounded writer. The canonicalizer has a fixed 12-key pointer array instead of heap key vectors and constructs no complete canonical string. Six independent host scenarios use the real pinned ArduinoJson headers; run them with `tests/firmware/run_canonical.sh` and an ArduinoJson include path. Core state-machine scenarios run at 512, 256 and 128 events; external-storage scenarios verify 7168-byte RTC-style clearing and boot/replay fences. This removes duplicate canonical strings, while JSON parsing itself retains an explicit, measured heap requirement.
 

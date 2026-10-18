@@ -2,31 +2,30 @@
 
 [English](../../README.md) · [简体中文](zh-Hans.md) · [繁體中文](zh-Hant.md) · [日本語](ja.md) · [Русский](ru.md) · [Deutsch](de.md) · [Français](fr.md) · **Español**
 
-Un entorno de código abierto para que un agente de IA maneje el iPhone y el iPad entre distintas apps, desde el navegador y mediante un puente Bluetooth HID basado en ESP32.
+Un entorno de código abierto para que un agente de IA maneje el iPhone y el iPad entre distintas apps, desde el navegador y mediante un controlador Bluetooth ESP32.
 
-La plataforma objetivo es **Safari en iOS/iPadOS 27 o posterior**. En el iPhone y el iPad se abre el Harness por defecto; en escritorio aparecen la página principal, la comunidad de Skills y las páginas de configuración y firmware del ESP32. No se prevé una app nativa ni una versión para Android.
+Diseñado para **Safari en iOS/iPadOS 27 o posterior**. En el iPhone y el iPad abre el Harness; en el ordenador ofrece la presentación, la comunidad de habilidades y el instalador de firmware ESP32.
 
-## Estado actual
+Guía de uso: [English](../acceptance/README.md) · [简体中文](../acceptance/zh-Hans.md). Las pantallas principales y las acciones habituales.
 
-La aplicación web, el transporte LAN autenticado y la configuración del dispositivo están implementados. El sitio y la comunidad Skill con firmas están desplegados en [igent.cc](https://igent.cc). La validación del firmware de producto en un dispositivo real sigue en curso: compilar, ejecutar pruebas en ordenador y simular el navegador no confirma el control del teléfono ni la conexión de Safari a la red local.
+El sitio está en [igent.cc](https://igent.cc). Tras conectar el dispositivo, vuelve a Harness y deja abierta su pestaña de conexión. No hace falta instalar certificados y las órdenes no pasan por la nube. En un iPhone con Safari 27.0.1 se completaron cinco solicitudes GET/POST durante unos 21 segundos, incluidas solicitudes con ambas pestañas en segundo plano mientras se compartía la pantalla. Esto no confirma una ejecución indefinida en segundo plano ni la validación completa del control del teléfono. Consulta los [resultados](../architecture/lan-connection.md).
 
-Experimentos independientes con iPhone 12/iOS 27.0.1 confirmaron la captura de otras apps, respuestas diferidas y en streaming en segundo plano, además de cuatro llamadas cortas reales a DeepSeek con ambos protocolos compatibles. Un firmware experimental anterior también verificó teclado, Home, puntero y deslizamiento. Estos resultados no validan el producto nuevo ni garantizan ejecución ilimitada en segundo plano. Véanse el [informe](../research/background-api.md) y los [límites del firmware](../architecture/firmware-implementation.md).
+## Funciones
 
-## Funciones incluidas
+- **Conversaciones:** mensajes e imágenes locales, búsqueda, cambio de nombre, fijado, archivo e importación y exportación de archivos. Modos Chat, Plan y Tarea.
+- **Cuentas o API:** varias conexiones, endpoints compatibles con OpenAI y Anthropic, carga y cambio de modelos. El adaptador y la interfaz de acceso a la suscripción de ChatGPT están implementados; el inicio de sesión real en Safari sigue pendiente de verificación.
+- **Contexto:** resúmenes automáticos del modelo con un umbral ajustable de **750 000 tokens** por defecto. El historial completo permanece en el dispositivo.
+- **Imágenes:** compresión JPEG con tres niveles de calidad y las dimensiones originales.
+- **Habilidades:** diez habilidades integradas, creación y edición de las propias, descargas y publicación en la comunidad. La dirección oficial ya está configurada. El Harness puede ayudarte a escribir y mejorar tus habilidades mediante el chat.
+- **MCP:** varios servidores Streamable HTTP, selección independiente de herramientas y uso en modo Tarea.
 
-- **Conversaciones locales:** IndexedDB, archivos adjuntos, importación y exportación, modos de conversación, planificación y tarea, y cancelación. El contexto y las imágenes elegidos se envían al proveedor de IA configurado; el proyecto no mantiene una base de conversaciones en la nube.
-- **Modelos y cuentas:** APIs compatibles con OpenAI/Anthropic, consulta de modelos y varios perfiles. Están implementados el código de dispositivo, la renovación de tokens y el adaptador Responses para la suscripción Codex. El inicio de sesión real en Safari y el CORS de los endpoints antiguos siguen sin validar; un error no se muestra como conexión correcta.
-- **Contexto e imágenes:** umbrales y objetivo de compresión, reserva de respuesta, límite de imágenes y resúmenes mediante modelo o extractos. Los tokens son estimaciones. Se ajustan el lado máximo y la calidad JPEG, conservando escala y tiempos. Los aciertos de caché dependen del proveedor.
-- **10 Skills integrados:** observación de pantalla, observación temporal, planificación, navegación, entrada de texto, desplazamiento de listas, arrastrar y soltar, recuperación, selección de métodos para desafíos de verificación y creación de Skills. Las herramientas son fijas; no se instalan plugins ejecutables.
-- **Autoría y comunidad:** identidad local P-256, copia cifrada y restauración en otro dispositivo. Solo se editan Skills propios; las descargas de la comunidad son de solo lectura. Publicar exige una acción explícita. La API comunitaria opcional **está desplegada en el sitio oficial** y solo guarda paquetes que el usuario decide publicar.
+Las conversaciones se guardan en el navegador; los mensajes e imágenes elegidos se envían al servicio de modelo seleccionado. Las claves API y datos de acceso permanecen en memoria por defecto, con almacenamiento local cifrado opcional.
 
-Las credenciales permanecen en memoria por defecto. Pueden guardarse cifradas localmente y desbloquearse con una frase de contraseña; no forman parte del sitio estático. Más detalles en las [notas de suscripción](../research/codex-subscription.md).
+## Proyecto y desarrollo local
 
-## Ejecución local
+Las dos partes del producto son `apps/web/` (sitio, Harness y comunidad) y `firmware/IPhoneAutomationHarness/` (firmware Arduino). También puedes alojar el sitio por tu cuenta.
 
-El producto tiene dos partes: `apps/web/` y `firmware/IPhoneAutomationHarness/`. La comunidad y su API opcional pertenecen a Web. El sitio se puede alojar por cuenta propia y no necesita servidor comunitario para el uso local.
-
-Se requiere Node.js 22.13 o posterior:
+Usa Node.js 22.13 o posterior:
 
 ```sh
 npm ci
@@ -35,16 +34,10 @@ npm run build
 npm run preview
 ```
 
-La vista previa de escritorio usa localhost; compartir la pantalla del teléfono requiere **HTTPS**. Se puede desplegar `build/site` en Cloudflare o un servidor HTTPS con el [enrutamiento de páginas](../architecture/deployment.md#self-hosted-page-routing) descrito. La [guía Arduino](../../firmware/IPhoneAutomationHarness/README.md) explica las herramientas de compilación.
+La vista previa de ordenador usa localhost; compartir la pantalla del teléfono requiere HTTPS. Despliega `build/site` con las [rutas documentadas](../architecture/deployment.md#self-hosted-page-routing). La [guía de Arduino](../../firmware/IPhoneAutomationHarness/README.md) explica las placas y la compilación.
 
-[Arquitectura](../architecture/system-blueprint.md) · [Gestos y sincronización](../architecture/actions.md) · [Autoría de Skills](../architecture/skill-community.md) · [Idiomas](../architecture/localization.md)
+**Publicaciones manuales:** los pushes normales no activan GitHub Actions. Bajo petición, el flujo reutiliza el firmware sin cambios, compila las versiones ESP32/C3/S3/C6 modificadas y publica los mismos binarios en Releases y en el sitio. [Configuración de publicaciones](../architecture/manual-release.md).
 
-Aún faltan pruebas reales de configuración Wi-Fi segura, asociación con el teléfono correcto, acceso de Safari al ESP32 local, deslizamiento con inercia y aislamiento de dos teléfonos en un C3. mDNS no resuelve por sí solo HTTPS ni la autenticación.
-
-Lista completa de aceptación: [English](../acceptance/README.md) · [简体中文](../acceptance/zh-Hans.md). Incluye todas las funciones y contenidos, las pruebas de escritorio y los pasos del teléfono aplazados. El equipo del proyecto se encarga de la preparación en el ordenador y de la verificación final de publicación.
-
-En Mac pasaron HTTPS con validación de CA/DNS y el emparejamiento del propietario mediante el cliente del producto con el C3 real. No se enviaron entradas al teléfono. La imagen final y Safari/el teléfono requieren aceptación por separado. [Informe del cliente real](../research/device-client-live-verification.json).
-
-Las publicaciones se ejecutan solo bajo petición explícita; un push normal no activa Actions. Se reutiliza el firmware sin cambios, se compilan las versiones ESP32/C3/S3/C6 modificadas y se publican los mismos binarios en Releases y en el sitio web. [Proceso y configuración del token](../architecture/manual-release.md).
+[Arquitectura](../architecture/system-blueprint.md) · [Acciones y capturas](../architecture/actions.md) · [Cuentas y MCP](../architecture/auth-and-backends.md) · [Autoría de habilidades](../architecture/skill-community.md) · [Idiomas](../architecture/localization.md)
 
 [MIT License](../../LICENSE) · [Third-party notices](../../THIRD_PARTY_NOTICES.md)

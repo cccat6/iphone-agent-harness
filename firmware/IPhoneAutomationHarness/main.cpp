@@ -28,7 +28,7 @@ SET_LOOP_TASK_STACK_SIZE(8192);
 static_assert(CONFIG_BT_NIMBLE_MAX_CONNECTIONS==2&&CONFIG_BT_NIMBLE_MAX_BONDS==2,"Arduino build_opt.h must configure the actual NimBLE host");
 static_assert(iah::MaxEvents==128,"board report storage must match LAN limit");
 
-// Phone capture and model traffic stay in Web. LAN input requires TLS, a
+// Phone capture and model traffic stay in Web. LAN input requires a
 // client grant, observed HID binding proof and a per-target writer lease.
 // No relay credentials, model traffic or screenshots are stored on the board.
 namespace {
@@ -205,9 +205,9 @@ void savedNetwork(String& ssid,String& password){
 }
 bool applySavedPower(){int value=preferences.getInt("rfPower",-1);return value<0||WiFi.setTxPower(static_cast<wifi_power_t>(value));}
 void wifiDiagnostic(){
- String ssid,password;savedNetwork(ssid,password);JsonDocument out;out["format"]="iah-wifi-diagnostic/1";out["wifiConfigured"]=!ssid.isEmpty();out["wifiConnected"]=WiFi.status()==WL_CONNECTED;out["wifiStatus"]=(int)WiFi.status();out["wifiMode"]=(int)WiFi.getMode();out["configuredSsidBytes"]=ssid.length();out["configuredPasswordBytes"]=password.length();out["attemptedSsidMatchesStored"]=WiFi.SSID()==ssid;out["lastDisconnectReason"]=wifiLastReason.load();out["disconnectCount"]=wifiDisconnects.load();out["connectionCount"]=wifiConnections.load();out["gotIpCount"]=wifiGotIps.load();out["lastEvent"]=wifiLastEvent.load();out["lastEventAtMs"]=wifiLastEventMs.load();out["txPowerQuarterDbm"]=(int)WiFi.getTxPower();out["savedTxPowerQuarterDbm"]=preferences.getInt("rfPower",-1);out["freeHeap"]=ESP.getFreeHeap();out["largestFreeBlock"]=heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT);out["loopStackHighWaterBytes"]=uxTaskGetStackHighWaterMark(nullptr);out["nimbleHostMaxConnections"]=CONFIG_BT_NIMBLE_MAX_CONNECTIONS;out["nimbleHostMaxBonds"]=CONFIG_BT_NIMBLE_MAX_BONDS;out["coreMaxEvents"]=MaxEvents;out["replayTombstoneBytes"]=SeenBytes;out["replayStorage"]="rtc";out["nimblePreferredMtu"]=CONFIG_BT_NIMBLE_ATT_PREFERRED_MTU;out["nimbleMsys1Blocks"]=CONFIG_BT_NIMBLE_MSYS_1_BLOCK_COUNT;out["nimbleMsys2Blocks"]=CONFIG_BT_NIMBLE_MSYS_2_BLOCK_COUNT;out["maxRequestBytes"]=WireMaxRequestBytes;out["httpsReady"]=secureService->secureReady();if(WiFi.status()==WL_CONNECTED){out["rssi"]=WiFi.RSSI();out["localIp"]=WiFi.localIP().toString();}Serial.print("IAH_WIFI ");serializeJson(out,Serial);Serial.println();
+ String ssid,password;savedNetwork(ssid,password);JsonDocument out;out["format"]="iah-wifi-diagnostic/1";out["wifiConfigured"]=!ssid.isEmpty();out["wifiConnected"]=WiFi.status()==WL_CONNECTED;out["wifiStatus"]=(int)WiFi.status();out["wifiMode"]=(int)WiFi.getMode();out["configuredSsidBytes"]=ssid.length();out["configuredPasswordBytes"]=password.length();out["attemptedSsidMatchesStored"]=WiFi.SSID()==ssid;out["lastDisconnectReason"]=wifiLastReason.load();out["disconnectCount"]=wifiDisconnects.load();out["connectionCount"]=wifiConnections.load();out["gotIpCount"]=wifiGotIps.load();out["lastEvent"]=wifiLastEvent.load();out["lastEventAtMs"]=wifiLastEventMs.load();out["txPowerQuarterDbm"]=(int)WiFi.getTxPower();out["savedTxPowerQuarterDbm"]=preferences.getInt("rfPower",-1);out["freeHeap"]=ESP.getFreeHeap();out["largestFreeBlock"]=heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT);out["loopStackHighWaterBytes"]=uxTaskGetStackHighWaterMark(nullptr);out["nimbleHostMaxConnections"]=CONFIG_BT_NIMBLE_MAX_CONNECTIONS;out["nimbleHostMaxBonds"]=CONFIG_BT_NIMBLE_MAX_BONDS;out["coreMaxEvents"]=MaxEvents;out["replayTombstoneBytes"]=SeenBytes;out["replayStorage"]="rtc";out["nimblePreferredMtu"]=CONFIG_BT_NIMBLE_ATT_PREFERRED_MTU;out["nimbleMsys1Blocks"]=CONFIG_BT_NIMBLE_MSYS_1_BLOCK_COUNT;out["nimbleMsys2Blocks"]=CONFIG_BT_NIMBLE_MSYS_2_BLOCK_COUNT;out["maxRequestBytes"]=WireMaxRequestBytes;out["httpReady"]=secureService->networkReady();if(WiFi.status()==WL_CONNECTED){out["rssi"]=WiFi.RSSI();out["localIp"]=WiFi.localIP().toString();}Serial.print("IAH_WIFI ");serializeJson(out,Serial);Serial.println();
 }
-bool radioMaintenanceAllowed(){CoreLock lock(coreMutex);return !core->busy()&&!secureService->secureReady();}
+bool radioMaintenanceAllowed(){CoreLock lock(coreMutex);return !core->busy()&&!secureService->networkReady();}
 void wifiPower(JsonDocument& d){
  JsonDocument out;bool ok=false;int quarter=-1;
  if(d.size()==2&&d["dBm"].is<double>()){double dbm=d["dBm"].as<double>();for(int candidate:{34,44,52,60,68,78})if(dbm==candidate/4.0)quarter=candidate;}
@@ -233,8 +233,8 @@ void configureSerial(){
   if(op=="setup-profile"){secureService->profileInfo();continue;}
   if(op=="setup-finish"){bool ok=secureService->finishSetup();Serial.printf("{\"setupFinishing\":%s}\n",ok?"true":"false");continue;}
   if(op=="setup-window"){secureService->openSetup();continue;}
-  if(op=="setup-config"){bool ok=secureService->configureFromSerial(d);JsonDocument reply;reply["secureConfigured"]=ok;if(ok){reply["publicKeyFingerprint"]=secureService->publicFingerprint();reply["trustProfileChanged"]=secureService->trustProfileChanged();reply["manualTrustRequired"]=true;}serializeJson(reply,Serial);Serial.println();continue;}
-  if(op=="status"){JsonDocument out;out["boardId"]=boardId;out["bootId"]=bootId;out["wifiConfigured"]=secureService->networkConfigured();out["wifiConnected"]=WiFi.status()==WL_CONNECTED;out["executionEnabled"]=secureService->secureReady();serializeJson(out,Serial);Serial.println();continue;}
+  if(op=="setup-config"){bool ok=secureService->configureFromSerial(d);JsonDocument reply;reply["configurationAccepted"]=ok;reply["secureConfigured"]=false;reply["status"]=secureService->configurationStatus();if(ok){reply["publicKeyFingerprint"]=secureService->publicFingerprint();reply["trustProfileChanged"]=secureService->trustProfileChanged();reply["manualTrustRequired"]=false;}serializeJson(reply,Serial);Serial.println();continue;}
+  if(op=="status"){JsonDocument out;out["boardId"]=boardId;out["bootId"]=bootId;out["wifiConfigured"]=secureService->networkConfigured();out["configurationStatus"]=secureService->configurationStatus();out["wifiConnected"]=WiFi.status()==WL_CONNECTED;out["executionEnabled"]=secureService->networkReady();serializeJson(out,Serial);Serial.println();continue;}
   Serial.println("{\"error\":\"unsupported_configuration_operation\"}");
  }
 }
@@ -249,16 +249,16 @@ void setup(){
  String ssid,password;savedNetwork(ssid,password);
  if(ssid.length()){WiFi.mode(WIFI_STA);WiFi.setAutoReconnect(true);applySavedPower();WiFi.begin(ssid.c_str(),password.c_str());}
  publishKnownIdentities();startBle();sink.beginRouting();
- secureService=new SecureService(*core,sink,preferences,coreMutex,boardId,bootId,hostname);secureService->begin(ssid.isEmpty());bleService.store(secureService,std::memory_order_release);
-Serial.println("{\"firmware\":\"iah-lan-v0.2\",\"physicalValidation\":false}");
+ secureService=new SecureService(*core,sink,preferences,coreMutex,boardId,bootId,hostname,wifiGotIps);secureService->begin(ssid.isEmpty());bleService.store(secureService,std::memory_order_release);
+Serial.println("{\"firmware\":\"0.3.0-lan-http\",\"physicalValidation\":false}");
 }
 void loop(){
  syncPeers();{CoreLock lock(coreMutex);core->tick(nowMs());}configureSerial();secureService->loop();
  if(WiFi.status()==WL_CONNECTED){
-  if(!mdnsStarted){mdnsStarted=MDNS.begin(hostname.c_str());if(mdnsStarted){MDNS.addService("iah","tcp",443);MDNS.addServiceTxt("iah","tcp","boardId",boardId.c_str());MDNS.addServiceTxt("iah","tcp","protocolVersion","1");}}
+  if(!mdnsStarted){mdnsStarted=MDNS.begin(hostname.c_str());if(mdnsStarted){MDNS.addService("iah","tcp",80);MDNS.addServiceTxt("iah","tcp","transport","http");MDNS.addServiceTxt("iah","tcp","boardId",boardId.c_str());MDNS.addServiceTxt("iah","tcp","protocolVersion","1");}}
 
  }
- // TLS receives and parses on its own task; only admission/result access takes
+ // HTTP receives and parses on its own task; only admission/result access takes
  // the same mutex as loop-owned tick and per-target HID challenge scheduling.
  delay(1);
 }

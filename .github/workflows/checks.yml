@@ -44,6 +44,7 @@ jobs:
           python3 tests/firmware/independent_router_r8.py
           python3 tools/fetch_test_headers.py
           ./tests/firmware/run_canonical.sh build/test-headers
+          ./tests/firmware/run_html_render.sh build/test-headers
           python3 tools/build_firmware_test.py
           python3 tools/firmware_release_test.py
       - name: Reuse firmware for unchanged sources and build configuration

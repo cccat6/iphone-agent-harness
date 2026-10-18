@@ -1,3 +1,5 @@
+import {modelContextMetadata} from './models.js';
+import {contextOverflowError,readProviderFailure} from './provider-errors.js';
 import {readText} from './http.js';
 import {checkAbort} from './control.js';
 import {callCodexModel,discoverCodexModels} from './codex.js';
@@ -62,7 +64,7 @@ export async function discoverModels({protocol,baseUrl,credential='',accountId,f
   else if(protocol==='anthropic'){url=new URL(root.href);url.pathname=root.pathname.replace(/\/$/,'')+(/\/v\d+$/.test(root.pathname)?'/models':'/v1/models');headers['anthropic-version']='2023-06-01';headers['anthropic-dangerous-direct-browser-access']='true';if(credential)headers['x-api-key']=credential;}
   else {url=new URL(root.href);const path=root.pathname.replace(/\/$/,'');url.pathname=path+(root.hostname==='api.openai.com'&&!path?'/v1/models':'/models');if(credential)headers.authorization='Bearer '+credential;}
   const models=[];let pages=0;
-  while(true){const r=await fetchImpl(url,{headers,credentials:'omit',referrerPolicy:'no-referrer',signal:signal?AbortSignal.any([signal,AbortSignal.timeout(20000)]):AbortSignal.timeout(20000)});checkAbort(signal);if(!r.ok)throw Object.assign(new Error(`PROVIDER_MODELS_HTTP (HTTP ${r.status})`),{code:'PROVIDER_MODELS_HTTP',status:r.status});const data=JSON.parse(await readText(r,{maxBytes:2000000,signal}));checkAbort(signal);const entries=data.data||data.models;if(!Array.isArray(entries))throw new Error('模型目录没有返回有效列表');for(const m of entries)if(typeof m.id==='string'&&!models.some(v=>v.id===m.id))models.push({id:m.id,name:m.display_name||m.name||m.id});if(models.length>2000)throw new Error('模型目录超过限额');if(!data.has_more)return models;if(!data.last_id||++pages>=20)throw new Error('模型目录分页不完整');url.searchParams.set('after_id',data.last_id);}
+  while(true){const r=await fetchImpl(url,{headers,credentials:'omit',referrerPolicy:'no-referrer',signal:signal?AbortSignal.any([signal,AbortSignal.timeout(20000)]):AbortSignal.timeout(20000)});checkAbort(signal);if(!r.ok)throw Object.assign(new Error(`PROVIDER_MODELS_HTTP (HTTP ${r.status})`),{code:'PROVIDER_MODELS_HTTP',status:r.status});const data=JSON.parse(await readText(r,{maxBytes:2000000,signal}));checkAbort(signal);const entries=data.data||data.models;if(!Array.isArray(entries))throw new Error('模型目录没有返回有效列表');for(const m of entries)if(typeof m.id==='string'&&!models.some(v=>v.id===m.id))models.push({id:m.id,name:m.display_name||m.name||m.id,...modelContextMetadata(m)});if(models.length>2000)throw new Error('模型目录超过限额');if(!data.has_more)return models;if(!data.last_id||++pages>=20)throw new Error('模型目录分页不完整');url.searchParams.set('after_id',data.last_id);}
 }
 export async function callModel({provider,credential,messages,tools=[],signal,onDelta=()=>{},fetchImpl=fetch}) {
   if(provider?.protocol==='codex')return callCodexModel({provider,messages,tools,signal,onDelta,fetchImpl});
@@ -94,7 +96,7 @@ export async function callModel({provider,credential,messages,tools=[],signal,on
   const timer=setTimeout(()=>controller.abort(new Error('模型请求超过总时限')),provider.timeoutMs||180000);
   try {
     const response=await fetchImpl(endpoint,{method:'POST',headers,body:JSON.stringify(payload),signal:controller.signal,credentials:'omit',referrerPolicy:'no-referrer'});
-    if(!response.ok)throw Object.assign(new Error(`PROVIDER_HTTP_ERROR (HTTP ${response.status})`),{code:'PROVIDER_HTTP_ERROR',status:response.status});
+    if(!response.ok)throw await readProviderFailure(response,{signal:controller.signal});
     let text='',finish=null,ended=false,usage,reasoningContent='';const thinking=new Map();const calls=new Map();let opaqueBytes=128;
     const addCall=(index,c)=>{if(isAnthropic&&(!Number.isInteger(index)||index<0||index>=PROVIDER_LIMITS.thinkingBlocks))throw providerError('Model block index exceeded its limit');if(calls.has(index)||calls.size>=PROVIDER_LIMITS.toolCalls)throw providerError('Tool call count exceeded its limit');toolIdentity(c.id,'Tool ID',PROVIDER_LIMITS.toolIdChars);toolIdentity(c.name,'Tool name',PROVIDER_LIMITS.toolNameChars);if(typeof c.args!=='string'||utf8(c.args)>PROVIDER_LIMITS.toolArgumentBytes)throw providerError('Tool arguments exceeded their size limit');if(c.initial!==undefined&&jsonBytes(c.initial)>PROVIDER_LIMITS.toolArgumentBytes)throw providerError('Tool arguments exceeded their size limit');c.argsBytes=utf8(c.args);calls.set(index,c);};
     const addThinking=(index,b)=>{if(!Number.isInteger(index)||index<0||index>=PROVIDER_LIMITS.thinkingBlocks)throw providerError('Model block index exceeded its limit');if(thinking.has(index)||thinking.size>=PROVIDER_LIMITS.thinkingBlocks)throw providerError('Model protocol block count exceeded its limit');for(const key of ['thinking','signature','data'])if(b[key]!==undefined&&typeof b[key]!=='string')throw providerError('Invalid model protocol state','PROVIDER_RESPONSE_INVALID');const bytes=jsonBytes(b)+1;if(opaqueBytes+bytes>PROVIDER_LIMITS.stateBytes)throw providerError('Model protocol state exceeded its size limit');opaqueBytes+=bytes;thinking.set(index,{...b});};
@@ -111,7 +113,7 @@ export async function callModel({provider,credential,messages,tools=[],signal,on
       for await(const raw of readSSE(response.body)) {
         if(raw==='[DONE]'){ended=true;break;}
         const e=JSON.parse(raw);if(e.usage)usage={...usage,...e.usage};if(e.message?.usage)usage={...usage,...e.message.usage};
-        if(e.error||e.type==='error')throw new Error('后端返回流式错误');
+        if(e.error||e.type==='error')throw contextOverflowError(e)||new Error('后端返回流式错误');
         if(isAnthropic){
           if(e.type==='content_block_start'&&['thinking','redacted_thinking'].includes(e.content_block?.type))addThinking(e.index,e.content_block);
           if(e.type==='content_block_delta'&&['thinking_delta','signature_delta'].includes(e.delta?.type)){const key=e.delta.type==='thinking_delta'?'thinking':'signature';addThinkingDelta(e.index,key,e.delta[key]||'');}

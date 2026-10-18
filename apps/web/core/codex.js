@@ -1,3 +1,5 @@
+import {modelContextMetadata} from './models.js';
+import {contextOverflowError,readProviderFailure} from './provider-errors.js';
 // Subscription transport. Tokens stay in this module's memory unless the caller
 // explicitly exports them for its encrypted vault. Never reads Codex auth.json.
 export const CODEX_LIMITS=Object.freeze({eventChars:2000000,textChars:1000000,toolArgumentChars:64000,stateChars:1000000,toolCalls:8,outputItems:256,jsonBytes:2000000});
@@ -107,7 +109,7 @@ function headers(a,token,{sessionId}={}){const h={'authorization':'Bearer '+toke
 export async function discoverCodexModels({accountId=activeId,signal,fetchImpl=fetch,clientVersion='0.1.0'}={}){
  const a=accounts.get(accountId);if(!a)throw new Error('请先选择已登录的订阅账号');const token=await accessToken(accountId,{signal,fetchImpl});const url=new URL(a.flow==='codex'?CODEX_ENDPOINTS.models:CODEX_ENDPOINTS.planModels);if(a.flow==='codex')url.searchParams.set('client_version',clientVersion);
  const response=await request(url,{headers:headers(a,token),signal,fetchImpl});const data=await json(response,'订阅模型目录不可用');const items=data.models||data.data;if(!Array.isArray(items))throw new Error('模型目录格式无效');
- return items.map(m=>({id:m.slug||m.id,name:m.display_name||m.name||m.slug||m.id,description:m.description||'',catalogOnly:true})).filter(m=>typeof m.id==='string'&&m.id);
+ return items.map(m=>({id:m.slug||m.id,name:m.display_name||m.name||m.slug||m.id,description:m.description||'',catalogOnly:true,...modelContextMetadata(m)})).filter(m=>typeof m.id==='string'&&m.id);
 }
 function replayState(message,scope){
  const state=message.providerState;
@@ -144,11 +146,11 @@ export async function callCodexModel({provider,messages,tools=[],signal,onDelta=
   const payload={model:provider.model,store:false,stream:true,include:['reasoning.encrypted_content'],instructions:messages.filter(m=>m.role==='system').map(m=>m.text).join('\n\n')||'You are a helpful assistant.',input:toInput(messages,stateScope),tools:tools.map(t=>({type:'function',name:t.name,description:t.description,parameters:t.schema,strict:false})),tool_choice:tools.length?'auto':'none',parallel_tool_calls:true};
   if(provider.reasoningEffort)payload.reasoning={effort:provider.reasoningEffort,summary:'auto'};
   const response=await request(endpoint,{method:'POST',headers:headers(a,token,{sessionId:sessionId||provider.sessionId}),body:JSON.stringify(payload),signal:active,fetchImpl});
-  if(!response.ok)throw failure(response.status===401?'订阅登录失效，请刷新或重新登录':response.status===429?'订阅额度或速率达到限制':'订阅模型请求失败',response.status);if(!response.body)throw new Error('订阅后端未返回响应流');
+  if(!response.ok){const error=await readProviderFailure(response,{signal:active});if(error.code==='CONTEXT_WINDOW_EXCEEDED')throw error;throw failure(response.status===401?'订阅登录失效，请刷新或重新登录':response.status===429?'订阅额度或速率达到限制':'订阅模型请求失败',response.status);}if(!response.body)throw new Error('订阅后端未返回响应流');
   let text='',terminal=null;const calls=new Map();const emit=value=>{try{Promise.resolve(onDelta(value)).catch(()=>{});}catch{}};
   function saveCall(key,value){if(typeof value.arguments!=='string'||value.arguments.length>CODEX_LIMITS.toolArgumentChars)throw new Error('工具参数超过容量限制');if(!calls.has(key)&&calls.size>=CODEX_LIMITS.toolCalls)throw new Error('工具调用超过数量限制');calls.set(key,value);}
   for await(const e of events(response.body,active)){
-   check(active);if(e.type==='error'||e.type==='response.failed'||e.type==='response.incomplete'||e.type==='response.cancelled')throw new Error('订阅响应未成功完成；未执行操作');
+   check(active);if(e.type==='error'||e.type==='response.failed'||e.type==='response.incomplete'||e.type==='response.cancelled')throw contextOverflowError(e)||new Error('订阅响应未成功完成；未执行操作');
    if(e.type==='response.output_text.delta'){if(typeof e.delta!=='string'||text.length+e.delta.length>CODEX_LIMITS.textChars)throw new Error('订阅响应文本超过容量限制');text+=e.delta;emit(e.delta);}
    if(e.type==='response.output_item.added'&&e.item?.type==='function_call')saveCall(e.item.id||e.output_index,{...e.item,arguments:e.item.arguments||''});
    if(e.type==='response.function_call_arguments.delta'){const key=e.item_id??e.output_index,c=calls.get(key);if(!c)throw new Error('工具参数缺少起始事件');if(typeof e.delta!=='string'||c.arguments.length+e.delta.length>CODEX_LIMITS.toolArgumentChars)throw new Error('工具参数超过容量限制');c.arguments+=e.delta;}
@@ -165,6 +167,6 @@ export async function callCodexModel({provider,messages,tools=[],signal,onDelta=
   const items=copy((terminal.output||[]).filter(i=>['reasoning','message','function_call'].includes(i.type)));
   const providerState={kind:'codex-responses/1',...stateScope,items};
   return {text,toolCalls,finish:toolCalls.length?'tool_calls':'stop',usage:terminal.usage||null,responseId:terminal.id||null,providerState};
- }catch(e){check(active);if(e.status)throw e;throw new Error(['订阅响应','订阅协议','工具','请选择','请求前','订阅账号','登录'].some(p=>e.message?.startsWith(p))?e.message:'订阅通信失败；请检查登录、CORS 与网络');}
+ }catch(e){check(active);if(e.status||e.code==='CONTEXT_WINDOW_EXCEEDED')throw e;throw new Error(['订阅响应','订阅协议','工具','请选择','请求前','订阅账号','登录'].some(p=>e.message?.startsWith(p))?e.message:'订阅通信失败；请检查登录、CORS 与网络');}
  finally{clearTimeout(timer);signal?.removeEventListener('abort',abort);}
 }
