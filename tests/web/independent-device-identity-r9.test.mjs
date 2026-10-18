@@ -2,7 +2,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {openStore} from '../../apps/web/core/store.js';
 import {DeviceClient} from '../../apps/web/core/device.js';
-import {sealCredentials} from '../../apps/web/core/auth.js';
 import {createDevicePanel} from '../../apps/web/ui/device-panel.js';
 import {mountUsbSetup} from '../../apps/web/ui/usb-setup.js';
 import {createMCPSettings} from '../../apps/web/ui/mcp-settings.js';
@@ -46,10 +45,10 @@ test('independent R9: closing the panel during local ID allocation prevents owne
  assert.equal(factories,0);assert.equal(f.panel.getDevice(),null);assert.equal((await store.getSettings()).deviceEndpoint,undefined);
 });
 
-for(const preexisting of [false,true])test(`independent R9: restored legacy credential ${preexisting?'respects an existing ID':'seeds the missing ID'} on explicit owner re-enrollment`,async t=>{
+for(const preexisting of [false,true])test(`independent R9: saved local credential ${preexisting?'respects an existing ID':'keeps a stable ID'} on explicit owner re-enrollment`,async t=>{
  const store=await openStore({memory:true}),legacyId='restored-r9-client',storedId=preexisting?await store.ensureDeviceClientId(endpoint):null;
  const record={format:'iah-device-credential/1',baseUrl:endpoint,expectedFingerprint:fingerprint,publicKeyFingerprint:fingerprint,boardId:'board-r9',clientId:legacyId,token:'legacy-token-r9-1234567890',hostname:'identity-r9.local'};
- const encrypted=await sealCredentials(record,'synthetic-vault-r9');await store.saveSettings({credentialVault:{['device:'+fingerprint]:encrypted}});
+ await store.saveLocalCredential('device:'+endpoint,record);
  const pairs=[],clients=[];const fetchImpl=async(url,options={})=>{
   const identity={boardId:'board-r9',bootId:'boot-r9',hostname:'identity-r9.local',publicKeyFingerprint:fingerprint};
   if(url.pathname==='/v1/identity')return Response.json(identity);
@@ -57,10 +56,10 @@ for(const preexisting of [false,true])test(`independent R9: restored legacy cred
   assert.equal(url.pathname,'/v1/binding');const owner=options.headers.Authorization.includes('legacy-token')?legacyId:pairs.at(-1).clientId;
   return Response.json({...identity,clientId:owner,bindingVerified:false,targetId:null,targets:[]});
  };
- const f=panelFixture(t,store,options=>{const client=new DeviceClient({...options,fetchImpl});clients.push(client);return client;});await f.panel.open();f.fill();f.field('[data-vault-password]').value='synthetic-vault-r9';
- await f.field('[data-restore-vault]').onclick();assert.equal(clients.length,1);assert.equal(clients[0].clientId,legacyId);assert.equal(f.panel.getDevice(),null);
- await f.field('[data-pair]').onclick();assert.equal(pairs.length,1);assert.equal(pairs[0].clientId,storedId||legacyId);assert.equal(await store.ensureDeviceClientId(endpoint),storedId||legacyId);assert.equal(clients[1].bindingVerified,false);assert.equal(f.panel.getDevice(),null);
- const settings=await store.getSettings();assert.deepEqual(settings.credentialVault['device:'+fingerprint],encrypted);assert.equal(settings.deviceEndpoint,endpoint);assert.equal(JSON.stringify(settings).includes(record.token),false);assert.equal(JSON.stringify(settings).includes('synthetic-owner-r9'),false);
+ const f=panelFixture(t,store,options=>{const client=new DeviceClient({...options,fetchImpl});clients.push(client);return client;});await f.panel.open();f.fill();f.field('[data-owner-password]').value='';
+ await f.field('[data-pair]').onclick();assert.equal(clients.length,1);assert.equal(clients[0].clientId,legacyId);assert.equal(f.panel.getDevice(),null);
+ const retainedId=await store.ensureDeviceClientId(endpoint);f.field('[data-owner-password]').value='synthetic-owner-r9';await f.field('[data-pair]').onclick();assert.equal(pairs.length,1);assert.equal(pairs[0].clientId,storedId||retainedId);assert.equal(await store.ensureDeviceClientId(endpoint),storedId||retainedId);assert.equal(clients[1].bindingVerified,false);assert.equal(f.panel.getDevice(),null);
+ const settings=await store.getSettings();assert.equal((await store.getLocalCredential('device:'+endpoint)).token,'fresh-token-r9-1234567890');assert.equal(settings.deviceEndpoint,endpoint);assert.equal(JSON.stringify(settings).includes(record.token),false);assert.equal(JSON.stringify(settings).includes('synthetic-owner-r9'),false);
 });
 
 test('independent R9: displayed device form validation detail follows locale without another action',async t=>{

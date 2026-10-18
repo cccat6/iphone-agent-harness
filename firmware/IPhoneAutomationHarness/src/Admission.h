@@ -18,6 +18,10 @@ class Admission {
   auto g=client(id);if(!g)for(auto& item:grants_)if(!item.active){g=&item;break;}if(!g)return false;auto oldTarget=g->targetId;*g={id,hash,origin,target.empty()?oldTarget:target,true,0};return true;
  }
  const std::array<Grant,MaxClients>& grants()const{return grants_;}
+ void forgetTarget(const std::string& target){
+  if(challengeTarget_==target)invalidate();
+  for(auto& g:grants_)if(g.active&&g.targetId==target){g.targetId.clear();g.lastChallengeAt=0;}
+ }
  bool begin(const std::string& id,const std::string& target,const std::string& challenge,const std::string& digits,uint64_t now){
   auto g=client(id);if(!g||!validId(target)||!validId(challenge)||digits.size()!=8)return false;
   for(char c:digits)if(c<'0'||c>'9')return false;

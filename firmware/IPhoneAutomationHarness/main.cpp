@@ -35,7 +35,7 @@ namespace {
 using namespace iah;
 NimBLECharacteristic *mouseReport=nullptr,*keyboardReport=nullptr,*consumerReport=nullptr;
 struct Peer {uint16_t handle=InvalidHandle;uint32_t epoch=0;bool encrypted=false,bonded=false;uint8_t reports=0;char identity[32]{};uint16_t pointerX=5000,pointerY=5000;bool pointerKnown=false;};
-Peer peers[MaxTargets];char knownIdentities[MaxTargets][32]{};portMUX_TYPE peersMux=portMUX_INITIALIZER_UNLOCKED;uint32_t nextPeerEpoch=0;
+Peer peers[MaxTargets];portMUX_TYPE peersMux=portMUX_INITIALIZER_UNLOCKED;uint32_t nextPeerEpoch=0;std::atomic_bool bondStateDirty{true};
 bool peerRouteMatches(uint16_t handle,uint32_t epoch,const char* identity,uint8_t requiredReports){
  bool matches=false;portENTER_CRITICAL(&peersMux);for(const auto& p:peers)if(p.handle==handle&&p.epoch==epoch&&p.encrypted&&p.bonded&&(p.reports&requiredReports)==requiredReports&&std::strcmp(p.identity,identity)==0)matches=true;portEXIT_CRITICAL(&peersMux);return matches;
 }
@@ -118,14 +118,13 @@ RTC_NOINIT_ATTR uint8_t replayStorage[iah::SeenBytes];
 Preferences preferences;
 Core* core=nullptr;
 SemaphoreHandle_t coreMutex=nullptr;
-iah::SecureService* secureService=nullptr;std::atomic<iah::SecureService*> bleService{nullptr};
+iah::SecureService* secureService=nullptr;
 String boardId,bootId,hostname;
 bool mdnsStarted=false,httpStarted=false;
 uint64_t nowMs(){return static_cast<uint64_t>(esp_timer_get_time())/1000;}
 
 // NimBLE callbacks run outside loop(). They publish small fixed snapshots;
 // NVS updates, client mapping and Core state mutations remain on loop().
-void publishKnownIdentities(){portENTER_CRITICAL(&peersMux);size_t i=0;for(const auto& t:core->targets()){snprintf(knownIdentities[i++],32,"%s",t.bondIdentity.c_str());}portEXIT_CRITICAL(&peersMux);}
 void updatePeer(NimBLEConnInfo& info,bool newConnection=false) {
  auto identity=info.getIdAddress();std::string stable;
  if(info.isBonded()&&(identity.isPublic()||identity.isStatic()))stable=std::to_string(identity.getType())+":"+identity.toString();
@@ -137,16 +136,48 @@ void updatePeer(NimBLEConnInfo& info,bool newConnection=false) {
 }
 class ServerCallbacks:public NimBLEServerCallbacks {
  void onConnect(NimBLEServer* server,NimBLEConnInfo& info)override {
-  bool known=false;auto addr=info.getIdAddress();auto id=std::to_string(addr.getType())+":"+addr.toString();portENTER_CRITICAL(&peersMux);for(auto& saved:knownIdentities)if(id==saved)known=true;portEXIT_CRITICAL(&peersMux);
-  auto gate=bleService.load(std::memory_order_acquire);if(!known&&(!gate||!gate->pairingAllowed())){server->disconnect(info.getConnHandle());return;}
+  // System Bluetooth pairing must work before the browser is connected and
+  // after a restart. A target identity may only resolve during SMP, so never
+  // reject this initial connection using the application target table.
+  // Input still requires an encrypted bond, browser proof and a writer lease.
   if(server->getConnectedCount()>MaxTargets){server->disconnect(info.getConnHandle());return;}
   updatePeer(info,true);server->updateConnParams(info.getConnHandle(),12,24,0,400);
   // Continue advertising for another phone. Runtime limit is explicit.
   if(server->getConnectedCount()<MaxTargets)NimBLEDevice::getAdvertising()->start();
  }
- void onAuthenticationComplete(NimBLEConnInfo& info)override{updatePeer(info);}
+ void onAuthenticationComplete(NimBLEConnInfo& info)override{
+  updatePeer(info);bondStateDirty=true;
+  if(!info.isEncrypted())NimBLEDevice::getServer()->disconnect(info.getConnHandle());
+ }
+ void onIdentity(NimBLEConnInfo& info)override{updatePeer(info);bondStateDirty=true;}
  void onDisconnect(NimBLEServer*,NimBLEConnInfo& info,int)override{
-  portENTER_CRITICAL(&peersMux);for(auto& peer:peers)if(peer.handle==info.getConnHandle())peer=Peer{};portEXIT_CRITICAL(&peersMux);
+  portENTER_CRITICAL(&peersMux);for(auto& peer:peers)if(peer.handle==info.getConnHandle())peer=Peer{};portEXIT_CRITICAL(&peersMux);bondStateDirty=true;
+ }
+};
+class DeviceCallbacks:public NimBLEDeviceCallbacks {
+ int onStoreStatus(ble_store_status_event* event,void*)override{
+  if(event->event_code==BLE_STORE_EVENT_FULL)return 0;
+  if(event->event_code!=BLE_STORE_EVENT_OVERFLOW||!event->overflow.value)return BLE_HS_EUNKNOWN;
+  const auto& value=*event->overflow.value;NimBLEAddress incoming;
+  switch(event->overflow.obj_type){
+   case BLE_STORE_OBJ_TYPE_OUR_SEC:case BLE_STORE_OBJ_TYPE_PEER_SEC:incoming=NimBLEAddress(value.sec.peer_addr);break;
+   case BLE_STORE_OBJ_TYPE_PEER_ADDR:incoming=NimBLEAddress(value.rpa_rec.peer_addr);break;
+   case BLE_STORE_OBJ_TYPE_CCCD:incoming=NimBLEAddress(value.cccd.peer_addr);break;
+   case BLE_STORE_OBJ_TYPE_CSFC:incoming=NimBLEAddress(value.csfc.peer_addr);break;
+   default:return BLE_HS_EUNKNOWN;
+  }
+  // Runs on the host queue: a connected peer cannot disappear/reappear between
+  // this scan and deletion. Never delegate to NimBLE's unpair-oldest policy,
+  // which can disconnect the other phone while it is being controlled.
+  auto server=NimBLEDevice::getServer();auto connected=server->getPeerDevices();
+  for(int i=0;i<NimBLEDevice::getNumBonds();i++){
+   auto candidate=NimBLEDevice::getBondedAddress(i);if(candidate==incoming)continue;
+   bool online=false;for(auto handle:connected){auto peer=server->getPeerInfoByHandle(handle);if(candidate==peer.getIdAddress()||candidate==peer.getAddress())online=true;}
+   if(online)continue;
+   if(!NimBLEDevice::deleteBond(candidate))return BLE_HS_ESTORE_FAIL;
+   bondStateDirty=true;return 0;
+  }
+  return BLE_HS_ESTORE_CAP;
  }
 };
 class ReportCallbacks:public NimBLECharacteristicCallbacks {
@@ -167,10 +198,37 @@ std::string findOrRegisterBond(const std::string& identity){
    char target[32];snprintf(target,sizeof(target),"target-%08lx%08lx",(unsigned long)esp_random(),(unsigned long)esp_random());
    // Commit target first. A missing identity never enables control.
    if(preferences.putString(targetKey.c_str(),target)==0||preferences.putString(identityKey.c_str(),identity.c_str())==0)return "";
-   if(core->registerBond(target,identity)!=Code::Accepted)return "";publishKnownIdentities();return target;
+   if(core->registerBond(target,identity)!=Code::Accepted)return "";return target;
   }
  }
  return "";
+}
+// Called under Core's mutex, after disconnected peers have been reconciled.
+void retireMissingBonds(){
+ // Flash writes must not interrupt another phone's timed input or test typing.
+ if(core->busy()||(secureService&&secureService->inputBusy()))return;
+ if(!bondStateDirty.exchange(false))return;
+ ble_addr_t bonds[MaxTargets];int count=0;
+ if(ble_store_util_bonded_peers(bonds,&count,MaxTargets)!=0){bondStateDirty=true;return;}
+ for(const auto& entry:core->targets()){
+  if(entry.id.empty()||entry.connHandle!=InvalidHandle||entry.running)continue;
+  bool bonded=false;for(int i=0;i<count;i++){NimBLEAddress addr(bonds[i]);if(entry.bondIdentity==std::to_string(addr.getType())+":"+addr.toString())bonded=true;}
+  if(bonded)continue;
+  const auto target=entry.id,identity=entry.bondIdentity;
+  bool durable=false;
+  for(size_t i=0;i<MaxTargets;i++){
+   String key="bond"+String(i);
+   if(preferences.getString(key.c_str(),"")==identity.c_str()){
+    // Atomic NVS delete is the revocation barrier. Keep the Core slot occupied
+    // if it fails, so neither runtime nor a reboot can reuse this old proof.
+    if(!preferences.remove(key.c_str())||!preferences.getString(key.c_str(),"").isEmpty()){bondStateDirty=true;break;}
+    durable=true;break;
+   }
+  }
+  if(!durable){bondStateDirty=true;continue;}
+  if(secureService)secureService->forgetTarget(target);
+  core->forgetBond(target);
+ }
 }
 void syncPeers(){
  CoreLock lock(coreMutex);
@@ -179,17 +237,18 @@ void syncPeers(){
   bool present=false;for(const auto& peer:snapshot)if(peer.handle==target.connHandle&&peer.epoch==target.connEpoch&&peer.encrypted&&peer.bonded&&peer.identity==target.bondIdentity)present=true;
   if(!present)core->disconnect(target.connHandle,nowMs());
  }
+ retireMissingBonds();
  for(const auto& peer:snapshot)if(peer.handle!=InvalidHandle&&peer.encrypted&&peer.bonded&&peer.identity[0]){
   auto target=findOrRegisterBond(peer.identity);if(!target.empty())core->connect(peer.identity,peer.handle,true,true,peer.reports==7,peer.epoch);
  }
 }
 void startBle(){
- NimBLEDevice::init("iPhone Agent");NimBLEDevice::setSecurityAuth(true,false,true);NimBLEDevice::setSecurityIOCap(BLE_HS_IO_NO_INPUT_OUTPUT);
+ NimBLEDevice::init("iPhone Agent Bridge");NimBLEDevice::setDeviceCallbacks(new DeviceCallbacks());NimBLEDevice::setSecurityAuth(true,false,true);NimBLEDevice::setSecurityIOCap(BLE_HS_IO_NO_INPUT_OUTPUT);
  auto server=NimBLEDevice::createServer();server->setCallbacks(new ServerCallbacks());server->advertiseOnDisconnect(true);
  auto hid=new NimBLEHIDDevice(server);mouseReport=hid->getInputReport(1);keyboardReport=hid->getInputReport(2);consumerReport=hid->getInputReport(3);hid->getOutputReport(2);
  mouseReport->setCallbacks(new ReportCallbacks(1));keyboardReport->setCallbacks(new ReportCallbacks(2));consumerReport->setCallbacks(new ReportCallbacks(3));
  hid->setManufacturer("iPhone Agent Harness");hid->setPnp(2,0x303A,0x1001,0x0103);hid->setHidInfo(0,1);hid->setReportMap(iah::reportMap,sizeof(iah::reportMap));hid->setBatteryLevel(100);server->start();
- auto advertising=NimBLEDevice::getAdvertising();advertising->setAppearance(HID_MOUSE);advertising->addServiceUUID(hid->getHidService()->getUUID());advertising->setName("iPhone Agent");advertising->enableScanResponse(true);advertising->start();
+ auto advertising=NimBLEDevice::getAdvertising();advertising->setAppearance(HID_MOUSE);advertising->addServiceUUID(hid->getHidService()->getUUID());advertising->enableScanResponse(true);advertising->setName("iPhone Agent Bridge");advertising->start();
 }
 // Wi-Fi callbacks publish counters only; no credentials, NVS or Core mutex.
 std::atomic<uint32_t> wifiDisconnects{0},wifiConnections{0},wifiGotIps{0},wifiLastReason{0},wifiLastEvent{0},wifiLastEventMs{0};
@@ -248,8 +307,8 @@ void setup(){
  WiFi.onEvent(wifiEvent);
  String ssid,password;savedNetwork(ssid,password);
  if(ssid.length()){WiFi.mode(WIFI_STA);WiFi.setAutoReconnect(true);applySavedPower();WiFi.begin(ssid.c_str(),password.c_str());}
- publishKnownIdentities();startBle();sink.beginRouting();
- secureService=new SecureService(*core,sink,preferences,coreMutex,boardId,bootId,hostname,wifiGotIps);secureService->begin(ssid.isEmpty());bleService.store(secureService,std::memory_order_release);
+ startBle();sink.beginRouting();
+ secureService=new SecureService(*core,sink,preferences,coreMutex,boardId,bootId,hostname,wifiGotIps);secureService->begin(ssid.isEmpty());
 Serial.println("{\"firmware\":\"0.3.0-lan-http\",\"physicalValidation\":false}");
 }
 void loop(){

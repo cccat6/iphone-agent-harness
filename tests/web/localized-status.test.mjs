@@ -11,13 +11,13 @@ function fixture(){const status={dataset:{},textContent:''};const user={value:'�
 test('actual provider status renderer recomputes HTTP error and fallback in all eight languages',()=>{
  const {status,user,root}=fixture(),error=Object.assign(new Error('PROVIDER_MODELS_HTTP (HTTP 404)'),{code:'PROVIDER_MODELS_HTTP',status:404});
  const statement=source.split('\n').find(line=>line.trim().startsWith('const modelsStatus='));assert.ok(statement);
- const context=vm.createContext({$:()=>status,setLocalizedText,t,localizeError,error});vm.runInContext(statement,context);
+ const context=vm.createContext({editorActive:()=>true,$:()=>status,setLocalizedText,t,localizeError,error});vm.runInContext(statement,context);
  setLocale('en');vm.runInContext('modelsStatus({error,fallback:true})',context);const english=status.textContent;
  for(const {code} of SUPPORTED_LOCALES){setLocale(code);refreshLocalizedText(root);assert.equal(status.textContent,t('common.failed',{detail:localizeError(error)})+' '+t('provider.modelsFallback'));assert.match(status.textContent,/404/);assert.equal(user.value,'设置');assert.equal(user.textContent,'查看');}
  setLocale('es');refreshLocalizedText(root);assert.notEqual(status.textContent,english);setLocale('auto');
 });
 test('actual provider status replaces old failure with loading and dynamic success across language changes',()=>{
- const {status,root}=fixture(),context=vm.createContext({$:()=>status,setLocalizedText,t,localizeError});
+ const {status,root}=fixture(),context=vm.createContext({editorActive:()=>true,$:()=>status,setLocalizedText,t,localizeError});
  vm.runInContext(source.split('\n').find(line=>line.trim().startsWith('const modelsStatus=')),context);
  setLocale('es');vm.runInContext("modelsStatus({key:'provider.modelsLoading'})",context);assert.equal(status.textContent,t('provider.modelsLoading'));
  vm.runInContext("modelsStatus({key:'provider.modelsFetched',variables:{count:2}})",context);

@@ -5,6 +5,7 @@ const uid=()=>crypto.randomUUID();
 const clone=value=>structuredClone(value);
 const modes=new Set(['chat','plan','task']);
 const secretKey=/^(apiKey|api_key|key|token|access_token|refresh_token|password|authorization)$/i;
+function localCredentialId(id){if(typeof id!=='string'||!id.length||id.length>512||/[\u0000-\u001f]/.test(id))throw new Error('Invalid local credential ID');return 'local-credential:'+id;}
 function safeSettings(v){if(Array.isArray(v))return v.map(safeSettings);if(v&&typeof v==='object')return Object.fromEntries(Object.entries(v).filter(([k])=>!secretKey.test(k)).map(([k,x])=>[k,safeSettings(x)]));return v;}
 function makeSession(input={}){const now=Date.now();return {id:uid(),title:String(input.title||'新对话').slice(0,160),mode:modes.has(input.mode)?input.mode:'chat',modelId:input.modelId||'',pinned:false,archived:false,createdAt:now,updatedAt:now,lastSeq:0,eventSeq:0};}
 function frameRecord(sessionId,frame,metadata={}){
@@ -76,6 +77,11 @@ export async function openStore({memory=false,name=DB_NAME}={}){
     async getMessages(sessionId,{afterSeq=0,beforeSeq,limit,direction=limit?'prev':'next',includeImages=true,includeInternal=true}={}){const rows=await transaction(['messages'],'readonly',s=>s.messages.page(sessionId,{afterSeq,beforeSeq,limit,direction,includeInternal}));rows.sort((a,b)=>a.seq-b.seq);if(includeImages)for(const row of rows)if(row.frameRefs?.length)row.images=(await Promise.all(row.frameRefs.map(ref=>store.getFrame(ref).then(imageData)))).filter(Boolean);return rows;},
     async searchMessages(sessionId,query,{limit=12,beforeSeq}={}){if(!query||String(query).length>200)throw new Error('搜索词为空或过长');const rows=await store.getMessages(sessionId,{beforeSeq,limit:2000,includeImages:false});const matches=rows.filter(m=>m.text.toLowerCase().includes(query.toLowerCase())).slice(-Math.min(limit,30));return {messages:matches.map(({providerState,...message})=>message),nextBeforeSeq:rows[0]?.seq||null,examined:rows.length,hasMore:rows.length===2000};},
     getSettings:()=>transaction(['settings'],'readonly',async s=>(await s.settings.get('settings'))?.value||{providers:[],activeProviderId:''}),
+    // Explicit browser-local credentials live outside the ordinary settings
+    // record and session exports. No additional database schema is required.
+    getLocalCredential:id=>transaction(['settings'],'readonly',async s=>(await s.settings.get(localCredentialId(id)))?.value??null),
+    saveLocalCredential:(id,value)=>transaction(['settings'],'readwrite',s=>s.settings.put({id:localCredentialId(id),value:clone(value)})),
+    deleteLocalCredential:id=>transaction(['settings'],'readwrite',s=>s.settings.delete(localCredentialId(id))),
     async ensureDeviceClientId(endpoint,{preferredId}={}){
       const origin=createDeviceURL(endpoint);
       const valid=value=>typeof value==='string'&&/^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$/.test(value);

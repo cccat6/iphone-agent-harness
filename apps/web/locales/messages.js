@@ -1,6 +1,16 @@
 // Eight locale tables for product text; user content and protocol identifiers stay unchanged.
 export const messages = {
   "en": {
+    "session.listTitle": "Sessions",
+    "device.state.offline": "Device not connected",
+    "device.state.connecting": "Connecting…",
+    "device.state.test": "Connection test needed",
+    "device.state.ready": "Device ready",
+    "device.state.sharing": "Screen sharing active",
+    "device.connectHint": "Connect iPhone Agent Bridge",
+    "device.manage": "Manage connection",
+    "device.startHint": "Connect your device and complete the input test to start a session.",
+
     "session.importSuffix": " (imported)",
     "session.importFallback": "Conversation",
     "provider.visionHelp": "Choose a model that supports images and tool calls to control your phone.",
@@ -332,6 +342,16 @@ export const messages = {
     "session.stopBeforeImport": "Stop the current task before importing a session."
   },
   "zh-Hans": {
+    "session.listTitle": "会话",
+    "device.state.offline": "设备未连接",
+    "device.state.connecting": "正在连接…",
+    "device.state.test": "等待连接测试",
+    "device.state.ready": "设备已就绪",
+    "device.state.sharing": "正在共享屏幕",
+    "device.connectHint": "连接 iPhone Agent Bridge",
+    "device.manage": "管理设备连接",
+    "device.startHint": "连接设备并完成输入测试后，即可开始会话。",
+
     "session.importSuffix": "（导入）",
     "session.importFallback": "对话",
     "provider.visionHelp": "操作手机时，请选择支持图像和工具调用的模型。",
@@ -663,6 +683,16 @@ export const messages = {
     "session.stopBeforeImport": "请先停止当前任务，再导入会话。"
   },
   "zh-Hant": {
+    "session.listTitle": "對話",
+    "device.state.offline": "裝置未連線",
+    "device.state.connecting": "連線中…",
+    "device.state.test": "等待連線測試",
+    "device.state.ready": "裝置已就緒",
+    "device.state.sharing": "正在分享螢幕",
+    "device.connectHint": "連線 iPhone Agent Bridge",
+    "device.manage": "管理裝置連線",
+    "device.startHint": "連線裝置並完成輸入測試後，即可開始對話。",
+
     "session.importSuffix": "（匯入）",
     "session.importFallback": "對話",
     "provider.visionHelp": "操作手機時，請選擇支援圖像與工具呼叫的模型。",
@@ -994,6 +1024,16 @@ export const messages = {
     "session.stopBeforeImport": "請先停止目前任務，再匯入對話。"
   },
   "ja": {
+    "session.listTitle": "セッション",
+    "device.state.offline": "デバイス未接続",
+    "device.state.connecting": "接続中…",
+    "device.state.test": "接続テストが必要です",
+    "device.state.ready": "デバイスの準備完了",
+    "device.state.sharing": "画面を共有中",
+    "device.connectHint": "iPhone Agent Bridge に接続",
+    "device.manage": "接続を管理",
+    "device.startHint": "デバイスに接続し、入力テストを完了してからセッションを開始してください。",
+
     "session.importSuffix": "（インポート）",
     "session.importFallback": "会話",
     "provider.visionHelp": "端末の操作には、画像とツール呼び出しに対応したモデルを選んでください。",
@@ -1325,6 +1365,16 @@ export const messages = {
     "session.stopBeforeImport": "会話をインポートする前に、実行中のタスクを停止してください。"
   },
   "ru": {
+    "session.listTitle": "Сеансы",
+    "device.state.offline": "Устройство не подключено",
+    "device.state.connecting": "Подключение…",
+    "device.state.test": "Нужна проверка ввода",
+    "device.state.ready": "Устройство готово",
+    "device.state.sharing": "Экран транслируется",
+    "device.connectHint": "Подключить iPhone Agent Bridge",
+    "device.manage": "Управление подключением",
+    "device.startHint": "Подключите устройство и проверьте ввод, чтобы начать сеанс.",
+
     "session.importSuffix": " (импорт)",
     "session.importFallback": "Чат",
     "provider.visionHelp": "Для управления телефоном выберите модель с поддержкой изображений и вызова инструментов.",
@@ -1656,6 +1706,16 @@ export const messages = {
     "session.stopBeforeImport": "Перед импортом остановите текущую задачу."
   },
   "de": {
+    "session.listTitle": "Sitzungen",
+    "device.state.offline": "Kein Gerät verbunden",
+    "device.state.connecting": "Verbindung wird hergestellt…",
+    "device.state.test": "Eingabetest erforderlich",
+    "device.state.ready": "Gerät bereit",
+    "device.state.sharing": "Bildschirmfreigabe aktiv",
+    "device.connectHint": "iPhone Agent Bridge verbinden",
+    "device.manage": "Verbindung verwalten",
+    "device.startHint": "Verbinde dein Gerät und prüfe die Eingabe, bevor du eine Sitzung startest.",
+
     "session.importSuffix": " (importiert)",
     "session.importFallback": "Unterhaltung",
     "provider.visionHelp": "Wählen Sie für die Telefonsteuerung ein Modell mit Bild- und Werkzeugunterstützung.",
@@ -1987,6 +2047,16 @@ export const messages = {
     "session.stopBeforeImport": "Beenden Sie die aktuelle Aufgabe, bevor Sie eine Sitzung importieren."
   },
   "fr": {
+    "session.listTitle": "Conversations",
+    "device.state.offline": "Appareil non connecté",
+    "device.state.connecting": "Connexion en cours…",
+    "device.state.test": "Test de saisie nécessaire",
+    "device.state.ready": "Appareil prêt",
+    "device.state.sharing": "Partage d’écran actif",
+    "device.connectHint": "Connecter iPhone Agent Bridge",
+    "device.manage": "Gérer la connexion",
+    "device.startHint": "Connectez votre appareil et testez la saisie pour démarrer une conversation.",
+
     "session.importSuffix": " (importée)",
     "session.importFallback": "Conversation",
     "provider.visionHelp": "Pour contrôler le téléphone, choisissez un modèle compatible avec les images et les appels d’outils.",
@@ -2318,6 +2388,16 @@ export const messages = {
     "session.stopBeforeImport": "Arrêtez la tâche en cours avant d’importer une conversation."
   },
   "es": {
+    "session.listTitle": "Conversaciones",
+    "device.state.offline": "Dispositivo desconectado",
+    "device.state.connecting": "Conectando…",
+    "device.state.test": "Falta comprobar la entrada",
+    "device.state.ready": "Dispositivo listo",
+    "device.state.sharing": "Pantalla compartida",
+    "device.connectHint": "Conectar iPhone Agent Bridge",
+    "device.manage": "Gestionar conexión",
+    "device.startHint": "Conecta el dispositivo y comprueba la entrada para iniciar una conversación.",
+
     "session.importSuffix": " (importada)",
     "session.importFallback": "Conversación",
     "provider.visionHelp": "Para controlar el teléfono, elige un modelo que admita imágenes y llamadas a herramientas.",

@@ -37,3 +37,6 @@ compile_test "$project_root/tests/firmware/setup_state_test.cpp"
 "$binary_path"
 
 python3 "$project_root/tests/firmware/ble_router_test.py"
+
+python3 "$project_root/tests/firmware/ble_pairing_test.py"
+python3 "$project_root/tests/firmware/ble_bond_lifecycle_test.py"

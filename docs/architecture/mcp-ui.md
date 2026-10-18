@@ -1,14 +1,23 @@
-# Browser MCP permission UI
+# Browser MCP settings
 
-The optional MCP section now connects the trusted page-local `createMCPAccess()` object to `createHarness({mcp:access})`. It exposes one lightweight Streamable HTTP server configuration through `ui/mcp-settings.js`, without executable plugins, stdio, or OAuth. Its 19 UI strings have complete English, Simplified Chinese, Traditional Chinese, Japanese, Russian, German, French and Spanish resources in `locales/mcp.js`.
+The MCP section connects `createMCPAccess()` to the Harness. It supports up to eight named Streamable HTTP servers. Saved servers appear as collapsed cards with connection state and selected-tool count; expanding a card exposes its endpoint, token, tool selection and actions. New cards open for editing. All UI text supports the eight application languages.
 
-The initial state is disabled. An explicit user connection reads the server's real directory. That action grants no tool access. Each tool must be checked by the user, and the separate enable checkbox must then be enabled. The model receives only the selected, enabled directory through fixed `mcp_list_tools` / `mcp_call` tools. Calls require Task mode; Chat and Plan can inspect the authorized directory only. Server descriptions remain untrusted metadata and cannot grant permissions.
+Adding a server reads its tool directory. The user selects tools and enables that server's selected tools. The model sees only the enabled selection through `mcp_list_tools` and `mcp_call`; calls require Task mode. Chat and Plan can inspect the authorized directory only. Identically named tools on different servers remain scoped to their server IDs.
 
-The access token and all tool permissions remain in the manager's page memory. Reloading starts disabled. Editing either endpoint or token immediately disconnects the current entry, aborts its requests and removes its allowlist. A disconnect/revoke button provides the same explicit action. Reconnecting reads the directory again with an empty allowlist. Closing the settings view during a pending connection aborts and disconnects that unfinished request; closing an already configured view does not silently revoke established user choices.
+The browser database stores each server's full endpoint, access token, allowed tool names, enabled state and reconnect preference in a separate local-credential record. Ordinary `settings.mcpServers` contains only public ID, name and endpoint without query parameters. Credentials are excluded from session exports and model context. Refresh restores saved connections and intersects allowed tool names with the fresh server catalog. A saved token is indicated by the empty password field's placeholder; the secret is not painted back into the field.
 
-The token input is cleared before network work. Ordinary settings receive only `mcpEndpoint`, with query parameters removed. Query parameters remain usable for the current in-memory connection, including servers using query authentication, but must be re-entered after reloading. URL user information and fragments are rejected. Complete endpoint URLs and tokens are not passed to the model. The runtime separately enforces tool-schema, argument, result, generation, mode, cancellation and budget checks. Revoking access cannot undo an external action already dispatched.
+Changing an endpoint revokes its live connection and resets that server's token and tool choices. Changing a token disconnects that live connection until Save and connect is clicked. Explicit Disconnect retains its local credential but disables startup reconnection. Remove deletes both the server entry and its local credential. Settings-view closure cancels a user-started unfinished connection, but does not cancel app-startup restoration or disconnect already established servers. Each server owns its cancellation generation, so one server's edits do not affect another.
 
-## Verification, 2026-10-18
+The initial selection is empty and disabled; restoration preserves the user's prior choices only after a successful new directory read. Endpoint user information and fragments are rejected. The runtime separately enforces tool schema, arguments, result size, cancellation and budgets.
+
+## Current regression coverage
+
+`tests/web/mcp-persistence.test.mjs`, `mcp-multiple-servers.test.mjs` and `independent-mobile-repair-r1.test.mjs` exercise separate credential persistence, refresh restoration, independent server removal, startup restoration while Settings opens, and edits queued during credential loading. Browser fixtures use synthetic servers and credentials; they do not establish live third-party interoperability.
+
+## Historical verification, before local credential persistence
+
+The following records the earlier single-server UI pass. Its storage and permission lifetime differ from the current behavior described above.
+
 
 Three focused tests passed for endpoint credential stripping, URL user-info/fragment rejection, and all eight locale keys/placeholders. App and module syntax checks passed.
 

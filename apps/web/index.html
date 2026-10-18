@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="description" content="A browser-based AI automation framework for iPhone and iPad.">
-  <meta name="theme-color" content="#f7f8fa">
+  <meta name="theme-color" content="#ffffff">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="iPhone Agent Harness">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -21,15 +21,17 @@
   </section>
   <div id="app" class="app-shell" hidden inert>
     <aside class="sidebar" aria-label="会话列表">
-      <a class="brand" href="/main" aria-label="iPhone Agent Harness 首页"><img class="brand-icon" src="./icons/icon.svg" alt="" width="34" height="34"><span class="brand-name" data-no-i18n>iPhone Agent Harness</span></a>
-      <div class="sidebar-actions"><button id="new-session" class="primary"><span>＋</span> 新会话</button><button id="session-list-menu" class="icon-button" aria-label="会话操作">···</button></div>
-      <label class="search-field"><span aria-hidden="true">⌕</span><input id="session-search" type="search" placeholder="搜索会话" aria-label="搜索会话"></label>
-      <div class="list-heading"><span id="list-label">你的会话</span><button id="archive-toggle" class="text-button">查看归档</button></div>
+      <header class="session-home-header"><a class="brand" href="/main" aria-label="iPhone Agent Harness 首页"><img class="brand-icon" src="./icons/icon.svg" alt="" width="28" height="28"><span class="brand-name" data-no-i18n>iPhone Agent Harness</span></a><button id="open-settings" class="icon-button" aria-label="设置">⚙</button></header>
+      <button id="open-devices" class="device-status-row"><i id="device-indicator" aria-hidden="true"></i><span><strong id="home-device-status" data-no-i18n></strong><small id="home-device-detail" data-no-i18n></small></span><span aria-hidden="true">›</span></button>
+      <div class="session-library-heading"><h1 id="list-label" data-i18n="session.listTitle">会话</h1><button id="new-session" class="primary" data-i18n="session.newButton">＋ 新会话</button><button id="session-list-menu" class="icon-button" aria-label="会话操作">···</button></div>
+      <label class="search-field"><input id="session-search" type="search" placeholder="搜索会话" aria-label="搜索会话" autocomplete="off"></label>
+      <button id="archive-toggle" class="text-button archive-back" hidden>返回会话</button>
       <nav id="sessions" class="sessions" aria-label="已保存的会话"></nav>
-      <div class="sidebar-footer"><button id="open-devices" class="nav-button"><span>▣</span> 设备 <i id="device-indicator"></i></button><button id="open-skills" class="nav-button"><span>◇</span> Skills</button><button id="open-settings" class="nav-button"><span>⚙</span> 设置</button></div>
+      <div class="sidebar-footer"><button id="open-skills" class="nav-button"><span data-i18n="nav.skills">技能</span><span aria-hidden="true">›</span></button></div>
     </aside>
     <main class="workspace" id="workspace">
       <header class="topbar"><button id="back-sessions" class="icon-button mobile-only" aria-label="返回会话列表">‹</button><div class="conversation-heading"><h1 id="session-title">iPhone Agent Harness</h1><p id="session-subtitle"></p></div><button id="session-menu" class="icon-button" aria-label="会话操作" hidden>···</button></header>
+      <button id="conversation-device" class="conversation-device" data-no-i18n></button>
       <div id="conversation" class="conversation" aria-live="polite"></div>
       <section class="composer-wrap" aria-label="消息输入">
         <div id="run-status" class="run-status" role="status" hidden></div>

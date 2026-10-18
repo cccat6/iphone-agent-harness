@@ -15,7 +15,7 @@ The browser connects to explicitly configured Streamable HTTP servers. This is a
 | `setEnabled(id,enabled)` | Require a connected server and a nonempty selection before enabling. |
 | `disconnect(id)` | Revoke, abort in-flight work, clear the credential and remove the entry. |
 
-Every configuration, selection, or enablement change advances an authorization generation and aborts work using the previous generation. URL and credential edits revoke immediately. Permissions and tokens do not survive a page reload; the ordinary settings record stores at most the endpoint. Closing the settings panel does not revoke the current page's explicit selection.
+Every configuration, selection, or enablement change advances an authorization generation and aborts work using the previous generation. URL and credential edits revoke immediately. The UI saves tokens, full endpoints, selected tools and enabled state in independent local-credential database records. Startup restores each connection and intersects saved tool names with the newly discovered catalog. The ordinary settings record holds public server metadata only; session exports and model context exclude credentials. Explicit disconnect retains the saved record but disables automatic reconnection; removing a server deletes it. Closing the settings panel does not revoke the current page's explicit selection.
 
 `listForModel({serverId?,offset?,limit?,signal?})` returns only enabled, selected tools and their bounded schemas, with `total` and `nextOffset`. Tool descriptions and schemas are untrusted remote data. An annotation such as `readOnlyHint` is not evidence sufficient to allow Chat or Plan execution.
 
@@ -48,4 +48,4 @@ Protocol references: [Streamable HTTP](https://modelcontextprotocol.io/specifica
 
 ## Multiple-server settings
 
-The UI saves independent `{id,name,endpoint}` records in `settings.mcpServers`, migrating the old single `mcpEndpoint` when present. Each server has its own connection, temporary token, tool selection and enabled state. Identically named remote tools remain scoped by server ID. Editing/removing one server cancels its pending connection and revokes its tools without disconnecting the others.
+The UI saves independent `{id,name,endpoint}` records in `settings.mcpServers`, migrating the old single `mcpEndpoint` when present. Each server has its own connection, locally saved token, tool selection and enabled state. Identically named remote tools remain scoped by server ID. Editing/removing one server cancels its pending connection and revokes its tools without disconnecting the others.

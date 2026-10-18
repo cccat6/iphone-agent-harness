@@ -4,7 +4,7 @@ import {createMCPAccess} from '../../apps/web/core/mcp.js';
 import {createMCPSettingsModel} from '../../apps/web/ui/mcp-settings.js';
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 const deferred=()=>{let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve};};
-function setup({beforeRPC,saveSettings}={}){
+function setup({beforeRPC,saveSettings,localRecords=new Map()}={}){
   const requests=[],saved=[];let settings={};
   const access=createMCPAccess({fetchImpl:async(url,request)=>{
     const rpc=JSON.parse(request.body),host=new URL(url).hostname;
@@ -13,8 +13,8 @@ function setup({beforeRPC,saveSettings}={}){
     const result=rpc.method==='initialize'?{protocolVersion:'2025-11-25'}:rpc.method==='tools/list'?{tools:[{name:'lookup',description:host,inputSchema:{type:'object',properties:{},additionalProperties:false}}]}:{content:[{type:'text',text:host}]};
     return Response.json({jsonrpc:'2.0',id:rpc.id,result});
   }});
-  const model=createMCPSettingsModel({access,store:{async saveSettings(patch){await saveSettings?.(patch);saved.push(structuredClone(patch));settings={...settings,...structuredClone(patch)};return settings;}}});
-  model.load();return {model,access,requests,saved,get settings(){return settings;}};
+  const model=createMCPSettingsModel({access,store:{async getLocalCredential(id){return structuredClone(localRecords.get(id));},async saveLocalCredential(id,value){localRecords.set(id,structuredClone(value));},async deleteLocalCredential(id){localRecords.delete(id);},async saveSettings(patch){await saveSettings?.(patch);saved.push(structuredClone(patch));settings={...settings,...structuredClone(patch)};return settings;}}});
+  model.load();return {model,access,requests,saved,localRecords,get settings(){return settings;}};
 }
 function add(f,name,endpoint){const id=f.model.add();f.model.edit(id,{name,endpoint});return id;}
 
@@ -29,7 +29,7 @@ test('two saved MCP servers route identical tool names independently, with separ
     const reply=await f.access.call({serverId:id,name:'lookup',arguments:{}},{mode:'task'});assert.equal(reply.result.content[0].text,host);
     assert.equal(f.requests.find(r=>r.host===host&&r.method==='tools/call').token,'Bearer '+token);
   }
-  f.model.disconnect(a);assert.deepEqual((await f.access.listForModel()).tools.map(t=>t.serverId),[b]);
+  await f.model.disconnect(a);assert.deepEqual((await f.access.listForModel()).tools.map(t=>t.serverId),[b]);
   await f.model.remove(a);assert.deepEqual(f.settings.mcpServers.map(s=>s.id),[b]);assert.equal(f.access.hasAuthorizedTools(),true);
 });
 
@@ -53,9 +53,9 @@ test('failed public-settings save makes no network request and can be retried',a
   fail=false;await f.model.connect(id);assert.equal(f.model.getRows()[0].connection.connected,true);assert.equal(f.settings.mcpServers.length,1);
 });
 
-test('legacy endpoint migrates on save and reload restores public entries without tokens or tool grants',async()=>{
-  const f=setup();f.model.load({endpoint:'https://legacy.example/mcp?key=private'});assert.equal(f.model.getRows()[0].id,'default');await f.model.connect('default','one-page-token');f.model.select('default',['lookup']);f.model.enable('default',true);
-  const reloaded=setup();reloaded.model.load({servers:f.settings.mcpServers,endpoint:'https://unused.example/mcp'});assert.deepEqual(reloaded.model.getRows().map(r=>[r.id,r.endpoint]),[['default','https://legacy.example/mcp']]);assert.equal(reloaded.access.hasAuthorizedTools(),false);assert.deepEqual(reloaded.requests,[]);
+test('legacy endpoint migrates and a new model restores tokens and tool grants from private records',async()=>{
+  const f=setup();f.model.load({endpoint:'https://legacy.example/mcp?key=private'});assert.equal(f.model.getRows()[0].id,'default');await f.model.connect('default','one-page-token');await f.model.select('default',['lookup']);await f.model.enable('default',true);
+  const reloaded=setup({localRecords:f.localRecords});await reloaded.model.restore({servers:f.settings.mcpServers,endpoint:'https://unused.example/mcp'});assert.deepEqual(reloaded.model.getRows().map(r=>[r.id,r.endpoint]),[['default','https://legacy.example/mcp?key=private']]);assert.equal(reloaded.access.hasAuthorizedTools(),true);assert.equal(reloaded.requests.find(r=>r.method==='initialize').token,'Bearer one-page-token');assert.ok(!JSON.stringify(f.settings).includes('one-page-token'));
 });
 
 test('serialized settings writes preserve all independently connected servers',async()=>{
@@ -67,4 +67,10 @@ test('closing settings cancels only pending connections; connected tools remain 
   const entered=deferred(),release=deferred(),f=setup({beforeRPC:async({host,rpc})=>{if(host==='slow.example'&&rpc.method==='initialize'){entered.resolve();await release.promise;}}});
   const a=add(f,'Connected','https://ready.example/mcp'),b=add(f,'Pending','https://slow.example/mcp');await f.model.connect(a);f.model.select(a,['lookup']);f.model.enable(a,true);const pending=f.model.connect(b);await entered.promise;f.model.cancelPending();release.resolve();await pending;
   assert.equal(f.access.hasAuthorizedTools(),true);assert.deepEqual(f.access.getSnapshot().map(row=>row.id),[a]);
+});
+
+test('closing settings while local credentials load cancels the pending connection before network',async()=>{
+ const read=deferred(),requests=[],store={getLocalCredential:()=>read.promise,async saveLocalCredential(){},async saveSettings(){return {};}};
+ const access=createMCPAccess({fetchImpl:async()=>{requests.push(true);throw new Error('must not connect');}}),model=createMCPSettingsModel({access,store});
+ model.load({servers:[{id:'slow-local',endpoint:'https://example.com/mcp'}]});const connecting=model.connect('slow-local');model.cancelPending();read.resolve({endpoint:'https://example.com/mcp',token:'saved',reconnect:true});await connecting;assert.deepEqual(requests,[]);assert.equal(model.getRows()[0].connecting,false);
 });

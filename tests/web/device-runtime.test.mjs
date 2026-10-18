@@ -9,7 +9,6 @@ async function setup(){const store=await openStore({memory:true});await store.sa
 const context={boardId:'board',bootId:'boot',targetId:'phone',clientId:'client',leaseId:'lease',orientationEpoch:1,identityVerified:true,bindingVerified:true,leaseVerified:true,executionEnabled:true,inputState:'released',knownFrames:new Map([['before',{targetId:'phone',orientationEpoch:1}]]),capabilities:{operations:['home','capture']}};
 const plan=sessionId=>({version:1,planId:'plan',sessionId,boardId:'board',targetId:'phone',basedOnFrameId:'before',orientationEpoch:1,ttlMs:15000,maxExecutionMs:15000,steps:[{id:'home',op:'home'}]});
 const call=value=>({text:'',toolCalls:[{id:'execute',name:'phone_execute_plan',arguments:{plan:value}}]});
-async function until(fn){for(let i=0;i<100&&!fn();i++)await turn();assert.ok(fn());}
 
 test('task heartbeat renews only its run, never claims, and stops before endRun cleanup',async t=>{
  t.mock.timers.enable({apis:['setInterval']});const {store,session}=await setup(),entered=deferred(),finish=deferred(),metas=[],ends=[];
@@ -28,10 +27,10 @@ test('cancelled frame node propagates its signal and cannot claim a lease after 
  await h.run({sessionId:session.id,text:'mock a frame-node failure'});assert.equal(ended,true);assert.equal(frameSignal.aborted,true);late.resolve({frameId:'late',width:1,height:1,dataUrl:'data:image/jpeg;base64,YQ=='});await pendingFrame;await turn();assert.equal(lateContexts,0);assert.equal(h.running,false);
 });
 
-test('default plan cancellation finishes its own release before Harness endRun',async()=>{
- const {store,session}=await setup(),releaseGate=deferred();let submitted=false,releasing=false,ends=0;
- const h=createHarness({store,getContext:()=>context,device:{submitSegment:async()=>{submitted=true;return new Promise(()=>{});},getResult:async()=>{throw new Error('not expected');},release:async q=>{releasing=true;await releaseGate.promise;return {...q,status:'released',leaseInvalidated:true,releaseSubmitted:true};},endRun:async()=>{ends++;}},invoke:async()=>call(plan(session.id))});
- const running=h.run({sessionId:session.id,text:'cancel the actual plan executor'});const result=running.catch(e=>e);await until(()=>submitted);h.stop();await until(()=>releasing);await turn();assert.equal(ends,0);releaseGate.resolve();assert.equal((await result).status,'cancelled');assert.equal(ends,1);assert.equal(h.running,false);
+test('default plan cancellation finishes its own release before Harness endRun',{timeout:5000},async()=>{
+ const {store,session}=await setup(),releaseGate=deferred(),submitted=deferred(),releasing=deferred();let ends=0;
+ const h=createHarness({store,getContext:()=>context,device:{submitSegment:async()=>{submitted.resolve();return new Promise(()=>{});},getResult:async()=>{throw new Error('not expected');},release:async q=>{releasing.resolve();await releaseGate.promise;return {...q,status:'released',leaseInvalidated:true,releaseSubmitted:true};},endRun:async()=>{ends++;}},invoke:async()=>call(plan(session.id))});
+ const running=h.run({sessionId:session.id,text:'cancel the actual plan executor'});const result=running.catch(e=>e);await submitted.promise;h.stop();await releasing.promise;await turn();assert.equal(ends,0);releaseGate.resolve();assert.equal((await result).status,'cancelled');assert.equal(ends,1);assert.equal(h.running,false);
 });
 
 test('executing plan state checks cannot reclaim a replacement lease',async()=>{

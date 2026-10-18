@@ -135,6 +135,13 @@ class Core {
   for(auto& t:targets_)if(t.id.empty()){t.id=id;t.bondIdentity=identity;return Code::Accepted;}
   return Code::Busy;
  }
+ // Retire only an offline, stopped phone. No radio notification is emitted.
+ Code forgetBond(const std::string& id){
+  auto t=target(id);if(!t)return Code::Missing;
+  if(t->connHandle!=InvalidHandle||t->running)return Code::Busy;
+  for(auto& c:clients_)if(c.active&&c.targetId==id)c=Client{};
+  *t=Target{};return Code::Accepted;
+ }
  // Called only after transport authenticates client and proves target binding.
  Code bindClient(const std::string& id,const std::string& targetId){
   if(!validId(id)||!target(targetId))return Code::Invalid;

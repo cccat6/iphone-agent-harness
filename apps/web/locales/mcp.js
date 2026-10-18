@@ -4,7 +4,7 @@ export const MCP_MESSAGES = {
     "settingsTitle": "MCP servers",
     "name": "Name",
     "endpoint": "MCP endpoint",
-    "token": "Access token (optional, kept until reload)",
+    "token": "Access token (optional)",
     "connect": "Save and connect",
     "disconnect": "Disconnect",
     "remove": "Remove",
@@ -17,13 +17,16 @@ export const MCP_MESSAGES = {
     "connected": "Connected · {count} tools",
     "active": "Enabled · {count} tools",
     "empty": "No tools available.",
-    "noDescription": "No description."
+    "noDescription": "No description.",
+    "tokenSaved": "Saved on this browser. Leave blank to keep it.",
+    "tokenPlaceholder": "Paste an access token",
+    "newServer": "New MCP server"
   },
   "zh-Hans": {
     "settingsTitle": "MCP 服务器",
     "name": "名称",
     "endpoint": "MCP 端点",
-    "token": "访问令牌（选填，刷新后需重新填写）",
+    "token": "访问令牌（选填）",
     "connect": "保存并连接",
     "disconnect": "断开",
     "remove": "删除",
@@ -36,13 +39,16 @@ export const MCP_MESSAGES = {
     "connected": "已连接 · {count} 项工具",
     "active": "已启用 · {count} 项工具",
     "empty": "暂无可用工具。",
-    "noDescription": "暂无说明。"
+    "noDescription": "暂无说明。",
+    "tokenSaved": "已保存在此浏览器，留空保留",
+    "tokenPlaceholder": "粘贴访问令牌",
+    "newServer": "新 MCP 服务器"
   },
   "zh-Hant": {
     "settingsTitle": "MCP 伺服器",
     "name": "名稱",
     "endpoint": "MCP 端點",
-    "token": "存取權杖（選填，重新整理後需再次填寫）",
+    "token": "存取權杖（選填）",
     "connect": "儲存並連線",
     "disconnect": "中斷連線",
     "remove": "刪除",
@@ -55,13 +61,16 @@ export const MCP_MESSAGES = {
     "connected": "已連線 · {count} 項工具",
     "active": "已啟用 · {count} 項工具",
     "empty": "目前沒有可用工具。",
-    "noDescription": "暫無說明。"
+    "noDescription": "暫無說明。",
+    "tokenSaved": "已儲存在此瀏覽器，留空保留",
+    "tokenPlaceholder": "貼上存取權杖",
+    "newServer": "新增 MCP 伺服器"
   },
   "ja": {
     "settingsTitle": "MCPサーバー",
     "name": "名前",
     "endpoint": "MCPエンドポイント",
-    "token": "アクセストークン（任意・再読み込みで消去）",
+    "token": "アクセストークン（任意）",
     "connect": "保存して接続",
     "disconnect": "切断",
     "remove": "削除",
@@ -74,13 +83,16 @@ export const MCP_MESSAGES = {
     "connected": "接続済み · {count}件のツール",
     "active": "有効 · {count}件のツール",
     "empty": "利用できるツールはありません。",
-    "noDescription": "説明はありません。"
+    "noDescription": "説明はありません。",
+    "tokenSaved": "このブラウザに保存済み。空欄で保持します。",
+    "tokenPlaceholder": "アクセストークンを貼り付け",
+    "newServer": "新しいMCPサーバー"
   },
   "ru": {
     "settingsTitle": "Серверы MCP",
     "name": "Название",
     "endpoint": "Эндпоинт MCP",
-    "token": "Токен доступа (необязательно, до перезагрузки)",
+    "token": "Токен доступа (необязательно)",
     "connect": "Сохранить и подключить",
     "disconnect": "Отключить",
     "remove": "Удалить",
@@ -93,13 +105,16 @@ export const MCP_MESSAGES = {
     "connected": "Подключено · инструментов: {count}",
     "active": "Включено · инструментов: {count}",
     "empty": "Нет доступных инструментов.",
-    "noDescription": "Нет описания."
+    "noDescription": "Нет описания.",
+    "tokenSaved": "Сохранён в браузере. Оставьте пустым, чтобы сохранить.",
+    "tokenPlaceholder": "Вставьте токен доступа",
+    "newServer": "Новый сервер MCP"
   },
   "de": {
     "settingsTitle": "MCP-Server",
     "name": "Name",
     "endpoint": "MCP-Endpunkt",
-    "token": "Zugriffstoken (optional, bis zum Neuladen)",
+    "token": "Zugriffstoken (optional)",
     "connect": "Speichern und verbinden",
     "disconnect": "Trennen",
     "remove": "Entfernen",
@@ -112,13 +127,16 @@ export const MCP_MESSAGES = {
     "connected": "Verbunden · {count} Werkzeuge",
     "active": "Aktiviert · {count} Werkzeuge",
     "empty": "Keine Werkzeuge verfügbar.",
-    "noDescription": "Keine Beschreibung."
+    "noDescription": "Keine Beschreibung.",
+    "tokenSaved": "Im Browser gespeichert. Leer lassen, um ihn zu behalten.",
+    "tokenPlaceholder": "Zugriffstoken einfügen",
+    "newServer": "Neuer MCP-Server"
   },
   "fr": {
     "settingsTitle": "Serveurs MCP",
     "name": "Nom",
     "endpoint": "Point de terminaison MCP",
-    "token": "Jeton d’accès (facultatif, jusqu’au rechargement)",
+    "token": "Jeton d’accès (facultatif)",
     "connect": "Enregistrer et connecter",
     "disconnect": "Déconnecter",
     "remove": "Supprimer",
@@ -131,13 +149,16 @@ export const MCP_MESSAGES = {
     "connected": "Connecté · {count} outils",
     "active": "Activé · {count} outils",
     "empty": "Aucun outil disponible.",
-    "noDescription": "Aucune description."
+    "noDescription": "Aucune description.",
+    "tokenSaved": "Enregistré dans ce navigateur. Laissez vide pour le conserver.",
+    "tokenPlaceholder": "Collez un jeton d’accès",
+    "newServer": "Nouveau serveur MCP"
   },
   "es": {
     "settingsTitle": "Servidores MCP",
     "name": "Nombre",
     "endpoint": "Endpoint MCP",
-    "token": "Token de acceso (opcional, hasta recargar)",
+    "token": "Token de acceso (opcional)",
     "connect": "Guardar y conectar",
     "disconnect": "Desconectar",
     "remove": "Eliminar",
@@ -150,6 +171,9 @@ export const MCP_MESSAGES = {
     "connected": "Conectado · {count} herramientas",
     "active": "Activado · {count} herramientas",
     "empty": "No hay herramientas disponibles.",
-    "noDescription": "Sin descripción."
+    "noDescription": "Sin descripción.",
+    "tokenSaved": "Guardado en este navegador. Déjalo vacío para conservarlo.",
+    "tokenPlaceholder": "Pega un token de acceso",
+    "newServer": "Nuevo servidor MCP"
   }
 };

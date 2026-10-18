@@ -39,7 +39,7 @@ These are fixed source modules, not a runtime plugin/driver registry. LLM, Skill
 - Each target has an independent input state, encrypted/subscription state, lease, active segment and result receipts. Another target's release or Home is never broadcast.
 - An active lease can be renewed only by its same client and same lease ID. Another run under the same client cannot replace it. Cancellation/expiry fences retired IDs within the boot.
 
-NimBLE callbacks never wait on Core's mutex. They publish fixed peer/identity snapshots and read an atomic owner-opened pairing window. The main loop reconciles snapshots and persists new identity mappings only while input is idle. Stable identity/rebond behavior and actual two-phone operation remain hardware tests.
+NimBLE callbacks never wait on Core's mutex. They publish fixed peer/identity snapshots, including a late identity-resolution event. System Bluetooth pairing is independent of browser registration and has no hidden time window; the two-peer radio limit remains. Failed encryption disconnects promptly so a phone can retry. The main loop reconciles snapshots and persists new identity mappings only while input is idle. When bond storage fills, only an offline peer can be replaced. Missing offline bonds are reconciled with the application target table: durable mapping deletion precedes proof/grant revocation and Core slot reuse, and startup discards grant references to missing targets. New target IDs never inherit the previous phone's input proof. Stable identity/rebond behavior and actual two-phone operation remain hardware tests.
 
 ## Timing and frame synchronization
 

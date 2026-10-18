@@ -12,11 +12,11 @@ Connection readiness requires a successful identity round trip **while the local
 
 The transport permits only the fixed `/v1` GET/POST routes and four JSON/authentication headers, with bounded body sizes, pending requests, timeouts and cancellation. It verifies the exact window object, origin, connection nonce, helper instance and request ID. The browser still needs the device connection tab to remain open.
 
-The advanced Direct LAN option uses fetch with `targetAddressSpace: 'local'` for browsers that support it. The tested Safari 27.0.1 did not permit direct HTTP fetch/POST/WebSocket from the HTTPS site. The local-window foreground experiment and five GET/POST requests, including both-tabs-hidden requests during screen sharing, passed over about 21 seconds. This does not establish indefinite background operation or physical ESP32/HID behavior. See [the connection evidence](../research/ios-lan-probe20261018.json).
+The Safari UI always uses the local connection window; there is no alternative Direct LAN selector. The protocol client retains injectable fetch for tests and other trusted callers. The tested Safari 27.0.1 did not permit direct HTTP fetch/POST/WebSocket from the HTTPS site. The local-window foreground experiment and five GET/POST requests, including both-tabs-hidden requests during screen sharing, passed over about 21 seconds. This does not establish indefinite background operation or physical ESP32/HID behavior. See [the connection evidence](../research/ios-lan-probe20261018.json).
 
 ## Device pairing and saved connections
 
-The pairing code comes from the Wi-Fi setup page or USB setup information. The setup return link carries it in the URL fragment, which is removed on entry and never submitted to the website. Pairing returns a separate per-client token. Ordinary settings store only device address, stable client ID and device identity metadata; optional encrypted storage holds the token. Restoring it still requires a new phone-input test.
+The pairing code comes from the Wi-Fi setup page or USB setup information. The setup return link carries it in the URL fragment, which is removed on entry and never submitted to the website. Pairing returns a separate per-client token. Ordinary settings store only device address, stable client ID and device identity metadata; a separate browser-local credential record holds the token without an additional user password. Restoring it still requires a new phone-input test.
 
 For HTTP, the legacy `publicKeyFingerprint` field is a stable device identity label derived from the random owner code. It is **not a TLS or encrypted-channel claim**. The actual input target is checked through the phone's trusted keyboard events before control is enabled.
 
@@ -45,7 +45,7 @@ device.capabilities({signal})
 device.clockSync(3,{signal})
 device.pinIdentity(expectedFingerprint,{signal})
 device.pair({clientId?,setupPassword,expectedFingerprint?},{signal})
-device.exportCredentials()                    // private; encrypt before persisting
+device.exportCredentials()                    // private; store only in the local-credential record
 device.restoreCredentials(record)
 device.clearCredentials()                    // local forget, not remote release
 
@@ -114,7 +114,7 @@ Four new cross-module mock tests cover tap-before-oversized-swipe zero dispatch,
 
 Capability absence is not evidence of legacy firmware. Independent `claimLease() → submitSegment()` obtains `/v1/capabilities` whenever its cache is missing or expired, including a post-hash refresh if needed. A failed read stops before segment submission or input-state mutation. The 98,304-byte compatibility default applies only after a successful capability report lacks `maxRequestBytes`. R2's unchanged independent regression and two additional cache/discovery tests cover unknown, expired, failed and positively queried legacy cases.
 
-Chat never queries the input bridge: the core constructs `chatExecutionContext()` with all execution-verification flags false, unknown input and an unbound screen, without calling the injected live context, capture setup or device `endRun`. The app has the same early mode guard. Existing stored conversations and local Skill tools remain usable when a selected board is offline; this does not grant phone tools to Chat. A strict adapter-access test exercises two model rounds with a local Skill-list call.
+Chat never queries the input bridge: the core constructs `chatExecutionContext()` with all execution-verification flags false, unknown input and an unbound screen, without calling the injected live context, capture setup or device `endRun`. The app has the same early mode guard. Existing stored conversations remain readable offline. The application now requires a current device connection and completed input test before creating a conversation or sending a message, including Chat; this UI gate does not grant phone tools to the Chat runtime. A strict adapter-access test exercises two model rounds with a local Skill-list call.
 
 ## Screen-sharing stop boundary
 

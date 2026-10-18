@@ -21,7 +21,6 @@ class SecureService {
  Core& core_;Sink& sink_;Preferences& prefs_;SemaphoreHandle_t mutex_;String board_,boot_,host_,owner_,apPassword_,origin_;
  std::atomic<uint32_t>& wifiEpoch_;WifiJoinState wifiJoin_;String candidateNetwork_,candidateSsid_,candidatePassword_,candidateOrigin_,previousNetwork_;bool startCandidate_=false;
  WebServer ap_{80};httpd_handle_t http_=nullptr;std::atomic_bool maintenance_{false};Pki pki_;Admission auth_;bool apActive_=false,configComplete_=false,storageReady_=false;SetupDeadline setupDeadline_;uint64_t httpRetryAt_=0;
- std::atomic<uint32_t> pairingUntil_{0};std::atomic_bool pairingOpen_{false};
  uint64_t challengeNext_=0;size_t challengeEvent_=0;uint16_t challengeHandle_=InvalidHandle;
  static uint64_t now(){return esp_timer_get_time()/1000;}
  static String header(httpd_req_t* r,const char* key){size_t size=httpd_req_get_hdr_value_len(r,key);if(!size||size>512)return "";std::vector<char> data(size+1);if(httpd_req_get_hdr_value_str(r,key,data.data(),data.size())!=ESP_OK)return "";return data.data();}
@@ -95,7 +94,7 @@ class SecureService {
     Admission candidate=auth_;
     if(!candidate.install(client.c_str(),hash.c_str(),origin_.c_str()))return {409,"client_capacity"};
     if(!saveGrant(*candidate.client(client.c_str())))return {503,"credential_persistence_failed"};
-    auth_=std::move(candidate);pairingUntil_=(uint32_t)(now()+120000);pairingOpen_=true;
+    auth_=std::move(candidate);
     addIdentity(d);d["clientId"]=client;d["token"]=token;d["hostname"]=host_+".local";d["publicKeyFingerprint"]=pki_.caFingerprint;return {200,""};
    });
   }
@@ -207,7 +206,17 @@ class SecureService {
   JsonDocument network;network["ssid"]=ssid;network["password"]=wifiPassword;network["origin"]=origin;String stored;serializeJson(network,stored);previousNetwork_=prefs_.getString("network","");candidateNetwork_=stored;candidateSsid_=ssid;candidatePassword_=wifiPassword;candidateOrigin_=origin;startCandidate_=true;wifiJoin_.begin(now(),wifiEpoch_.load());return true;
  }
  public:
- bool pairingAllowed(){if(!pairingOpen_)return false;if((int32_t)(pairingUntil_.load()-(uint32_t)now())<=0){pairingOpen_=false;return false;}return true;}
+ // Caller holds Core's mutex and has durably removed this target's bond map.
+ // Preserve owner/client credentials; only the phone proof is revoked.
+ bool inputBusy()const{return auth_.typing(now());}
+ void forgetTarget(const std::string& target){
+  std::array<bool,MaxClients> changed{};size_t i=0;
+  for(const auto& grant:auth_.grants())changed[i++]=grant.active&&grant.targetId==target;
+  if(auth_.target()==target)challengeHandle_=InvalidHandle;auth_.forgetTarget(target);
+  i=0;for(const auto& grant:auth_.grants())if(changed[i++])saveGrant(grant);
+  // A failed grant write cannot resurrect proof after reboot: begin() rejects
+  // any target missing from the durable bond map, which was removed first.
+ }
  bool configureFromSerial(JsonDocument& input){
   if(!fields(input.as<JsonObjectConst>(),{"op","ssid","password","origin","unixTime"}))return false;
   if(!apActive_)openSetup();
@@ -221,7 +230,7 @@ class SecureService {
  SecureService(Core& core,Sink& sink,Preferences& prefs,SemaphoreHandle_t mutex,const String& board,const String& boot,const String& host,std::atomic<uint32_t>& wifiEpoch):core_(core),sink_(sink),prefs_(prefs),mutex_(mutex),board_(board),boot_(boot),host_(host),wifiEpoch_(wifiEpoch){}
  void begin(bool needsWifi){
   owner_=prefs_.getString("owner","");apPassword_=prefs_.getString("apPass","");origin_=prefs_.getString("origin","https://igent.cc");JsonDocument network;if(!deserializeJson(network,prefs_.getString("network","")))origin_=network["origin"]|"https://igent.cc";configComplete_=!needsWifi;if(owner_.isEmpty()){owner_=randomHex(32);prefs_.putString("owner",owner_);}if(apPassword_.isEmpty()){apPassword_=randomHex(12);prefs_.putString("apPass",apPassword_);}storageReady_=prefs_.getString("owner","")==owner_&&prefs_.getString("apPass","")==apPassword_;if(!storageReady_){Serial.println("{\"error\":\"ownership_storage_not_ready\"}");return;}pki_.caFingerprint=sha256Hex(owner_); // Stable board identity label, not a TLS certificate proof.
-  for(size_t i=0;i<MaxClients;i++){JsonDocument doc;auto text=prefs_.getString(("grant"+String(i)).c_str(),"");if(!deserializeJson(doc,text)){std::string id=doc["id"]|"",hash=doc["hash"]|"",origin=doc["origin"]|"",target=doc["target"]|"";if(auth_.install(id,hash,origin,target)&&!target.empty())core_.bindClient(id,target);}}
+  for(size_t i=0;i<MaxClients;i++){JsonDocument doc;auto text=prefs_.getString(("grant"+String(i)).c_str(),"");if(!deserializeJson(doc,text)){std::string id=doc["id"]|"",hash=doc["hash"]|"",origin=doc["origin"]|"",target=doc["target"]|"";if(!core_.target(target))target.clear();if(auth_.install(id,hash,origin,target)&&!target.empty())core_.bindClient(id,target);}}
   ap_.on("/",HTTP_GET,[this]{
    if(!apRequest()){ap_.send(403,"text/plain","Connect to this device's setup Wi-Fi first.");return;}
    ap_.sendHeader("Cache-Control","no-store");ap_.sendHeader("Content-Security-Policy","default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'");

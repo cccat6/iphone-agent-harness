@@ -1,6 +1,7 @@
 #pragma once
 // Optional development Wi-Fi only. Copy to config.local.h, which is ignored.
-// Production onboarding will use protected AP + physical pairing window.
+// Production onboarding uses the device Wi-Fi setup page. Bluetooth pairing is
+// available independently; phone-input verification authorizes browser control.
 #ifndef IAH_WIFI_SSID
 #define IAH_WIFI_SSID ""
 #endif

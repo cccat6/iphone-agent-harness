@@ -6,16 +6,16 @@ import {setLocale,SUPPORTED_LOCALES,localizeError} from '../../apps/web/i18n.js'
 import {MCP_MESSAGES} from '../../apps/web/locales/mcp.js';
 const one=(s,r=document)=>r.querySelector(s),check=(condition,label)=>{if(!condition)throw new Error(label);};
 one('#run').onclick=async()=>{
- let view;const previous=localStorage.getItem('iah.locale');
+ let view,store;const dbName='mcp-browser-persistence-'+crypto.randomUUID(),previous=localStorage.getItem('iah.locale');
  try{
-  const store=await openStore({memory:true}),calls=[];
-  const access=createMCPAccess({fetchImpl:async(url,options)=>{
+  store=await openStore({name:dbName});const calls=[];
+  const fetchImpl=async(url,options)=>{
    const rpc=JSON.parse(options.body),host=new URL(url).hostname;calls.push([host,rpc.method]);
    if(host==='unavailable.example')return new Response(null,{status:503});
    if(rpc.method==='notifications/initialized')return new Response(null,{status:202});
    const result=rpc.method==='initialize'?{protocolVersion:'2025-11-25'}:rpc.method==='tools/list'?{tools:[{name:'lookup',description:host,inputSchema:{type:'object',properties:{}}}]}:{content:[{type:'text',text:host}]};
    return Response.json({jsonrpc:'2.0',id:rpc.id,result});
-  }});
+  };const access=createMCPAccess({fetchImpl});
   view=createMCPSettings({access,store});view.mount(one('#mcp'));one('details').open=true;
   for(const name of ['Docs','Notes']){
    one('[data-mcp-add]').click();const card=[...document.querySelectorAll('[data-mcp-row]')].at(-1);
@@ -32,8 +32,15 @@ one('#run').onclick=async()=>{
   one('[data-mcp-endpoint]',defaultCard).value='https://unavailable.example/mcp';one('[data-mcp-endpoint]',defaultCard).dispatchEvent(new Event('input'));await one('[data-mcp-connect]',defaultCard).onclick();const count=calls.length;
   for(const {code} of SUPPORTED_LOCALES){setLocale(code);check(one('[data-mcp-status]',defaultCard).textContent===localizeError(Object.assign(new Error('MCP_CONNECTION_FAILED'),{code:'MCP_CONNECTION_FAILED'})),'live error locale '+code);}
   check(calls.length===count,'locale change does not reconnect');check((await access.listForModel()).tools[0].serverName==='Notes','failed third server leaves Notes enabled');
-  one('#result').textContent=JSON.stringify({passed:true,checks:['add-two','save-two','enable-two','call-each-with-same-tool-name','eight-locales-preserve-input','remove-one-preserves-other','derived-name-visible','connection-error-eight-locales-no-retry'],calls:calls.length},null,2);
+  const saved=await store.getSettings();view.disposeView();store.close();store=await openStore({name:dbName});
+  const restoredAccess=createMCPAccess({fetchImpl});view=createMCPSettings({access:restoredAccess,store});await view.restore({servers:saved.mcpServers});view.mount(one('#mcp'),{servers:saved.mcpServers});
+  one('#mcp > details').open=true;check([...document.querySelectorAll('[data-mcp-row]')].every(card=>!card.open),'restored servers are compact summaries');
+  check((await restoredAccess.listForModel()).tools[0].serverName==='Notes','fresh access instance restores enabled tools');
+  const notesCard=[...document.querySelectorAll('[data-mcp-row]')].find(card=>one('[data-mcp-title]',card).textContent==='Notes');notesCard.open=true;
+  check(one('[data-mcp-status]',notesCard).textContent.includes('1'),'restored summary shows tool count');
+  await one('[data-mcp-connect]',notesCard).onclick();check((await restoredAccess.listForModel()).tools[0].serverName==='Notes','blank token reconnect retains credential and selected tools');
+  one('#result').textContent=JSON.stringify({passed:true,checks:['add-two','save-two','enable-two','call-each-with-same-tool-name','eight-locales-preserve-input','remove-one-preserves-other','derived-name-visible','connection-error-eight-locales-no-retry','fresh-database-and-access-restore','compact-saved-server-summaries','blank-token-retains-credential-and-grants'],calls:calls.length},null,2);
  }catch(error){one('#result').textContent=JSON.stringify({passed:false,error:error.message},null,2);}
- finally{view?.disposeView();setLocale(previous||'auto');}
+ finally{view?.disposeView();store?.close();indexedDB.deleteDatabase(dbName);setLocale(previous||'auto');}
 };
 </script></body></html>

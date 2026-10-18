@@ -8,7 +8,7 @@ Open the website in Safari on an iPhone or iPad to see your sessions. The home b
 
 Open **Settings → Accounts or API → Add account or API**. For ChatGPT, select a ChatGPT account and follow the sign-in instructions. For an API, choose the OpenAI-compatible or Anthropic-compatible interface, enter the service’s **API endpoint** and key, load its model list, then save. You can also enter a model ID manually.
 
-Choose **New session**, select a model at the bottom and send a message. The model picker switches between accounts, APIs and models. **Chat** is for discussion, **Plan** for observation and planning, and **Task** for carrying out actions. Phone actions need a device connection and screen sharing; ordinary chat does not need an ESP32. Real ChatGPT subscription sign-in in Safari is still being verified.
+Choose **New session**, select a model at the bottom and send a message. The model picker switches between accounts, APIs and models. **Chat** is for discussion, **Plan** for observation and planning, and **Task** for carrying out actions. Connect your device and complete its input test before starting or sending in a session. Existing conversations remain readable while disconnected. Phone actions also need screen sharing. Real ChatGPT subscription sign-in in Safari is still being verified.
 
 ## Sessions and backups
 
@@ -39,8 +39,8 @@ The client supports Streamable HTTP. Access tokens stay in the current page’s 
 1. Install the current firmware from the desktop flashing page. Choose **Read device information** and keep the device Wi-Fi name/password and phone setup link.
 2. Connect your phone to the device Wi-Fi, open `http://192.168.4.1`, and enter your home Wi-Fi name and password. Wait for the page to confirm the connection, then switch back to your home Wi-Fi. Incorrect details can be retried on that page.
 3. Open the setup link on your phone and choose **Connect**. When the device connection tab opens, return to Harness and **keep the device connection tab open**. No certificate installation is needed.
-4. Pair with **iPhone Agent** in Bluetooth settings. Return to Harness, select this phone and start the input test. The device enters eight digits automatically; confirm once they arrive.
-5. Enable AssistiveTouch and turn off Full Keyboard Access. Return to Harness, check both boxes confirming these settings, then start screen sharing. You can then use Task mode for phone actions.
+4. Pair with **iPhone Agent Bridge** in Bluetooth settings. Return to Harness, select this phone and start the input test. The device enters eight digits automatically; confirm once they arrive.
+5. Enable AssistiveTouch using the setup guide, then return to Harness and start screen sharing. Full Keyboard Access does not need to be turned off; there are no confirmation checkboxes. You can then use Task mode for phone actions.
 
 Commands travel between the phone and ESP32 over the local network; the website server does not forward them. Closing the device connection tab disconnects it. After reconnecting, repeat the phone input test.
 

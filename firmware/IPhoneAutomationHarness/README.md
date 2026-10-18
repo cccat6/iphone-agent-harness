@@ -25,8 +25,8 @@ The development Mac needs `--build-property tools.ctags.cmd.path=/usr/bin/true` 
 2. On the phone, connect to the device Wi-Fi, open `http://192.168.4.1`, and enter the name/password of your 2.4 GHz home Wi-Fi. The board connects itself; no computer Wi-Fi change is needed.
 3. Switch back to home Wi-Fi and use the return link. The board starts its local HTTP API on port 80. No certificate installation is needed.
 4. In Harness, tap **Connect**. The device connection tab opens. Switch back to Harness and keep that tab open; connection is reported only after it answers a request while hidden.
-5. Pair **iPhone Agent** in Bluetooth settings, enable AssistiveTouch, and turn off Full Keyboard Access. The initial browser pairing opens a two-minute Bluetooth pairing window.
-6. Run the phone-input test. The board automatically types eight digits into the focused field. Confirm the result before starting screen sharing and a task.
+5. Pair **iPhone Agent Bridge** in Bluetooth settings and enable AssistiveTouch. Full Keyboard Access may remain on or off. Bluetooth pairing works before connecting the webpage and has no browser-triggered time limit.
+6. Run the connection test. The board automatically types eight digits into the focused field. Confirm the result before starting screen sharing and a task.
 
 Direct LAN fetch remains an advanced option for compatible browsers. The tested Safari 27.0.1 blocked direct HTTP/WS from the public HTTPS page. Local-window foreground GET/POST succeeded, but five GET/POST requests including both-tabs-hidden requests during screen sharing subsequently passed over about 21 seconds. Current physical firmware/HID control still needs separate validation. See [connection evidence](../../docs/research/ios-lan-probe20261018.json).
 
@@ -64,7 +64,7 @@ Client tokens are separate random values. NVS stores their hashes. Each browser 
 
 ## Resources and scheduling
 
-The supported configuration has two BLE connections/bonds, eight registered network clients, two HTTP socket sessions and one writer lease per phone. HTTP handlers run sequentially. Per-phone input schedules remain independent and address the exact current Bluetooth connection handle and generation.
+The supported configuration has two BLE connections/bonds, eight registered network clients, two HTTP socket sessions and one writer lease per phone. An additional phone can replace an offline saved phone; connected phones are never evicted to make room. The replacement needs its own connection test. HTTP handlers run sequentially. Per-phone input schedules remain independent and address the exact current Bluetooth connection handle and generation.
 
 The HTTP handler and Arduino loop each use an 8 KB stack. Network receive/JSON/hash work does not hold the short Core mutex. NimBLE callbacks publish bounded snapshots and never wait for that mutex. Normal setup generates no CA and runs no TLS listener.
 
