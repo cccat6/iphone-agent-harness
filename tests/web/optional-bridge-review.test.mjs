@@ -19,6 +19,6 @@ for(const scenario of ['expired','protected','denied','different-board','still-e
  assert.equal(panel.getState().connected,true,'expired local token should not permanently block a code-free reconnect');
  assert.equal(calls.filter(path=>path==='/v1/pair').length,1,'retry enrollment once only');
  assert.equal((await store.getLocalCredential('device:'+baseUrl)).token,'replacement-token-abcdefghijkl');
- }else{assert.equal(panel.getState().connected,false);assert.equal(calls.filter(path=>path==='/v1/pair').length,scenario==='still-expired'?1:0);if(scenario==='protected'){assert.equal(field('[data-configuration]').open,true);assert.equal(document.activeElement,field('[data-owner-password]'));}}
+ }else{assert.equal(panel.getState().connected,false);assert.equal(calls.filter(path=>path==='/v1/pair').length,scenario==='still-expired'?1:0);}
  assert.equal(panel.getState().inputVerified,false,'re-enrollment never substitutes for phone input test');
 });

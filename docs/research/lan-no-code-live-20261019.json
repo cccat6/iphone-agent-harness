@@ -1,0 +1,52 @@
+{
+  "checkedAt": "2026-10-18T17:48:37.995Z",
+  "scope": "Real C3 HTTP enrollment and settings; fixed hostname resolved through last USB-observed IP; no phone input or browser/Safari acceptance.",
+  "checks": [
+    {
+      "name": "fixed-host-and-no-code",
+      "passed": true
+    },
+    {
+      "name": "client-id-only-enrollment",
+      "passed": true
+    },
+    {
+      "name": "settings-no-code-fields",
+      "passed": true
+    },
+    {
+      "name": "legacy-enable-flag-ignored",
+      "passed": true
+    },
+    {
+      "name": "legacy-password-ignored",
+      "passed": true
+    },
+    {
+      "name": "browser-token-still-required",
+      "passed": true
+    },
+    {
+      "name": "production-client-lists-phones",
+      "passed": true,
+      "connectedPhones": 0
+    },
+    {
+      "name": "input-test-still-required",
+      "passed": true
+    },
+    {
+      "name": "actual-helper-has-recovery-and-tab-instructions",
+      "passed": true
+    },
+    {
+      "name": "actual-settings-no-code-control",
+      "passed": true
+    },
+    {
+      "name": "final-state-no-code-same-boot",
+      "passed": true
+    }
+  ],
+  "passed": true
+}

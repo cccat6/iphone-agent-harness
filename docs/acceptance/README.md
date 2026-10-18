@@ -34,15 +34,15 @@ Create your own skill manually or ask the Harness to help write and revise it. Y
 
 Under **Settings → MCP servers**, add a server, enter its name, MCP endpoint and optional access token, then choose **Save and connect**. Select the tools you want and enable them. You can add multiple servers and use their tools in Task mode.
 
-The client supports Streamable HTTP. Access tokens stay in the current page’s memory and must be entered again after a reload.
+The client supports Streamable HTTP. Servers, access tokens and tool selections are saved in this browser and reconnect after a reload. Expand a server to edit it; disconnecting retains its settings, while deleting it removes its saved credentials.
 
 ## Phone and ESP32 connection
 
-The default bridge address is **http://igent.local**, and a connection code is off by default. Harness fills the address automatically. Tap **Connect ESP32 bridge** to open its local connection tab, then return to Harness and keep that tab open. An existing live browser connection does not need this step again.
+The default bridge address is **http://igent.local**, and no connection code is used. Harness fills the address automatically. Tap **Connect ESP32 bridge** to open its local connection tab, then use Safari’s tab switcher to return to the original Harness tab and keep the local connection tab open. An existing live browser connection does not need this step again.
 
 A bridge already on your home Wi-Fi needs no provisioning. Only a new unconfigured board needs the optional first-time Wi-Fi guide. System Bluetooth pairing is separate from the webpage's network connection; once the webpage connects, it can read the phone list and run the input test.
 
-Saved connection details are reused. **Add or change bridge** is optional, for a custom address or a bridge that has explicitly enabled a code. Open **http://igent.local/settings** (or the custom address) to change the local hostname or enable/disable a connection code. Changing the hostname restarts the idle bridge and provides its new address. Multiple bridges can use distinct custom names.
+Saved connection details are reused. **Add or change bridge** is optional, for a custom address. Open **http://igent.local/settings** (or the custom address) to change the local hostname. Changing the hostname restarts the idle bridge and provides its new address. Multiple bridges can use distinct custom names.
 
 Pair the phone with **iPhone Agent Bridge**, run the eight-digit input test and confirm it, then enable AssistiveTouch and share the screen. Full Keyboard Access need not be disabled.
 

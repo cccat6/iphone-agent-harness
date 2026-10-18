@@ -4,9 +4,6 @@
 #ifndef IAH_HOSTNAME
 #define IAH_HOSTNAME "igent"
 #endif
-#ifndef IAH_PAIRING_CODE_REQUIRED
-#define IAH_PAIRING_CODE_REQUIRED false
-#endif
 namespace iah {
 inline bool validBridgeHostname(const std::string& name){
  if(name.empty()||name.size()>63||name.front()=='-'||name.back()=='-')return false;
@@ -15,13 +12,22 @@ inline bool validBridgeHostname(const std::string& name){
 }
 struct BridgeSettings {
  std::string hostname=validBridgeHostname(IAH_HOSTNAME)?IAH_HOSTNAME:"igent";
- bool pairingCodeRequired=IAH_PAIRING_CODE_REQUIRED;
 };
+// Enrollment accepts the legacy setupPassword field without using it.
+inline bool validBridgeEnrollment(JsonObjectConst doc){
+ for(JsonPairConst pair:doc)if(std::string(pair.key().c_str())!="clientId"&&std::string(pair.key().c_str())!="setupPassword")return false;
+ return doc["clientId"].is<const char*>();
+}
+// Old settings may include pairingCodeRequired. It is deliberately ignored.
+inline bool validBridgeSettingsUpdate(JsonObjectConst doc){
+ for(JsonPairConst pair:doc)if(std::string(pair.key().c_str())!="hostname"&&std::string(pair.key().c_str())!="pairingCodeRequired")return false;
+ return doc["hostname"].is<const char*>()&&validBridgeHostname(doc["hostname"].as<const char*>());
+}
 inline BridgeSettings readBridgeSettings(const std::string& text){
  BridgeSettings settings;JsonDocument doc;
- if(!deserializeJson(doc,text)&&doc["hostname"].is<const char*>()&&doc["pairingCodeRequired"].is<bool>()){
+ if(!deserializeJson(doc,text)&&doc["hostname"].is<const char*>()){
   std::string hostname=doc["hostname"].as<const char*>();
-  if(validBridgeHostname(hostname)){settings.hostname=hostname;settings.pairingCodeRequired=doc["pairingCodeRequired"].as<bool>();}
+  if(validBridgeHostname(hostname)){settings.hostname=hostname;}
  }
  return settings;
 }

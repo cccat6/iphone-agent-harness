@@ -2,9 +2,9 @@
 
 `manifest.json` is generated from successful real Arduino builds. Every part records its original flash offset, byte size and SHA-256; paths are relative to the manifest URL for GitHub Pages, Cloudflare and self-hosted static deployments.
 
-Version **0.3.0-lan-http** provides local Wi-Fi setup, HTTP control and the `/harness-link` connection window. The default bridge address is **http://igent.local**, with the connection code disabled (`pairingCodeRequired:false`). Open **http://igent.local/settings** to change the hostname or enable a connection code; use the saved hostname instead if it has been changed. Normal onboarding does not install a CA certificate, and website servers do not forward control commands. The Bluetooth name is **iPhone Agent Bridge**. Client enrollment, per-client tokens, phone input verification, writer leases and timed segments remain in place. Bluetooth pairing no longer depends on a hidden two-minute web enrollment window; obsolete, unregistered bonds can be reclaimed when the bond store is full.
+Version **0.3.0-lan-http** provides local Wi-Fi setup, HTTP control and the `/harness-link` connection window. The default bridge address is **http://igent.local**. Connecting does not use a connection code; the legacy `pairingCodeRequired` compatibility field is always `false`. Open **http://igent.local/settings** to change the hostname; use the saved hostname instead if it has been changed. Normal onboarding does not install a CA certificate, and website servers do not forward control commands. The Bluetooth name is **iPhone Agent Bridge**. Client enrollment, per-client tokens, phone input verification, writer leases and timed segments remain in place. Bluetooth pairing no longer depends on a hidden two-minute web enrollment window; obsolete, unregistered bonds can be reclaimed when the bond store is full.
 
-The browser-side local-window test passed five read-only GET/POST requests, including both-tabs-hidden requests during screen sharing, on Safari 27.0.1. `physicalValidation:false` remains correct: that browser transport test did not establish this firmware’s complete phone-control loop. The latest C3 default-address and optional-code candidate, including idle settings saves and code-free Wi-Fi return links, is undergoing separate physical readback; no successful phone pairing or input result is inferred from compilation. See [phone transport evidence](../../../docs/research/ios-lan-probe20261018.json).
+The browser-side local-window test passed five read-only GET/POST requests, including both-tabs-hidden requests during screen sharing, on Safari 27.0.1. `physicalValidation:false` remains correct: that browser transport test did not establish this firmware’s complete phone-control loop. The latest C3 code-free candidate also restores the local-window handshake when Safari does not expose `window.opener`, while preserving the connection nonce and return instructions. It is undergoing separate physical readback; no successful phone pairing or input result is inferred from compilation. See [phone transport evidence](../../../docs/research/ios-lan-probe20261018.json).
 
 ## Hardware profiles
 
@@ -19,14 +19,14 @@ Chip-name labels stay untranslated (`ESP32-C3`, `ESP32-S3`, `ESP32-C6`, `ESP32`)
 
 ## Current compiled artifacts
 
-All four profiles were compiled from the same 18-file source SHA-256 `8b8453917df57e1103c910f23847065cd0387ee90a1b9beee893f1371d0b38ee` with the pinned dependencies below. The verified C3 candidate was reused byte for byte; S3, C6 and ESP32 were rebuilt from those identical source files. `profileBuiltAt` records each build date. No serial port was opened by this build.
+All four profiles were compiled from the same 18-file source SHA-256 `db8b9b0b54e247ebb3eea13712fe85df2fcb8e002fabc3a3f37b9fdfa1ff3732` with the pinned dependencies below. C3 was compiled first for physical readback, then its exact binaries were included alongside S3, C6 and ESP32 builds from those identical source files. `profileBuiltAt` records each build date. No serial port was opened by this build.
 
 | Profile | Application bytes | Application SHA-256 |
 |---|---:|---|
-| ESP32-C3 | 1,430,128 | `f3680b68dcc48f2692fda122e73ab71d3d1b8b1b462bec198b40e0f21be99a57` |
-| ESP32-S3 | 1,287,744 | `06d24873a679fa092950989779d3ca0c479ec5cb81998d3ca23558e50599c5c7` |
-| ESP32-C6 | 1,591,440 | `6dea422a4e72e560ebd4a5cd8a1f2b48e45d247e2574e9d644585cdd874a7e7a` |
-| ESP32 | 1,364,128 | `e7ff8e5075446c835b52b43bfa682decd30a18c8a7aecc7b1a2648b4739c6dcf` |
+| ESP32-C3 | 1,430,544 | `db7cb27559ede41510bd6d8406c626f5f158612d1b8fe8e2f6b82fbbec912d4b` |
+| ESP32-S3 | 1,288,368 | `3122b92b429efc4c570cfcc2b4deddfe0c8c4d8679c53cf6b090a45e4444e1e7` |
+| ESP32-C6 | 1,591,856 | `a97e7dd1e9a9967bb491aad4af4d8fbcc1c6428f4c248e24685a07f4b327f784` |
+| ESP32 | 1,364,704 | `901edfb444f88a9be5ebadcfd40080f94d36f013938a587a8731e67cee0b9f72` |
 
 The previous 0.2 firmware's CA-verified C3 test remains historical evidence; it is not physical acceptance of this version.
 
@@ -69,4 +69,4 @@ For repeat builds, `--work-dir /absolute/dedicated/cache` retains compiler artif
 
 C3/S3/C6 use MSYS pools 8/8. The classic ESP32 SDK omits the second pool size, so that target preserves its disabled second pool (8/0) rather than enabling an undefined allocation; its physical two-phone throughput remains unverified. Effective values are available in USB diagnostics.
 
-The preceding Bluetooth-pairing-fix C3 candidate was flashed to the authorized test board on 2026-10-18 with all four segment checks passing. Wi-Fi recovered, and nine actual HTTP checks passed; see [new C3 report](../../../docs/research/device-bridge-pairing-live-20261018.json). That record is historical evidence for the preceding candidate, not physical acceptance of the current default-address and optional-code build. Bluetooth pairing and phone paste are not inferred from those HTTP checks.
+The preceding Bluetooth-pairing-fix C3 candidate was flashed to the authorized test board on 2026-10-18 with all four segment checks passing. Wi-Fi recovered, and nine actual HTTP checks passed; see [new C3 report](../../../docs/research/device-bridge-pairing-live-20261018.json). That record is historical evidence for the preceding candidate, not physical acceptance of the current code-free and Safari-handshake build. Bluetooth pairing and phone paste are not inferred from those HTTP checks.

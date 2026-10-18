@@ -114,10 +114,10 @@ Pointer cleanup uses host-owned last-submitted coordinates scoped to the same pe
 
 C3/S3/C6 use MSYS pools 8/8. The classic ESP32 SDK omits the second pool size, so that target preserves its disabled second pool (8/0) rather than enabling an undefined allocation; its physical two-phone throughput remains unverified. Effective values are available in USB diagnostics.
 
-## Default address and optional connection code
+## Fixed address and code-free enrollment
 
-The current default mDNS name is `igent.local`, with the connection code disabled. `/v1/identity` exposes `pairingCodeRequired`. The existing `/v1/pair` request retains a `setupPassword` field but accepts an empty string by default; when explicitly enabled, missing and incorrect codes return distinct 403 reasons. Browser tokens and phone input verification remain separate requirements.
+The default mDNS name is `igent.local`. Connection codes have been removed. `/v1/pair` accepts `clientId` alone; an old `setupPassword` field is accepted but ignored. Identity and USB compatibility flags always report `pairingCodeRequired:false`. Browser tokens and phone input verification remain separate requirements.
 
-The device serves its local management page at `/settings` and `/`. An enrolled browser uses Bearer-authenticated GET/POST `/v1/settings` to inspect or change `{hostname,pairingCodeRequired}`. Only an authenticated response exposes the generated code when enabled. A changed hostname is persisted and returned as `newURL`, then the idle bridge restarts. Active input, valid leases and connected unresolved releases prevent settings mutation; empty target slots or offline release flags do not.
+The local device manager at `/settings` and `/` edits only hostname. Its authenticated GET/POST `/v1/settings` never returns a connection code. Old configuration flags are ignored; new saved records contain hostname only. Changing hostname restarts the idle bridge after returning the new address.
 
-Default no-code USB and AP return links omit owner credentials. `IAH_HOSTNAME` and `IAH_PAIRING_CODE_REQUIRED` provide compile-time defaults; saved local management settings override them. The optional Wi-Fi setup page keeps its internal owner field for its existing AP-only configuration protocol, without making the user enter a code.
+New USB and AP return links omit owner credentials. The AP Wi-Fi configuration protocol retains an internal embedded owner value, without exposing a user-facing connection code or using it for browser enrollment.

@@ -16,10 +16,7 @@
 #define IAH_HTTP_PORT 80
 #endif
 
-// Defaults for a single bridge on the local network. /settings can override both.
+// Default local name for a single bridge. /settings can change the name.
 #ifndef IAH_HOSTNAME
 #define IAH_HOSTNAME "igent"
-#endif
-#ifndef IAH_PAIRING_CODE_REQUIRED
-#define IAH_PAIRING_CODE_REQUIRED false
 #endif

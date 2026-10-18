@@ -23,7 +23,7 @@ test('each connection opens a unique window name, never reuses a hash-only orpha
 });
 test('wrong source, origin, nonce and reloaded helper do not authorize requests',async t=>{
  const f=fixture(t),opening=f.bridge.open();opening.catch(()=>{});
- const event=new Event('message');Object.assign(event,{source:f.child,origin:'http://other.local',data:{type:'iah-lan-ready',nonce:f.bridge.nonce,instance}});f.win.dispatchEvent(event);await tick();assert.equal(f.messages.length,0);
+ const event=new Event('message');Object.assign(event,{source:f.child,origin:'http://other.local',data:{type:'iah-lan-ready',nonce:f.bridge.nonce,instance}});f.win.dispatchEvent(event);await tick();assert.equal(f.messages.filter(m=>m.type!=='iah-lan-connect').length,0);
  f.hidden=true;f.ready();await opening;f.receive({type:'iah-lan-ready',nonce:f.bridge.nonce,instance:'b'.repeat(32)});assert.equal(f.bridge.closed,true);await assert.rejects(f.bridge.fetch(baseUrl+'/v1/identity'),{code:'DEVICE_WINDOW_NOT_READY'});
 });
 test('closed or timed-out helper never silently replays a mutation',async t=>{

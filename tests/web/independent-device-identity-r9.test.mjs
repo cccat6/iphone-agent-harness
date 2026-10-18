@@ -22,7 +22,7 @@ function panelFixture(t,store,clientFactory){
  const holder={querySelector:()=>root,contains:element=>element===root};
  patch(t,'document',{documentElement:{},querySelector:()=>({}),createElement:()=>({}),head:{append(){}}});
  const panel=createDevicePanel({store,clientFactory,capture:{active:false},openPanel(){},getPanelRoot:()=>holder});
- const fill=()=>{field('[data-address]').value=endpoint;field('[data-fingerprint]').value=fingerprint;field('[data-pin-confirmed]').checked=true;field('[data-owner-password]').value='synthetic-owner-r9';};
+ const fill=()=>{field('[data-address]').value=endpoint;field('[data-fingerprint]').value=fingerprint;field('[data-pin-confirmed]').checked=true;};
  t.after(()=>panel.dispose());return {panel,field,fill};
 }
 
@@ -41,11 +41,11 @@ test('independent R9: closing the panel during local ID allocation prevents owne
  const store=await openStore({memory:true}),entered=deferred(),allocated=deferred();let factories=0;
  store.ensureDeviceClientId=async()=>{entered.resolve();return allocated.promise;};
  const f=panelFixture(t,store,()=>{factories++;throw new Error('must not create a network client');});await f.panel.open();f.fill();
- const pending=f.field('[data-pair]').onclick();await entered.promise;assert.equal(f.field('[data-owner-password]').value,'');f.panel.dispose();allocated.resolve('existing-public-id');await pending;
+ const pending=f.field('[data-pair]').onclick();await entered.promise;f.panel.dispose();allocated.resolve('existing-public-id');await pending;
  assert.equal(factories,0);assert.equal(f.panel.getDevice(),null);assert.equal((await store.getSettings()).deviceEndpoint,undefined);
 });
 
-for(const preexisting of [false,true])test(`independent R9: saved local credential ${preexisting?'respects an existing ID':'keeps a stable ID'} on explicit owner re-enrollment`,async t=>{
+for(const preexisting of [false,true])test(`independent R9: saved local credential ${preexisting?'respects an existing ID':'keeps a stable ID'} after clearing the saved credential`,async t=>{
  const store=await openStore({memory:true}),legacyId='restored-r9-client',storedId=preexisting?await store.ensureDeviceClientId(endpoint):null;
  const record={format:'iah-device-credential/1',baseUrl:endpoint,expectedFingerprint:fingerprint,publicKeyFingerprint:fingerprint,boardId:'board-r9',clientId:legacyId,token:'legacy-token-r9-1234567890',hostname:'identity-r9.local'};
  await store.saveLocalCredential('device:'+endpoint,record);
@@ -56,9 +56,9 @@ for(const preexisting of [false,true])test(`independent R9: saved local credenti
   assert.equal(url.pathname,'/v1/binding');const owner=options.headers.Authorization.includes('legacy-token')?legacyId:pairs.at(-1).clientId;
   return Response.json({...identity,clientId:owner,bindingVerified:false,targetId:null,targets:[]});
  };
- const f=panelFixture(t,store,options=>{const client=new DeviceClient({...options,fetchImpl});clients.push(client);return client;});await f.panel.open();f.fill();f.field('[data-owner-password]').value='';
+ const f=panelFixture(t,store,options=>{const client=new DeviceClient({...options,fetchImpl});clients.push(client);return client;});await f.panel.open();f.fill();
  await f.field('[data-pair]').onclick();assert.equal(clients.length,1);assert.equal(clients[0].clientId,legacyId);assert.equal(f.panel.getDevice(),null);
- const retainedId=await store.ensureDeviceClientId(endpoint);f.field('[data-owner-password]').value='synthetic-owner-r9';await f.field('[data-pair]').onclick();assert.equal(pairs.length,1);assert.equal(pairs[0].clientId,storedId||retainedId);assert.equal(await store.ensureDeviceClientId(endpoint),storedId||retainedId);assert.equal(clients[1].bindingVerified,false);assert.equal(f.panel.getDevice(),null);
+ const retainedId=await store.ensureDeviceClientId(endpoint);await store.deleteLocalCredential('device:'+endpoint);await f.field('[data-pair]').onclick();assert.equal(pairs.length,1);assert.equal(pairs[0].clientId,storedId||retainedId);assert.equal(await store.ensureDeviceClientId(endpoint),storedId||retainedId);assert.equal(clients[1].bindingVerified,false);assert.equal(f.panel.getDevice(),null);
  const settings=await store.getSettings();assert.equal((await store.getLocalCredential('device:'+endpoint)).token,'fresh-token-r9-1234567890');assert.equal(settings.deviceEndpoint,endpoint);assert.equal(JSON.stringify(settings).includes(record.token),false);assert.equal(JSON.stringify(settings).includes('synthetic-owner-r9'),false);
 });
 

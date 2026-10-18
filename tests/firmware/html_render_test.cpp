@@ -13,12 +13,16 @@ static size_t count(const std::string& text,const std::string& needle){size_t n=
 static void completePage(const std::string& page){assert(page.rfind("<!doctype html>",0)==0);assert(count(page,"<script>")==1);assert(count(page,"</script>")==1);}
 static void roundTrip(const std::string& page,const std::string& marker,const std::string& expected){auto start=page.find(marker);assert(start!=std::string::npos);start+=marker.size();auto end=page.find(';',start);assert(end!=std::string::npos);JsonDocument doc;assert(!deserializeJson(doc,page.substr(start,end-start)));assert(doc.as<std::string>()==expected);}
 int main(int argc,char** argv){
- const auto defaults=iah::readBridgeSettings("");assert(defaults.hostname=="igent"&&!defaults.pairingCodeRequired);
- const auto changed=iah::readBridgeSettings(R"({"hostname":"my-bridge","pairingCodeRequired":true})");assert(changed.hostname=="my-bridge"&&changed.pairingCodeRequired);
+ for(const auto& value:{R"({"clientId":"web-test"})",R"({"clientId":"web-test","setupPassword":"old-code"})"}){JsonDocument doc;assert(!deserializeJson(doc,value));assert(iah::validBridgeEnrollment(doc.as<JsonObjectConst>()));}
+ for(const auto& value:{R"({"setupPassword":"old-code"})",R"({"clientId":"web-test","unexpected":true})",R"({"clientId":42})"}){JsonDocument doc;assert(!deserializeJson(doc,value));assert(!iah::validBridgeEnrollment(doc.as<JsonObjectConst>()));}
+ const auto defaults=iah::readBridgeSettings("");assert(defaults.hostname=="igent");
+ const auto changed=iah::readBridgeSettings(R"({"hostname":"my-bridge","pairingCodeRequired":true})");assert(changed.hostname=="my-bridge");
  for(const auto& value:{"", "-x", "x-", "UPPER", "a.b", "a/b", "https:x"})assert(!iah::validBridgeHostname(value));
  assert(!iah::validBridgeHostname(std::string(64,'a')));assert(iah::validBridgeHostname(std::string(63,'a')));
- for(const auto& value:{"{", "{}", R"({"hostname":"evil.local","pairingCodeRequired":true})", R"({"hostname":"ok","pairingCodeRequired":"false"})"}){const auto fallback=iah::readBridgeSettings(value);assert(fallback.hostname=="igent"&&!fallback.pairingCodeRequired);}
- std::string settings=iah::renderBridgeSettingsPage();completePage(settings);assert(settings.find("/v1/settings")!=std::string::npos);
+ for(const auto& value:{"{", "{}", R"({"hostname":"evil.local","pairingCodeRequired":true})"}){const auto fallback=iah::readBridgeSettings(value);assert(fallback.hostname=="igent");}
+ for(const auto& value:{R"({"hostname":"my-bridge"})",R"({"hostname":"my-bridge","pairingCodeRequired":true})",R"({"hostname":"my-bridge","pairingCodeRequired":false})"}){JsonDocument doc;assert(!deserializeJson(doc,value));assert(iah::validBridgeSettingsUpdate(doc.as<JsonObjectConst>()));assert(iah::readBridgeSettings(value).hostname=="my-bridge");}
+ for(const auto& value:{R"({"hostname":"evil.local"})",R"({"hostname":"ok","unknown":true})",R"({"pairingCodeRequired":true})"}){JsonDocument doc;assert(!deserializeJson(doc,value));assert(!iah::validBridgeSettingsUpdate(doc.as<JsonObjectConst>()));}
+ std::string settings=iah::renderBridgeSettingsPage();assert(settings.find("pairingCodeRequired")==std::string::npos);assert(settings.find("connectionCode")==std::string::npos);assert(settings.find("setupPassword")==std::string::npos);assert(settings.find("checkbox")==std::string::npos);completePage(settings);assert(settings.find("/v1/settings")!=std::string::npos);
  // Reproduce the actual ArduinoJson 7 destination replacement that caused the board bug.
  JsonDocument value;value.set("https://igent.cc");std::string broken="<!doctype html><script>const harnessOrigin=";serializeJson(value,broken);assert(broken=="\"https://igent.cc\"");
  auto helper=iah::renderLanBridgePage(std::string("https://igent.cc"));completePage(helper);assert(helper.find("id=\"back\"")!=std::string::npos);roundTrip(helper,"const harnessOrigin=","https://igent.cc");

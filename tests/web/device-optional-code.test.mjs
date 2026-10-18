@@ -14,27 +14,29 @@ function fixture(required=false,{serverCode}={}){
  }});return {client,requests};
 }
 test('default local bridge enrollment needs no connection code and grants no phone proof',async()=>{
- const f=fixture();await f.client.pair({clientId:'browser-a'});
+ const f=fixture();await f.client.pair({clientId:'browser-a',setupPassword:'ignored-legacy-secret'});
  assert.equal(f.requests.find(x=>x.path==='/v1/pair').body.setupPassword,'');assert.equal(f.client.paired,true);assert.equal(f.client.identityVerified,true);assert.equal(f.client.bindingVerified,false);
 });
-test('enabled connection code is requested before enrollment POST',async()=>{
- const f=fixture(true);await assert.rejects(f.client.pair({clientId:'browser-a'}),{code:'DEVICE_CONNECTION_CODE_REQUIRED'});assert.ok(!f.requests.some(x=>x.path==='/v1/pair'));
- await f.client.pair({clientId:'browser-a',setupPassword:'correct-test-code'});assert.equal(f.client.paired,true);
+test('legacy protected firmware requires an update, never requests a user secret',async()=>{
+ for(const setupPassword of ['', 'obsolete-saved-secret']){const f=fixture(true);await assert.rejects(f.client.pair({clientId:'browser-a',setupPassword}),{code:'DEVICE_SETUP_UPGRADE_REQUIRED'});assert.ok(!f.requests.some(x=>x.path==='/v1/pair'));}
 });
-test('a code enabled after identity, or an incorrect code, retains actionable server reason',async()=>{
- for(const [serverCode,expected] of [['connection_code_required','DEVICE_CONNECTION_CODE_REQUIRED'],['connection_code_invalid','DEVICE_CONNECTION_CODE_INVALID']]){
-  const f=fixture(false,{serverCode});await assert.rejects(f.client.pair({clientId:'browser-a',setupPassword:serverCode.endsWith('invalid')?'wrong':''}),{code:expected});assert.equal(f.client.paired,false);
+test('legacy code errors request firmware update and never send supplied secrets',async()=>{
+ for(const serverCode of ['connection_code_required','connection_code_invalid']){
+  const f=fixture(false,{serverCode});await assert.rejects(f.client.pair({clientId:'browser-a',setupPassword:'obsolete-saved-secret'}),{code:'DEVICE_SETUP_UPGRADE_REQUIRED'});assert.equal(f.client.paired,false);assert.equal(f.requests.find(x=>x.path==='/v1/pair').body.setupPassword,'');
  }
 });
-test('optional-code setup links carry no owner secret and old protected links remain supported',()=>{
- const info={httpUrl:'http://igent.local',boardId:'board-a',pairingCodeRequired:false,setupPassword:'must-not-be-exported'};
+test('setup links never export or import enrollment secrets, including old links',()=>{
+ for(const pairingCodeRequired of [undefined,false,true]){
+ const info={httpUrl:'http://igent.local',boardId:'board-a',pairingCodeRequired,setupPassword:'must-not-be-exported'};
  const link=createDeviceSetupLink(info),raw=JSON.parse(atob(new URL(link).hash.slice(8).replaceAll('-','+').replaceAll('_','/')));
- assert.equal(raw.owner,undefined);assert.equal(parseDeviceSetupLink(link).setupPassword,'');
- assert.equal(parseDeviceSetupLink(createDeviceSetupLink({...info,pairingCodeRequired:true,setupPassword:'x'.repeat(32)})).setupPassword,'x'.repeat(32));
+ assert.equal(raw.owner,undefined);assert.equal(raw.setupPassword,undefined);assert.equal(parseDeviceSetupLink(link).setupPassword,undefined);
+ }
+ const legacy='https://igent.cc/#device='+btoa(JSON.stringify({v:1,url:'http://igent.local',id:'board-a',owner:'old-owner-secret-1234'})).replaceAll('+','-').replaceAll('/','_').replace(/=+$/,'');
+ assert.deepEqual(parseDeviceSetupLink(legacy),{baseUrl:'http://igent.local',boardId:'board-a'});
 });
-
-test('USB setup accepts an empty code only when the bridge explicitly disabled it',()=>{
- const info={format:'iah-setup/1',boardId:'board-a',hostname:'igent.local',httpUrl:'http://igent.local',apSsid:'test-setup',apPassword:'test-wifi-password',setupPassword:'',pairingCodeRequired:false,caReady:false,publicKeyFingerprint:'a'.repeat(64)};
- assert.equal(parseDeviceSetupLine('IAH_SETUP '+JSON.stringify(info)).pairingCodeRequired,false);
- assert.throws(()=>parseDeviceSetupLine('IAH_SETUP '+JSON.stringify({...info,pairingCodeRequired:true})));assert.throws(()=>parseDeviceSetupLine('IAH_SETUP '+JSON.stringify({...info,pairingCodeRequired:undefined})));
+test('USB reads strip legacy secrets and accept new records with no code fields',()=>{
+ const info={format:'iah-setup/1',boardId:'board-a',hostname:'igent.local',httpUrl:'http://igent.local',apSsid:'test-setup',apPassword:'test-wifi-password',caReady:false,publicKeyFingerprint:'a'.repeat(64)};
+ for(const extra of [{},{setupPassword:'old-secret',owner:'old-secret',pairingCodeRequired:true},{setupPassword:'',pairingCodeRequired:false}]){
+ const parsed=parseDeviceSetupLine('IAH_SETUP '+JSON.stringify({...info,...extra}));assert.equal(parsed.boardId,'board-a');assert.equal(parsed.setupPassword,undefined);assert.equal(parsed.owner,undefined);assert.equal(parsed.apPassword,info.apPassword);
+ }
 });

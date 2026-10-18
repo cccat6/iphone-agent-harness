@@ -36,7 +36,7 @@ class SecureService {
  bool read(httpd_req_t* r,JsonDocument& doc,size_t limit=2048){if(r->content_len<=0||r->content_len>limit)return false;Reader reader{r,r->content_len};auto e=deserializeJson(doc,reader,DeserializationOption::NestingLimit(8));if(e||!doc.is<JsonObject>())return false;for(int c=reader.read();c>=0;c=reader.read())if(c!=32&&c!=9&&c!=10&&c!=13)return false;return reader.left==0;}
  Grant* authenticate(httpd_req_t* r){String auth=header(r,"Authorization");if(auth.length()!=71||!auth.startsWith("Bearer "))return nullptr;String token=auth.substring(7);return auth_.authenticate(sha256Hex(token).c_str(),origin_.c_str());}
  bool saveGrant(const Grant& grant){size_t i=MaxClients;for(size_t n=0;n<MaxClients;n++)if(auth_.grants()[n].active&&auth_.grants()[n].clientId==grant.clientId){i=n;break;}if(i==MaxClients)for(size_t n=0;n<MaxClients;n++)if(!auth_.grants()[n].active){i=n;break;}if(i==MaxClients)return false;JsonDocument doc;doc["id"]=grant.clientId;doc["hash"]=grant.tokenHash;doc["origin"]=grant.origin;doc["target"]=grant.targetId;String text;serializeJson(doc,text);String key="grant"+String(i);return prefs_.putString(key.c_str(),text)==text.length()&&prefs_.getString(key.c_str(),"")==text;}
- void addSettings(JsonDocument& d){addIdentity(d);d["hostname"]=bridgeSettings_.hostname;d["pairingCodeRequired"]=bridgeSettings_.pairingCodeRequired;if(bridgeSettings_.pairingCodeRequired)d["connectionCode"]=owner_;d["newURL"]="http://"+String(bridgeSettings_.hostname.c_str())+".local";}
+ void addSettings(JsonDocument& d){addIdentity(d);d["hostname"]=bridgeSettings_.hostname;d["newURL"]="http://"+String(bridgeSettings_.hostname.c_str())+".local";}
  void addIdentity(JsonDocument& d){d["boardId"]=board_;d["bootId"]=boot_;}
  void addTargets(JsonDocument& d){auto list=d["targets"].to<JsonArray>();for(const auto& t:core_.targets())if(!t.id.empty()){auto row=list.add<JsonObject>();row["targetId"]=t.id;row["connected"]=t.connHandle!=InvalidHandle;row["encrypted"]=t.encrypted;row["hidSubscribed"]=t.subscribed;row["inputReleased"]=!t.releasePending;bool challenge=auth_.typing(now())&&auth_.target()==t.id;row["inputState"]=(!t.releasePending&&!t.running&&!challenge)?"released":"unknown";row["running"]=t.running||challenge;}}
  void receipt(JsonDocument& d,const Result& result){addIdentity(d);d["targetId"]=result.targetId;d["clientId"]=result.clientId;d["segmentId"]=result.segmentId;d["planId"]=result.planId;d["payloadHash"]=result.payloadHash;d["status"]=statusName(result.status);d["releaseSubmitted"]=result.releaseSubmitted;d["acceptedAtDeviceMs"]=result.acceptedAt;d["startedAtDeviceMs"]=result.startedAt;d["endedAtDeviceMs"]=result.endedAt;d["submitted"]=result.submitted;d["maxLatenessMs"]=result.maxLatenessMs;}
@@ -72,7 +72,7 @@ class SecureService {
   auto parts=path(r->uri);if(parts.size()<2||parts[0]!="v1")return error(r,404,"not_found");
   if(r->method==HTTP_GET&&parts[1]=="identity"){
    JsonDocument d;addIdentity(d);d["protocolVersion"]=1;d["hostname"]=host_+".local";d["publicKeyFingerprint"]=pki_.caFingerprint;
-   d["firmwareVersion"]="0.3.0-lan-http";d["transport"]="http";d["tls"]=false;d["requiresManualTrust"]=false;d["pairingAvailable"]=true;d["pairingCodeRequired"]=bridgeSettings_.pairingCodeRequired;return send(r,200,d);
+   d["firmwareVersion"]="0.3.0-lan-http";d["transport"]="http";d["tls"]=false;d["requiresManualTrust"]=false;d["pairingAvailable"]=true;d["pairingCodeRequired"]=false;return send(r,200,d);
   }
   if(r->method==HTTP_GET&&parts[1]=="clock"){JsonDocument d;addIdentity(d);d["deviceTimeMs"]=now();return send(r,200,d);}
   if(r->method==HTTP_GET&&parts[1]=="capabilities"){
@@ -89,11 +89,10 @@ class SecureService {
    JsonDocument d;addIdentity(d);d["probe"]=true;d["nonce"]=body["nonce"];d["phoneInputSent"]=false;return send(r,200,d);
   }
   if(r->method==HTTP_POST&&parts.size()==2&&parts[1]=="pair"){
-   JsonDocument body;if(!read(r,body)||!fields(body.as<JsonObjectConst>(),{"clientId","setupPassword"}))return error(r,400,"invalid_pair_request");
-   String client=body["clientId"]|"",password=body["setupPassword"]|"";
+   JsonDocument body;if(!read(r,body)||!validBridgeEnrollment(body.as<JsonObjectConst>()))return error(r,400,"invalid_pair_request");
+   // setupPassword remains accepted for older clients, but is never required.
+   String client=body["clientId"]|"";
    if(!validId(client.c_str()))return error(r,400,"invalid_client_id");
-   if(bridgeSettings_.pairingCodeRequired&&password.isEmpty())return error(r,403,"connection_code_required");
-   if(bridgeSettings_.pairingCodeRequired&&!constantEqual(password.c_str(),owner_.c_str()))return error(r,403,"connection_code_invalid");
    String token=randomHex(32),hash=sha256Hex(token);
    return lockedReply(r,[&](JsonDocument& d)->Decision{
     if(maintenance_||core_.busy()||auth_.active(now()))return {409,"board_busy"};
@@ -110,10 +109,11 @@ class SecureService {
   if(parts.size()==2&&parts[1]=="settings"){
    if(r->method==HTTP_GET)return lockedReply(r,[&](JsonDocument& d)->Decision{addSettings(d);return {200,""};});
    if(r->method!=HTTP_POST)return error(r,404,"not_found");
-   JsonDocument body;if(!read(r,body,512)||!fields(body.as<JsonObjectConst>(),{"hostname","pairingCodeRequired"})||!body["hostname"].is<const char*>()||!body["pairingCodeRequired"].is<bool>()||!validBridgeHostname(body["hostname"].as<const char*>()))return error(r,400,"invalid_bridge_settings");
+   JsonDocument body;if(!read(r,body,512)||!validBridgeSettingsUpdate(body.as<JsonObjectConst>()))return error(r,400,"invalid_bridge_settings");
    return lockedReply(r,[&](JsonDocument& d)->Decision{
     if(maintenance_||core_.configurationBusy(now())||auth_.active(now()))return {409,"board_busy"};
-    String encoded;serializeJson(body,encoded);String previous=prefs_.getString("bridgeSettings","");
+    // Only persist the supported setting; legacy code flags cannot re-enable a removed feature.
+    JsonDocument settings;settings["hostname"]=body["hostname"];String encoded;serializeJson(settings,encoded);String previous=prefs_.getString("bridgeSettings","");
     if(prefs_.putString("bridgeSettings",encoded)!=encoded.length()||prefs_.getString("bridgeSettings","")!=encoded){if(previous.length())prefs_.putString("bridgeSettings",previous);else prefs_.remove("bridgeSettings");return {503,"settings_persistence_failed"};}
     bridgeSettings_=readBridgeSettings(encoded.c_str());bool restart=host_!=bridgeSettings_.hostname.c_str();
     addSettings(d);d["restartRequired"]=restart;if(restart){maintenance_=true;restartAt_=now()+2000;}return {200,""};
@@ -257,12 +257,12 @@ class SecureService {
    ap_.send(200,"text/html; charset=utf-8",page);
   });
   ap_.on("/configure",HTTP_POST,[this]{if(!apRequest()||ap_.header("Origin")!="http://192.168.4.1"){ap_.send(403,"application/json","{\"error\":\"protected_ap_origin_required\"}");return;}JsonDocument body;if(ap_.arg("plain").length()>2048||deserializeJson(body,ap_.arg("plain"))||!configure(body)){ap_.send(403,"application/json","{\"error\":\"configuration_rejected\"}");return;}JsonDocument reply;reply["accepted"]=true;reply["status"]="connecting";reply["httpUrl"]="http://"+host_+".local";reply["boardId"]=board_;reply["publicKeyFingerprint"]=pki_.caFingerprint;reply["manualTrustRequired"]=false;String out;serializeJson(reply,out);ap_.sendHeader("Cache-Control","no-store");ap_.send(202,"application/json",out);});
-  ap_.on("/connection-status",HTTP_GET,[this]{if(!apRequest()){ap_.send(403,"application/json","{\"error\":\"setup_only\"}");return;}JsonDocument reply;bool connected=!startCandidate_&&wifiJoin_.canFinish(configComplete_,WiFi.status()==WL_CONNECTED,hasNetworkAddress());reply["status"]=connected?"connected":wifiJoin_.name();reply["configured"]=connected;reply["pairingCodeRequired"]=bridgeSettings_.pairingCodeRequired;reply["httpUrl"]="http://"+host_+".local";reply["boardId"]=board_;String out;serializeJson(reply,out);ap_.sendHeader("Cache-Control","no-store");ap_.send(200,"application/json",out);});
+  ap_.on("/connection-status",HTTP_GET,[this]{if(!apRequest()){ap_.send(403,"application/json","{\"error\":\"setup_only\"}");return;}JsonDocument reply;bool connected=!startCandidate_&&wifiJoin_.canFinish(configComplete_,WiFi.status()==WL_CONNECTED,hasNetworkAddress());reply["status"]=connected?"connected":wifiJoin_.name();reply["configured"]=connected;reply["pairingCodeRequired"]=false;reply["httpUrl"]="http://"+host_+".local";reply["boardId"]=board_;String out;serializeJson(reply,out);ap_.sendHeader("Cache-Control","no-store");ap_.send(200,"application/json",out);});
   ap_.on("/finish",HTTP_POST,[this]{JsonDocument d;if(!apRequest()||ap_.header("Origin")!="http://192.168.4.1"||deserializeJson(d,ap_.arg("plain"))||!constantEqual(std::string(d["setupPassword"]|""),owner_.c_str())||!configComplete_){ap_.send(403,"text/plain","Owner proof required");return;}if(!finishSetup()){ap_.send(409,"application/json","{\"error\":\"wifi_not_connected\"}");return;}ap_.send(200,"application/json","{\"configured\":true}");});
   ap_.on("/ca.mobileconfig",HTTP_GET,[this]{if(!apRequest()||pki_.certPem.isEmpty()){ap_.send(403,"text/plain","Use the protected setup AP after configuration.");return;}auto profile=pki_.mobileconfig(board_);ap_.sendHeader("Cache-Control","no-store");ap_.sendHeader("Content-Disposition","attachment; filename=igent-device-ca.mobileconfig");ap_.send(200,"application/x-apple-aspen-config",profile);});
   ap_.onNotFound([this]{ap_.send(403,"application/json","{\"error\":\"setup_only\"}");});const char* headers[]={"Origin"};ap_.collectHeaders(headers,1);if(needsWifi)openSetup();
  }
- void setupInfo(){JsonDocument info;info["format"]="iah-setup/1";info["storageReady"]=storageReady_;info["boardId"]=board_;info["bootId"]=boot_;info["apSsid"]="iPhone-Harness-"+board_.substring(4);info["apPassword"]=apPassword_;info["setupPassword"]=bridgeSettings_.pairingCodeRequired?owner_:String("");info["pairingCodeRequired"]=bridgeSettings_.pairingCodeRequired;info["hostname"]=host_+".local";info["httpUrl"]="http://"+host_+".local";info["httpsUrl"]=nullptr;info["transport"]="http";info["manualTrustRequired"]=false;info["caReady"]=false;info["apActive"]=apActive_;if(pki_.caFingerprint.length())info["publicKeyFingerprint"]=pki_.caFingerprint;else info["publicKeyFingerprint"]=nullptr;if(apActive_&&!pki_.certPem.isEmpty())info["caProfileUrl"]="http://192.168.4.1/ca.mobileconfig";else info["caProfileUrl"]=nullptr;Serial.print("IAH_SETUP ");serializeJson(info,Serial);Serial.println();}
+ void setupInfo(){JsonDocument info;info["format"]="iah-setup/1";info["storageReady"]=storageReady_;info["boardId"]=board_;info["bootId"]=boot_;info["apSsid"]="iPhone-Harness-"+board_.substring(4);info["apPassword"]=apPassword_;info["setupPassword"]="";info["pairingCodeRequired"]=false;info["hostname"]=host_+".local";info["httpUrl"]="http://"+host_+".local";info["httpsUrl"]=nullptr;info["transport"]="http";info["manualTrustRequired"]=false;info["caReady"]=false;info["apActive"]=apActive_;if(pki_.caFingerprint.length())info["publicKeyFingerprint"]=pki_.caFingerprint;else info["publicKeyFingerprint"]=nullptr;if(apActive_&&!pki_.certPem.isEmpty())info["caProfileUrl"]="http://192.168.4.1/ca.mobileconfig";else info["caProfileUrl"]=nullptr;Serial.print("IAH_SETUP ");serializeJson(info,Serial);Serial.println();}
  void openSetup(){
   setupDeadline_.opened();maintenance_=true;
   if(http_){

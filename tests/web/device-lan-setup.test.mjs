@@ -14,9 +14,9 @@ test('only local HTTP origins are accepted; no public, localhost or credential U
  for(const value of ['http://10.0.0.2','http://172.16.1.4','http://172.31.1.4','http://192.168.1.2','http://harness-board.local'])assert.equal(createDeviceURL(value),value);
  for(const value of ['http://172.15.1.4','http://172.32.1.4','http://8.8.8.8','http://localhost','http://127.0.0.1','http://example.com','http://user:pw@harness.local','http://harness.local/path','http://harness.local?secret=x'])assert.throws(()=>createDeviceURL(value));
 });
-test('phone setup link round trip keeps pairing code only in fragment and removes it immediately on entry',()=>{
+test('phone setup link contains address and identity only and removes fragment on entry',()=>{
  const info={httpUrl:'http://harness-local.local',boardId:'board-local',setupPassword:'c'.repeat(64)},link=createDeviceSetupLink(info);const u=new URL(link);
- assert.equal(u.search,'');assert.equal(u.pathname,'/');assert.equal(parseDeviceSetupLink(link).setupPassword,info.setupPassword);
+ assert.equal(u.search,'');assert.equal(u.pathname,'/');assert.equal(parseDeviceSetupLink(link).setupPassword,undefined);assert.ok(!JSON.stringify(parseDeviceSetupLink(link)).includes(info.setupPassword));
  let replaced;const result=takeDeviceSetupLink(u,{state:null,replaceState(...args){replaced=args[2];}});assert.equal(replaced,'/');assert.equal(result.baseUrl,info.httpUrl);assert.equal(result.boardId,info.boardId);
  assert.throws(()=>parseDeviceSetupLink('https://igent.cc/#device=invalid'));
 });

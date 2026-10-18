@@ -74,8 +74,8 @@ test('independent LAN R1: panel opens connection window before pending storage a
  const store=await openStore({memory:true}),allocation=defer(),order=[];let factories=0,closed=0;
  store.ensureDeviceClientId=()=>{order.push('storage');return allocation.promise;};
  const panel=createDevicePanel({store,capture:{active:false},openPanel(){},getPanelRoot:()=>holder,clientFactory:()=>{factories++;throw Error('no client expected');},bridgeFactory:()=>({open({signal}){order.push('popup');return new Promise((resolve,reject)=>signal.addEventListener('abort',()=>{closed++;reject(Error('cancelled'));},{once:true}));},close(){}})});
- t.after(()=>panel.dispose());await panel.open();field('[data-address]').value=endpoint;field('[data-owner-password]').value='synthetic-only-owner';
- const pending=field('[data-pair]').onclick();assert.deepEqual(order,['popup','storage']);assert.equal(field('[data-owner-password]').value,'');
+ t.after(()=>panel.dispose());await panel.open();field('[data-address]').value=endpoint;
+ const pending=field('[data-pair]').onclick();assert.deepEqual(order,['popup','storage']);
  panel.dispose();allocation.resolve('review-client');await pending;assert.equal(closed,1);assert.equal(factories,0);assert.equal(panel.getDevice(),null);
 });
 

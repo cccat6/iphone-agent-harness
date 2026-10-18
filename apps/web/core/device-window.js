@@ -9,10 +9,10 @@ export function allowedDeviceWindowRequest(method,path){
 }
 const error=(code,message=code)=>Object.assign(new Error(message),{code});
 export class DeviceWindowTransport {
- constructor({baseUrl,windowRef=globalThis.window,documentRef=globalThis.document,onDisconnect=()=>{},timeoutMs=8000,connectTimeoutMs=90000,locale=''}={}){
+ constructor({baseUrl,windowRef=globalThis.window,documentRef=globalThis.document,onDisconnect=()=>{},timeoutMs=8000,connectTimeoutMs=90000,helloIntervalMs=500,locale=''}={}){
   this.locale=['en','zh-Hans','zh-Hant','ja','ru','de','fr','es'].includes(locale)?locale:'';this.baseUrl=createDeviceURL(baseUrl);if(!this.baseUrl.startsWith('http:'))throw error('DEVICE_INVALID_URL');
-  this.window=windowRef;this.document=documentRef;this.onDisconnect=onDisconnect;this.timeoutMs=timeoutMs;this.connectTimeoutMs=connectTimeoutMs;this.nonce=crypto.randomUUID().replaceAll('-','');this.pending=new Map();this.ready=false;this.closed=false;this.instance='';this.probing=false;
-  this.message=event=>this.receive(event);this.visibility=()=>this.probe();this.unload=()=>this.close();this.fetch=this.fetch.bind(this);
+  this.window=windowRef;this.document=documentRef;this.onDisconnect=onDisconnect;this.timeoutMs=timeoutMs;this.connectTimeoutMs=connectTimeoutMs;this.helloIntervalMs=Math.max(20,helloIntervalMs);this.helloAttempts=0;this.nonce=crypto.randomUUID().replaceAll('-','');this.pending=new Map();this.ready=false;this.closed=false;this.instance='';this.probing=false;
+  this.message=event=>this.receive(event);this.visibility=()=>{if(this.document.visibilityState==='visible'){this.hello();this.probe();}};this.unload=()=>this.close();this.fetch=this.fetch.bind(this);
  }
  /** Must be called synchronously from the Connect button's user gesture. */
  open({signal}={}){
@@ -26,7 +26,15 @@ export class DeviceWindowTransport {
   if(!this.child){this.close(error('DEVICE_WINDOW_BLOCKED'));return this.opening;}
   this.openTimer=setTimeout(()=>this.close(error('DEVICE_WINDOW_NOT_READY')),this.connectTimeoutMs);
   this.closedTimer=setInterval(()=>{if(this.child?.closed)this.close(error('DEVICE_WINDOW_CLOSED'));},1000);
+  this.hello();
   return this.opening;
+ }
+ hello(){
+  clearTimeout(this.helloTimer);this.helloTimer=undefined;
+  if(this.closed||!this.child||this.child.closed)return;
+  try{this.child.postMessage({type:'iah-lan-connect',nonce:this.nonce},this.baseUrl);}catch{}
+  // Retry only the handshake while the new document loads; never replay an HTTP request.
+  if(!this.instance&&++this.helloAttempts<Math.min(180,Math.ceil(this.connectTimeoutMs/this.helloIntervalMs)))this.helloTimer=setTimeout(()=>this.hello(),this.helloIntervalMs);
  }
  receive(event){
   if(this.closed||event.source!==this.child||event.origin!==this.baseUrl||event.data?.nonce!==this.nonce)return;
@@ -34,7 +42,7 @@ export class DeviceWindowTransport {
   if(data.type==='iah-lan-ready'){
    if(typeof data.instance!=='string'||!/^[a-f0-9]{32}$/.test(data.instance))return;
    if(this.instance&&this.instance!==data.instance){this.close(error('DEVICE_WINDOW_RELOADED'));return;}
-   this.instance=data.instance;this.probe();return;
+   clearTimeout(this.helloTimer);this.helloTimer=undefined;this.instance=data.instance;this.probe();return;
   }
   if(data.type==='iah-lan-closed'){this.close(error('DEVICE_WINDOW_CLOSED'));return;}
   if(data.type!=='iah-lan-response'||data.instance!==this.instance||!REQUEST_ID.test(data.id||''))return;
@@ -75,7 +83,7 @@ export class DeviceWindowTransport {
   return new Response(response.status===204?null:response.body,{status:response.status,headers:{'content-type':'application/json'}});
  }
  close(reason=error('DEVICE_WINDOW_CLOSED')){
-  if(this.closed)return;const wasReady=this.ready;this.closed=true;this.ready=false;clearTimeout(this.openTimer);clearInterval(this.closedTimer);this.openSignal?.removeEventListener('abort',this.openAbort);
+  if(this.closed)return;const wasReady=this.ready;this.closed=true;this.ready=false;clearTimeout(this.openTimer);clearTimeout(this.helloTimer);this.helloTimer=undefined;clearInterval(this.closedTimer);this.openSignal?.removeEventListener('abort',this.openAbort);
   this.window.removeEventListener('message',this.message);this.document.removeEventListener('visibilitychange',this.visibility);this.window.removeEventListener('pagehide',this.unload);
   for(const value of this.pending.values()){clearTimeout(value.timer);value.signal?.removeEventListener('abort',value.abort);value.reject(reason);}this.pending.clear();try{this.child?.close();}catch{}this.rejectOpen?.(reason);if(wasReady)this.onDisconnect(reason);
  }
