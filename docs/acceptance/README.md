@@ -4,6 +4,8 @@
 
 Open the website in Safari on an iPhone or iPad to see your sessions. The home button opens the project page; “Open Harness” in that page’s header returns to your sessions. Desktop visitors can browse the project, explore skills and install ESP32 firmware.
 
+Device status sits beside the session heading. **New session** is the only primary action at the bottom. Search is hidden until you pull down at the top of the list or tap the search icon. Cancel clears the filter and hides search. Settings is a directory with separate pages and back navigation; archived sessions and skill management are available there.
+
 ## Start a conversation
 
 Open **Settings → Accounts or API → Add account or API**. For ChatGPT, select a ChatGPT account and follow the sign-in instructions. For an API, choose the OpenAI-compatible or Anthropic-compatible interface, enter the service’s **API endpoint** and key, load its model list, then save. You can also enter a model ID manually.
@@ -12,7 +14,7 @@ Choose **New session**, select a model at the bottom and send a message. The mod
 
 ## Sessions and backups
 
-Messages and images are saved automatically in this browser. The session’s top-right menu provides rename, pin, archive, delete and **Export to file**. Use **Import session from file** in the session-list menu to restore a file as a separate session.
+Messages and images are saved automatically in this browser. The session’s top-right menu provides rename, pin, archive, delete and **Export to file**. Use **Settings → Import session from file** to restore a file as a separate session.
 
 On entry, the site asks the browser to retain its data. The browser may decide without showing a prompt. If retention has not been granted, retry under **Settings → Data on this device**. Export sessions when you want a backup; session files do not include sign-in credentials or API keys.
 

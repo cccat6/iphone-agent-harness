@@ -117,8 +117,8 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
     if(!getState().ready||working||armed||disposed)return false;
     try{await refresh();return getState().ready;}catch{return false;}
   }
-  async function open(){
-    close();const opening=operation;settings=await store.getSettings();if(opening!==operation)return;
+  async function open({isCurrent=()=>true}={}){
+    close();const opening=operation;settings=await store.getSettings();if(opening!==operation||!isCurrent())return null;
     statusKey=sameProof(proof,client)?'bound':client?.paired?'needsFreshChallenge':'notPaired';
     if(!document.querySelector('link[data-device-panel-style]')){const style=document.createElement('link');style.rel='stylesheet';style.href=new URL('./device-panel.css',import.meta.url).href;style.dataset.devicePanelStyle='';document.head.append(style);}
     openPanel(copy('title'),copy('subtitle'),`<div class="device-onboarding" data-no-i18n>
@@ -191,7 +191,7 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
       try{await tested.claimLease({writerId},{signal});claimed=true;await tested.endRun({writerId});claimed=false;if(valid(current)){checkedAt=new Date();setStatus('controlChecked');}}
       finally{if(claimed){try{await tested.endRun({writerId});}catch{invalidateProof();}}}
     });
-    renderState();
+    renderState();return root;
   }
   function destroy(){disposed=true;stopMonitor();connectionEpoch++;globalThis.document?.removeEventListener?.('visibilitychange',foreground);globalThis.removeEventListener?.('pagehide',destroy);close();transport?.close();transport=null;connectionActive=false;targets=[];invalidateProof();}
   globalThis.addEventListener?.('pagehide',destroy,{once:true});

@@ -13,6 +13,7 @@ import { normalizeContextSettings } from './core/context.js';
 import { modelContextMetadata } from './core/models.js';
 import { sealCredentials, unsealCredentials } from './core/auth.js';
 import { createMCPAccess } from './core/mcp.js';
+import { mountSessionSearch } from './ui/session-search.js';
 import { createMCPSettings } from './ui/mcp-settings.js';
 import { discoverModels } from './core/providers.js';
 import { installBuiltinSkills, downloadSkill } from './core/skills.js';
@@ -93,7 +94,7 @@ function renderDeviceStatus(){
   $('#conversation-device').textContent=t('device.state.'+key);$('#conversation-device').classList.toggle('connected',Boolean(value.inputVerified));
   $('#new-session').setAttribute('aria-label',t('session.new'));$('#new-session').setAttribute('aria-describedby','home-device-status');
 }
-async function refreshSessions() { state.sessions=await state.store.listSessions({archived:state.archived,search:$('#session-search').value}); renderSessions(); }
+async function refreshSessions() { const request=state.sessionListGeneration=(state.sessionListGeneration||0)+1;const sessions=await state.store.listSessions({archived:state.archived,search:$('#session-search').value});if(request!==state.sessionListGeneration)return;state.sessions=sessions;renderSessions(); }
 function renderSessions() {
   $('#archive-toggle').textContent=t('session.backList');$('#archive-toggle').hidden=!state.archived;$('#list-label').textContent=t(state.archived?'session.archived':'session.listTitle');
   const sessions=[...state.sessions].sort((a,b)=>Number(b.pinned)-Number(a.pinned) || new Date(b.updatedAt)-new Date(a.updatedAt));
@@ -133,7 +134,7 @@ async function sendMessage(event) {
   event.preventDefault();if(!await state.devicePanel?.ensureReady?.()){await showDevices();toast(t('device.startHint'));return;}if(!getBrowserCompatibility().supportedForHarness){renderPlatform();return;}const text=$('#message-input').value.trim();if(!text||state.running||state.submitting)return;
   state.submitting=true;let generation=null,sessionId=null,controller=null;
   try{
-    if(!selectedProvider()){await showSettings();toast(t('status.configureModel'));return;}
+    if(!selectedProvider()){await showSettings('accounts');toast(t('status.configureModel'));return;}
     const mode=$('#mode-select').value,modelId=$('#model-select').value;
     if(!state.current)await newSession({fromSubmit:true});if(!state.current)return;
     sessionId=state.current.id;await state.store.updateSession(sessionId,{mode,modelId});
@@ -155,7 +156,7 @@ async function sendMessage(event) {
 
 function resizeInput() { const input=$('#message-input');input.style.height='auto';input.style.height=Math.min(input.scrollHeight,180)+'px'; }
 function discardProviderDraft(){const id=state.providerDraftId;if(id&&!providers().some(profile=>profile.id===id)){removeCodexAccount(id);setCredential(id,'');vaultPassphrases.delete(id);}state.providerDraftId=null;}
-function panel(title,subtitle,body,metadata={}) { state.codexAbort?.abort();state.modelsAbort?.abort();discardProviderDraft(); state.devicePanel?.dispose();state.mcpPanel?.disposeView();const titleKey=Object.hasOwn(metadata,'titleKey')?metadata.titleKey:translationKey(title),subtitleKey=Object.hasOwn(metadata,'subtitleKey')?metadata.subtitleKey:translationKey(subtitle);$('#panel-content').innerHTML=`<div class="panel-header"><div><h2 data-no-i18n${titleKey?` data-i18n="${escapeHTML(titleKey)}"`:''}>${escapeHTML(title)}</h2>${subtitle?`<p data-no-i18n${subtitleKey?` data-i18n="${escapeHTML(subtitleKey)}"`:''}>${escapeHTML(subtitle)}</p>`:''}</div><button class="icon-button" id="close-panel" aria-label="关闭">×</button></div><div class="panel-body">${body}</div>`;$('#close-panel').onclick=()=>{state.codexAbort?.abort();state.modelsAbort?.abort();$('#panel-dialog').close();};if(!$('#panel-dialog').open)$('#panel-dialog').showModal();$('.panel-body').scrollTop=0;$('#close-panel').focus({preventScroll:true}); }
+function panel(title,subtitle,body,metadata={}) { state.panelGeneration=(state.panelGeneration||0)+1;state.codexAbort?.abort();state.modelsAbort?.abort();discardProviderDraft(); state.devicePanel?.dispose();state.mcpPanel?.disposeView();const titleKey=Object.hasOwn(metadata,'titleKey')?metadata.titleKey:translationKey(title),subtitleKey=Object.hasOwn(metadata,'subtitleKey')?metadata.subtitleKey:translationKey(subtitle);$('#panel-content').innerHTML=`<div class="panel-header"><div><h2 data-no-i18n${titleKey?` data-i18n="${escapeHTML(titleKey)}"`:''}>${escapeHTML(title)}</h2>${subtitle?`<p data-no-i18n${subtitleKey?` data-i18n="${escapeHTML(subtitleKey)}"`:''}>${escapeHTML(subtitle)}</p>`:''}</div><button class="icon-button" id="close-panel" aria-label="关闭">×</button></div><div class="panel-body">${body}</div>`;$('#close-panel').onclick=()=>{state.panelGeneration=(state.panelGeneration||0)+1;state.devicePanel?.dispose();state.codexAbort?.abort();state.modelsAbort?.abort();$('#panel-dialog').close();};if(!$('#panel-dialog').open)$('#panel-dialog').showModal();$('.panel-body').scrollTop=0;$('#close-panel').focus({preventScroll:true}); }
 function setPanelStatus(message,bad=false) { const box=$('#panel-status');if(box){setLocalizedText(box,()=>localizeError(message));box.classList.toggle('bad',bad);box.hidden=false;} }
 
 async function showSessionMenu() {
@@ -188,44 +189,62 @@ function importSessionFile(){
   if(state.running||state.submitting){toast(t('session.stopBeforeImport'));return;}
   chooseFile('.json,application/json',async text=>{const session=await state.store.importSession(JSON.parse(text),{titleSuffix:t('session.importSuffix'),fallbackTitle:t('session.importFallback')});await refreshSessions();await openSession(session.id);toast(t('status.sessionImported'));},SESSION_BACKUP_BYTES);
 }
-function showSessionListMenu(){
-  $('#action-content').innerHTML=`<h3>${t('session.yours')}</h3><button class="action-item" id="import-session">${t('session.import')}</button><button class="action-item" id="list-archive">${t(state.archived?'session.backList':'session.viewArchive')}</button><button class="action-item" id="list-menu-close">${t('common.cancel')}</button>`;
-  $('#import-session').onclick=()=>{$('#action-dialog').close();importSessionFile();};
-  $('#list-archive').onclick=guard(async()=>{$('#action-dialog').close();state.archived=!state.archived;await refreshSessions();});
-  $('#list-menu-close').onclick=()=>$('#action-dialog').close();$('#action-dialog').showModal();
+function panelBack(action){
+  const header=$('.panel-header');header.insertAdjacentHTML('afterbegin',`<button type="button" id="panel-back" class="icon-button" aria-label="${escapeHTML(t('common.back'))}">‹</button>`);$('#panel-back').onclick=guard(action);
 }
-async function showSettings() {
+async function showSettings(section='home') {
+  if(typeof section!=='string')section='home';
   state.codexAbort?.abort();state.modelsAbort?.abort();discardProviderDraft();
   if(!state.store)throw state.bootError||new Error(t('settings.storageRequired'));
-  state.settings=await state.store.getSettings();const list=providers();state.providerEdit=null;
-  const context=normalizeContextSettings(state.settings.context),images=normalizeImageSettings(state.settings.images);
-  panel(t('nav.settings'),'',`
-    ${languageField()}
-    <div class="section-heading"><h3>${systemTextHTML('settings.accounts')}</h3><button id="add-provider">${systemTextHTML('settings.addAccount')}</button></div>
+  const navigation=state.panelGeneration=(state.panelGeneration||0)+1;const settings=await state.store.getSettings();if(navigation!==state.panelGeneration)return;state.settings=settings;const list=providers();state.providerEdit=null;
+  const row=(id,key)=>`<button type="button" class="settings-row" id="${id}">${systemTextHTML(key)}<span aria-hidden="true">›</span></button>`;
+  if(section==='home'){
+    panel(t('nav.settings'),'',`<nav class="settings-navigation">
+      <div class="settings-group">${row('settings-accounts','settings.accounts')}${row('settings-devices','nav.devices')}${row('open-skills','nav.skills')}${row('settings-mcp','mcp.title')}</div>
+      <div class="settings-group">${row('settings-context','context.title')}${row('settings-language','language.label')}${row('settings-storage','settings.localStorage')}</div>
+      <div class="settings-group">${row('settings-archive','session.viewArchive')}${row('import-session','session.import')}</div>
+    </nav>`);
+    for(const page of ['accounts','mcp','context','language','storage'])$('#settings-'+page).onclick=guard(()=>showSettings(page));
+    $('#settings-devices').onclick=guard(async()=>{const opened=await showDevices();if(opened?.isConnected&&$('#panel-dialog').open&&$('#panel-content').contains(opened))panelBack(()=>showSettings());});
+    $('#open-skills').onclick=guard(async()=>{state.skillsFromSettings=true;await showSkills();});
+    $('#settings-archive').onclick=guard(async()=>{if(state.running||state.submitting)throw new Error(t('session.stopBeforeImport'));const active=state.panelGeneration;state.archived=true;await refreshSessions();if(active!==state.panelGeneration)return;$('#app').classList.remove('in-conversation');$('#panel-dialog').close();});
+    $('#import-session').onclick=()=>{if(state.running||state.submitting){toast(t('session.stopBeforeImport'));return;}$('#panel-dialog').close();importSessionFile();};
+    return;
+  }
+  if(section==='accounts'){
+    panel(t('settings.accounts'),'',`    <div class="panel-actions" style="margin-top:8px"><button id="add-provider" class="secondary-button">${systemTextHTML('settings.addAccount')}</button></div>
     ${list.length?list.map(provider=>`<div class="provider-card"><div class="card-title"><span data-no-i18n>${escapeHTML(provider.name||provider.model||t('provider.unnamed'))}</span>${state.settings.activeProviderId===provider.id?`<span class="tag">${systemTextHTML('common.default')}</span>`:''}</div><div class="card-detail">${systemTextHTML(provider.protocol==='codex'?'provider.codex':provider.protocol==='anthropic'?'provider.anthropic':'provider.openai')} · ${systemTextHTML('provider.modelCount',{count:profileModels(provider).length})}${provider.baseUrl?`<br><span data-no-i18n>${escapeHTML(provider.baseUrl)}</span>`:''}<br>${systemTextHTML((provider.protocol==='codex'?hasCodexAccount(provider.id):hasCredential(provider.id))?'provider.ready':state.settings.credentialVault?.[provider.id]?'provider.locked':'provider.noCredential')}</div><div class="card-actions"><button data-provider-edit="${escapeHTML(provider.id)}">${systemTextHTML('common.edit')}</button><button data-provider-default="${escapeHTML(provider.id)}">${systemTextHTML('provider.setDefault')}</button><button class="danger" data-provider-delete="${escapeHTML(provider.id)}">${systemTextHTML('common.remove')}</button></div></div>`).join(''):`<div class="empty-card">${systemTextHTML('settings.noAccounts')}</div>`}
     <div id="provider-editor"></div>
-    <div id="mcp-settings"></div>
-    <details class="settings-section"><summary>${systemTextHTML('context.title')}</summary><form id="context-form">
+<div id="panel-status" class="status-box" hidden></div>`);
+  const accountsGeneration=state.panelGeneration;
+  $('#add-provider').onclick=()=>renderProviderForm();
+  $$('[data-provider-edit]').forEach(button=>button.onclick=()=>renderProviderForm(list.find(provider=>provider.id===button.dataset.providerEdit)));
+  $$('[data-provider-default]').forEach(button=>button.onclick=guard(async()=>{state.settings=await state.store.saveSettings({activeProviderId:button.dataset.providerDefault});renderModelOptions();if(accountsGeneration===state.panelGeneration)await showSettings('accounts');}));
+  $$('[data-provider-delete]').forEach(button=>button.onclick=guard(async()=>{if(!confirm(t('confirm.removeProvider')))return;const remaining=providers().filter(provider=>provider.id!==button.dataset.providerDelete);const credentialVault={...state.settings.credentialVault};delete credentialVault[button.dataset.providerDelete];state.settings=await state.store.saveSettings({credentialVault,providers:remaining,activeProviderId:state.settings.activeProviderId===button.dataset.providerDelete?remaining[0]?.id||'':state.settings.activeProviderId});setCredential(button.dataset.providerDelete,'');removeCodexAccount(button.dataset.providerDelete);vaultPassphrases.delete(button.dataset.providerDelete);renderModelOptions();if(accountsGeneration===state.panelGeneration)await showSettings('accounts');}));
+  }else if(section==='mcp'){
+    panel(t('mcp.title'),'','<div id="mcp-settings" class="standalone-mcp"></div>');
+    state.mcpPanel.mount($('#mcp-settings'),{servers:state.settings.mcpServers,endpoint:state.settings.mcpEndpoint||''});$('#mcp-settings details').open=true;
+  }else if(section==='context'){
+    const context=normalizeContextSettings(state.settings.context),images=normalizeImageSettings(state.settings.images);
+    panel(t('context.title'),'',`<form id="context-form">
       <label class="check-field"><input name="autoCompact" type="checkbox" ${context.autoCompact?'checked':''}>${systemTextHTML('context.auto')}</label>
       <label class="field"><span>${systemTextHTML('context.trigger')}</span><input name="triggerTokens" type="number" min="2048" max="2000000" step="1" value="${escapeHTML(context.triggerTokens)}" required><small>${systemTextHTML('context.help')}</small></label>
       <label class="field"><span>${systemTextHTML('context.quality')}</span><select name="qualityPreset">${['compact','balanced','high'].map(value=>`<option data-no-i18n data-i18n="images.${value}" value="${value}" ${images.qualityPreset===value?'selected':''}>${t('images.'+value)}</option>`).join('')}</select><small>${systemTextHTML('context.imageHelp')}</small></label>
       <button class="secondary-button" type="submit">${systemTextHTML('common.save')}</button><div id="context-result" class="quiet-note" role="status"></div>
-    </form></details>
-    <details class="settings-section"><summary>${systemTextHTML('settings.localStorage')}</summary><div id="storage-status" class="quiet-note"></div><div class="storage-meter"><span id="storage-fill"></span></div><p class="quiet-note">${systemTextHTML('settings.storageHelp')}</p><button id="request-persistence" class="secondary-button" hidden>${systemTextHTML('settings.persist')}</button></details>
-    <div id="panel-status" class="status-box" hidden></div>`);
-  wireLanguageSelector();
-  $('#context-form').onsubmit=guard(async event=>{event.preventDefault();const values=new FormData(event.target);const context={schemaVersion:2,autoCompact:values.has('autoCompact'),triggerTokens:Number(values.get('triggerTokens'))};normalizeContextSettings(context);const images=normalizeImageSettings({qualityPreset:values.get('qualityPreset')});state.settings=await state.store.saveSettings({context,images});setLocalizedText($('#context-result'),()=>t('context.saved'));});
-  state.mcpPanel.mount($('#mcp-settings'),{servers:state.settings.mcpServers,endpoint:state.settings.mcpEndpoint||''});
-  $('#add-provider').onclick=()=>renderProviderForm();
-  $$('[data-provider-edit]').forEach(button=>button.onclick=()=>renderProviderForm(list.find(provider=>provider.id===button.dataset.providerEdit)));
-  $$('[data-provider-default]').forEach(button=>button.onclick=guard(async()=>{state.settings=await state.store.saveSettings({activeProviderId:button.dataset.providerDefault});renderModelOptions();await showSettings();}));
-  $$('[data-provider-delete]').forEach(button=>button.onclick=guard(async()=>{if(!confirm(t('confirm.removeProvider')))return;const remaining=providers().filter(provider=>provider.id!==button.dataset.providerDelete);const credentialVault={...state.settings.credentialVault};delete credentialVault[button.dataset.providerDelete];state.settings=await state.store.saveSettings({credentialVault,providers:remaining,activeProviderId:state.settings.activeProviderId===button.dataset.providerDelete?remaining[0]?.id||'':state.settings.activeProviderId});setCredential(button.dataset.providerDelete,'');removeCodexAccount(button.dataset.providerDelete);vaultPassphrases.delete(button.dataset.providerDelete);renderModelOptions();await showSettings();}));
-  $('#request-persistence').onclick=guard(async()=>{await requestStorageProtection({notify:true});await renderStorage();});
-  await renderStorage();
+    </form>`);
+  const contextForm=$('#context-form'),contextResult=$('#context-result');contextForm.onsubmit=guard(async event=>{event.preventDefault();const values=new FormData(event.target);const context={schemaVersion:2,autoCompact:values.has('autoCompact'),triggerTokens:Number(values.get('triggerTokens'))};normalizeContextSettings(context);const images=normalizeImageSettings({qualityPreset:values.get('qualityPreset')});state.settings=await state.store.saveSettings({context,images});if($('#context-form')===contextForm)setLocalizedText(contextResult,()=>t('context.saved'));});
+  }else if(section==='language'){
+    panel(t('language.label'),'',languageField());wireLanguageSelector();
+  }else if(section==='storage'){
+    panel(t('settings.localStorage'),'',`<div id="storage-status" class="quiet-note"></div><div class="storage-meter"><span id="storage-fill"></span></div><p class="quiet-note">${systemTextHTML('settings.storageHelp')}</p><button id="request-persistence" class="secondary-button" hidden>${systemTextHTML('settings.persist')}</button>`);
+    $('#request-persistence').onclick=guard(async()=>{await requestStorageProtection({notify:true});await renderStorage();});
+    panelBack(()=>showSettings());await renderStorage();return;
+  }
+  panelBack(()=>showSettings());
 }
 async function renderStorage() {
   const node=$('#storage-status');if(!node)return;
-  try {const estimate=await navigator.storage?.estimate?.(),persisted=await navigator.storage?.persisted?.();const mb=value=>(value/1024/1024).toFixed(1)+' MB';node.textContent=estimate?t('settings.storageEstimate',{used:mb(estimate.usage||0),quota:mb(estimate.quota||0),mode:t(persisted?'settings.storagePersistent':'settings.storageBestEffort')}):t('settings.storageUnavailable');const fill=$('#storage-fill');if(fill&&estimate?.quota)fill.style.width=Math.min(100,100*estimate.usage/estimate.quota)+'%';const retry=$('#request-persistence');if(retry)retry.hidden=Boolean(persisted)||!navigator.storage?.persist;}
+  try {const estimate=await navigator.storage?.estimate?.(),persisted=await navigator.storage?.persisted?.();const mb=value=>(value/1024/1024).toFixed(1)+' MB';if($('#storage-status')!==node)return;node.textContent=estimate?t('settings.storageEstimate',{used:mb(estimate.usage||0),quota:mb(estimate.quota||0),mode:t(persisted?'settings.storagePersistent':'settings.storageBestEffort')}):t('settings.storageUnavailable');const fill=$('#storage-fill');if(fill&&estimate?.quota)fill.style.width=Math.min(100,100*estimate.usage/estimate.quota)+'%';const retry=$('#request-persistence');if(retry)retry.hidden=Boolean(persisted)||!navigator.storage?.persist;}
   catch{node.textContent=t('settings.storageUnavailable');}
 }
 function renderProviderForm(provider={}) {
@@ -261,7 +280,7 @@ function renderProviderForm(provider={}) {
   $('#start-codex-login').onclick=guard(async()=>{if(!provider.id){const id=shortId();provider={...provider,id,name:$('#provider-form').elements.name.value.trim()||'ChatGPT',protocol:'codex',accountId:id,models:[],model:'',stream:true};state.providerEdit=id;state.providerDraftId=id;$('#provider-form').elements.name.value=provider.name;}state.codexAbort?.abort();const controller=new AbortController();state.codexAbort=controller;const button=$('#start-codex-login');button.disabled=true;$('#cancel-codex-login').hidden=false;loginStatus('正在向 OpenAI 请求设备码…');try{const issuedLogin=await startCodexLogin({method:'device-code',flow:'codex',signal:controller.signal});if(controller.signal.aborted||state.codexAbort!==controller||!editorActive())return;login=issuedLogin;const url=new URL(login.verification_url||login.verificationUrl);if(url.origin!=='https://auth.openai.com')throw new Error('验证链接不是预期的官方地址。');$('#codex-verification').innerHTML=`<div class="status-box">${systemTextHTML('auth.deviceCode')}: <strong>${escapeHTML(login.user_code)}</strong><br><a href="${escapeHTML(url.href)}" target="_blank" rel="noopener noreferrer">打开 OpenAI 验证页 ↗</a></div>`;$('#complete-codex-login').hidden=false;loginStatus('在官方页面确认这个设备码，再返回这里继续。');}catch(error){if(editorActive()&&state.codexAbort===controller&&!controller.signal.aborted){loginStatus(error);button.disabled=false;}}});
   $('#cancel-codex-login').onclick=()=>{state.codexAbort?.abort();login=null;$('#codex-verification').replaceChildren();$('#complete-codex-login').hidden=true;$('#cancel-codex-login').hidden=true;$('#start-codex-login').disabled=false;loginStatus('登录已取消。');};
   $('#complete-codex-login').onclick=guard(async()=>{if(!login)throw new Error('请先开始设备码登录。');const controller=state.codexAbort,button=$('#complete-codex-login');button.disabled=true;loginStatus('正在等待 OpenAI 验证结果，可随时取消…');try{await completeCodexLogin(login,{accountId:provider.id,label:$('#provider-form').elements.name.value||provider.name,signal:controller.signal});if(!editorActive()||controller.signal.aborted){if(!providers().some(item=>item.id===provider.id))removeCodexAccount(provider.id);return;}login=null;$('#codex-verification').replaceChildren();button.hidden=true;$('#cancel-codex-login').hidden=true;$('#start-codex-login').disabled=false;loginStatus('该账号已登录。可用口令加密保存凭据。');try{await applyModels(await discoverCodexModels({accountId:provider.id,signal:controller.signal}));}catch(error){if(editorActive()&&state.codexAbort===controller&&!controller.signal.aborted)modelsStatus({error});}}catch(error){if(editorActive()&&state.codexAbort===controller&&!controller.signal.aborted)loginStatus(error);}finally{button.disabled=false;}});
-  $('#cancel-provider').onclick=()=>{state.codexAbort?.abort();state.modelsAbort?.abort();discardProviderDraft();void showSettings();};
+  $('#cancel-provider').onclick=()=>{state.codexAbort?.abort();state.modelsAbort?.abort();discardProviderDraft();void showSettings('accounts');};
   if($('#unlock-provider'))$('#unlock-provider').onclick=guard(async()=>{
     const form=editorForm,button=$('#unlock-provider');if(!editorActive()||button.disabled)return;
     const generation=++unlockGeneration,protocol=form.elements.protocol.value,passphrase=form.elements.passphrase.value,id=provider.id;
@@ -293,16 +312,16 @@ function renderProviderForm(provider={}) {
       if(!codex&&secret)setCredential(id,secret);if(codex&&values.has('encrypt'))vaultPassphrases.set(id,passphrase);
       if(state.providerDraftId===id)state.providerDraftId=null;
       event.target.elements.secret.value='';event.target.elements.passphrase.value='';renderModelOptions();
-      if(editorActive()){await showSettings();toast('账号已保存，尚未发起模型请求。');}
+      if(editorActive()){await showSettings('accounts');toast('账号已保存，尚未发起模型请求。');}
     }finally{if(state.providerSavingToken===editorToken)state.providerSavingToken=null;if(editorActive()&&submit)submit.disabled=false;}
   });
-  const header=$('.panel-header');header.insertAdjacentHTML('afterbegin',`<button type="button" id="provider-back" class="icon-button" aria-label="${escapeHTML(t('common.back'))}">‹</button>`);$('#provider-back').onclick=guard(showSettings);$('.panel-body').scrollTop=0;
+  const header=$('.panel-header');header.insertAdjacentHTML('afterbegin',`<button type="button" id="provider-back" class="icon-button" aria-label="${escapeHTML(t('common.back'))}">‹</button>`);$('#provider-back').onclick=guard(()=>showSettings('accounts'));$('.panel-body').scrollTop=0;
 }
 
 async function showDevices() {
   if(!state.store)throw state.bootError||new Error(t('settings.storageRequired'));
   if(!getBrowserCompatibility().supportedForHarness){$('#panel-dialog').close();navigate('harness');return;}
-  await state.devicePanel.open();
+  const navigation=state.panelGeneration=(state.panelGeneration||0)+1;return state.devicePanel.open({isCurrent:()=>navigation===state.panelGeneration});
 }
 // The Harness owns each run's writer ID; the UI never creates a perpetual lease.
 const runDevices=new Map();
@@ -327,11 +346,12 @@ function ownedSkill(skill){return Boolean(state.identity&&isOwnedAuthored(skill,
 function sourceLabel(skill){return t(ownedSkill(skill)?'skills.sourceOwned':skill.source==='builtin'?'skills.sourceBuiltin':skill.source==='community'?'skills.sourceCommunity':'skills.sourceOther');}
 async function showSkills(tab=state.skillTab) {
   if(!state.store)throw state.bootError||new Error(t('settings.storageRequired'));
-  state.skillTab=tab;state.skills=await state.store.listSkills();await creatorIdentity();const local=tab==='local';
+  const navigation=state.panelGeneration=(state.panelGeneration||0)+1;state.skillTab=tab;const skills=await state.store.listSkills();await creatorIdentity();if(navigation!==state.panelGeneration)return;state.skills=skills;const local=tab==='local';
   panel(t('nav.skills'),t('skills.description'),`
     <div class="panel-tabs"><button id="skills-local" class="${local?'active':''}">${t('skills.mine')} · ${state.skills.length}</button><button id="skills-catalog" class="${!local?'active':''}">${t('skills.catalog')}</button></div>
     ${local?`<div class="section-heading"><h3>${t('skills.local')}</h3><button id="create-skill">＋ ${t('skills.create')}</button></div><div class="panel-actions"><button id="import-skill" class="secondary-button">${t('skills.import')}</button><button id="creator-identity" class="secondary-button">${t('community.identity')}</button></div><div id="skill-list">${state.skills.length?state.skills.map(skill=>`<div class="skill-card"><div class="card-title">${skillTextHTML(skill,'name')}<span class="tag" data-no-i18n>${escapeHTML(skill.version||'local')}</span></div><div class="card-detail">${skillTextHTML(skill,'description')}<br><span class="skill-source">${sourceLabel(skill)}</span><br>${t(skill.enabled===false?'skills.disabled':'skills.enabled')}</div><div class="card-actions"><button data-skill-view="${escapeHTML(skill.id)}">${t('common.view')}</button>${ownedSkill(skill)?`<button data-skill-edit="${escapeHTML(skill.id)}">${t('common.edit')}</button>`:''}<button data-skill-toggle="${escapeHTML(skill.id)}">${t(skill.enabled===false?'common.enable':'common.disable')}</button><button data-skill-share="${escapeHTML(skill.id)}">${t('skills.share')}</button><button class="danger" data-skill-delete="${escapeHTML(skill.id)}">${t('common.remove')}</button></div></div>`).join(''):`<div class="empty-card">${t('community.empty')}</div>`}</div>`:`<div id="catalog-list"><p class="quiet-note">${t('community.loading')}</p></div>`}
     <div id="panel-status" class="status-box" hidden></div>`);
+  if(state.skillsFromSettings)panelBack(()=>showSettings());
   $('#skills-local').onclick=guard(()=>showSkills('local'));$('#skills-catalog').onclick=guard(()=>showSkills('catalog'));
   if(local) {
     $('#create-skill').onclick=guard(()=>showSkillEditor());$('#creator-identity').onclick=guard(showCreatorIdentity);
@@ -516,7 +536,7 @@ function renderPlatform() {
 async function renderCommunityPage(){
   const generation=(state.communityGeneration||0)+1;state.communityGeneration=generation;
   $('#site-main').innerHTML=`<section class="site-page-heading"><h1>${t('community.title')}</h1><p>${t('community.description')}</p><div class="panel-actions"><button id="site-own-skills" class="primary" ${state.store?'':'disabled'}>${t('skills.mine')}</button><button id="site-create-skill" class="secondary-button" ${state.store?'':'disabled'}>${t('skills.create')}</button><button id="site-identity" class="secondary-button" ${state.store?'':'disabled'}>${t('community.identity')}</button></div></section><div id="community-status" class="quiet-note">${t(communityEndpoint()?'community.loading':'community.notConfigured')}</div><div id="community-cards" class="community-grid"></div>`;
-  $('#site-own-skills').onclick=guard(()=>showSkills('local'));$('#site-create-skill').onclick=guard(()=>showSkillEditor());$('#site-identity').onclick=guard(showCreatorIdentity);
+  $('#site-own-skills').onclick=guard(()=>{state.skillsFromSettings=false;return showSkills('local');});$('#site-create-skill').onclick=guard(()=>{state.skillsFromSettings=false;return showSkillEditor();});$('#site-identity').onclick=guard(showCreatorIdentity);
   const endpoint=communityEndpoint();
   try{
     let entries,catalogUrl;
@@ -553,13 +573,13 @@ async function boot() {
   state.mcpAccess=createMCPAccess();state.mcpPanel=createMCPSettings({access:state.mcpAccess,store:state.store,onSettingsChange:settings=>{state.settings=settings;}});
   void state.mcpPanel.restore({servers:state.settings.mcpServers,endpoint:state.settings.mcpEndpoint||''}).catch(report);
   state.harness=createHarness({store:state.store,onEvent:onHarnessEvent,capture,device:deviceAdapter,getContext:deviceContext,mcp:state.mcpAccess});
-  $('#new-session').onclick=guard(newSession);$('#session-list-menu').onclick=showSessionListMenu;$('#session-search').oninput=guard(refreshSessions);$('#archive-toggle').onclick=guard(async()=>{state.archived=!state.archived;await refreshSessions();});
+  $('#new-session').onclick=guard(newSession);state.sessionSearch=mountSessionSearch({surface:$('.sidebar'),scrollArea:$('#sessions'),field:$('#session-search-wrap'),input:$('#session-search'),toggle:$('#toggle-session-search'),cancel:$('#cancel-session-search'),onQueryChange:guard(refreshSessions)});$('#archive-toggle').onclick=guard(async()=>{state.archived=!state.archived;await refreshSessions();});
   $('#back-sessions').onclick=()=>$('#app').classList.remove('in-conversation');$('#session-menu').onclick=guard(showSessionMenu);
-  $('#conversation-device').onclick=guard(showDevices);$('#open-settings').onclick=guard(showSettings);$('#open-devices').onclick=guard(showDevices);$('#open-skills').onclick=guard(()=>showSkills());$('#composer-skills').onclick=guard(()=>showSkills());
+  $('#conversation-device').onclick=guard(showDevices);$('#open-settings').onclick=guard(showSettings);$('#open-devices').onclick=guard(showDevices);$('#composer-skills').onclick=guard(()=>{state.skillsFromSettings=false;return showSkills();});
   $('#composer').onsubmit=guard(sendMessage);$('#message-input').oninput=resizeInput;$('#stop-run').onclick=()=>{state.harness.stop();state.abort?.abort();$('#run-status').textContent='正在停止…';};
   $('#mode-select').onchange=guard(async()=>{updateModeDescription();if(state.current){await state.store.updateSession(state.current.id,{mode:$('#mode-select').value});state.current.mode=$('#mode-select').value;$('#session-subtitle').textContent=t('session.savedHere',{mode:modeLabel(state.current.mode)});await refreshSessions();}});
   $('#model-select').onchange=guard(async()=>{const resolved=selectedProvider();$('#model-select').title=resolved?`${resolved.name} · ${selectionParts($('#model-select').value).modelId}`:t('provider.chooseAccountModel');if(state.current){await state.store.updateSession(state.current.id,{modelId:$('#model-select').value});state.current.modelId=$('#model-select').value;}});
-  $('#panel-dialog').addEventListener('close',()=>{discardProviderDraft();state.codexAbort?.abort();state.modelsAbort?.abort();state.mcpPanel?.disposeView();});
+  $('#panel-dialog').addEventListener('close',()=>{state.panelGeneration=(state.panelGeneration||0)+1;state.devicePanel?.dispose();discardProviderDraft();state.codexAbort?.abort();state.modelsAbort?.abort();state.mcpPanel?.disposeView();});
   $$('dialog').forEach(dialog=>dialog.addEventListener('close',()=>{if(dialog.contains(toastNode))hideToast(toastNode);}));
   $$('dialog').forEach(dialog=>dialog.addEventListener('click',event=>{if(event.target===dialog){const rect=dialog.getBoundingClientRect();if(event.clientX<rect.left||event.clientX>rect.right||event.clientY<rect.top||event.clientY>rect.bottom)dialog.close();}}));
   const resizeViewport=()=>{const view=window.visualViewport;if(!view||view.scale!==1)return;document.documentElement.style.setProperty('--viewport-height',view.height+'px');document.documentElement.style.setProperty('--viewport-top',view.offsetTop+'px');document.body.classList.toggle('keyboard-visible',view.height<window.innerHeight-120);};window.visualViewport?.addEventListener('resize',resizeViewport);window.visualViewport?.addEventListener('scroll',resizeViewport);resizeViewport();
