@@ -2,6 +2,9 @@ import {cp,mkdir,readFile,writeFile,readdir,rm} from 'node:fs/promises';
 import path from 'node:path';
 import {syncAssets} from './sync_assets.mjs';
 const root=path.resolve(import.meta.dirname,'..'),destination=path.join(root,'build/site');
+// This signed installation download is a product asset, not a debug artifact.
+const shortcut=await readFile(path.join(root,'apps/web/shortcuts/iPhone Agent Clipboard.shortcut'));
+if(shortcut.length<256)throw new Error('The signed clipboard Shortcut download is missing or empty');
 await syncAssets(root);
 await rm(destination,{recursive:true,force:true});
 await mkdir(destination,{recursive:true});
