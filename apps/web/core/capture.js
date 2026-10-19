@@ -13,6 +13,7 @@ export function fitImage(width,height){if(!Number.isInteger(width)||!Number.isIn
 export class ScreenCapture {
   #listeners=new Set();
   subscribe(listener){if(typeof listener!=='function')throw new TypeError('Capture listener must be a function');this.#listeners.add(listener);return ()=>this.#listeners.delete(listener);}
+  #emit(event){for(const listener of [...this.#listeners])try{Promise.resolve(listener({...event,active:this.active,orientationEpoch:this.orientationEpoch})).catch(()=>{});}catch{}}
   stream=null;
   recorder=null;
   lastMediaEventAtMs=null;
@@ -30,18 +31,22 @@ export class ScreenCapture {
       // Keep the same recording conditions as the physical probe, without
       // retaining a growing video. This does not guarantee background life.
       this.recorder.ondataavailable=()=>{if(this.stream===stream)this.lastMediaEventAtMs=performance.now();};
+      const recorder=this.recorder;
+      recorder.onerror=()=>{if(this.recorder===recorder)this.stop('recorder_error');};
+      recorder.onstop=()=>{if(this.recorder===recorder)this.stop('recorder_stopped');};
       this.recorder.start(1000);
-      stream.getVideoTracks()[0].addEventListener('ended',()=>{if(this.stream===stream)this.stop();},{once:true});
+      stream.getVideoTracks()[0].addEventListener('ended',()=>{if(this.stream===stream)this.stop('track_ended');},{once:true});
+      this.#emit({type:'started'});
       return this.stream;
     }catch(e){this.stop();throw e;}
   }
-  stop(){
+  stop(reason='user_stopped'){
     const stream=this.stream,recorder=this.recorder;if(!stream&&!recorder)return;
     // Fence async frame readers before recorder/track callbacks can re-enter.
     this.stream=null;this.recorder=null;this.orientationEpoch++;this.dimensions=null;
     if(recorder&&recorder.state!=='inactive')try{recorder.stop();}catch{}
     for(const track of stream?.getTracks()||[])try{track.stop();}catch{}
-    const event={type:'stopped',orientationEpoch:this.orientationEpoch};for(const listener of [...this.#listeners])try{Promise.resolve(listener(event)).catch(()=>{});}catch{}
+    this.#emit({type:'stopped',reason});
   }
   async grab({signal,targetId}={}){
     checkAbort(signal);

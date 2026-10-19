@@ -29,7 +29,7 @@ test('connection test gates readiness, saves locally and reconnects without anot
  const options={store,capture,clientFactory:()=>new Client(),bridgeFactory:({onDisconnect})=>{bridgeDisconnect=onDisconnect;return {open:()=>Promise.resolve(),close(){onDisconnect();}};},openPanel(a,b,html){markup=html;},getPanelRoot:()=>holder,onDeviceChange:(client,state)=>published.push({client,state})};
  let panel=createDevicePanel(options);t.after(()=>panel.destroy());await panel.open();assert.deepEqual(calls,[]);assert.equal(panel.getState().status,'disconnected');
  assert.equal(field('[data-target]').disabled,true);assert.equal(field('[data-refresh]').disabled,true);assert.equal(field('[data-test-controls]').hidden,true);assert.equal(markup.includes('data-connect-shortcut'),false);
- assert.equal(field('[data-info-step]').hidden,true);assert.equal(field('[data-pair]').disabled,false);assert.deepEqual(calls,[]);
+ assert.equal(field('[data-info-step]').hidden,false);assert.equal(field('[data-pair]').disabled,false);assert.deepEqual(calls,[]);
  assert.equal(/data-device-text="(?:pairTitle|bindTitle|settingsTitle)"/.test(markup),true);assert.ok(markup.includes('data-device-text="wifiOptional"'));
  for(const removed of ['data-keyboard','data-assistive','data-direct','data-vault-password','data-owner-password'])assert.equal(markup.includes(removed),false);
  field('[data-address]').value=endpoint;await field('[data-pair]').onclick();

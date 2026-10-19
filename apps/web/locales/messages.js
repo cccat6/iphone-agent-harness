@@ -1,3 +1,5 @@
+import {INTERACTION_MESSAGES} from './interaction-refinement.js';
+import {PROVIDER_REFINEMENT_MESSAGES} from './provider-refinement.js';
 // Eight locale tables for product text; user content and protocol identifiers stay unchanged.
 export const messages = {
   "en": {
@@ -5392,3 +5394,7 @@ export const sourceAliases = {
   "本機儲存空間無法使用。公共頁面仍可瀏覽；儲存對話或 技能 需要允許瀏覽器儲存。": "settings.storageRequired",
   "請使用執行 iOS / iPadOS 27 或更新版本的 iPhone 或 iPad，並透過 Safari 開啟。首頁及 技能 社群仍可瀏覽。": "compat.description"
 };
+
+for(const [locale,table] of Object.entries(PROVIDER_REFINEMENT_MESSAGES))Object.assign(messages[locale],table);
+
+for(const [locale,table] of Object.entries(INTERACTION_MESSAGES))Object.assign(messages[locale],table);

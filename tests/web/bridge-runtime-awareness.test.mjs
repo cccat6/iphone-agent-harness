@@ -33,7 +33,7 @@ test('an offline tool call returns an explicit bridge error with no input or ret
 
 test('disconnect during model latency prevents a previously advertised operation',async()=>{
  const {store,session}=await setup();let connected=true,inputs=0;
- const h=createHarness({store,getContext:()=>({...trusted,bridgeConnection:connected?'connected':'disconnected'}),executePlan:async()=>{inputs++;},invoke:async request=>{assert.ok(request.tools.some(t=>t.name==='phone_execute_plan'));connected=false;return {text:'',toolCalls:[{id:'late',name:'phone_execute_plan',arguments:{plan:plan(session.id)}}]};}});
+ const h=createHarness({store,capture:{active:true},getContext:()=>({...trusted,bridgeConnection:connected?'connected':'disconnected'}),executePlan:async()=>{inputs++;},invoke:async request=>{assert.ok(request.tools.some(t=>t.name==='phone_execute_plan'));connected=false;return {text:'',toolCalls:[{id:'late',name:'phone_execute_plan',arguments:{plan:plan(session.id)}}]};}});
  await h.run({sessionId:session.id,text:'Press Home'});assert.equal(inputs,0);assert.equal(JSON.parse((await store.getMessages(session.id)).find(m=>m.role==='tool').text).code,'DEVICE_BRIDGE_UNAVAILABLE');
 });
 
@@ -84,7 +84,7 @@ test('matching clipboard metadata reaches each model round without text or unrel
 test('pending, failed and cancelled copy requests block a later run from pasting old contents',async()=>{
  for(const status of ['awaiting_user_action','copying','failed','cancelled']){
   const {store,session}=await setup();let inputs=0;const paste={...plan(session.id),steps:[{id:'paste',op:'key',usage:25,modifiers:8,holdMs:80}]};
-  const h=createHarness({store,getContext:()=>({...trusted,capabilities:{operations:['key']}}),clipboard:{getSnapshot:()=>({requestId:'pending',sessionId:session.id,targetId:'phone',status})},executePlan:async()=>{inputs++;return {status:'completed',frames:[]};},invoke:async()=>({text:'',toolCalls:[{id:'paste',name:'phone_execute_plan',arguments:{plan:paste}}]})});
+  const h=createHarness({store,capture:{active:true},getContext:()=>({...trusted,capabilities:{operations:['key']}}),clipboard:{getSnapshot:()=>({requestId:'pending',sessionId:session.id,targetId:'phone',status})},executePlan:async()=>{inputs++;return {status:'completed',frames:[]};},invoke:async()=>({text:'',toolCalls:[{id:'paste',name:'phone_execute_plan',arguments:{plan:paste}}]})});
   await h.run({sessionId:session.id,text:'Continue'});assert.equal(inputs,0,status);assert.equal(JSON.parse((await store.getMessages(session.id)).find(m=>m.role==='tool').text).code,'CLIPBOARD_COPY_REQUIRED');
  }
 });

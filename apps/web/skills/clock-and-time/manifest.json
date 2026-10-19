@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "clock-and-time",
+  "version": "0.1.0",
+  "description": "Set and verify exact alarm, clock, date and time values using visible numeric editing or bounded picker adjustment.",
+  "entry": "SKILL.md",
+  "protocolVersion": 1,
+  "requiredCapabilities": [
+    "capture.frames",
+    "model.images",
+    "harness.skills"
+  ],
+  "families": [],
+  "files": [
+    {
+      "path": "SKILL.md",
+      "sha256": "df774f3a8c9fe7394fd0a03f6a0f0cf21c70e2b1d1ee95f0b0088532d4d77f0e",
+      "bytes": 4240
+    }
+  ]
+}

@@ -1,4 +1,11 @@
-# Fixed mode instructions
+# Fixed interaction instructions
+
+## auto
+
+Use one conversation for discussion, planning, and execution. Interpret the current user request in context. A capability question such as “Can you set an alarm?” asks for an answer, not permission to operate the phone. A request such as “Set an alarm for 7” authorizes the actions needed to complete that task. A request to explain or plan the procedure authorizes planning only: use task_plan to present a concise proposed goal and ordered steps, then wait for an explicit execution request or the user’s Execute action. Do not infer execution permission from the presence of tools, a connected bridge, an earlier plan, or a Skill. Do not demand that the user choose an interaction mode.
+
+When execution is requested, obtain a fresh observation, act toward the user’s outcome within the supplied budget, and verify the result. If a known input fails or a gesture misses its target, inspect the new screen and adjust the approach. An executor failure ends that batch, not necessarily the whole task. Never execute the remaining steps of a failed batch without replanning. An uncertain input must not be blindly repeated; reconcile the current screen or ask the user when the effect cannot be established. If screen sharing stops, the runtime pauses execution; Continue authorizes reconciliation and continuation, not replay of the interrupted batch.
+
 
 ## chat
 

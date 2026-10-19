@@ -13,9 +13,11 @@
 | Anthropic 原生／兼容 | base 下的 `/v1/models`，已有v1不重复追加 | x-api-key＋anthropic-version |
 | DeepSeek 两种推理协议 | 官方 `https://api.deepseek.com/models` | Bearer |
 
-推理地址通过 URL.pathname 构造，基础地址与完整推理端点都保留合法的 api-version、route 等查询参数；不会把路径后缀拼入查询值。opaque 状态的端点范围包含实际 search，修改同一路径的路由参数也不会复用旧状态。模型目录构造保持原有行为。
+推理地址通过 URL.pathname 构造，基础地址与完整推理端点都保留合法的 api-version、route 等查询参数；不会把路径后缀拼入查询值。opaque 状态的端点范围包含实际 search，修改同一路径的路由参数也不会复用旧状态。末尾的 `/chat`、`/completions`、`/chat/completions`、`/messages`、`/models` 等路径先规范化为基础前缀，目录与推理请求由同一前缀构造。设置页为两类协议分别提供端点提示。
 
 同样的协议不保证同样的目录支持。有后端没实现、没授权或被浏览器 CORS 阻止时，显示真实失败，并保留手动模型输入。目录 API 识别 model ID，不独自证明视觉、工具能力或价格。Anthropic 目录支持分页；数量和页数有上限。
+
+模型列表中的所有结果都会保存到该账号或 API，并出现在会话模型选择器中。默认模型只有一个可输入或选择的字段，用于新会话的初始选择；不再要求用户从另一份“可用模型”中重复选择。手工填写的模型也会保留。流式接收默认开启。
 
 本轮用产品函数、用户提供的本地 Key 分别从两种配置发起实际发现，均返回 `deepseek-flash`、`deepseek-v4-pro`。根据官方说明，Flash 当前调用标识为 `deepseek-flash`。浏览器后台真实双协议实验另见研究报告。
 
@@ -29,17 +31,23 @@
 
 另实现 SIWC 的注册客户端 authorization-code 流程：PKCE、state、nonce、issued client ID、RS256/JWKS 身份验证与 plan scope。官方要求的 127.0.0.1 回调需要本机或自托管运行时，纯 Safari 静态页不能自行建立该监听器。新注册后的刷新使用 issued ID，而不是保留动态注册入口为长期客户端。[官方注册流程](https://developers.openai.com/siwc/token-sharing-open-source/sign-in)
 
-账号按独立本地登记 ID 管理，不能按 email 合并；每个账号保留自己的 client ID 与 rotating refresh token。用户可切换模型与账号。刷新事件只发账号 ID，不把秘密放进 UI 事件；解锁状态下由 UI 更新加密存档。模块默认在内存，按用户选择可通过 sealCredentials 加密本地保存。官方建议受保护运行时存储并不建议 browser storage；本项目的显式加密本地选择应如实说明，不能称为官方推荐。[官方账号与刷新](https://developers.openai.com/siwc/token-sharing-open-source/profiles-and-sessions)
+账号按独立本地登记 ID 管理，不能按 email 合并；每个账号保留自己的 client ID 与 rotating refresh token。用户可在模型选择器中切换账号和模型。刷新事件只发账号 ID，不把秘密放进 UI 事件；保存过的订阅账号会在刷新后更新浏览器本地令牌记录。
 
-当前 22 项离线 Codex 模块测试通过，但**尚未完成真实 Safari 登录、真实订阅推理与刷新验收**。公开无凭据预检显示 token 与新 Responses API 部分入口允许 CORS；设备码申请的网络诊断失败，以及旧 Codex 推理入口缺少允许来源，仍是实际接通关口。不能把预检或许可等同于手机浏览器成功，也不能由失败预检推断永久禁止。UI 必须显示真实错误，不创建假的已连接账号。
+### 浏览器本地保存
+
+普通 API 密钥和订阅登录信息由 `core/credentials.js` 写入 `store.saveLocalCredential('provider:'+id, ...)`，与普通设置记录及会话导出分开。重新打开页面后，产品恢复对应 API 密钥或重新登记 Codex 账号；删除账号时也删除其本地凭据。新建和保存账号不要求口令，不提供新的加密保存开关。旧版 `credentialVault` 加密记录不删除：只有已有且尚未恢复的记录显示折叠恢复入口，也可以直接重新输入密钥或重新登录。清除网站数据会同时删除本地凭据。
+
+离线测试使用 IndexedDB 关闭后重新打开，验证 API 与订阅凭据恢复及会话导出不含密钥。这不替代 Safari 中的真实订阅授权或刷新验收。
+
+已有离线 Codex 模块测试，但**尚未完成真实 Safari 登录、真实订阅推理与刷新验收**。公开无凭据预检显示 token 与新 Responses API 部分入口允许 CORS；设备码申请的网络诊断失败，以及旧 Codex 推理入口缺少允许来源，仍是实际接通关口。不能把预检或许可等同于手机浏览器成功，也不能由失败预检推断永久禁止。UI 必须显示真实错误，不创建假的已连接账号。
 
 详见[订阅实现、完整 exports 与诊断记录](../research/codex-subscription.md)。
 
 ## MCP
 
-`core/mcp.js` 提供可选的 Streamable HTTP 客户端和页面内授权管理器 `createMCPAccess()`。设置中先连接真实目录，再由用户逐项选择工具并显式启用；连接成功本身不授予调用权限。地址或凭据改变、断开连接都会清除授权并取消在途请求。凭据与授权只在当前页面内存中，普通设置最多保存端点地址。
+`core/mcp.js` 提供可选的 Streamable HTTP 客户端和页面内授权管理器 `createMCPAccess()`。设置中先连接真实目录，再由用户逐项选择工具并显式启用；连接成功本身不授予调用权限。地址或凭据改变、断开连接都会清除授权并取消在途请求。端点、访问令牌、工具选择和启用状态保存在浏览器本地的独立记录中。刷新后尝试重新连接，取得新目录后恢复仍然存在的工具选择；每个服务器分别显示连接状态和工具。普通会话导出不包含令牌。
 
-Harness 仅增加两个固定工具 `mcp_list_tools` 与 `mcp_call`，不按服务器目录动态注册工具。列表只包含用户已启用的服务器与工具；调用在发送前和返回后再次核对授权代数。Chat／Plan 可以查看获准目录，只有 Task 可以调用外部工具，服务器的 `readOnlyHint` 等声明不改变这个规则。
+Harness 仅增加两个固定工具 `mcp_list_tools` 与 `mcp_call`，不按服务器目录动态注册工具。列表只包含用户已启用的服务器与工具；调用在发送前和返回后再次核对授权代数。统一会话的执行请求可以调用外部工具；旧会话在 Chat／Plan 兼容模式下仅能查看获准目录。服务器的 `readOnlyHint` 等声明不替代用户授权。
 
 发送后的超时、取消、授权撤销、协议错误、远端工具错误、非文本结果超限或传输超过 2 MB 均按结果未知处理，持久记录 `MCP_CALL_UNCERTAIN`，停止本轮后续依赖操作，不自动重试。用户应先核对外部服务的实际结果。发送前未授权或参数不符则是普通拒绝。已完整接收的成功纯文本结果超过 64 KB 时，会按顺序截断并显式报告原始字节数、遗漏内容块及 structuredContent 遗漏情况，保持调用已返回的事实，不误记为执行未知，也不自动追加调用。详情见[MCP 授权与调用生命周期](mcp.md)。
 

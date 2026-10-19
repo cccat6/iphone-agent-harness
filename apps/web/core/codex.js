@@ -1,7 +1,7 @@
 import {modelContextMetadata} from './models.js';
 import {contextOverflowError,readProviderFailure} from './provider-errors.js';
 // Subscription transport. Tokens stay in this module's memory unless the caller
-// explicitly exports them for its encrypted vault. Never reads Codex auth.json.
+// explicitly saves them in the browser-local credential store. Never reads Codex auth.json.
 export const CODEX_LIMITS=Object.freeze({eventChars:2000000,textChars:1000000,toolArgumentChars:64000,stateChars:1000000,toolCalls:8,outputItems:256,jsonBytes:2000000});
 export const CODEX_CLIENT_ID='app_EMoamEEZ73f0CkXaXp7hrann';
 export const CODEX_ENDPOINTS=Object.freeze({issuer:'https://auth.openai.com',userCode:'https://auth.openai.com/api/accounts/deviceauth/usercode',poll:'https://auth.openai.com/api/accounts/deviceauth/token',token:'https://auth.openai.com/oauth/token',planToken:'https://auth.openai.com/api/accounts/oauth/token',verification:'https://auth.openai.com/codex/device',responses:'https://chatgpt.com/backend-api/codex/responses',models:'https://chatgpt.com/backend-api/codex/models',planResponses:'https://api.openai.com/v1/responses',planModels:'https://api.openai.com/v1/models'});

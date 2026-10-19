@@ -1,14 +1,14 @@
 ---
 name: drag-and-drop
 description: Move one phone UI item with a complete bounded press–move–release trajectory, distinct from inertial scrolling.
-version: 0.2.0
+version: 0.3.0
 ---
 
 # drag-and-drop
 
 ## Runtime contract
 
-This Skill is declarative knowledge for existing tools, not executable code, a tool registration, or a permission grant. Follow the active mode: chat explains; plan may observe and propose; task may execute only tools actually exposed for the verified target. `phone_observe({})` reads one frame from already active user-authorized sharing. `skills_load({"id":"…"})` loads an installed enabled Skill. Use `phone_execute_plan({"plan":…})` only when present in the tool list; never fabricate a device executor or successful result.
+This Skill is declarative knowledge for existing tools, not executable code, a tool registration, or a permission grant. The normal conversation can explain, plan, or act according to the current user request; execute only tools actually exposed for the verified target. A question about capability is not a request to perform that action, and a requested plan does not itself authorize execution. `phone_observe({})` reads one frame from already active user-authorized sharing. `skills_load({"id":"…"})` loads an installed enabled Skill. Use `phone_execute_plan({"plan":…})` only when present in the tool list; never fabricate a device executor or successful result.
 
 All coordinates are integers in **0..10000 across the complete shared display**, with the origin at its upper left. Map cropped images back to that display. Use the current runtime's board, session, target, frame ID and orientation epoch. Never substitute sample identities or Safari CSS coordinates. A changed target or orientation invalidates pending coordinates. The examples below are **step fragments**, not complete tool arguments: wrap them in a validated v1 plan with real runtime identity and limits. Every pressed key/button must be released within its complete gesture; do not hold input while waiting for another model turn.
 
@@ -25,7 +25,8 @@ Move a draggable item, adjust a slider precisely or perform an explicit single-p
 3. Choose a path that avoids unwanted drop zones and edge auto-scroll. Start with a moderate duration and limit the total press to the runtime maximum (initial proposal: 3 seconds).
 4. Never press in one model call and wait to decide the release in another. If the route cannot be determined before pressing, observe first or ask the user; do not leave a pointer down while an LLM responds.
 5. Release at the destination. A short endpoint hold is appropriate for precise placement and intentionally removes release velocity. For a swipe, use the different `swipe` operation without that hold.
-6. Review a fresh post-release image. If the item did not move, re-observe whether it is draggable and whether the current app requires a different supported gesture.
+6. Normalize source and destination against the same complete frame. The compiler first positions with the button released for at least one reported device interval before down; it does not apply a hidden calibration offset. A precise drag uses an endpoint hold; a moving release intentionally allows inertia and is unsuitable for selecting an exact wheel value without follow-up verification.
+7. Review a fresh post-release image. If the item did not move, re-observe whether it is draggable and whether the current app requires a different supported gesture.
 
 ## Parameter examples
 

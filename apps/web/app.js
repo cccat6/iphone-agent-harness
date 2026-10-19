@@ -1,3 +1,5 @@
+import {messagePresentation,createConversationFollow} from './ui/message-presentation.js';
+import {showImagePreview} from './ui/image-preview.js';
 import {pendingDeviceSetupReturn} from './core/device-setup.js';
 import { getBrowserCompatibility } from './core/compatibility.js';
 import { SITE_CONFIG } from './site-config.js';
@@ -8,7 +10,7 @@ import { createHistoryWindow } from './core/history-window.js';
 import { createHistoryImages } from './ui/history-images.js';
 import { readImportFile, sessionBackupBlob, SESSION_BACKUP_BYTES, BACKUP_ERRORS } from './core/backup-files.js';
 import { createHarness, chatExecutionContext } from './core/harness.js';
-import { setCredential, hasCredential, getCredential } from './core/credentials.js';
+import { setCredential, hasCredential, getCredential, saveProviderCredential, removeProviderCredential, restoreProviderCredentials } from './core/credentials.js';
 import { createDevicePanel } from './ui/device-panel.js';
 import { mountUsbSetup } from './ui/usb-setup.js';
 import { setLocalizedText, refreshLocalizedText } from './ui/localized-status.js';
@@ -18,12 +20,12 @@ import { mountClipboardPanel } from './ui/clipboard.js';
 import { screenCapture, normalizeImageSettings } from './core/capture.js';
 import { normalizeContextSettings } from './core/context.js';
 import { modelContextMetadata } from './core/models.js';
-import { sealCredentials, unsealCredentials } from './core/auth.js';
+import { unsealCredentials } from './core/auth.js';
 import { createMCPAccess } from './core/mcp.js';
 import { mountSessionSearch } from './ui/session-search.js';
 import { mountViewport } from './ui/viewport.js';
 import { createMCPSettings } from './ui/mcp-settings.js';
-import { discoverModels } from './core/providers.js';
+import { discoverModels, normalizeProviderEndpoint } from './core/providers.js';
 import { installBuiltinSkills, downloadSkill } from './core/skills.js';
 import { openCreatorIdentity, importCreatorIdentity } from './community/identity.js';
 import { createAuthoredSkill, updateAuthoredSkill, isOwnedAuthored } from './community/authoring.js';
@@ -40,20 +42,19 @@ const clipboard=createClipboardController({isCurrent:({sessionId,targetId})=>sta
 const deviceClipboard=createDeviceClipboard({getDevice:()=>activeInputBridge(),isCurrent:({sessionId,targetId})=>state.current?.id===sessionId&&deviceStatus().inputVerified&&deviceStatus().targetId===targetId});
 clipboard.subscribe(snapshot=>{if(!snapshot||snapshot.status!=='awaiting_user_action')deviceClipboard.cancel();});
 registerErrorCatalog(BACKUP_ERRORS);
-const vaultPassphrases=new Map();let vaultWrite=Promise.resolve();
+let vaultWrite=Promise.resolve();
 setCodexTokenObserver(({id,event})=>{
-  if(event!=='refreshed'||!vaultPassphrases.has(id)||!state.store)return;
+  if(event!=='refreshed'||!state.store)return;
   vaultWrite=vaultWrite.catch(()=>{}).then(async()=>{
-    const passphrase=vaultPassphrases.get(id),account=getCodexAccount(id);if(!passphrase||!account)return;
-    const encrypted=await sealCredentials(account.exportTokens(),passphrase),latest=await state.store.getSettings();
-    if(vaultPassphrases.get(id)!==passphrase||!latest.providers?.some(profile=>profile.id===id&&profile.protocol==='codex'))return;
-    state.settings=await state.store.saveSettings({credentialVault:{...latest.credentialVault,[id]:encrypted}});
-  }).catch(error=>toast(()=>t('auth.vaultRefreshFailed',{detail:localizeError(error)})));
+    const latest=await state.store.getSettings(),account=getCodexAccount(id);
+    if(!account||!latest.providers?.some(profile=>profile.id===id&&profile.protocol==='codex'))return;
+    await saveProviderCredential(state.store,id,{kind:'codex',tokens:account.exportTokens()});
+  }).catch(error=>toast(()=>t('providerRefinement.credentialSaveFailed',{detail:localizeError(error)})));
 });
 let toastTimer,toastNode;
 const modeNames = {chat:'对话',plan:'计划',task:'任务'};
 const modeDescriptions={chat:'mode.chatDescription',plan:'mode.planDescription',task:'mode.taskDescription'};
-const modeLabel=mode=>t('mode.'+(['chat','plan','task'].includes(mode)?mode:'chat'));
+const modeLabel=()=>t('interaction.assistant');
 
 function hideToast(node){if(typeof node?.hidePopover==='function'&&node.matches(':popover-open'))node.hidePopover();if(node)node.hidden=true;}
 function toast(message) {
@@ -121,13 +122,14 @@ function renderModelOptions() {
   const current=state.current?.modelId||state.settings.activeProviderId||'';
   const parts=selectionParts(current);const profile=providers().find(item=>item.id===parts.providerId);
   const selected=profile?`${profile.id}::${parts.modelId||profile.model||profileModels(profile)[0]?.id||''}`:'';
-  $('#model-select').innerHTML=`<option value="">${t('session.chooseModel')}</option>`+providers().map(item=>`<optgroup label="${escapeHTML(item.name||t('provider.unnamed'))}">${profileModels(item).map(model=>`<option value="${escapeHTML(item.id+'::'+model.id)}">${escapeHTML(model.name)} · ${escapeHTML(item.name||t('provider.account'))}</option>`).join('')}</optgroup>`).join('');
-  $('#model-select').value=selected;$('#model-select').setAttribute('aria-label',t('session.model'));
+  $('#model-select').innerHTML=(providers().some(item=>profileModels(item).length)?'':`<option value="" disabled>${t('status.configureModel')}</option>`)+providers().map(item=>`<optgroup label="${escapeHTML(item.name||t('provider.unnamed'))}">${profileModels(item).map(model=>`<option value="${escapeHTML(item.id+'::'+model.id)}">${escapeHTML(model.name)} · ${escapeHTML(item.name||t('provider.account'))}</option>`).join('')}</optgroup>`).join('');
+  $('#model-select').value=selected||$('#model-select').options[0]?.value||'';if(!$('#model-select').value&&$('#model-select').options.length)$('#model-select').value=$('#model-select').options[0].value;$('#model-select').setAttribute('aria-label',t('session.model'));
   const resolved=selectedProvider();$('#model-select').title=resolved?`${resolved.name} · ${selectionParts($('#model-select').value).modelId}`:t('provider.chooseAccountModel');
 }
-function updateModeDescription() { $('#mode-description').textContent=t(modeDescriptions[$('#mode-select').value]); }
-async function newSession({fromSubmit=false}={}) { if(!(fromSubmit?deviceSessionAvailable():await state.devicePanel?.ensureReady?.())){await showDevices();toast(t('device.startHint'));return null;} if((state.running||state.submitting)&&!fromSubmit)throw new Error('请先停止当前任务，再切换会话。');const session=await state.store.createSession({title:t('session.new'),mode:$('#mode-select').value||'chat',modelId:$('#model-select').value||state.settings.activeProviderId||providers()[0]?.id||''}); await refreshSessions(); await openSession(session.id,{fromSubmit}); $('#message-input').focus();return session; }
-function historyWindow(){return state.history||(state.history=createHistoryWindow(state.store));}
+function updateModeDescription() { $('#mode-description').textContent=t(capture.active?'interaction.sharing':'interaction.notSharing'); }
+async function newSession({fromSubmit=false}={}) { if(!(fromSubmit?deviceSessionAvailable():await state.devicePanel?.ensureReady?.())){await showDevices();toast(t('device.startHint'));return null;} if((state.running||state.submitting)&&!fromSubmit)throw new Error('请先停止当前任务，再切换会话。');const session=await state.store.createSession({title:t('session.new'),mode:'auto',modelId:$('#model-select').value||state.settings.activeProviderId||providers()[0]?.id||''}); await refreshSessions(); await openSession(session.id,{fromSubmit}); $('#message-input').focus();return session; }
+function historyWindow(){return state.history||(state.history=createHistoryWindow(state.store,{includeInternal:!!state.settings.developerMode}));}
+async function refreshConversationPresentation(){state.history?.clear();state.history=null;if(state.current){applyHistory(await historyWindow().load(state.current.id));}renderMessages();}
 function applyHistory(page){if(!page)return false;state.messages=page.messages;state.hasOlder=page.hasOlder;state.hasNewer=page.hasNewer;state.messageLimit=page.messages.length;return true;}
 async function openSession(id,{fromSubmit=false}={}) {
   if(state.submitting&&!fromSubmit)throw new Error('请先停止当前任务，再切换会话。');
@@ -137,8 +139,8 @@ async function openSession(id,{fromSubmit=false}={}) {
   const session=await state.store.getSession(id);if(request!==state.sessionOpenGeneration)return;
   if(!session)throw new Error('未找到这条会话。');
   const page=await historyWindow().load(id);if(request!==state.sessionOpenGeneration||!page)return;
-  if(state.current?.id!==id)clipboard.clear();state.current=session;applyHistory(page);
-  state.lastError=null;state.pending=null;$('#app').classList.add('in-conversation');$('#session-title').textContent=session.title||t('session.new');$('#session-subtitle').textContent=t('session.savedHere',{mode:modeLabel(session.mode||'chat')});$('#session-menu').hidden=false;$('#mode-select').value=session.mode||'chat';$('#message-input').value=state.drafts.get(id)||'';resizeInput();renderModelOptions();updateModeDescription();renderSessions();renderClipboard();renderMessages();
+  if(state.current?.id!==id)clipboard.clear();state.current=session;state.capturePaused=false;applyHistory(page);
+  state.lastError=null;state.pending=null;$('#app').classList.add('in-conversation');$('#session-title').textContent=session.title||t('session.new');$('#session-subtitle').textContent=t('interaction.localSession');$('#session-menu').hidden=false;$('#message-input').value=state.drafts.get(id)||'';resizeInput();renderModelOptions();updateModeDescription();renderSessions();renderClipboard();renderMessages();
 }
 async function pageHistory(direction){
   const region=$('#conversation'),first=[...region.querySelectorAll('[data-message-id]')].find(node=>node.offsetTop+node.offsetHeight>=region.scrollTop),anchor=first?{id:first.dataset.messageId,offset:first.offsetTop-region.scrollTop}:null;
@@ -146,42 +148,59 @@ async function pageHistory(direction){
   applyHistory(page);renderMessages({scrollToEnd:false});
   if(anchor){const node=[...region.querySelectorAll('[data-message-id]')].find(item=>item.dataset.messageId===anchor.id);if(node)region.scrollTop=node.offsetTop-anchor.offset;}
 }
-function welcome() { return `<section class="welcome"><div class="welcome-icon" aria-hidden="true">⌘</div><div class="eyebrow">IPHONE AGENT HARNESS</div><h2>从想法，到手机上的行动。</h2><p>连接你自己的模型。用对话制定计划，借助设备完成操作。会话与 Skills 留在你的浏览器里。</p><div class="welcome-cards"><button class="welcome-card" data-welcome="chat"><span>↗</span><strong>先聊聊你的想法</strong><small>梳理需求，或把目标变成计划</small></button><button class="welcome-card" data-welcome="devices"><span>▣</span><strong>连接你的设备</strong><small>查看输入桥与屏幕共享设置</small></button></div></section>`; }
+function welcome() { return `<section class="welcome"><h2>${escapeHTML(t('interaction.welcome'))}</h2><p>${escapeHTML(t('interaction.welcomeHelp'))}</p></section>`; }
+function conversationFollow(){return state.conversationFollow||(state.conversationFollow=createConversationFollow({region:$('#conversation')}));}
 function renderMessages({scrollToEnd=true}={}) {
-  const region=$('#conversation'),nearEnd=region.scrollHeight-region.scrollTop-region.clientHeight<100;
+  const region=$('#conversation'),follow=conversationFollow();follow.beforeRender({force:scrollToEnd&&!state.running});
   const renderGeneration=state.historyRenderGeneration=(state.historyRenderGeneration||0)+1;state.historyScrollPause=true;requestAnimationFrame(()=>{if(state.historyRenderGeneration===renderGeneration)state.historyScrollPause=false;});
   const earlier=state.hasOlder?`<button id="load-older-messages" class="secondary-button history-page">${escapeHTML(t('session.older'))}</button>`:'';
   const later=state.hasNewer?`<button id="load-newer-messages" class="secondary-button history-page">${escapeHTML(t('session.newer'))}</button>`:'';
   state.historyImages?.destroy();
-  region.innerHTML=state.messages.length?earlier+state.messages.map(message=>`<article data-message-id="${escapeHTML(message.id)}" class="message ${escapeHTML(message.role)}"><div class="message-label">${escapeHTML(message.role==='assistant'?'Harness':t(({user:'session.you',system:'session.system',tool:'session.tool'})[message.role]||'session.system'))}</div><div class="message-body">${escapeHTML(message.text)}</div>${message.textLength>message.text.length?`<div class="message-text-paging"><button class="secondary-button" data-text-page="previous" data-offset="0" hidden>${escapeHTML(t('session.previousText'))}</button><button class="secondary-button" data-text-page="next" data-offset="0">${escapeHTML(t('session.nextText'))}</button></div>`:''}${message.frameRefs?.length?`<div class="message-images">${message.frameRefs.map(ref=>`<img data-frame-ref="${escapeHTML(ref)}" alt="${escapeHTML(t('session.screenshot'))}" decoding="async" style="max-width:100%;height:auto;min-height:80px">`).join('')}</div>`:''}</article>`).join('')+later:welcome();
+  const rendered=state.messages.map(message=>{
+    const view=messagePresentation(message,{developerMode:!!state.settings.developerMode,t});if(!view)return '';
+    return `<article data-message-id="${escapeHTML(message.id)}" class="message ${escapeHTML(message.role)} ${view.kind}"><div class="message-label">${escapeHTML(message.role==='assistant'?'Harness':t(message.role==='user'?'session.you':'interaction.toolResult'))}</div>${view.text?`<div class="message-body">${escapeHTML(view.text)}</div>`:''}${message.textLength>message.text.length&&message.role!=='tool'?`<div class="message-text-paging"><button class="secondary-button" data-text-page="previous" data-offset="0" hidden>${escapeHTML(t('session.previousText'))}</button><button class="secondary-button" data-text-page="next" data-offset="0">${escapeHTML(t('session.nextText'))}</button></div>`:''}${view.plan?`<section class="task-plan"><strong>${escapeHTML(t('interaction.plan'))}</strong><p>${escapeHTML(view.plan.goal)}</p><ol>${view.plan.steps.map(step=>`<li>${escapeHTML(typeof step==='string'?step:step.description||step.title||'')}</li>`).join('')}</ol><button class="secondary-button" data-execute-plan="${escapeHTML(message.id)}" ${state.running?'disabled':''}>${escapeHTML(t('interaction.executePlan'))}</button></section>`:''}${view.frameRefs.length?`<div class="message-images">${view.frameRefs.map(ref=>`<button type="button" class="screenshot-thumbnail" data-preview-frame="${escapeHTML(ref)}" aria-label="${escapeHTML(t('session.screenshot'))}"><img data-frame-ref="${escapeHTML(ref)}" alt="${escapeHTML(t('session.screenshot'))}" decoding="async"></button>`).join('')}</div>`:''}${view.detail?`<details class="message-debug"><summary>${escapeHTML(t('interaction.details'))}</summary><pre>${escapeHTML(view.detail)}</pre></details>`:''}</article>`;
+  }).join('');
+  region.innerHTML=state.messages.length?earlier+rendered+later:welcome();
   if($('#load-older-messages'))$('#load-older-messages').onclick=guard(()=>pageHistory('older'));
   if($('#load-newer-messages'))$('#load-newer-messages').onclick=guard(()=>pageHistory('newer'));
+  $$('[data-preview-frame]',region).forEach(button=>button.onclick=guard(()=>showImagePreview({store:state.store,ref:button.dataset.previewFrame,label:t('session.screenshot'),closeLabel:t('common.close')})));
+  $$('[data-execute-plan]',region).forEach(button=>button.onclick=guard(()=>{const proposal=state.messages.find(m=>m.id===button.dataset.executePlan)?.taskPlan;if(proposal)return sendMessage({preventDefault(){}},t('interaction.executeRequest',{goal:proposal.goal})+'\n'+proposal.steps.map((step,index)=>(index+1)+'. '+(typeof step==='string'?step:step.description||step.title||'')).join('\n'),'auto');}));
   $$('[data-text-page]',region).forEach(button=>button.onclick=guard(async()=>{const article=button.closest('[data-message-id]'),id=article.dataset.messageId,offset=Math.max(0,Number(button.dataset.offset)+(button.dataset.textPage==='next'?32768:-32768));button.disabled=true;try{const page=await state.store.getMessageText(id,{offset});if(!article.isConnected||!page)return;$('.message-body',article).textContent=page.text;const previous=$('[data-text-page="previous"]',article),next=$('[data-text-page="next"]',article);for(const control of [previous,next])control.dataset.offset=String(offset);previous.hidden=offset===0;next.hidden=offset+page.text.length>=page.textLength;article.scrollIntoView({block:'start'});}finally{button.disabled=false;}}));
   region.onscroll=()=>{if(!state.historyScrollPause&&region.scrollTop<100&&state.hasOlder&&!state.running)void pageHistory('older').catch(report);};
   if(state.pending!==null){const article=document.createElement('article');article.className='message assistant pending';article.innerHTML='<div class="message-label">Harness</div><div class="message-body"></div>';$('.message-body',article).textContent=state.pending;region.append(article);}
   if(state.lastError){const node=document.createElement('div');node.className='error-notice';setLocalizedText(node,()=>localizeError(state.lastError));region.append(node);}
-  $$('[data-welcome]').forEach(button=>button.onclick=guard(async()=>{if(button.dataset.welcome==='devices')return showDevices();if(!state.current)await newSession();$('#message-input').focus();}));
-  if(scrollToEnd&&(nearEnd||!state.running)&&!state.hasNewer)region.scrollTop=region.scrollHeight;
-  state.historyImages=createHistoryImages({store:state.store,root:region});state.historyImages.mount();
+  if(scrollToEnd&&!state.hasNewer)follow.afterRender();
+  state.historyImages=createHistoryImages({store:state.store,root:region,onImageReady:()=>{if(!state.hasNewer)follow.afterRender();}});state.historyImages.mount();renderRunControls();
 }
-function setRunning(running) { state.running=running; $('#send-message').hidden=running; $('#stop-run').hidden=!running; $('#mode-select').disabled=running; $('#model-select').disabled=running; $('#run-status').hidden=!running; if(!running)$('#run-status').textContent=''; }
+function renderRunControls(){for(const action of $$('[data-execute-plan]'))action.disabled=state.running||state.submitting;const paused=Boolean(state.current?.promptState?.runResume||(!!state.current?.id&&state.capturePaused===state.current.id));const button=$('#resume-run');button.hidden=state.running||!paused;button.disabled=state.submitting;button.textContent=t(capture.active?'interaction.resume':'interaction.startSharing');$('#run-status').hidden=!state.running&&!paused;if(!state.running&&paused)$('#run-status').textContent=t('interaction.paused');updateModeDescription();}
+function setRunning(running) { state.running=running; $('#send-message').hidden=running; $('#stop-run').hidden=!running; $('#model-select').disabled=running; if(!running)$('#run-status').textContent='';renderRunControls(); }
 function onHarnessEvent(event) {
-  if(event.internal||event.message?.internal)return;
-  if(event.type==='status') { $('#run-status').textContent=({awaiting_model:'正在等待模型回复…',compacting:'正在整理上下文…',executing:'正在处理工具请求…',completed:'本轮已完成',needs_user:'需要补充信息或连接设备',unknown:'操作结果待核对',budget_exhausted:'达到本轮预算，进度已保存',cancelled:'已停止',failed:'本轮未完成'})[event.status]||event.status; }
-  if(event.type==='delta') { state.pending=(state.pending||'')+event.text; renderMessages(); }
-  if(event.type==='message' && event.message) { const message=event.message;applyHistory(historyWindow().append(message));if(message.role==='assistant')state.pending=null;renderMessages(); }
+  if((event.internal||event.message?.internal)&&!state.settings.developerMode)return;
+  if(event.type==='status') { if(event.status==='paused')state.capturePaused=state.current?.id;$('#run-status').textContent=event.status==='paused'?t('interaction.paused'):({awaiting_model:'正在等待模型回复…',compacting:'正在整理上下文…',executing:'正在处理工具请求…',completed:'本轮已完成',needs_user:'需要补充信息或连接设备',unknown:'操作结果待核对',budget_exhausted:'达到本轮预算，进度已保存',cancelled:'已停止',failed:'本轮未完成'})[event.status]||event.status; }
+  if(event.type==='delta') { state.pending=(state.pending||'')+event.text;const body=$('.message.pending .message-body');if(body){body.textContent=state.pending;conversationFollow().afterRender();}else renderMessages(); }
+  if(event.type==='message' && event.message) { const message=event.message;applyHistory(historyWindow().append(message));if(message.role==='assistant')state.pending=null;if(message.role==='user')conversationFollow().follow();renderMessages(); }
   if(event.type==='error') { state.lastError=localizeError(event.message);renderMessages(); }
+}
+async function resumeRun(){
+  if(state.running||state.submitting||!state.current)return;
+  // Start capture directly from this trusted click before storage/network awaits.
+  const sharing=capture.active?Promise.resolve():capture.start();
+  state.submitting=true;let resolveCompletion;state.runCompletion=new Promise(resolve=>{resolveCompletion=resolve;});let generation=null;const sessionId=state.current.id;
+  try{await sharing;if(!await state.devicePanel.ensureReady()){await showDevices();return;}generation=++state.runGeneration;state.abort=new AbortController();state.lastError=null;state.capturePaused=false;setRunning(true);await state.harness.resume({sessionId,modelId:$('#model-select').value,signal:state.abort.signal});}
+  catch(error){state.lastError=error;}
+  finally{try{if(generation===null||generation===state.runGeneration){state.current=await state.store.getSession(sessionId);applyHistory(await historyWindow().load(sessionId));renderMessages();}}finally{if(generation===null||generation===state.runGeneration){state.abort=null;state.submitting=false;setRunning(false);}renderRunControls();resolveCompletion?.();}}
 }
 async function sendMessage(event,textOverride=null,modeOverride=null) {
   event.preventDefault();if(!getBrowserCompatibility().supportedForHarness){renderPlatform();return;}const text=(textOverride===null?$('#message-input').value:textOverride).trim();if(!text||state.running||state.submitting)return;
+  const sharing=capture.active||!deviceSessionAvailable()||!selectedProvider()?Promise.resolve():capture.start();
   state.submitting=true;let resolveCompletion;state.runCompletion=new Promise(resolve=>{resolveCompletion=resolve;});let generation=null,sessionId=null,controller=null;
   try{
-    const ready=await state.devicePanel?.ensureReady?.();if(!state.current&&!ready){await showDevices();toast(t('device.startHint'));return;}
+    await sharing;const ready=await state.devicePanel?.ensureReady?.();if(!state.current&&!ready){await showDevices();toast(t('device.startHint'));return;}
     if(!selectedProvider()){await showSettings('accounts');toast(t('status.configureModel'));return;}
-    const mode=modeOverride||$('#mode-select').value,modelId=$('#model-select').value;if(modeOverride){$('#mode-select').value=mode;updateModeDescription();}
+    const mode='auto',modelId=$('#model-select').value;
     if(!state.current)await newSession({fromSubmit:true});if(!state.current)return;
     sessionId=state.current.id;await state.store.updateSession(sessionId,{mode,modelId});
-    generation=++state.runGeneration;controller=new AbortController();state.abort=controller;state.lastError=null;state.pending=null;setRunning(true);$('#run-status').textContent=t('status.preparing');
+    state.capturePaused=false;generation=++state.runGeneration;controller=new AbortController();state.abort=controller;state.lastError=null;state.pending=null;setRunning(true);$('#run-status').textContent=t('status.preparing');
     if(textOverride===null){$('#message-input').value='';state.drafts.delete(sessionId);resizeInput();}
     await state.harness.run({sessionId,text,mode,modelId,signal:controller.signal});
   }catch(error){
@@ -193,7 +212,7 @@ async function sendMessage(event,textOverride=null,modeOverride=null) {
         const page=await historyWindow().load(sessionId),session=await state.store.getSession(sessionId);
         if(generation===state.runGeneration&&state.current?.id===sessionId){state.pending=null;applyHistory(page);state.current=session;$('#session-title').textContent=session.title;await refreshSessions();renderMessages();}
       }
-    }finally{if(generation!==null&&generation===state.runGeneration){state.abort=null;setRunning(false);}state.submitting=false;resolveCompletion?.();}
+    }finally{if(generation!==null&&generation===state.runGeneration){state.abort=null;state.submitting=false;setRunning(false);}state.submitting=false;renderRunControls();resolveCompletion?.();}
   }
 }
 
@@ -209,15 +228,15 @@ function renderClipboard(){
   }});
 }
 function resizeInput() { const input=$('#message-input');input.style.height='auto';input.style.height=Math.min(input.scrollHeight,180)+'px'; }
-function discardProviderDraft(){const id=state.providerDraftId;if(id&&!providers().some(profile=>profile.id===id)){removeCodexAccount(id);setCredential(id,'');vaultPassphrases.delete(id);}state.providerDraftId=null;}
+function discardProviderDraft(){const id=state.providerDraftId;if(id&&!providers().some(profile=>profile.id===id)){removeCodexAccount(id);setCredential(id,'');}state.providerDraftId=null;}
 function panel(title,subtitle,body,metadata={}) { state.panelGeneration=(state.panelGeneration||0)+1;state.codexAbort?.abort();state.modelsAbort?.abort();discardProviderDraft(); state.devicePanel?.dispose();state.mcpPanel?.disposeView();const titleKey=Object.hasOwn(metadata,'titleKey')?metadata.titleKey:translationKey(title),subtitleKey=Object.hasOwn(metadata,'subtitleKey')?metadata.subtitleKey:translationKey(subtitle);$('#panel-content').innerHTML=`<div class="panel-header"><div><h2 data-no-i18n${titleKey?` data-i18n="${escapeHTML(titleKey)}"`:''}>${escapeHTML(title)}</h2>${subtitle?`<p data-no-i18n${subtitleKey?` data-i18n="${escapeHTML(subtitleKey)}"`:''}>${escapeHTML(subtitle)}</p>`:''}</div><button class="icon-button" id="close-panel" aria-label="关闭">×</button></div><div class="panel-body">${body}</div>`;$('#close-panel').onclick=()=>{state.panelGeneration=(state.panelGeneration||0)+1;state.devicePanel?.dispose();state.codexAbort?.abort();state.modelsAbort?.abort();$('#panel-dialog').close();};if(!$('#panel-dialog').open)$('#panel-dialog').showModal();$('.panel-body').scrollTop=0;$('#close-panel').focus({preventScroll:true}); }
 function setPanelStatus(message,bad=false) { const box=$('#panel-status');if(box){setLocalizedText(box,()=>localizeError(message));box.classList.toggle('bad',bad);box.hidden=false;} }
 
 async function showSessionMenu() {
   if(!state.current)return;const session=state.current;
-  $('#action-content').innerHTML=`<h3 data-no-i18n data-i18n="session.actions">${t('session.actions')}</h3><button class="action-item" data-action="rename">重命名</button><button class="action-item" data-action="pin">${session.pinned?'取消置顶':'置顶会话'}</button><button class="action-item" data-action="copy">复制会话 ID</button><button class="action-item" data-action="export">导出会话</button><button class="action-item" data-action="archive">${session.archived?'取消归档':'归档会话'}</button><button class="action-item danger" data-action="delete">删除会话</button><button class="action-item" data-action="cancel">取消</button>`;
+  $('#action-content').innerHTML=`<h3 data-no-i18n data-i18n="session.actions">${t('session.actions')}</h3><button class="action-item" data-action="skills">${t('nav.skills')}</button><button class="action-item" data-action="rename">重命名</button><button class="action-item" data-action="pin">${session.pinned?'取消置顶':'置顶会话'}</button><button class="action-item" data-action="copy">复制会话 ID</button><button class="action-item" data-action="export">导出会话</button><button class="action-item" data-action="archive">${session.archived?'取消归档':'归档会话'}</button><button class="action-item danger" data-action="delete">删除会话</button><button class="action-item" data-action="cancel">取消</button>`;
   $$('[data-action]').forEach(button=>button.onclick=guard(async()=>{ $('#action-dialog').close();const action=button.dataset.action;
-    if(action==='rename'){showRenameDialog(session);return;}
+    if(action==='skills'){state.skillsFromSettings=false;await showSkills();return;}if(action==='rename'){showRenameDialog(session);return;}
     if(action==='pin')await state.store.updateSession(session.id,{pinned:!session.pinned});
     if(action==='archive')await state.store.updateSession(session.id,{archived:!session.archived});
     if(action==='copy'){await navigator.clipboard.writeText(session.id);toast('会话 ID 已复制。');}
@@ -244,7 +263,7 @@ function importSessionFile(){
   const input=$('#file-input');input.value='';input.accept='.json,application/json';input.onchange=guard(async()=>{const file=input.files[0];if(!file)return;const session=await restoreSessionFile(state.store,file,{titleSuffix:t('session.importSuffix'),fallbackTitle:t('session.importFallback')});await refreshSessions();await openSession(session.id);toast(t('status.sessionImported'));});input.click();
 }
 function panelBack(action){
-  const header=$('.panel-header');header.insertAdjacentHTML('afterbegin',`<button type="button" id="panel-back" class="icon-button" aria-label="${escapeHTML(t('common.back'))}">‹</button>`);$('#panel-back').onclick=guard(action);
+  const header=$('.panel-header');const close=$('#close-panel');if(close)close.hidden=true;header.insertAdjacentHTML('afterbegin',`<button type="button" id="panel-back" class="icon-button" aria-label="${escapeHTML(t('common.back'))}">‹</button>`);$('#panel-back').onclick=guard(action);
 }
 async function showSettings(section='home') {
   if(typeof section!=='string')section='home';
@@ -256,8 +275,9 @@ async function showSettings(section='home') {
     panel(t('nav.settings'),'',`<nav class="settings-navigation">
       <div class="settings-group">${row('settings-accounts','settings.accounts')}${row('settings-devices','nav.devices')}${row('open-skills','nav.skills')}${row('settings-mcp','mcp.title')}</div>
       <div class="settings-group">${row('settings-context','context.title')}${row('settings-language','language.label')}${row('settings-storage','settings.localStorage')}</div>
-      <div class="settings-group">${row('settings-archive','session.viewArchive')}${row('import-session','session.import')}</div>
+      <div class="settings-group">${row('settings-archive','session.viewArchive')}${row('import-session','session.import')}</div><label class="check-field"><input id="developer-mode" type="checkbox" ${settings.developerMode===true?'checked':''}>${systemTextHTML('providerRefinement.developer')}</label><p class="quiet-note">${systemTextHTML('providerRefinement.developerHelp')}</p>
     </nav>`);
+    $('#developer-mode').onchange=guard(async event=>{state.settings=await state.store.saveSettings({developerMode:event.target.checked});await refreshConversationPresentation();});
     for(const page of ['accounts','mcp','context','language','storage'])$('#settings-'+page).onclick=guard(()=>showSettings(page));
     $('#settings-devices').onclick=guard(async()=>{const opened=await showDevices();if(opened?.isConnected&&$('#panel-dialog').open&&$('#panel-content').contains(opened))panelBack(()=>showSettings());});
     $('#open-skills').onclick=guard(async()=>{state.skillsFromSettings=true;await showSkills();});
@@ -274,7 +294,7 @@ async function showSettings(section='home') {
   $('#add-provider').onclick=()=>renderProviderForm();
   $$('[data-provider-edit]').forEach(button=>button.onclick=()=>renderProviderForm(list.find(provider=>provider.id===button.dataset.providerEdit)));
   $$('[data-provider-default]').forEach(button=>button.onclick=guard(async()=>{state.settings=await state.store.saveSettings({activeProviderId:button.dataset.providerDefault});renderModelOptions();if(accountsGeneration===state.panelGeneration)await showSettings('accounts');}));
-  $$('[data-provider-delete]').forEach(button=>button.onclick=guard(async()=>{if(!confirm(t('confirm.removeProvider')))return;const remaining=providers().filter(provider=>provider.id!==button.dataset.providerDelete);const credentialVault={...state.settings.credentialVault};delete credentialVault[button.dataset.providerDelete];state.settings=await state.store.saveSettings({credentialVault,providers:remaining,activeProviderId:state.settings.activeProviderId===button.dataset.providerDelete?remaining[0]?.id||'':state.settings.activeProviderId});setCredential(button.dataset.providerDelete,'');removeCodexAccount(button.dataset.providerDelete);vaultPassphrases.delete(button.dataset.providerDelete);renderModelOptions();if(accountsGeneration===state.panelGeneration)await showSettings('accounts');}));
+  $$('[data-provider-delete]').forEach(button=>button.onclick=guard(async()=>{if(!confirm(t('confirm.removeProvider')))return;const remaining=providers().filter(provider=>provider.id!==button.dataset.providerDelete);const credentialVault={...state.settings.credentialVault};delete credentialVault[button.dataset.providerDelete];state.settings=await state.store.saveSettings({credentialVault,providers:remaining,activeProviderId:state.settings.activeProviderId===button.dataset.providerDelete?remaining[0]?.id||'':state.settings.activeProviderId});setCredential(button.dataset.providerDelete,'');removeCodexAccount(button.dataset.providerDelete);await removeProviderCredential(state.store,button.dataset.providerDelete);renderModelOptions();if(accountsGeneration===state.panelGeneration)await showSettings('accounts');}));
   }else if(section==='mcp'){
     panel(t('mcp.title'),'','<div id="mcp-settings" class="standalone-mcp"></div>');
     state.mcpPanel.mount($('#mcp-settings'),{servers:state.settings.mcpServers,endpoint:state.settings.mcpEndpoint||''});$('#mcp-settings details').open=true;
@@ -308,33 +328,32 @@ function renderProviderForm(provider={}) {
   const loginStatus=message=>{if(editorActive())setLocalizedText($('#codex-login-status'),()=>localizeError(message));};
   const modelsStatus=({key,variables={},error,fallback=false})=>{if(editorActive())setLocalizedText($('#models-status'),()=>error?t('common.failed',{detail:localizeError(error)})+(fallback?' '+t('provider.modelsFallback'):''):t(key,variables));};
   panel(t(provider.id?'provider.edit':'provider.add'),'', '<div id="provider-editor"></div>');
-  $('#provider-editor').innerHTML=`<form id="provider-form" class="provider-form"><p class="quiet-note" data-no-i18n data-i18n="provider.visionHelp">${t('provider.visionHelp')}</p><label class="field"><span>显示名称</span><input name="name" placeholder="例如：DeepSeek · 个人账号" value="${escapeHTML(provider.name)}" required maxlength="80"></label><label class="field"><span>账号接口</span><select name="protocol"><option value="openai" ${!['anthropic','codex'].includes(provider.protocol)?'selected':''}>OpenAI 风格 API</option><option value="anthropic" ${provider.protocol==='anthropic'?'selected':''}>Anthropic 风格 API</option><option value="codex" ${provider.protocol==='codex'?'selected':''}>Codex 订阅账号</option></select></label><label class="field" id="provider-endpoint-field"><span>API 基础地址</span><input name="baseUrl" type="url" inputmode="url" autocapitalize="none" spellcheck="false" placeholder="https://api.example.com/v1" value="${escapeHTML(provider.baseUrl)}"><small>浏览器直接请求此地址，对方需要允许跨域访问。不要在网址里填写密钥。</small></label><div id="codex-controls"><p class="quiet-note">先保存订阅账号，再开始登录。验证将在 OpenAI 官方页面完成；本页只显示服务实际签发的设备码。</p><div class="panel-actions"><button id="start-codex-login" class="secondary-button" type="button">开始设备码登录</button><button id="cancel-codex-login" class="secondary-button" type="button" hidden>取消登录</button></div><div id="codex-login-status" class="quiet-note">${provider.id&&hasCodexAccount(provider.id)?'该账号已在当前页面登录。':'该账号尚未在当前页面登录。'}</div><div id="codex-verification"></div><button id="complete-codex-login" class="secondary-button" type="button" hidden>我已完成验证，继续</button></div><label class="field"><span>默认模型 ID</span><input name="model" autocapitalize="none" spellcheck="false" placeholder="可获取模型列表，或手动填写" value="${escapeHTML(provider.model)}"></label><div class="panel-actions" style="margin-top:-4px"><button id="discover-models" class="secondary-button" type="button">获取模型</button></div><label id="discovered-models-field" class="field" hidden><span>接口返回的模型</span><select id="discovered-models" data-no-i18n></select></label><div id="models-status" class="quiet-note">${state.providerModels.length?systemTextHTML('provider.modelsSaved',{count:state.providerModels.length}):systemTextHTML('provider.modelsHint')}</div><label class="field" id="provider-secret-field"><span>API 密钥</span><input name="secret" type="password" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="${provider.id&&hasCredential(provider.id)?'已在内存中设置，留空保留':'粘贴你自己的 API 密钥'}"><small>默认仅在页面内存中使用，不进入会话或导出文件。</small></label><label class="check-field"><input name="encrypt" type="checkbox"> 用口令加密保存账号凭据到本地</label><label class="field" id="provider-vault-field" ${state.settings.credentialVault?.[provider.id]?'':'hidden'}><span>本地解锁口令</span><input name="passphrase" type="password" autocomplete="off" placeholder="口令不会保存，丢失后需重新登录或输入 API 密钥"><small>${systemTextHTML('provider.vaultHelp')} ${systemTextHTML(state.settings.credentialVault?.[provider.id]?'provider.vaultPresent':'provider.unlockEachTime')}</small></label>${state.settings.credentialVault?.[provider.id]?'<button id="unlock-provider" type="button" class="secondary-button">解锁已有凭据</button>':''}<label class="check-field" id="provider-stream-field"><input name="stream" type="checkbox" ${provider.stream!==false?'checked':''}> 流式接收回复</label><div class="panel-actions"><button class="primary" type="submit">保存账号</button><button id="cancel-provider" class="secondary-button" type="button">取消</button></div></form>`;
+  $('#provider-editor').innerHTML=`<form id="provider-form" class="provider-form"><p class="quiet-note" data-no-i18n data-i18n="provider.visionHelp">${t('provider.visionHelp')}</p><label class="field"><span>显示名称</span><input name="name" placeholder="例如：DeepSeek · 个人账号" value="${escapeHTML(provider.name)}" required maxlength="80"></label><label class="field"><span>账号接口</span><select name="protocol"><option value="openai" ${!['anthropic','codex'].includes(provider.protocol)?'selected':''}>OpenAI 风格 API</option><option value="anthropic" ${provider.protocol==='anthropic'?'selected':''}>Anthropic 风格 API</option><option value="codex" ${provider.protocol==='codex'?'selected':''}>Codex 订阅账号</option></select></label><label class="field" id="provider-endpoint-field"><span>${systemTextHTML('providerRefinement.endpoint')}</span><input name="baseUrl" type="url" inputmode="url" autocapitalize="none" spellcheck="false" placeholder="https://api.example.com/v1" value="${escapeHTML(provider.baseUrl)}"><small id="provider-endpoint-hint"></small></label><div id="codex-controls"><p class="quiet-note">${systemTextHTML('providerRefinement.loginIntro')}</p><div class="panel-actions"><button id="start-codex-login" class="secondary-button" type="button">开始设备码登录</button><button id="cancel-codex-login" class="secondary-button" type="button" hidden>取消登录</button></div><div id="codex-login-status" class="quiet-note">${provider.id&&hasCodexAccount(provider.id)?'该账号已在当前页面登录。':'该账号尚未在当前页面登录。'}</div><div id="codex-verification"></div><button id="complete-codex-login" class="secondary-button" type="button" hidden>我已完成验证，继续</button></div><label class="field"><span>${systemTextHTML('providerRefinement.defaultModel')}</span><input name="model" list="provider-models" autocapitalize="none" spellcheck="false" placeholder="${escapeHTML(t('providerRefinement.modelPlaceholder'))}" value="${escapeHTML(provider.model)}"><small>${systemTextHTML('providerRefinement.defaultHelp')}</small></label><div class="panel-actions" style="margin-top:-4px"><button id="discover-models" class="secondary-button" type="button">获取模型</button></div><datalist id="provider-models" data-no-i18n>${state.providerModels.map(model=>`<option value="${escapeHTML(model.id)}">${escapeHTML(model.name)}</option>`).join('')}</datalist><div id="models-status" class="quiet-note">${state.providerModels.length?systemTextHTML('provider.modelsSaved',{count:state.providerModels.length}):systemTextHTML('provider.modelsHint')}</div><label class="field" id="provider-secret-field"><span>API 密钥</span><input name="secret" type="password" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="${provider.id&&hasCredential(provider.id)?t('providerRefinement.secretSaved'):t('providerRefinement.secretPlaceholder')}"><small>${systemTextHTML('providerRefinement.localHelp')}</small></label>${state.settings.credentialVault?.[provider.id]&&!hasCredential(provider.id)&&!hasCodexAccount(provider.id)?`<details class="provider-legacy"><summary>${systemTextHTML('providerRefinement.legacyHelp')}</summary><label class="field"><span>本地解锁口令</span><input name="passphrase" type="password" autocomplete="off"></label><button id="unlock-provider" type="button" class="secondary-button">解锁已有凭据</button></details>`:''}<label class="check-field" id="provider-stream-field"><input name="stream" type="checkbox" ${provider.stream!==false?'checked':''}> 流式接收回复</label><div class="panel-actions"><button class="primary" type="submit">${systemTextHTML('providerRefinement.save')}</button></div></form>`;
   const editorForm=$('#provider-form');const editorActive=()=>state.providerEditorToken===editorToken&&$('#provider-form')===editorForm&&$('#panel-dialog').open;
-  const invalidateModels=()=>{modelSequence++;state.modelsAbort?.abort();state.providerModels=[];if($('#discover-models'))$('#discover-models').disabled=false;modelsStatus({key:'provider.modelsHint'});if($('#discovered-models-field'))$('#discovered-models-field').hidden=true;};
+  const invalidateModels=()=>{modelSequence++;state.modelsAbort?.abort();state.providerModels=[];if($('#discover-models'))$('#discover-models').disabled=false;modelsStatus({key:'provider.modelsHint'});if($('#provider-models'))$('#provider-models').innerHTML='';};
   editorForm.elements.baseUrl.addEventListener('input',invalidateModels);
-  const protocolChanged=(initial=false)=>{if(!initial){invalidateModels();unlockGeneration++;if($('#unlock-provider'))$('#unlock-provider').disabled=false;}state.codexAbort?.abort();login=null;const codex=isCodex(),form=$('#provider-form');$('#provider-endpoint-field').hidden=codex;form.elements.baseUrl.required=!codex;form.elements.baseUrl.disabled=codex;form.elements.model.required=!codex;$('#provider-secret-field').hidden=codex;form.elements.secret.disabled=codex;$('#provider-stream-field').hidden=codex;$('#codex-controls').hidden=!codex;$('#complete-codex-login').hidden=true;$('#cancel-codex-login').hidden=true;$('#codex-verification').replaceChildren();$('#start-codex-login').disabled=false;};
+  const protocolChanged=(initial=false)=>{if(!initial){invalidateModels();unlockGeneration++;if($('#unlock-provider'))$('#unlock-provider').disabled=false;}state.codexAbort?.abort();login=null;const codex=isCodex(),form=$('#provider-form');$('#provider-endpoint-field').hidden=codex;setLocalizedText($('#provider-endpoint-hint'),()=>t(form.elements.protocol.value==='anthropic'?'providerRefinement.anthropicHint':'providerRefinement.openaiHint'));form.elements.baseUrl.required=!codex;form.elements.baseUrl.disabled=codex;form.elements.model.required=!codex;$('#provider-secret-field').hidden=codex;form.elements.secret.disabled=codex;$('#provider-stream-field').hidden=codex;$('#codex-controls').hidden=!codex;$('#complete-codex-login').hidden=true;$('#cancel-codex-login').hidden=true;$('#codex-verification').replaceChildren();$('#start-codex-login').disabled=false;};
   $('#provider-form').elements.protocol.onchange=()=>protocolChanged(false);protocolChanged(true);
-  editorForm.elements.encrypt.onchange=()=>{$('#provider-vault-field').hidden=!editorForm.elements.encrypt.checked&&!state.settings.credentialVault?.[provider.id];};
   const applyModels=async list=>{
     const sequence=modelSequence,current=()=>editorActive()&&sequence===modelSequence;if(!current())return;
     if(!Array.isArray(list)||!list.length)throw new Error('接口没有返回可用模型，可继续手动填写。');
     const models=list.map(model=>({id:model.id,name:model.name||model.id,...modelContextMetadata(model)}));state.providerModels=models;
     const form=editorForm;
-    if(provider.id&&(isCodex()||(form.elements.protocol.value===provider.protocol&&safeURL(form.elements.baseUrl.value.trim())===safeURL(provider.baseUrl)))){
+    if(provider.id&&(isCodex()||(form.elements.protocol.value===provider.protocol&&normalizeProviderEndpoint(form.elements.baseUrl.value.trim())===normalizeProviderEndpoint(provider.baseUrl)))){
       state.settings=await state.store.saveSettings({providers:providers().map(item=>item.id===provider.id?{...item,models,model:item.model||models[0].id}:item)});
       if(!current())return;renderModelOptions();
     }
     if(!current())return;
-    $('#discovered-models').innerHTML=`<option value="">${t('provider.chooseReturned')}</option>`+models.map(model=>`<option value="${escapeHTML(model.id)}">${escapeHTML(model.name)}</option>`).join('');
-    $('#discovered-models-field').hidden=false;if(!form.elements.model.value)form.elements.model.value=models[0].id;
-    modelsStatus({key:'provider.modelsFetched',variables:{count:models.length}});setLocalizedText($('#discovered-models').options[0],()=>t('provider.chooseReturned'));
+    $('#provider-models').innerHTML=models.map(model=>`<option value="${escapeHTML(model.id)}">${escapeHTML(model.name)}</option>`).join('');
+    if(!form.elements.model.value)form.elements.model.value=models[0].id;
+    modelsStatus({key:'providerRefinement.allModels',variables:{count:models.length}});
   };
-  $('#discover-models').onclick=guard(async()=>{const button=$('#discover-models'),form=editorForm;state.modelsAbort?.abort();const controller=new AbortController();state.modelsAbort=controller;const sequence=++modelSequence;button.disabled=true;modelsStatus({key:'provider.modelsLoading'});$('#discovered-models-field').hidden=true;try{const list=isCodex()?await discoverCodexModels({accountId:provider.id,signal:controller.signal}):await discoverModels({protocol:form.elements.protocol.value,baseUrl:safeURL(form.elements.baseUrl.value.trim()),credential:form.elements.secret.value.trim()||getCredential(provider.id),signal:controller.signal});if(!editorActive()||sequence!==modelSequence||controller.signal.aborted)return;await applyModels(list);}catch(error){if(editorActive()&&sequence===modelSequence&&!controller.signal.aborted)modelsStatus({error,fallback:true});}finally{if(editorActive()&&sequence===modelSequence)button.disabled=false;}});
-  $('#discovered-models').onchange=()=>{if($('#discovered-models').value)$('#provider-form').elements.model.value=$('#discovered-models').value;};
+  $('#discover-models').onclick=guard(async()=>{const button=$('#discover-models'),form=editorForm;state.modelsAbort?.abort();const controller=new AbortController();state.modelsAbort=controller;const sequence=++modelSequence;button.disabled=true;modelsStatus({key:'provider.modelsLoading'});$('#provider-models').innerHTML='';try{const list=isCodex()?await discoverCodexModels({accountId:provider.id,signal:controller.signal}):await discoverModels({protocol:form.elements.protocol.value,baseUrl:safeURL(form.elements.baseUrl.value.trim()),credential:form.elements.secret.value.trim()||getCredential(provider.id),signal:controller.signal});if(!editorActive()||sequence!==modelSequence||controller.signal.aborted)return;await applyModels(list);}catch(error){if(editorActive()&&sequence===modelSequence&&!controller.signal.aborted)modelsStatus({error,fallback:true});}finally{if(editorActive()&&sequence===modelSequence)button.disabled=false;}});
+
   $('#start-codex-login').onclick=guard(async()=>{if(!provider.id){const id=shortId();provider={...provider,id,name:$('#provider-form').elements.name.value.trim()||'ChatGPT',protocol:'codex',accountId:id,models:[],model:'',stream:true};state.providerEdit=id;state.providerDraftId=id;$('#provider-form').elements.name.value=provider.name;}state.codexAbort?.abort();const controller=new AbortController();state.codexAbort=controller;const button=$('#start-codex-login');button.disabled=true;$('#cancel-codex-login').hidden=false;loginStatus('正在向 OpenAI 请求设备码…');try{const issuedLogin=await startCodexLogin({method:'device-code',flow:'codex',signal:controller.signal});if(controller.signal.aborted||state.codexAbort!==controller||!editorActive())return;login=issuedLogin;const url=new URL(login.verification_url||login.verificationUrl);if(url.origin!=='https://auth.openai.com')throw new Error('验证链接不是预期的官方地址。');$('#codex-verification').innerHTML=`<div class="status-box">${systemTextHTML('auth.deviceCode')}: <strong>${escapeHTML(login.user_code)}</strong><br><a href="${escapeHTML(url.href)}" target="_blank" rel="noopener noreferrer">打开 OpenAI 验证页 ↗</a></div>`;$('#complete-codex-login').hidden=false;loginStatus('在官方页面确认这个设备码，再返回这里继续。');}catch(error){if(editorActive()&&state.codexAbort===controller&&!controller.signal.aborted){loginStatus(error);button.disabled=false;}}});
   $('#cancel-codex-login').onclick=()=>{state.codexAbort?.abort();login=null;$('#codex-verification').replaceChildren();$('#complete-codex-login').hidden=true;$('#cancel-codex-login').hidden=true;$('#start-codex-login').disabled=false;loginStatus('登录已取消。');};
-  $('#complete-codex-login').onclick=guard(async()=>{if(!login)throw new Error('请先开始设备码登录。');const controller=state.codexAbort,button=$('#complete-codex-login');button.disabled=true;loginStatus('正在等待 OpenAI 验证结果，可随时取消…');try{await completeCodexLogin(login,{accountId:provider.id,label:$('#provider-form').elements.name.value||provider.name,signal:controller.signal});if(!editorActive()||controller.signal.aborted){if(!providers().some(item=>item.id===provider.id))removeCodexAccount(provider.id);return;}login=null;$('#codex-verification').replaceChildren();button.hidden=true;$('#cancel-codex-login').hidden=true;$('#start-codex-login').disabled=false;loginStatus('该账号已登录。可用口令加密保存凭据。');try{await applyModels(await discoverCodexModels({accountId:provider.id,signal:controller.signal}));}catch(error){if(editorActive()&&state.codexAbort===controller&&!controller.signal.aborted)modelsStatus({error});}}catch(error){if(editorActive()&&state.codexAbort===controller&&!controller.signal.aborted)loginStatus(error);}finally{button.disabled=false;}});
-  $('#cancel-provider').onclick=()=>{state.codexAbort?.abort();state.modelsAbort?.abort();discardProviderDraft();void showSettings('accounts');};
+  $('#complete-codex-login').onclick=guard(async()=>{if(!login)throw new Error('请先开始设备码登录。');const controller=state.codexAbort,button=$('#complete-codex-login');button.disabled=true;loginStatus('正在等待 OpenAI 验证结果，可随时取消…');try{await completeCodexLogin(login,{accountId:provider.id,label:$('#provider-form').elements.name.value||provider.name,signal:controller.signal});if(!editorActive()||controller.signal.aborted){if(!providers().some(item=>item.id===provider.id))removeCodexAccount(provider.id);return;}login=null;$('#codex-verification').replaceChildren();button.hidden=true;$('#cancel-codex-login').hidden=true;$('#start-codex-login').disabled=false;loginStatus(t('providerRefinement.signedIn'));try{await applyModels(await discoverCodexModels({accountId:provider.id,signal:controller.signal}));}catch(error){if(editorActive()&&state.codexAbort===controller&&!controller.signal.aborted)modelsStatus({error});}}catch(error){if(editorActive()&&state.codexAbort===controller&&!controller.signal.aborted)loginStatus(error);}finally{button.disabled=false;}});
+
   if($('#unlock-provider'))$('#unlock-provider').onclick=guard(async()=>{
     const form=editorForm,button=$('#unlock-provider');if(!editorActive()||button.disabled)return;
     const generation=++unlockGeneration,protocol=form.elements.protocol.value,passphrase=form.elements.passphrase.value,id=provider.id;
@@ -342,9 +361,11 @@ function renderProviderForm(provider={}) {
     button.disabled=true;
     try{
       const value=await unsealCredentials(state.settings.credentialVault[id],passphrase);if(!current())return;
-      if(protocol==='codex'){registerCodexAccount(id,value);vaultPassphrases.set(id,passphrase);loginStatus('该订阅账号已解锁到当前页面。');}
+      if(protocol!=='codex'&&!value.apiKey)throw new Error('凭据内容无效');
+      await saveProviderCredential(state.store,id,protocol==='codex'?{kind:'codex',tokens:value}:{kind:'api',apiKey:value.apiKey});if(!current())return;
+      if(protocol==='codex'){registerCodexAccount(id,value);loginStatus(t('providerRefinement.signedIn'));}
       else{if(!value.apiKey)throw new Error('凭据内容无效');setCredential(id,value.apiKey);}
-      form.elements.passphrase.value='';toast('账号凭据已解锁到当前页面内存。');
+      form.elements.passphrase.value='';toast(t('providerRefinement.saved'));
     }catch{if(current()){const error=new Error('CREDENTIAL_UNLOCK_FAILED');error.code='CREDENTIAL_UNLOCK_FAILED';throw error;}}
     finally{if(current())button.disabled=false;}
   });
@@ -353,23 +374,22 @@ function renderProviderForm(provider={}) {
     state.providerSavingToken=editorToken;const submit=editorForm.querySelector('[type=submit]');if(submit)submit.disabled=true;
     try{
       const values=new FormData(event.target),id=state.providerEdit||shortId(),codex=values.get('protocol')==='codex';
-      const updated={id,name:String(values.get('name')).trim(),protocol:values.get('protocol'),baseUrl:codex?'':safeURL(String(values.get('baseUrl')).trim()),model:String(values.get('model')||'').trim(),models:state.providerModels,stream:codex?true:values.has('stream'),...(codex?{accountId:id}:{})};
+      const updated={id,name:String(values.get('name')).trim(),protocol:values.get('protocol'),baseUrl:codex?'':normalizeProviderEndpoint(String(values.get('baseUrl')).trim()),model:String(values.get('model')||'').trim(),models:state.providerModels,stream:codex?true:values.has('stream'),...(codex?{accountId:id}:{})};
       updated.models=profileModels(updated);const list=providers().filter(item=>item.id!==id);list.push(updated);
-      const secret=String(values.get('secret')||'').trim(),passphrase=String(values.get('passphrase')||'');let credentialVault=state.settings.credentialVault||{};
-      if(values.has('encrypt')){
-        if(!passphrase)throw new Error('请输入本地解锁口令。');const account=codex?getCodexAccount(id):null;
-        if(codex&&!account)throw new Error('请先完成此订阅账号登录。');if(!codex&&!secret&&!getCredential(id))throw new Error('请先填写或解锁此账号的 API 密钥。');
-        credentialVault={...credentialVault,[id]:await sealCredentials(codex?account.exportTokens():{apiKey:secret||getCredential(id)},passphrase)};
-      }
+      const secret=String(values.get('secret')||'').trim(),account=codex?getCodexAccount(id):null;
+      const credential=codex?(account?{kind:'codex',tokens:account.exportTokens()}:null):secret?{kind:'api',apiKey:secret}:null;
       if(!editorActive())return;
-      state.settings=await state.store.saveSettings({providers:list,activeProviderId:state.settings.activeProviderId||id,credentialVault});
-      if(!codex&&secret)setCredential(id,secret);if(codex&&values.has('encrypt'))vaultPassphrases.set(id,passphrase);
+      // Read before writing so cancelling a stale editor cannot replace a credential.
+      const previous=credential?await state.store.getLocalCredential('provider:'+id):null;
+      if(!editorActive())return;
+      if(credential){await saveProviderCredential(state.store,id,credential);if(!editorActive()){if(previous)await saveProviderCredential(state.store,id,previous);else await removeProviderCredential(state.store,id);return;}}
+      state.settings=await state.store.saveSettings({providers:list,activeProviderId:state.settings.activeProviderId||id});
       if(state.providerDraftId===id)state.providerDraftId=null;
-      event.target.elements.secret.value='';event.target.elements.passphrase.value='';renderModelOptions();
-      if(editorActive()){await showSettings('accounts');toast('账号已保存，尚未发起模型请求。');}
+      event.target.elements.secret.value='';if(event.target.elements.passphrase)event.target.elements.passphrase.value='';renderModelOptions();
+      if(editorActive()){await showSettings('accounts');toast(t('providerRefinement.saved'));}
     }finally{if(state.providerSavingToken===editorToken)state.providerSavingToken=null;if(editorActive()&&submit)submit.disabled=false;}
   });
-  const header=$('.panel-header');header.insertAdjacentHTML('afterbegin',`<button type="button" id="provider-back" class="icon-button" aria-label="${escapeHTML(t('common.back'))}">‹</button>`);$('#provider-back').onclick=guard(()=>showSettings('accounts'));$('.panel-body').scrollTop=0;
+  const header=$('.panel-header');header.insertAdjacentHTML('afterbegin',`<button type="button" id="provider-back" class="icon-button" aria-label="${escapeHTML(t('providerRefinement.back'))}">‹</button>`);$('#provider-back').onclick=guard(()=>showSettings('accounts'));const close=header.querySelector('#close-panel');if(close)close.hidden=true;$('#provider-back').focus({preventScroll:true});$('.panel-body').scrollTop=0;
 }
 
 async function showDevices() {
@@ -437,7 +457,7 @@ function validateSkill(skill) { if(!skill||typeof skill!=='object'||Array.isArra
 function viewSkill(skill) {
   const metadata=skillMetadata(skill);
   panel(metadata.name,metadata.description,`<div class="quiet-note"><span data-no-i18n>${escapeHTML(skill.version||'local')}</span> · <span data-no-i18n>${escapeHTML(skill.id)}</span><br>${sourceLabel(skill)}</div><pre class="diagnostic-json" data-no-i18n>${escapeHTML(skill.content||skill.instructions||skill.body||'')}</pre><div class="panel-actions"><button id="back-skills" class="secondary-button">${t('skills.back')}</button>${ownedSkill(skill)?`<button id="edit-viewed-skill" class="secondary-button">${t('common.edit')}</button>${getBrowserCompatibility().supportedForHarness?`<button id="refine-viewed-skill" class="secondary-button">${t('skills.refineChat')}</button>`:''}`:''}</div>`,{titleKey:metadata.nameKey,subtitleKey:metadata.descriptionKey});
-  $('#back-skills').onclick=guard(()=>showSkills('local'));if($('#edit-viewed-skill'))$('#edit-viewed-skill').onclick=guard(()=>showSkillEditor(skill));if($('#refine-viewed-skill'))$('#refine-viewed-skill').onclick=guard(async()=>{$('#panel-dialog').close();navigate('harness');const created=await newSession();if(!created)return;$('#mode-select').value='chat';await state.store.updateSession(state.current.id,{mode:'chat'});$('#message-input').value=t('skills.refineDraft',{name:skill.name,id:skill.id});resizeInput();});
+  $('#back-skills').onclick=guard(()=>showSkills('local'));if($('#edit-viewed-skill'))$('#edit-viewed-skill').onclick=guard(()=>showSkillEditor(skill));if($('#refine-viewed-skill'))$('#refine-viewed-skill').onclick=guard(async()=>{$('#panel-dialog').close();navigate('harness');const created=await newSession();if(!created)return;await state.store.updateSession(state.current.id,{mode:'auto'});$('#message-input').value=t('skills.refineDraft',{name:skill.name,id:skill.id});resizeInput();});
 }
 function shareSkill(skill) {
   const owned=ownedSkill(skill),endpoint=communityEndpoint();
@@ -625,21 +645,21 @@ async function boot() {
   const returningDeviceSetup=pendingDeviceSetupReturn({consume:true});
   const pendingDeviceSetup=location.hash.startsWith('#device=')||returningDeviceSetup;
   renderPlatform();
-  state.store=await openStore();void requestStorageProtection();await installBuiltinSkills(state.store);state.settings=await state.store.getSettings()||{};state.skills=await state.store.listSkills();
+  state.store=await openStore();void requestStorageProtection();await installBuiltinSkills(state.store);state.settings=await state.store.getSettings()||{};await restoreProviderCredentials(state.store,providers(),{registerAccount:registerCodexAccount,onError:report});state.skills=await state.store.listSkills();
   state.devicePanel=createDevicePanel({store:state.store,capture,openPanel:panel,getPanelRoot:()=>$('#panel-content .panel-body'),onDeviceChange:(device,summary)=>{state.device=device;state.deviceStatus=summary;const pending=clipboard.getSnapshot();if(pending&&(!summary.inputVerified||summary.targetId!==pending.targetId))clipboard.clear();renderDeviceStatus();},onSettingsChange:settings=>{state.settings=settings;},isBusy:()=>state.running||state.submitting,onToast:toast});
   state.mcpAccess=createMCPAccess();state.mcpPanel=createMCPSettings({access:state.mcpAccess,store:state.store,onSettingsChange:settings=>{state.settings=settings;}});
   void state.mcpPanel.restore({servers:state.settings.mcpServers,endpoint:state.settings.mcpEndpoint||''}).catch(report);
   state.harness=createHarness({store:state.store,onEvent:onHarnessEvent,capture,device:deviceAdapter,getContext:deviceContext,getDeviceStatus:deviceStatus,clipboard,mcp:state.mcpAccess});
   $('#new-session').onclick=guard(newSession);state.sessionSearch=mountSessionSearch({surface:$('.sidebar'),scrollArea:$('#sessions'),field:$('#session-search-wrap'),input:$('#session-search'),toggle:$('#toggle-session-search'),cancel:$('#cancel-session-search'),onQueryChange:guard(refreshSessions)});$('#archive-toggle').onclick=guard(async()=>{state.archived=!state.archived;await refreshSessions();});
   $('#back-sessions').onclick=()=>$('#app').classList.remove('in-conversation');$('#session-menu').onclick=guard(showSessionMenu);
-  $('#conversation-device').onclick=guard(showDevices);$('#open-settings').onclick=guard(showSettings);$('#open-devices').onclick=guard(showDevices);$('#composer-skills').onclick=guard(()=>{state.skillsFromSettings=false;return showSkills();});
+  $('#conversation-device').onclick=guard(showDevices);$('#open-settings').onclick=guard(showSettings);$('#open-devices').onclick=guard(showDevices);
+  $('#resume-run').onclick=guard(resumeRun);capture.subscribe(event=>{state.deviceStatus=state.devicePanel?.getState?.();updateModeDescription();renderDeviceStatus();if(event.type==='stopped'&&state.running){$('#run-status').textContent=t('interaction.shareStopped');}renderRunControls();});
   $('#composer').onsubmit=guard(sendMessage);$('#message-input').oninput=resizeInput;$('#stop-run').onclick=()=>{state.harness.stop();state.abort?.abort();$('#run-status').textContent='正在停止…';};
-  $('#mode-select').onchange=guard(async()=>{updateModeDescription();if(state.current){await state.store.updateSession(state.current.id,{mode:$('#mode-select').value});state.current.mode=$('#mode-select').value;$('#session-subtitle').textContent=t('session.savedHere',{mode:modeLabel(state.current.mode)});await refreshSessions();}});
   $('#model-select').onchange=guard(async()=>{const resolved=selectedProvider();$('#model-select').title=resolved?`${resolved.name} · ${selectionParts($('#model-select').value).modelId}`:t('provider.chooseAccountModel');if(state.current){await state.store.updateSession(state.current.id,{modelId:$('#model-select').value});state.current.modelId=$('#model-select').value;}});
   $('#panel-dialog').addEventListener('close',()=>{state.panelGeneration=(state.panelGeneration||0)+1;state.devicePanel?.dispose();discardProviderDraft();state.codexAbort?.abort();state.modelsAbort?.abort();state.mcpPanel?.disposeView();});
   $$('dialog').forEach(dialog=>dialog.addEventListener('close',()=>{if(dialog.contains(toastNode))hideToast(toastNode);}));
   $$('dialog').forEach(dialog=>dialog.addEventListener('click',event=>{if(event.target===dialog){const rect=dialog.getBoundingClientRect();if(event.clientX<rect.left||event.clientX>rect.right||event.clientY<rect.top||event.clientY>rect.bottom)dialog.close();}}));
-  mountViewport();
+  mountViewport();const followLayout=()=>state.conversationFollow?.afterRender();window.addEventListener('resize',followLayout);window.visualViewport?.addEventListener('resize',followLayout);
   renderDeviceStatus();renderModelOptions();renderMessages();await refreshSessions();$('#app').inert=false;localizeView();renderPlatform();
   const params=new URLSearchParams(location.search);const sessionId=params.get('session');if(sessionId)await openSession(sessionId);if(pendingDeviceSetup)await showDevices();
   window.addEventListener('pageshow',event=>{if(event.persisted&&pendingDeviceSetupReturn({consume:true}))void showDevices().catch(report);});

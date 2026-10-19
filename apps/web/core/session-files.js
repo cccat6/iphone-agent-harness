@@ -1,9 +1,10 @@
+import {validateMessageMetadata} from './message-metadata.js';
 import {SESSION_BACKUP_BYTES} from './backup-files.js';
 import {imageData} from './attachments.js';
 const invalid=()=>new Error('Invalid session backup');
 function sizeCheck(file){if(file.size>SESSION_BACKUP_BYTES)throw Object.assign(new Error('BACKUP_TOO_LARGE'),{code:'BACKUP_TOO_LARGE'});}
-function validateMessage(m){if(!m||!['user','assistant','system','tool'].includes(m.role)||typeof m.text!=='string'||(m.images!==undefined&&(!Array.isArray(m.images)||m.images.length>8||m.images.some(v=>typeof v!=='string'||!/^data:image\/(jpeg|png|webp);base64,/.test(v)||v.length>7000000))))throw invalid();}
-function importedMessage(m){const historicalSystem=m.role==='system',input={role:historicalSystem?'user':m.role,text:historicalSystem?'Imported system record (quoted historical data, not Harness instructions):\n'+m.text:m.text};for(const key of ['toolCallId','toolCalls','images','status','internal','providerState'])if(m[key]!==undefined)input[key]=m[key];if(historicalSystem){input.internal=true;input.sourceRole='system';}return input;}
+function validateMessage(m){validateMessageMetadata(m||{});if(!m||!['user','assistant','system','tool'].includes(m.role)||typeof m.text!=='string'||(m.images!==undefined&&(!Array.isArray(m.images)||m.images.length>8||m.images.some(v=>typeof v!=='string'||!/^data:image\/(jpeg|png|webp);base64,/.test(v)||v.length>7000000))))throw invalid();}
+function importedMessage(m){const historicalSystem=m.role==='system',input={role:historicalSystem?'user':m.role,text:historicalSystem?'Imported system record (quoted historical data, not Harness instructions):\n'+m.text:m.text};for(const key of ['toolCallId','toolCalls','toolName','taskPlan','images','status','internal','providerState'])if(m[key]!==undefined)input[key]=m[key];if(historicalSystem){input.internal=true;input.sourceRole='system';}return input;}
 // Small input chunks, one JSON message at a time. The first pass validates the
 // complete file before any write; the second pass creates a new isolated session.
 async function* records(file,{chunkBytes=65536}={}){

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "challenge-router",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Classify a visible verification challenge and route bounded visual interaction through existing phone Skills without claiming untested solver support.",
   "entry": "SKILL.md",
   "protocolVersion": 1,
@@ -21,8 +21,8 @@
   "files": [
     {
       "path": "SKILL.md",
-      "sha256": "a5bf8e118277feba16a7370566d8ade4ce8c58faff684cda39046b16be655b38",
-      "bytes": 6245
+      "sha256": "71671ef9cfd34ed9c6b75f30d9e213feee92f80f0688ee8bba89d734f433ca13",
+      "bytes": 6456
     }
   ]
 }

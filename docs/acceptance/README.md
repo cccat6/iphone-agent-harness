@@ -6,13 +6,13 @@ Use Safari on an iPhone or iPad. One Harness page connects the ESP32 bridge, sha
 
 ## Check these eight steps
 
-1. **Get the bridge information, then connect.** Join the same Wi-Fi as the bridge. Open Devices in Harness, choose **Get bridge information**, then **Return to device connection** when the information is ready. Choose **Connect ESP32 bridge** next. The browser saves the information before connecting and hides this first step on later visits. The setup link from the desktop installer can also import it; a configured board does not need Wi-Fi provisioning again.
+1. **Get the bridge information, then connect.** Join the same Wi-Fi as the bridge. Open Devices in Harness, choose **Get bridge information**, then **Return to device connection** when the information is ready. Choose **Connect ESP32 bridge** next. The browser saves the information before connecting and keeps this first step visible as completed on later visits. The setup link from the desktop installer can also import it; a configured board does not need Wi-Fi provisioning again.
 
 2. **Verify phone input.** Pair **iPhone Agent Bridge** in iOS Bluetooth settings and enable AssistiveTouch using the tutorial. Back in Harness, start the connection test, wait for the bridge to type eight digits and confirm. Full Keyboard Access can remain on or off. There is no connection code to type manually.
 
 3. **Add an account or API and chat.** Under **Settings → Accounts or API**, add a connection, enter an API endpoint and key and load its models, or follow the ChatGPT sign-in interface. Create a session, select a model and send a message. Reopen settings to check that the connection was saved. The keyboard should leave form inputs and back/close actions accessible.
 
-4. **Share the screen and run a task.** Start with Clock or a dedicated test page. Share the screen and ask the AI to perform a tap, scroll or drag. Switch to the target app to observe the action, then return to inspect the screenshot and result. Plan mode observes and plans; Task mode executes.
+4. **Share the screen and run a task.** Start with Clock or a dedicated test page. Share the screen and ask the AI to perform a tap, scroll or drag. Switch to the target app to observe the action, then return to inspect the screenshot and result. There is one conversation entry: capability questions receive answers, planning requests show a reviewable plan, and explicit action requests can execute. Stop screen sharing during an action to pause; Continue should request sharing again if needed and observe the current screen before proceeding.
 
 5. **Try long text.** Open the [clipboard tutorial](https://igent.cc/shortcuts/clipboard.html), download **iPhone Agent Clipboard** and add it without changing its name. Ask Harness to prepare test text, choose **Copy with Shortcuts**, complete any system prompts and return. The task should wait for copy confirmation, then check the target field and paste. The foreground **Copy and continue** button is also available. With no pending text, running the Shortcut should finish immediately and leave the clipboard unchanged.
 

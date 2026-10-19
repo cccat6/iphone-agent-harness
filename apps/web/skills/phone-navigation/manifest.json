@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "phone-navigation",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Navigate iPhone and iPad across apps using fresh full-display evidence, bounded taps and validated Home input.",
   "entry": "SKILL.md",
   "protocolVersion": 1,
@@ -14,8 +14,8 @@
   "files": [
     {
       "path": "SKILL.md",
-      "sha256": "4f795a5a465bd5f705e2a8df2f25ccb8d10e62af6cf89070b68347fd743ccc0e",
-      "bytes": 4299
+      "sha256": "db536cc9350e23a06d8e2142356c6b47b1c017d76b64ac718d260b9b5882be3e",
+      "bytes": 5071
     }
   ]
 }

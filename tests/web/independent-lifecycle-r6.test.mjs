@@ -39,18 +39,18 @@ test('independent R6: stop while the dispatch intent is persisting prevents its 
  const f=captureFixture(t);await f.capture.start();const {store,session}=await setup(),entered=deferred(),persist=deferred(),addEvent=store.addEvent.bind(store);let submitted=0,ended=0;
  store.addEvent=async(id,event)=>{if(event.type==='device.segment.intent'){entered.resolve();await persist.promise;}return addEvent(id,event);};
  const h=createHarness({store,capture:f.capture,getContext:()=>context(1),device:{submitSegment:async()=>{submitted++;},getResult:async()=>{},release:async()=>{throw new Error('no segment dispatched');},endRun:async()=>{ended++;}},invoke:async()=>({text:'',toolCalls:[home(session.id),{id:'dependent',name:'skills_list',arguments:{}}]})});
- const pending=h.run({sessionId:session.id,text:'One bounded input.'});await entered.promise;f.capture.stop();persist.resolve();await assert.rejects(pending,e=>e.status==='cancelled');
- assert.equal(submitted,0);assert.equal(ended,1);assert.equal(h.running,false);assert.equal(f.listeners.size,0);
+ const pending=h.run({sessionId:session.id,text:'One bounded input.'});await entered.promise;f.capture.stop();persist.resolve();assert.equal((await pending).status,'paused');
+ assert.equal((await store.getSession(session.id)).promptState.runResume.reason,'capture_stopped');assert.equal(submitted,0);assert.equal(ended,1);assert.equal(h.running,false);assert.equal(f.listeners.size,0);
  const messages=await store.getMessages(session.id);for(const id of ['input','dependent'])assert.equal(messages.filter(m=>m.toolCallId===id).length,1);
  assert.equal(JSON.parse(messages.find(m=>m.toolCallId==='dependent').text).status,'not_executed');
 });
 
-test('independent R6: listeners detach after completion, provider failure, cancellation and a later successful run',async t=>{
+test('independent R6: listeners detach after completion, provider failure, sharing pause and a later successful run',async t=>{
  const f=captureFixture(t);await f.capture.start();const {store}=await setup();let behavior='complete',calls=0,entered=deferred();
  const h=createHarness({store,capture:f.capture,getContext:()=>context(f.capture.orientationEpoch),invoke:async()=>{calls++;if(behavior==='fail')throw new Error('synthetic provider failure');if(behavior==='wait'){entered.resolve();return new Promise(()=>{});}return {text:'done',toolCalls:[]};}});
  const run=async()=>h.run({sessionId:(await store.createSession({mode:'task'})).id,text:'A bounded run.'});
  await run();assert.equal(f.listeners.size,0);behavior='fail';await assert.rejects(run(),/synthetic provider failure/);assert.equal(f.listeners.size,0);
- behavior='wait';const pending=run();await entered.promise;assert.equal(f.listeners.size,1);f.capture.stop();await assert.rejects(pending,e=>e.status==='cancelled');assert.equal(f.listeners.size,0);
+ behavior='wait';const pending=run();await entered.promise;assert.equal(f.listeners.size,1);f.capture.stop();assert.equal((await pending).status,'paused');assert.equal(f.listeners.size,0);
  await f.capture.start();behavior='complete';await run();assert.equal(f.listeners.size,0);assert.equal(calls,4);assert.equal(h.running,false);f.capture.stop();
 });
 
@@ -62,9 +62,9 @@ test('independent R6: old ended events cannot cancel a later run using a replace
  assert.equal(f.capture.stream,replacement);assert.equal(h.running,true);reply.resolve({text:'done',toolCalls:[]});await pending;assert.equal(f.listeners.size,0);f.capture.stop();
 });
 
-test('independent R6: plan mode stops on sharing end and legacy captures without subscribe still work',async t=>{
+test('independent R6: plan interaction pauses on sharing end and legacy captures without subscribe still work',async t=>{
  const f=captureFixture(t);await f.capture.start();const {store,session}=await setup(),entered=deferred();
  const h=createHarness({store,capture:f.capture,getContext:()=>context(f.capture.orientationEpoch),invoke:async()=>{entered.resolve();return new Promise(()=>{});}});
- const pending=h.run({sessionId:session.id,mode:'plan',text:'Only propose.'});await entered.promise;f.capture.stop();await assert.rejects(pending,e=>e.status==='cancelled');assert.equal(f.listeners.size,0);
+ const pending=h.run({sessionId:session.id,mode:'plan',text:'Only propose.'});await entered.promise;f.capture.stop();assert.equal((await pending).status,'paused');assert.equal(f.listeners.size,0);
  await createHarness({store,capture:{active:false,orientationEpoch:0},getContext:()=>({}),invoke:async()=>({text:'legacy done',toolCalls:[]})}).run({sessionId:session.id,mode:'plan',text:'No observation required.'});
 });

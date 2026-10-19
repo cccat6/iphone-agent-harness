@@ -54,7 +54,8 @@ function openaiMessages(messages,scope,deepseek=false){
   }return out;
 }
 function stateFor(message,scope){const s=message.providerState;return s&&s.kind===scope.kind&&s.origin===scope.origin&&typeof s.endpoint==='string'&&s.endpoint===scope.endpoint&&s.accountId===scope.accountId&&s.model===scope.model?s:null;}
-function rootURL(value){const u=new URL(value);if(u.username||u.password)throw new Error('请勿将凭据写入 URL');if(u.protocol!=='https:'&&!['localhost','127.0.0.1','[::1]'].includes(u.hostname))throw new Error('后端需要 HTTPS，局域网 HTTP 受浏览器策略限制');u.pathname=u.pathname.replace(/\/(chat\/completions|messages|responses)\/?$/,'').replace(/\/$/,'');return u;}
+export function normalizeProviderEndpoint(value){const u=rootURL(value);u.hash='';return u.href;}
+function rootURL(value){const u=new URL(value);if(u.username||u.password)throw new Error('请勿将凭据写入 URL');if(u.protocol!=='https:'&&!['localhost','127.0.0.1','[::1]'].includes(u.hostname))throw new Error('后端需要 HTTPS，局域网 HTTP 受浏览器策略限制');u.pathname=u.pathname.replace(/\/(chat\/completions|completions|chat|messages|responses|models)\/?$/,'').replace(/\/$/,'');return u;}
 export async function discoverModels({protocol,baseUrl,credential='',accountId,fetchImpl=fetch,signal}){
   checkAbort(signal);if(protocol==='codex')return discoverCodexModels({accountId,fetchImpl,signal});
   if(!['openai','anthropic'].includes(protocol))throw new Error('不支持的模型目录协议');

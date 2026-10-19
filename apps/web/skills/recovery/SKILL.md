@@ -1,14 +1,14 @@
 ---
 name: recovery
 description: Recover from phone input, capture, network or model interruption without duplicating uncertain actions or inventing success.
-version: 0.2.0
+version: 0.3.0
 ---
 
 # recovery
 
 ## Runtime contract
 
-This Skill is declarative knowledge for existing tools, not executable code, a tool registration, or a permission grant. Follow the active mode: chat explains; plan may observe and propose; task may execute only tools actually exposed for the verified target. `phone_observe({})` reads one frame from already active user-authorized sharing. `skills_load({"id":"…"})` loads an installed enabled Skill. Use `phone_execute_plan({"plan":…})` only when present in the tool list; never fabricate a device executor or successful result.
+This Skill is declarative knowledge for existing tools, not executable code, a tool registration, or a permission grant. The normal conversation can explain, plan, or act according to the current user request; execute only tools actually exposed for the verified target. A question about capability is not a request to perform that action, and a requested plan does not itself authorize execution. `phone_observe({})` reads one frame from already active user-authorized sharing. `skills_load({"id":"…"})` loads an installed enabled Skill. Use `phone_execute_plan({"plan":…})` only when present in the tool list; never fabricate a device executor or successful result.
 
 All coordinates are integers in **0..10000 across the complete shared display**, with the origin at its upper left. Map cropped images back to that display. Use the current runtime's board, session, target, frame ID and orientation epoch. Never substitute sample identities or Safari CSS coordinates. A changed target or orientation invalidates pending coordinates. The examples below are **step fragments**, not complete tool arguments: wrap them in a validated v1 plan with real runtime identity and limits. Every pressed key/button must be released within its complete gesture; do not hold input while waiting for another model turn.
 
@@ -25,8 +25,9 @@ A plan fails, a request times out, the screen changes unexpectedly, capture stop
 3. A lost HTTP response does not mean the action did not occur. Let the executor query the same submitted ID when supported; never create a fresh ID just to retransmit an uncertain click, message submission or key sequence.
 4. For a connected target with authorized sharing, call `phone_observe({})` to establish the current screen. If sharing is unavailable, request user restoration; do not diagnose the screen from old cached images.
 5. Compare the fresh state to the goal and prior evidence. If the intended result already occurred, continue from the new state. If the result is unknown, report that explicitly. After board reboot, old boot/lease/receipt state is stale and must be re-established by the runtime.
-6. Only after identity, orientation, input-release state and frame freshness are known may a corrected bounded plan be created. Recompute all screen coordinates; do not continue the remainder of the old blind batch.
-7. If the user instructed immediate stop, preserve evidence and await a new start. Recovery must not secretly resume the task.
+6. Read the structured result: `deviceFailure` preserves the device status, submitted report count, release confirmation and timing lateness when supplied; `recovery.action` describes the next boundary. `observe_then_replan` permits a fresh observation and a corrected approach after known released-input failure. `reconcile_before_replan` means delivery is uncertain even if cleanup released input: inspect receipts/current screen, never replay identical ordered steps automatically. `reconnect` and `resume_sharing` need the relevant connection restored. `none` after cancellation does not authorize resuming.
+7. Only after identity, orientation, input-release state and frame freshness are known may a corrected bounded plan be created. Recompute all screen coordinates; do not continue the remainder of the old blind batch.
+8. If the user instructed immediate stop, preserve evidence and await a new start. Recovery must not secretly resume the task.
 
 ## Diagnostic examples
 

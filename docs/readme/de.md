@@ -12,14 +12,16 @@ Die Website ist unter [igent.cc](https://igent.cc) erreichbar. Harness verbindet
 
 ## Funktionen
 
-- **Sitzungen:** lokale Nachrichten und Bilder, Suche, Umbenennen, Anheften, Archivieren sowie Dateiimport und -export. Chat-, Planungs- und Aufgabenmodus.
+- **Sitzungen:** lokale Nachrichten und Bilder, Suche, Umbenennen, Anheften, Archivieren sowie Dateiimport und -export. Besprechen, Planen und Ausführen erfolgen in einem Chat. Eine Bitte um einen Plan startet keine Aktionen.
 - **Konten oder API:** mehrere Verbindungen, OpenAI- und Anthropic-kompatible Endpunkte sowie Modellabfrage und -wechsel. Anmeldung und Adapter für ChatGPT-Abonnements sind implementiert; die tatsächliche Anmeldung in Safari wird noch geprüft.
 - **Kontext:** automatische Modellzusammenfassungen ab einer einstellbaren Schwelle von standardmäßig **750.000 Token**. Der vollständige Verlauf bleibt auf dem Gerät.
 - **Bilder:** JPEG-Komprimierung in drei Qualitätsstufen bei unveränderten Originalabmessungen.
 - **Skills:** zehn integrierte Skills, eigene bearbeitbare Skills, Community-Downloads und Veröffentlichung. Die offizielle Community-Adresse ist voreingestellt. Das Harness hilft im Chat beim Erstellen und Überarbeiten eigener Skills.
-- **MCP:** mehrere Streamable-HTTP-Server hinzufügen, Werkzeuge einzeln auswählen und im Aufgabenmodus verwenden.
+- **MCP:** mehrere Streamable-HTTP-Server hinzufügen, Werkzeuge einzeln auswählen und freigegebene Werkzeuge bei der Ausführung verwenden.
 
-Sitzungen bleiben im Browser; ausgewählte Nachrichten und Bilder werden an den gewählten Modelldienst gesendet. API-Schlüssel und Zugangsdaten bleiben standardmäßig im Seitenspeicher und können optional verschlüsselt auf dem Gerät gespeichert werden.
+Sitzungen bleiben im Browser; ausgewählte Nachrichten und Bilder werden an den gewählten Modelldienst gesendet. API-Schlüssel und Zugangsdaten werden in diesem Browser getrennt von Chats und Exporten gespeichert. Ein Entsperrpasswort ist nicht nötig. Beim Löschen der Websitedaten werden auch diese Zugangsdaten entfernt.
+
+Als API-Endpunkt wird eine Basis wie `https://api.example.com/v1` oder eine vollständige `/chat/completions`-URL akzeptiert; bei Anthropic-kompatiblen Diensten auch `/v1/messages`. Hinweise im Editor erklären das benötigte Präfix. Nach dem Laden der Modellliste lässt sich das Standardmodell im selben Feld auswählen oder eingeben. Alle erkannten Modelle bleiben im Chat auswählbar.
 
 ## Projekt und lokale Entwicklung
 

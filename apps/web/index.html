@@ -33,9 +33,9 @@
       <button id="conversation-device" class="conversation-device" data-no-i18n></button>
       <div id="conversation" class="conversation" aria-live="polite"></div>
       <section class="composer-wrap" aria-label="消息输入">
-        <div id="run-status" class="run-status" role="status" hidden></div><div id="clipboard-panel" hidden></div>
-        <form id="composer" class="composer"><textarea id="message-input" rows="1" placeholder="描述你想完成的事情…" aria-label="消息" maxlength="100000"></textarea><div class="composer-toolbar"><div class="composer-options"><select id="mode-select" aria-label="执行模式"><option value="chat">对话</option><option value="plan">计划</option><option value="task">任务</option></select><select id="model-select" data-no-i18n aria-label="模型"><option value="">选择模型</option></select><button id="composer-skills" class="chip-button" type="button" title="管理 Skills">◇ <span>Skills</span></button></div><button id="stop-run" class="send-button stop-button" type="button" aria-label="停止" hidden>■</button><button id="send-message" class="send-button" type="submit" aria-label="发送消息">↑</button></div></form>
-        <p id="mode-description" class="composer-note">对话模式只讨论，不操作设备。会话保存在这台设备上。</p>
+        <div id="run-status" class="run-status" role="status" hidden></div><button id="resume-run" class="secondary-button resume-run" type="button" hidden></button><div id="clipboard-panel" hidden></div>
+        <form id="composer" class="composer"><textarea id="message-input" rows="1" placeholder="描述你想完成的事情…" aria-label="消息" maxlength="100000"></textarea><div class="composer-toolbar"><div class="composer-options"><select id="model-select" data-no-i18n aria-label="模型"><option value="">选择模型</option></select></div><button id="stop-run" class="send-button stop-button" type="button" aria-label="停止" hidden>■</button><button id="send-message" class="send-button" type="submit" aria-label="发送消息">↑</button></div></form>
+        <p id="mode-description" class="composer-note"></p>
       </section>
     </main>
   </div>

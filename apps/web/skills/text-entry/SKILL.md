@@ -1,14 +1,14 @@
 ---
 name: text-entry
 description: Enter and verify text through supported HID keys or user-confirmed clipboard preparation, respecting Safari foreground requirements and target focus.
-version: 0.3.0
+version: 0.5.0
 ---
 
 # text-entry
 
 ## Runtime contract
 
-This Skill is declarative knowledge for existing tools, not executable code, a tool registration, or a permission grant. Follow the active mode: chat explains; plan may observe and propose; task may execute only tools actually exposed for the verified target. `phone_observe({})` reads one frame from already active user-authorized sharing. `skills_load({"id":"…"})` loads an installed enabled Skill. Use `phone_execute_plan({"plan":…})` only when present in the tool list; never fabricate a device executor or successful result.
+This Skill is declarative knowledge for existing tools, not executable code, a tool registration, or a permission grant. The normal conversation can explain, plan, or act according to the current user request; execute only tools actually exposed for the verified target. A question about capability is not a request to perform that action, and a requested plan does not itself authorize execution. `phone_observe({})` reads one frame from already active user-authorized sharing. `skills_load({"id":"…"})` loads an installed enabled Skill. Use `phone_execute_plan({"plan":…})` only when present in the tool list; never fabricate a device executor or successful result.
 
 All coordinates are integers in **0..10000 across the complete shared display**, with the origin at its upper left. Map cropped images back to that display. Use the current runtime's board, session, target, frame ID and orientation epoch. Never substitute sample identities or Safari CSS coordinates. A changed target or orientation invalidates pending coordinates. The examples below are **step fragments**, not complete tool arguments: wrap them in a validated v1 plan with real runtime identity and limits. Every pressed key/button must be released within its complete gesture; do not hold input while waiting for another model turn.
 
@@ -21,15 +21,16 @@ Fill a visible text field using verified HID keyboard usages, or prepare long/Un
 ## Direct keyboard procedure
 
 1. Observe the current screen, identify the exact field and any existing value. Check whether it is a password, search box, multi-line editor or form with consequential submission.
-2. In task mode, focus with one `tap` and a review capture. Confirm a caret, focus indication or expected keyboard response. A successful tap receipt alone does not establish focus.
-3. Determine the keyboard layout and allowed text. Encode only characters with a verified HID mapping. Each `key` action includes usage, ordinary modifier bits and a short hold; the executor releases it. Do not invent Fn or vendor usages.
-4. Type a short bounded chunk, then observe the field. Keyboard layout, autocorrection, capitalization and IME state can change the result. If text is wrong, inspect before editing; do not blindly select-all/delete because focus might have moved.
-5. Enter/Return can submit a form or create a newline. Treat it as a separate semantic decision based on the visible UI and user task, not an automatic terminator after typing.
-6. If requested text cannot be encoded reliably, state the missing input capability and request user entry or a supported alternative. Never replace requested Unicode with an approximate value without user direction.
+2. When the user requests action, focus with one `tap` and a review capture. Confirm a caret, focus indication or expected keyboard response. A successful tap receipt alone does not establish focus.
+3. For an editable time/date number, first inspect whether tapping (or one reviewed double tap on the same number) exposes a numeric field. Confirm focus before replacing its value; do not type blindly into an unfocused wheel. Load `clock-and-time` for full verification.
+4. Determine the keyboard layout and allowed text. Encode only characters with a verified HID mapping. Each `key` action includes usage, ordinary modifier bits and a short hold; the executor releases it. Do not invent Fn or vendor usages.
+5. Type a short bounded chunk, then observe the field. Keyboard layout, autocorrection, capitalization and IME state can change the result. If text is wrong, inspect before editing; do not blindly select-all/delete because focus might have moved.
+6. Enter/Return can submit a form or create a newline. Treat it as a separate semantic decision based on the visible UI and user task, not an automatic terminator after typing.
+7. If requested text cannot be encoded reliably, state the missing input capability and request user entry or a supported alternative. Never replace requested Unicode with an approximate value without user direction.
 
 ## Long text and Unicode through the clipboard
 
-1. When `phone_prepare_clipboard` is actually available in task mode, call `phone_prepare_clipboard({"text":"the exact requested text"})`. Its bound session and phone target come from the runtime. This queues the text locally under the normal session and tool limits, without a separate clipboard-length cap, and returns `awaiting_user_action`; it has not written or pasted anything. Stop the current run for the user action. Do not issue Cmd+V while this request is pending, cancelled or failed.
+1. When `phone_prepare_clipboard` is actually available when the user requests text entry, call `phone_prepare_clipboard({"text":"the exact requested text"})`. Its bound session and phone target come from the runtime. This queues the text locally under the normal session and tool limits, without a separate clipboard-length cap, and returns `awaiting_user_action`; it has not written or pasted anything. Stop the current run for the user action. Do not issue Cmd+V while this request is pending, cancelled or failed.
 2. The user brings Harness to the foreground and taps **Copy and continue** (or **Copy text** in copy-only views). Safari requires a focused foreground document and a fresh user gesture for `writeText`. Active recording, background callbacks, HID reports, timers and a model tool call do not supply that gesture. Do not invent a background clipboard permission or an automatic fallback.
 3. The explicit **Copy and continue** action may start a new task run after successful copying; copy-only views wait for a later user request. Continue only with matching session/target runtime clipboard metadata whose status is `copied`, or equivalent explicit user confirmation of the desired copy. Check its `requestId` against the prepared request. A receipt records a past successful write; `systemClipboardUnchanged:false` means the Harness cannot certify that another app has not changed it. If the user reports another copy, the identities changed, or the text is uncertain, prepare it again rather than pasting unknown content.
 4. Before pasting, obtain a fresh screenshot of the intended target app, navigate there if needed, and confirm the exact input field has focus. Copying took place in Harness: do not immediately send Cmd+V into Harness or assume the previously focused app is still in front.

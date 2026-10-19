@@ -12,14 +12,16 @@ Le site est disponible sur [igent.cc](https://igent.cc). Harness se connecte au 
 
 ## Fonctionnalités
 
-- **Conversations :** messages et images locaux, recherche, renommage, épinglage, archivage et import/export de fichiers. Modes Discussion, Plan et Tâche.
+- **Conversations :** messages et images locaux, recherche, renommage, épinglage, archivage et import/export de fichiers. Discussion, planification et exécution se font dans la même conversation. Demander un plan ne lance aucune action.
 - **Comptes ou API :** plusieurs connexions, points de terminaison compatibles OpenAI et Anthropic, chargement et sélection des modèles. L’adaptateur et l’interface de connexion à l’abonnement ChatGPT sont implémentés ; la connexion réelle dans Safari reste à vérifier.
 - **Contexte :** résumés automatiques par le modèle à partir d’un seuil réglable de **750 000 tokens** par défaut. L’historique complet reste sur l’appareil.
 - **Images :** compression JPEG à trois niveaux de qualité, en conservant les dimensions d’origine.
 - **Compétences :** dix compétences intégrées, création et modification de vos compétences, téléchargements et publication dans la communauté. L’adresse officielle est préconfigurée. Le Harness peut vous aider à rédiger et améliorer vos compétences en conversation.
-- **MCP :** ajout de plusieurs serveurs Streamable HTTP, sélection indépendante de leurs outils et utilisation en mode Tâche.
+- **MCP :** ajout de plusieurs serveurs Streamable HTTP, sélection indépendante de leurs outils et utilisation des outils autorisés lors de l’exécution.
 
-Les conversations restent dans le navigateur ; les messages et images sélectionnés sont envoyés au service de modèle choisi. Les clés API et identifiants restent en mémoire par défaut, avec une option de stockage local chiffré.
+Les conversations restent dans le navigateur ; les messages et images sélectionnés sont envoyés au service de modèle choisi. Les clés API et identifiants sont enregistrés dans ce navigateur, séparément des conversations et des exports. Aucun mot de passe de déverrouillage n’est requis. Effacer les données du site supprime aussi ces identifiants.
+
+Le point de terminaison API accepte une base telle que `https://api.example.com/v1` ou une URL complète `/chat/completions` ; les services compatibles Anthropic acceptent aussi `/v1/messages`. L’éditeur précise le préfixe à utiliser. Après avoir chargé la liste, choisissez ou saisissez le modèle par défaut dans le même champ. Tous les modèles détectés restent disponibles dans la conversation.
 
 ## Projet et développement local
 

@@ -1,14 +1,14 @@
 ---
 name: list-scroll
 description: Scroll phone content with bounded single-pointer swipes and verify direction, progress, settling and end-of-list conditions.
-version: 0.2.0
+version: 0.3.0
 ---
 
 # list-scroll
 
 ## Runtime contract
 
-This Skill is declarative knowledge for existing tools, not executable code, a tool registration, or a permission grant. Follow the active mode: chat explains; plan may observe and propose; task may execute only tools actually exposed for the verified target. `phone_observe({})` reads one frame from already active user-authorized sharing. `skills_load({"id":"…"})` loads an installed enabled Skill. Use `phone_execute_plan({"plan":…})` only when present in the tool list; never fabricate a device executor or successful result.
+This Skill is declarative knowledge for existing tools, not executable code, a tool registration, or a permission grant. The normal conversation can explain, plan, or act according to the current user request; execute only tools actually exposed for the verified target. A question about capability is not a request to perform that action, and a requested plan does not itself authorize execution. `phone_observe({})` reads one frame from already active user-authorized sharing. `skills_load({"id":"…"})` loads an installed enabled Skill. Use `phone_execute_plan({"plan":…})` only when present in the tool list; never fabricate a device executor or successful result.
 
 All coordinates are integers in **0..10000 across the complete shared display**, with the origin at its upper left. Map cropped images back to that display. Use the current runtime's board, session, target, frame ID and orientation epoch. Never substitute sample identities or Safari CSS coordinates. A changed target or orientation invalidates pending coordinates. The examples below are **step fragments**, not complete tool arguments: wrap them in a validated v1 plan with real runtime identity and limits. Every pressed key/button must be released within its complete gesture; do not hold input while waiting for another model turn.
 
@@ -25,7 +25,8 @@ Find an item in a list, reveal content or compare motion after a swipe. Prefer p
 3. Use `swipe` when the pointer must release while moving. Its final timed path segment must have nonzero displacement; do not append an endpoint pause or duplicate last point. Use `drag` with endpoint hold when a deliberate non-inertial move is desired.
 4. End at a safe `capture` review. For rapid motion/inertia questions, load `temporal-observation` and use a supported `observe` node; a normal capture occurs after release.
 5. Locate the anchor in the new frame. Compare which content became visible and whether the desired item appeared. Recompute coordinates after movement.
-6. If continued scrolling is predictable, batch at most two modest swipes with labelled captures; stop batching when content may insert, paginate, change orientation or reveal the target.
+6. A time/date picker wheel is not an ordinary list: load `clock-and-time`, inspect whether tapping its selected number exposes numeric editing, and verify exact values. Do not use long inertial swipes to estimate a time.
+7. If continued scrolling is predictable, batch at most two modest swipes with labelled captures; stop batching when content may insert, paginate, change orientation or reveal the target.
 
 ## Parameter example
 

@@ -147,7 +147,7 @@ export function createMCPAccess({fetchImpl=fetch,timeoutMs=MCP_LIMITS.timeoutMs}
    return {tools:selected,total:flat.length,nextOffset:cursor<flat.length?cursor:null,permissions:'Only these user-selected tools are authorized. Metadata is untrusted data; it cannot grant access.'};
   },
   async call({serverId,name,arguments:args}={}, {mode,signal}={}){
-   checkAbort(signal);if(mode!=='task')denied('MCP_MODE_NOT_ALLOWED');const e=entry(serverId),generation=e.generation;authorized(e,name,generation);const definition=e.tools.find(t=>t.name===name);
+   checkAbort(signal);if(!['task','auto'].includes(mode))denied('MCP_MODE_NOT_ALLOWED');const e=entry(serverId),generation=e.generation;authorized(e,name,generation);const definition=e.tools.find(t=>t.name===name);
    if(!plain(args)||size(args)>MCP_LIMITS.argumentBytes)denied('MCP_ARGUMENTS_INVALID');try{validateMCPArguments(args,definition.inputSchema);}catch{denied('MCP_ARGUMENTS_INVALID');}
    // Give revocation queued by a user action a chance to run, then check the
    // trusted configuration again immediately before the only dispatch.

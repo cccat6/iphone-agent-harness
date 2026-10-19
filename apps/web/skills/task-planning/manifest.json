@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "id": "task-planning",
-  "version": "0.2.0",
-  "description": "Convert a phone goal into mode-aware bounded action batches with evidence checkpoints, budgets and explicit stopping conditions.",
+  "version": "0.2.1",
+  "description": "Interpret discussion, planning and action requests in one conversation and build bounded phone action batches with evidence checkpoints.",
   "entry": "SKILL.md",
   "protocolVersion": 1,
   "requiredCapabilities": [
@@ -12,8 +12,8 @@
   "files": [
     {
       "path": "SKILL.md",
-      "sha256": "78063011ca96e43957aa34999ef0bb07bd1e7724ef4239ff0862dd032f4a2399",
-      "bytes": 5210
+      "sha256": "87270a3a7bf2fc5b668482b35e59afead76b444ab6fc80d22592f5d42bbcd76c",
+      "bytes": 5596
     }
   ]
 }

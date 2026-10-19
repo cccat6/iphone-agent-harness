@@ -12,14 +12,16 @@ The website is at [igent.cc](https://igent.cc). The Harness page connects direct
 
 ## Features
 
-- **Sessions:** local conversations and images, search, rename, pin, archive, and file import/export. Chat, Plan and Task modes support different workflows.
+- **Sessions:** local conversations and images, search, rename, pin, archive, and file import/export. Discussion, planning and execution share one conversation; asking for a plan does not start it.
 - **Accounts or API:** multiple connections, OpenAI- and Anthropic-compatible API endpoints, model discovery and switching. The ChatGPT subscription adapter and login interface are implemented; real subscription sign-in in Safari still needs verification.
 - **Context:** automatic model-generated summaries, a default trigger of **750,000 tokens**, and a configurable threshold. Full history remains on the device.
 - **Images:** JPEG compression at three quality presets, preserving original dimensions.
 - **Skills:** ten built-in skills, your own editable skills, community downloads and publishing. The official community address is built in. You can ask the Harness to help write and revise your own skills.
-- **MCP:** add multiple Streamable HTTP servers, choose their tools independently and use them in Task mode.
+- **MCP:** add multiple Streamable HTTP servers, choose their tools independently and use authorized tools during execution.
 
-Sessions stay in this browser; selected messages and images are sent to your chosen model service. API keys and login tokens stay in page memory by default, with optional encrypted local storage.
+Sessions stay in this browser; selected messages and images are sent to your chosen model service. API keys and login tokens are saved in this browser, separately from sessions and exports. No unlock password is needed; clearing website data removes these credentials.
+
+API endpoints accept a base such as `https://api.example.com/v1` or a complete `/chat/completions` URL; Anthropic-compatible services also accept `/v1/messages`. The editor explains the prefix to use. Load the model list, then select or type the default model in one field. Every discovered model remains available in the conversation model picker.
 
 ## Project and local development
 

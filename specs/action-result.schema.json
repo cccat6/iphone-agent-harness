@@ -144,6 +144,62 @@
       },
       "minItems": 0,
       "maxItems": 24
+    },
+    "code": {
+      "type": "string",
+      "maxLength": 100
+    },
+    "deviceFailure": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "type": "string",
+          "maxLength": 60
+        },
+        "releaseSubmitted": {
+          "type": "boolean"
+        },
+        "submitted": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maxLatenessMs": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "status",
+        "releaseSubmitted"
+      ]
+    },
+    "recovery": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "enum": [
+            "observe_then_replan",
+            "reconcile_before_replan",
+            "reconnect",
+            "resume_sharing",
+            "none"
+          ]
+        },
+        "automatic": {
+          "type": "boolean"
+        },
+        "reasonCode": {
+          "type": "string",
+          "maxLength": 100
+        }
+      },
+      "required": [
+        "action",
+        "automatic",
+        "reasonCode"
+      ]
     }
   },
   "required": [

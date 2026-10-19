@@ -144,3 +144,22 @@ body.harness-surface{position:fixed;inset:0;overflow:hidden}
 .compact-viewport.short-viewport .composer-note{display:none}
 .compact-viewport.short-viewport .composer-wrap{padding-top:4px;padding-bottom:4px}
 .compact-viewport.short-viewport .panel-header{padding-top:4px;padding-bottom:4px;min-height:52px}
+/* Conversation output stays compact; the original images remain available on demand. */
+.message.activity{border:0;padding:0;color:var(--muted);font-size:12px;margin-bottom:14px}
+.message.activity .message-label{display:none}
+.message-images{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0;align-items:flex-start}
+.screenshot-thumbnail{display:block;width:88px;height:128px;padding:0;border:1px solid var(--line);border-radius:10px;background:var(--soft);overflow:hidden;flex:0 0 auto;cursor:zoom-in}
+.screenshot-thumbnail img{display:block;width:100%;height:100%;object-fit:contain}
+.image-preview{position:fixed;inset:0;margin:auto;width:min(96vw,900px);height:92dvh;max-width:96vw;max-height:92dvh;background:#111;border:0;border-radius:14px;padding:44px 12px 12px;overflow:auto}
+.image-preview img{display:block;width:100%;height:100%;object-fit:contain}
+.image-preview-close{position:absolute;top:4px;right:8px;color:#fff;background:#222;z-index:1}
+.message-debug{font:11px system-ui;color:var(--muted);margin:8px 0}
+.message-debug pre{font:11px ui-monospace,monospace;white-space:pre-wrap;max-height:240px;overflow:auto;background:var(--soft);padding:10px;border-radius:8px}
+.task-plan{border:1px solid var(--line);border-radius:12px;padding:14px;margin:12px 0}
+.task-plan p{margin:8px 0}.task-plan ol{padding-left:22px}.task-plan li{margin:5px 0}
+.resume-run{margin-bottom:10px;min-height:42px}
+.conversation{scroll-behavior:auto;overflow-anchor:none}
+.device-info-step[data-complete="true"]{border-color:#c5ddd4;background:#f7fbf8}
+.device-information-complete{font-size:13px;color:var(--accent);margin:8px 0}
+.device-info-step[data-complete="true"] .primary{display:inline-block;background:transparent;color:var(--accent);border:0;padding:4px 0;min-height:0;text-align:left;text-decoration:underline;font-size:12px}
+.panel-header>div{flex:1;min-width:0}

@@ -1,14 +1,14 @@
 ---
 name: phone-navigation
 description: Navigate iPhone and iPad across apps using fresh full-display evidence, bounded taps and validated Home input.
-version: 0.2.0
+version: 0.3.0
 ---
 
 # phone-navigation
 
 ## Runtime contract
 
-This Skill is declarative knowledge for existing tools, not executable code, a tool registration, or a permission grant. Follow the active mode: chat explains; plan may observe and propose; task may execute only tools actually exposed for the verified target. `phone_observe({})` reads one frame from already active user-authorized sharing. `skills_load({"id":"…"})` loads an installed enabled Skill. Use `phone_execute_plan({"plan":…})` only when present in the tool list; never fabricate a device executor or successful result.
+This Skill is declarative knowledge for existing tools, not executable code, a tool registration, or a permission grant. The normal conversation can explain, plan, or act according to the current user request; execute only tools actually exposed for the verified target. A question about capability is not a request to perform that action, and a requested plan does not itself authorize execution. `phone_observe({})` reads one frame from already active user-authorized sharing. `skills_load({"id":"…"})` loads an installed enabled Skill. Use `phone_execute_plan({"plan":…})` only when present in the tool list; never fabricate a device executor or successful result.
 
 All coordinates are integers in **0..10000 across the complete shared display**, with the origin at its upper left. Map cropped images back to that display. Use the current runtime's board, session, target, frame ID and orientation epoch. Never substitute sample identities or Safari CSS coordinates. A changed target or orientation invalidates pending coordinates. The examples below are **step fragments**, not complete tool arguments: wrap them in a validated v1 plan with real runtime identity and limits. Every pressed key/button must be released within its complete gesture; do not hold input while waiting for another model turn.
 
@@ -25,6 +25,8 @@ Open an app, change a known tab, go back through visible UI, dismiss an ordinary
 3. Batch only actions whose targets remain predictable. A transition that changes layout ends at a capture with `review:true`; do not use the pre-transition image to tap a newly revealed icon.
 4. After the plan completes, inspect the returned frame. If the destination has loaded and a distinctive title/content is visible, report that observation. If an overlay intercepts input, observe before trying another coordinate.
 5. For app launch via Home, first complete Home + review; only then locate the app icon in the new screenshot. Do not infer icon positions from a prior layout.
+6. Locate the center of the icon or control in the **entire image** and use its actual width/height for normalization. The screenshot may be larger than the Harness viewport or shown as a thumbnail; browser CSS pixels, safe-area insets, and the visible pointer ring are not the coordinate reference. Do not add a guessed vertical offset. If the wrong app opens, inspect that outcome and return through a fresh Home review before choosing the icon again.
+7. For alarms, dates, or time wheels, load `clock-and-time` before adjusting values. Precise numeric entry and verified selected values are preferable to guessing wheel positions.
 
 ## Parameter example
 

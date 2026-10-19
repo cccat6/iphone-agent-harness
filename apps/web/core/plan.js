@@ -82,10 +82,10 @@ function stateChecks(plan,context) {
   if(!known||known.targetId!==plan.targetId||known.orientationEpoch!==plan.orientationEpoch)fail('Plan references an unknown or mismatched frame');
   if(known.coordinateSpace&&known.coordinateSpace!=='full-display')fail('Plan needs full-display coordinate mapping');
   if(context.inputState!=='released')fail('Input state must be known and released');
-  if(!['plan','task'].includes(context.mode))fail('Phone plans are unavailable in chat mode');
+  if(!['plan','task','auto'].includes(context.mode))fail('Phone plans are unavailable in chat mode');
   const changing=plan.steps.some(s=>MUTATIONS.has(s.op));
   if(changing){
-    if(context.mode!=='task')fail('Plan mode cannot modify the phone');
+    if(!['task','auto'].includes(context.mode))fail('Plan mode cannot modify the phone');
     for(const key of ['identityVerified','bindingVerified','leaseVerified','executionEnabled'])if(context[key]!==true)fail(`Trusted ${key} is required`);
   }
 }
@@ -140,8 +140,11 @@ export function compileGesture(step,context={}) {
   if(!MUTATIONS.has(step.op)||step.op==='observe')fail('Expected an input gesture');
   const caps=context.capabilities||{};
   const limit=(key,min,max,fallback)=>{if(caps[key]===undefined)return fallback;if(!integer(caps[key],min,max))fail(`Invalid trusted device limit: ${key}`);return caps[key];};
-  const settle=limit('pointerSettleMs',0,100,20);
   const interval=limit('reportIntervalMs',8,100,20);
+  // Position with the button released before pressing. A shorter advertised
+  // settle than the report cadence can put position and down in one delivery
+  // interval; respect both constraints without inventing a screen offset.
+  const settle=Math.max(interval,limit('pointerSettleMs',0,100,20));
   const pointer=(atMs,buttons,p)=>({atMs,kind:'pointer',buttons,x:p.x,y:p.y});
   let events=[];
   if(step.op==='tap')events=[pointer(0,0,step.point),pointer(settle,1,step.point),pointer(settle+step.holdMs,0,step.point)];
@@ -209,7 +212,17 @@ function terminalReceipt(receipt,segment) {
   if(['hid_submitted','completed'].includes(receipt.status)){
     if(receipt.releaseSubmitted!==true)fail('Device has not confirmed released input','unknown');return true;
   }
-  fail(`Device returned ${String(receipt.status).slice(0,60)}`,receipt.status==='unknown'?'unknown':'failed');
+  const status=String(receipt.status).slice(0,60),error=new Error(`Device returned ${status}`);
+  error.code=receipt.status==='unknown'?'unknown':`DEVICE_${status.toUpperCase().replace(/[^A-Z0-9_]/g,'_')}`;
+  error.deviceFailure={status,releaseSubmitted:receipt.releaseSubmitted===true};
+  for(const key of ['submitted','maxLatenessMs'])if(Number.isSafeInteger(receipt[key])&&receipt[key]>=0)error.deviceFailure[key]=receipt[key];
+  throw error;
+}
+/** Pixel coordinates refer to the complete captured image, never a DOM viewport. */
+export function frameCoordinateReference(frame) {
+  if(!integer(frame?.width,1,10000)||!integer(frame?.height,1,10000))fail('Invalid full-display frame dimensions');
+  if(frame.coordinateSpace&&frame.coordinateSpace!=='full-display')fail('Frame is not a complete display');
+  return {coordinateSpace:'full-display',width:frame.width,height:frame.height,range:[0,10000],origin:'top-left',x:'round(pixelX / width * 10000)',y:'round(pixelY / height * 10000)'};
 }
 function frameMetadata(frame,step,context) {
   if(!frame||!validId(frame.frameId)||frame.targetId!==context.targetId||frame.orientationEpoch!==context.orientationEpoch)fail('Captured frame target/identity is invalid');
@@ -325,11 +338,17 @@ export async function executePhonePlan(input,{device,capture,context,signal,onEv
       emit(onEvent,{type:'step',phase:'completed',stepId:step.id});
     }
   }catch(e){
-    const code=failureCode||e.code||'failed';failureCode=code;controller.abort();
-    result.code=code;result.status=code==='cancelled'?'cancelled':code==='unknown'||(code==='DEVICE_BRIDGE_UNAVAILABLE'&&dispatched&&inputState==='unknown')?'unknown':'failed';result.outcome='insufficient_evidence';
+    const code=String(failureCode||e.code||'failed').slice(0,100);failureCode=code;controller.abort();
+    result.code=code;if(e.deviceFailure)result.deviceFailure=e.deviceFailure;result.status=code==='cancelled'?'cancelled':code==='unknown'||(code==='DEVICE_BRIDGE_UNAVAILABLE'&&dispatched&&inputState==='unknown')?'unknown':'failed';result.outcome='insufficient_evidence';
     if(stepIndex<plan.steps.length)result.steps.push({id:plan.steps[stepIndex].id,status:result.status==='cancelled'?'cancelled':result.status==='unknown'?'unknown':'failed',detail:String(e.message).slice(0,500)});
     for(let i=stepIndex+1;i<plan.steps.length;i++)result.steps.push({id:plan.steps[i].id,status:'skipped',detail:'Stopped after prior failure or cancellation.'});
     await cleanupRelease();
   }finally{clearTimeout(deadlineTimer);signal?.removeEventListener('abort',cancel);}
-  result.inputState=inputState;return result;
+  result.inputState=inputState;
+  if(result.status!=='completed'){
+    const code=result.code||'failed';
+    const action=code==='cancelled'?'none':code==='DEVICE_BRIDGE_UNAVAILABLE'?'reconnect':['CAPTURE_UNAVAILABLE','CAPTURE_REQUIRED','SCREEN_SHARING_REQUIRED','CAPTURE_STOPPED'].includes(code)?'resume_sharing':result.status==='unknown'||inputState!=='released'?'reconcile_before_replan':'observe_then_replan';
+    result.recovery={action,automatic:action==='observe_then_replan',reasonCode:code};
+  }
+  return result;
 }

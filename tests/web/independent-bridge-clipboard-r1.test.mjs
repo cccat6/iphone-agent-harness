@@ -11,15 +11,15 @@ function continuationFixture(mode='chat'){
  const receipt={requestId:'copy-1',sessionId:'session-a',targetId:'phone-a',status:'copied'};
  const runs=[],nodes=new Map(),draft='Unsent user draft';let options;
  const $=selector=>{if(!nodes.has(selector))nodes.set(selector,{value:selector==='#message-input'?draft:selector==='#mode-select'?mode:'model-a',textContent:'',hidden:false});return nodes.get(selector);};
- const state={current:{id:'session-a',mode},drafts:new Map([['session-a',draft]]),runGeneration:0,devicePanel:{ensureReady:async()=>true},store:{addEvent:async()=>{},updateSession:async()=>{},getMessages:async()=>[],getSession:async()=>({id:'session-a',title:'Session',mode})},harness:{run:async x=>runs.push(x)}};
- const sandbox={createHistoryWindow,state,$,clipboard:{getSnapshot:()=>receipt},deviceClipboard:null,deviceStatus:()=>({targetId:'phone-a',inputVerified:true}),mountClipboardPanel:(_root,opts)=>(options=opts,{destroy(){}}),getBrowserCompatibility:()=>({supportedForHarness:true}),selectedProvider:()=>({id:'model-a'}),setRunning:value=>{state.running=value;},AbortController,t:x=>x,resizeInput(){},updateModeDescription(){},refreshSessions:async()=>{},renderMessages(){},report:error=>{throw error;}};
+ const state={settings:{},current:{id:'session-a',mode},drafts:new Map([['session-a',draft]]),runGeneration:0,devicePanel:{ensureReady:async()=>true},store:{addEvent:async()=>{},updateSession:async()=>{},getMessages:async()=>[],getSession:async()=>({id:'session-a',title:'Session',mode})},harness:{run:async x=>runs.push(x)}};
+ const sandbox={capture:{active:true},createHistoryWindow,state,$,clipboard:{getSnapshot:()=>receipt},deviceClipboard:null,deviceStatus:()=>({targetId:'phone-a',inputVerified:true}),mountClipboardPanel:(_root,opts)=>(options=opts,{destroy(){}}),getBrowserCompatibility:()=>({supportedForHarness:true}),selectedProvider:()=>({id:'model-a'}),setRunning:value=>{state.running=value;},AbortController,t:x=>x,resizeInput(){},updateModeDescription(){},refreshSessions:async()=>{},renderMessages(){},renderRunControls(){},report:error=>{throw error;}};
  vm.runInNewContext(app.slice(app.indexOf('function historyWindow()'),app.indexOf('async function openSession(')),sandbox);
  vm.runInNewContext(app.slice(app.indexOf('async function sendMessage('),app.indexOf('function resizeInput()')),sandbox);
  sandbox.renderClipboard();return {copy:()=>options.onCopied(receipt),runs,state,$,draft};
 }
 
-test('copy-and-continue resumes task even if mode selector was changed during the paused copy',async()=>{
- for(const mode of ['chat','plan']){const f=continuationFixture(mode);await f.copy();assert.equal(f.runs.length,1);assert.equal(f.runs[0].mode,'task');assert.equal(f.$('#message-input').value,f.draft);assert.equal(f.state.drafts.get('session-a'),f.draft);}
+test('copy-and-continue uses the unified assistant and preserves the user draft',async()=>{
+ for(const mode of ['chat','plan']){const f=continuationFixture(mode);await f.copy();assert.equal(f.runs.length,1);assert.equal(f.runs[0].mode,'auto');assert.equal(f.$('#message-input').value,f.draft);assert.equal(f.state.drafts.get('session-a'),f.draft);}
 });
 
 function viewRoot(){

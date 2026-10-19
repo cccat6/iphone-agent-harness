@@ -1,7 +1,7 @@
 import {getLocale} from '../i18n.js';
 import {PROMPTS,ASSET_REVISION,PLAN_SCHEMA,BUILTIN_SKILLS} from './assets.js';
 export {ASSET_REVISION,PLAN_SCHEMA,PROMPTS};
-export function modePrompt(mode){if(!['chat','plan','task'].includes(mode))throw new Error('未知运行模式');const match=PROMPTS.modes.match(new RegExp(`^## ${mode}\\s*\\n([\\s\\S]*?)(?=^## |$(?![\\s\\S]))`,'m'));if(!match)throw new Error('模式提示词缺失');return match[1].trim();}
+export function modePrompt(mode){if(!['auto','chat','plan','task'].includes(mode))throw new Error('未知运行模式');const match=PROMPTS.modes.match(new RegExp(`^## ${mode}\\s*\\n([\\s\\S]*?)(?=^## |$(?![\\s\\S]))`,'m'));if(!match)throw new Error('模式提示词缺失');return match[1].trim();}
 export function systemPrompt(mode){return `${PROMPTS.system.trim()}\n\nActive mode: ${mode}\n${modePrompt(mode)}`;}
 export function prefixMessages(mode,skills=[],{locale=getLocale()}={}){
   const language={en:'English','zh-Hans':'Simplified Chinese','zh-Hant':'Traditional Chinese',ja:'Japanese',ru:'Russian',de:'German',fr:'French',es:'Spanish'}[locale]||'English';
