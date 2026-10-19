@@ -17,3 +17,5 @@ Browser data belongs to its origin: moving hosts requires explicit export/import
 ## Releases
 
 Normal pushes do not start GitHub Actions. An explicitly requested [manual release](manual-release.md) validates source, reuses or builds all declared firmware profiles, publishes release assets, includes the same binaries in the site, deploys and verifies served files. Configure required deployment credentials before dispatch. A deployment success is not physical-phone acceptance.
+
+For a self-hosted installation, open that host’s `/flash` page when reading the board over USB. Its phone connection link uses the same HTTPS origin, so the phone opens your own Harness with the board’s public connection information. Browser-local data remains separated by origin.

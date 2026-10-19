@@ -9,7 +9,7 @@ export function parseDeviceSetupLink(value){
  const baseUrl=createDeviceURL(data.url);if(!baseUrl.startsWith('http:'))throw new Error('DEVICE_SETUP_UPGRADE_REQUIRED');
  return {baseUrl,boardId:data.id,...(data.rtc?{rtc:validateRTCConfiguration(data.rtc,{fallbackHost:new URL(baseUrl).hostname})}:{})};
 }
-export function createDeviceSetupLink(info,siteOrigin='https://igent.cc'){
+export function createDeviceSetupLink(info,siteOrigin=globalThis.location?.protocol==='https:'?globalThis.location.origin:'https://igent.cc'){
  const url=new URL(siteOrigin);if(url.protocol!=='https:'||url.username||url.password)throw new Error('DEVICE_INVALID_URL');
  const data={v:1,url:createDeviceURL(info.httpUrl||info.httpsUrl),id:info.boardId,...(info.rtc?{rtc:validateRTCConfiguration(info.rtc,{fallbackHost:new URL(info.httpUrl||info.httpsUrl).hostname})}:{})};
  const encoded=btoa(JSON.stringify(data)).replaceAll('+','-').replaceAll('/','_').replace(/=+$/,'');

@@ -10,3 +10,8 @@ test('USB and one-time setup links preserve only public RTC metadata and erase i
 test('malformed RTC metadata is rejected before USB or setup link imports',()=>{
  for(const invalid of [{...rtc,ip:'8.8.8.8'},{...rtc,port:-1},{...rtc,fingerprint:'bad'}]){assert.throws(()=>parseDeviceSetupLine('IAH_SETUP '+JSON.stringify({...info,rtc:invalid})),{code:'flash_setup_invalid'});assert.throws(()=>createDeviceSetupLink({...info,rtc:invalid}));}
 });
+
+test('USB connection links default to the active HTTPS self-host, keeping phone setup on that host',()=>{
+ const previous=Object.getOwnPropertyDescriptor(globalThis,'location');Object.defineProperty(globalThis,'location',{configurable:true,value:{protocol:'https:',origin:'https://selfhost.example'}});
+ try{const value={boardId:'selfhost-board',httpUrl:'http://igent.local',rtc:{ip:'192.168.1.10',port:18948,fingerprint:'ab'.repeat(32)}},link=createDeviceSetupLink(value);assert.equal(new URL(link).origin,'https://selfhost.example');assert.equal(parseDeviceSetupLink(link).boardId,value.boardId);}finally{if(previous)Object.defineProperty(globalThis,'location',previous);else delete globalThis.location;}
+});
