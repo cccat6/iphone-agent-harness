@@ -10,13 +10,16 @@ Using the app: [English](docs/acceptance/README.md) · [简体中文](docs/accep
 
 The website is at [igent.cc](https://igent.cc). The Harness page connects directly to the local ESP32 bridge with **WebRTC Direct**; no extra connection tab, connection code or certificate installation is needed. Import bridge information once from the USB setup link or the local settings page, then reconnect from Harness. The integrated RTC/BLE firmware is undergoing hardware validation; see the [connection guide and results](docs/architecture/secure-lan.md).
 
+
+The connected, selected phone can be used when the bridge reports it ready; the eight-digit input test is optional on current firmware. Swipe session rows for rename/archive, or rename/restore/delete in the archive. Reading older messages stays in place as replies arrive; **Latest** returns to the newest messages. Tasks have no default whole-task step or time cutoff; each action plan retains its safety limits. The built-in gesture-correction and clock-and-time skills guide measured corrections, settling and direct numeric entry when supported.
+
 ## Features
 
 - **Sessions:** local conversations and images, search, rename, pin, archive, and file import/export. Discussion, planning and execution share one conversation; asking for a plan does not start it. The first request also gets an automatic title; manual names and imported titles are preserved.
 - **Accounts or API:** multiple connections, OpenAI- and Anthropic-compatible API endpoints, model discovery and switching. The ChatGPT subscription adapter and login interface are implemented; real subscription sign-in in Safari still needs verification. Supported models offer a Reasoning Effort selector, with the choice saved separately for each account and model.
 - **Context:** automatic model-generated summaries, a default trigger of **750,000 tokens**, and a configurable threshold. Full history remains on the device.
 - **Images:** JPEG compression at three quality presets, preserving original dimensions.
-- **Skills:** ten built-in skills, your own editable skills, community downloads and publishing. The official community address is built in. You can ask the Harness to help write and revise your own skills.
+- **Skills:** twelve built-in skills, your own editable skills, community downloads and publishing. The official community address is built in. You can ask the Harness to help write and revise your own skills.
 - **MCP:** add multiple Streamable HTTP servers, choose their tools independently and use authorized tools during execution.
 
 Sessions stay in this browser; selected messages and images are sent to your chosen model service. API keys and login tokens are saved in this browser, separately from sessions and exports. No unlock password is needed; clearing website data removes these credentials.
