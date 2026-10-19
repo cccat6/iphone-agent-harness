@@ -1,72 +1,13 @@
-# Web 界面实施说明
+# Web interface
 
-产品名为 iPhone Agent Harness。`apps/web/` 是无框架、无远程字体和无打包前提的静态 ES module 页面，可部署在子路径。对话、设备、模型和 Skill 共用一个入口。
+Phone/tablet entry opens Harness. Desktop entry opens the homepage with Skills and firmware installation. The site has eight languages and uses system fonts. User titles, messages, provider/model IDs and skill bodies are not automatically translated.
 
-## 导航与布局
+The session-list title selector switches between conversations and archives. Normal rows reveal Rename/Archive on swipe; archived rows reveal Rename/Restore/Delete. Deletion requires confirmation. Search can be opened by pulling down at the list top or using the search button. A separate row menu supports non-swipe access.
 
-- 手机首先显示会话列表：设备状态与会话标题同一行，底部只有新会话。搜索默认隐藏，下拉列表顶部或点击搜索按钮展开，取消清空筛选并收起。标题旁不再放更多菜单。打开会话后进入独立对话页，顶部返回按钮保留列表位置。普通会话左滑显示重命名／归档，归档会话显示重命名／恢复／删除；删除需确认。
-- 顶部设置打开分组目录：账号或 API、设备、技能、MCP；上下文与图片、语言、本地数据；查看归档、从文件导入会话。各项独立成页并返回目录；账号编辑返回账号列表。对话输入区仍可直接打开技能管理。
-- 宽屏显示左侧列表和右侧对话。对话顶部只有标题、模式说明与更多菜单；底部有输入、chat / plan / task、模型、Skills、发送 / 停止。
-- 会话菜单提供重命名、置顶、复制 ID、导出、归档与删除。删除需用户明确确认，不提供文件目录或仓库等不相关操作。
-- 对话默认读取最近 80 条（不含图片二进制与内部运行时记录），向前翻页使用 `beforeSeq` 游标；用户按需加载较早消息。手动阅读旧消息时，流式回复／新消息保留当前阅读位置；“最新消息”按钮显式回到最新窗口并恢复跟随。
-- 样式使用系统字体、safe-area、动态视口和 `visualViewport` 高度；输入字号避免 iPhone 聚焦自动缩放。设置及管理页面在手机上全屏显示，固定标题与返回/关闭按钮，只有内容区滚动；桌面使用居中面板。
+Conversation history loads in indexed windows; image data loads when visible. Scrolling up preserves an anchor while old messages load. New text does not pull a reader to the bottom. Latest reloads the recent window and enables following. Unsent drafts are isolated per session within the current page, without promising refresh recovery.
 
-## 真实状态与持久化
+Settings group Accounts or API, Devices, Skills, MCP, Context and images, Language, local data and Task completion. Archives are selected from the list title, not a settings entry. Task completion defaults to return to Harness after checking the result and can be disabled.
 
-- 模型配置以独立账号 profile 为单位，包含稳定 ID、显示名称、协议、API 端点、默认模型、已发现的模型列表与 stream。会话选择器按账号分组，值为 `profileId::modelId`；旧 profile ID 自动选择该账号默认模型。密钥默认仅经 `setCredential()` 保存到页面内存，不进入会话、分享或导出；用户可明确选择 AES-GCM 加密保存到 IndexedDB，口令不保存，刷新后主动解锁到页面内存。连接移除时同步移除其本地密文。
-- 设备连接正在转向免安装证书的局域网方式，具体真机结果见 [局域网连接](lan-connection.md)。新固件配对后选择可用目标并完成绑定即可就绪，八位数字输入测试为可选检查；旧固件保留旧版测试／更新提示。控制前需要屏幕共享。
-- 屏幕共享使用 core 导出的 `screenCapture` 共享实例。启动由用户点击；单帧检查仅获取图像尺寸，不上传画面。是否启用控制由核心判定。
-- Codex 订阅账号使用独立 profile：在添加表单中直接开始登录，取消未保存表单不留下账号，展示官方实际返回的设备码和验证链接，用户点击继续后轮询；支持取消。成功后才注册账号与读取模型目录，HTTP/CORS 失败显示实际错误。订阅令牌不直接写入 settings；仅显式口令加密进入 vault，解锁后恢复独立账号。浏览器真实订阅登录链路仍待验收，未生成假账号。MCP 设置支持多个具名 Streamable HTTP 服务器，分别保存端点、连接、选择工具和启用；只有 Task 可通过固定工具桥接调用已授权工具。更改配置立即撤销，默认关闭；静态前端不会运行本地 stdio MCP 进程。
-- 模型设置提供“获取模型”按钮与实际接口返回的下拉选择，失败时保留手动模型 ID。发现结果保存到账号 models，底部可跨账号/模型自由切换。发现模型不发起生成请求，支持 OpenAI / Anthropic 风格及已登录 Codex 的目录，兼容映射交给 core。
-- “上下文与图片”只提供自动摘要开关、750k 默认触发阈值和三档 JPEG 质量。图片保留原始尺寸，内部摘要预算不作为用户选项。
-- 输入草稿按会话隔离在当前页面内存中，切换不会串草稿；不宣称刷新后可恢复未发送输入。
-- UI 使用80条游标分页并过滤 internal 运行时消息；导出保持完整会话。
-- 进入页面即尝试申请浏览器保留数据，设置只提供重试。设置目录负责文件导入，具体会话菜单负责文件导出。数据库连接关闭后会重新打开；已开始的写事务不自动重放。
+One composer serves discussion, reviewable planning and execution according to intent. Internal Back/Forward transitions keep the same document and connection/capture owner; full reload or real document exit needs fresh screen-sharing authorization. Mobile panels retain reachable back/close controls while content scrolls.
 
-## Skill 流程
-
-官网技能市场使用固定的社区服务地址，由站点配置文件管理，用户界面不再提供地址设置。JSON Skill 使用 `content`，兼容 `instructions` / `body`；Markdown 文件按文本导入。外来文本以文字呈现，不执行 HTML 或脚本。
-
-用户逐项添加到本地，可启用 / 停用 / 查看 / 删除，已有静态目录条目更新前需确认。发布使用 `communityEndpoint`：官网 origin 在没有显式设置时采用 SITE_CONFIG 的同源 `/api`，显式空字符串关闭；自托管默认无端点。仅当前身份拥有的自制 Skill 加上可用端点才显示公开发布，每次由用户点击并再次确认。CommunityClient 签名 Skill 包，服务端验证作者、audience、版本、nonce 与大小；不上传会话和模型凭据。下载项只读。没有发布端时可导出自己的 Skill，不伪装上传成功。
-
-## 较早版本的验收记录
-
-以下是布局重构前的历史检查，不代表当前所有操作入口。当前导航验收见 [导航重设计](../research/navigation-redesign-20261018.md)。
-
-此前通过 CUA 浏览器在默认桌面视口和 390×844 手机断点进行交互验收：
-
-- 会话新建、重命名、置顶、搜索空结果、归档与恢复；刷新后记录仍存在。
-- 使用非真实测试 Key 和 `example.invalid` 保存 provider；加密保存后刷新显示待解锁，输入测试口令后恢复到内存。
-- 模型发现真实请求不可达端点后报告失败，保留手填字段，不生成候选。
-- 从本地导入无敏感信息的测试 Skill，显示本地记录；无发布端点时只显示导出；不存在的源目录报告 HTTP 404。
-- 共享截图保存于 [手机聊天页](screenshots/web-mobile-chat.jpg)、[手机列表](screenshots/web-mobile-sessions.jpg)、[Skill 分享](screenshots/web-mobile-skill-share.jpg)、[桌面布局](screenshots/web-desktop.jpg)。测试浏览器的假模型与测试 Skill 不随项目源码发布。
-
-没有输入真实 API Key、调用真实模型生成、连接 MCP 或发送 HID。手机断点预览不能替代真实 Safari：手机软键盘、原生共享界面、后台保持、多目标 BLE 和真实模型 API 仍需真机验收。
-
-## 多语言与平台入口（最终增量）
-
-产品正式名改为 iPhone Agent Harness。`i18n.js` 与 `locales/messages.js` 提供八语言统一文案、错误目录适配和当前语言订阅；偏好仅保存语言代码。Skill 的 ID / 协议 / 正文保持原值，按 12 个内置包 ID 本地化显示名与简介。
-
-手机 / 平板检测包含 iPad 桌面 UA 的 MacIntel + 多点触控情形：默认显示 Harness，可返回主页；桌面默认只显示主页、社区和 Web Serial 安装入口。公共主页不依赖 IndexedDB 初始化成功；失败时明确显示本地存储错误，禁止会话或 Skill 写入，不以 RAM 冒充持久化。
-
-社区界面使用独立 P256 创作者身份；普通导入强制 readonly community 来源，自有条目只能经 authoring API 创建 / 更新。发布必须是用户按钮、真实自有条目、显式服务地址；模块签名后发布，不暴露为模型工具。身份可口令加密导出 / 恢复。`site-config.js` 只有公开部署信息：默认社区地址仅在 https://igent.cc 且无显式设置时启用，空字符串可关闭；其他自托管 origin 不自动连接该服务。
-
-账号按 profile 分组选择多个模型。Codex 刷新事件会对已显式解锁 / 加密的账号串行更新本地密文，解锁口令仅在本次页面内存保留。模型目录请求绑定表单与请求代次，改端点、切账号或关闭会取消并忽略旧结果。发送在第一次异步调用前锁定，仅当前运行代次能恢复 UI，避免双提交破坏停止状态。
-
-固件安装页只在桌面提供，加载真实 manifest；用户主动点击才打开串口。显示诊断框架阶段，安装过程中保留进度界面并阻止界面导航重建；写入和校验依赖 core 实际返回，未有成功结果不会显示已安装。
-
-## 页面路径与导航
-
-最终用户路径为 `/`（iOS / iPadOS Harness）、`/main`（主页）、`/skills`（Skill 社区）、`/flash`（烧录）。桌面打开 `/` 后用 history.replaceState 转到 `/main`。旧 `/home`、`/harness` 和 `#home` / `#community` / `#flash` / `#harness` 链接只作为兼容入口，替换为规范路径。
-
-普通同源导航使用 pushState，浏览器前进/后退使用 popstate；不重新加载 App、不重建 Harness 实例，现有运行和会话草稿继续保留。服务端仅为明确的 document 路径返回 index，资源缺失和内部 JSON API 不由 SPA 路由吞掉。社区页面不把内部 `/api/skills` 当作页面链接，服务地址设置收进八语“高级选项”。
-
-## Harness 兼容门禁
-
-根 Harness 入口统一调用 `core/compatibility.js`，最低 iOS / iPadOS 27，并检查安全上下文、Safari / PWA 与必需取屏、编码、存储和加密方法。iPad 桌面 UA 使用核心检测结果，不在 UI 重复推断系统版本。桌面根路径照旧转 `/main`；不兼容的手机根入口显示全屏、不可关闭的 alertdialog。
-
-兼容说明使用独立 data 属性和直接 i18n 文案，覆盖八语言。该层不是原生 dialog，因而不提供 `.close()`；Esc、Tab、点背景均不会解除，唯一页面按钮是前往 `/main`。同时 Harness 被 hidden / inert / aria-hidden，常规键盘不能进入底层；公共 `/main`、`/skills`、`/flash` 不受全局门禁。检查只表示入口预检，不证明后台录屏、用户授权或存储写入已成功。
-
-## 手机界面
-
-设置弹窗仅滚动内容区，标题与关闭按钮保持可见；手机上填满可用高度。主页与 Harness 共用同一个手机图标，项目名保持单行，移除口号。iOS 主页顶部提供进入 Harness 的链接。已知系统文案使用显式翻译键，避免从相同的中文短语猜测翻译归属。
+[Phone tutorial](../acceptance/README.md) · [Device UI](device-ui.md)

@@ -2,35 +2,51 @@
 
 [English](../../README.md) · [简体中文](zh-Hans.md) · **繁體中文** · [日本語](ja.md) · [Русский](ru.md) · [Deutsch](de.md) · [Français](fr.md) · [Español](es.md)
 
-透過瀏覽器和 ESP32 藍牙控制器，讓 AI 跨 App 操作 iPhone 與 iPad 的開源 Harness。
+透過瀏覽器及 ESP32 藍牙橋，讓 AI 跨 App 操作 iPhone 與 iPad 的開源 Harness。
 
-適用於 **iOS/iPadOS 27 以上的 Safari**。iPhone 和 iPad 預設進入 Harness；電腦端提供專案首頁、技能社群及 ESP32 線上燒錄。
+[igent.cc](https://igent.cc) · [GitHub](https://github.com/cccat6/iphone-agent-harness)
 
-使用說明：[简体中文](../acceptance/zh-Hans.md) · [English](../acceptance/README.md)。介紹主要畫面與日常操作。
+![示範占位圖：瀏覽器、ESP32 橋與手機。操作影片／GIF 即將補上。](../../apps/web/media/demo-placeholder.svg)
 
-官網為 [igent.cc](https://igent.cc)。Harness 透過 **WebRTC Direct** 在同一個頁面連接區域網路內的 ESP32 橋接器，不必保留額外分頁、輸入連線碼或安裝憑證。首次從 USB 設定連結或裝置設定頁匯入連線資訊，之後即可直接在 Harness 連線。正式 RTC 與藍牙整合韌體正在進行實機驗收，詳見[連線說明與紀錄](../architecture/lan-connection.md)。
+示範占位圖：瀏覽器、ESP32 橋與手機。操作影片／GIF 即將補上。
 
+## 五步開始使用
 
-新韌體選定已連線、已就緒的手機後即可使用，八位數字輸入測試為選用檢查。左滑會話可改名／封存，封存中可改名／還原／刪除。閱讀舊訊息時保留位置，點「最新訊息」回到最新內容。任務預設沒有整項步數或時間上限，每個動作計畫仍有安全限制；手勢修正與時鐘技能指導依觀察調整、等待穩定，並在支援時直接輸入數字。
+準備 iOS/iPadOS 27 以上的 Safari、至少 4 MB 快閃記憶體的 ESP32/C3/S3/C6、可傳資料的 USB 線、區域網路 2.4 GHz Wi-Fi，以及 AI 帳號或相容 API。網頁燒錄需使用電腦 Chrome 或 Edge。
 
-## 功能
+1. **安裝橋接韌體.** 在電腦開啟燒錄頁，選擇開發板並安裝韌體，讀取裝置資訊，保留手機連線連結。新板子連接裝置設定 Wi-Fi，依頁面儲存常用網路，再讓手機回到該網路。
 
-- **對話：**訊息和圖片保存在本機，支援搜尋、重新命名、置頂、封存及檔案匯入匯出；在同一條對話中討論、規劃和執行；要求規劃不會直接開始操作。系統會根據第一則請求自動產生對話名稱，保留手動命名及匯入的名稱。
-- **帳號或 API：**新增多個連線，支援 OpenAI 與 Anthropic 相容的 API 端點，取得並切換模型。ChatGPT 訂閱接入及登入介面已實作，實際 Safari 訂閱登入仍待驗證。支援的模型提供推理強度選項，依帳號及模型分別儲存。
-- **上下文：**由模型自動摘要較早的訊息，預設門檻為 **750,000 token**，可在設定中調整；完整對話保存在裝置上。
-- **圖片：**保留原始尺寸，以 JPEG 壓縮，提供節省空間、均衡、高畫質三種選項。
-- **技能：**包含十二個內建技能，支援創作、編輯、下載及社群發布。官網社群位址已內建，也可以透過對話讓 Harness 協助編寫或修改自己的技能。
-- **MCP：**新增多個 Streamable HTTP 伺服器，分別選擇工具，在執行時使用已授權的工具。
+2. **連接手機.** 開啟提供的連結，或在 Harness 取得橋的資訊。儲存後返回並連接 ESP32 橋。在 iOS 藍牙配對 iPhone Agent Bridge，啟用輔助觸控，選擇已就緒手機。新韌體八位數字測試為選用，全鍵盤控制開關皆可。無需連線碼、安裝憑證或額外分頁。
 
-對話儲存在目前瀏覽器，選取的訊息和圖片會傳送至你選擇的模型服務。API 金鑰和登入資訊直接儲存在目前瀏覽器，獨立於對話及匯出檔案，不需要解鎖密碼；清除網站資料也會刪除這些憑證。
+3. **選擇 AI.** 在「設定 → 帳號或 API」加入端點／金鑰並取得模型，或依介面登入 ChatGPT。預設模型可選擇或輸入，全部取得的模型仍可切換。新增會話，選模型及支援的推理強度。
 
-API 端點可填寫 `https://api.example.com/v1` 這樣的基礎端點，或完整的 `/chat/completions` 網址；Anthropic 格式也支援 `/v1/messages`。編輯介面會提示應填寫的前綴。取得模型清單後，在同一欄位選擇或輸入預設模型；取得的所有模型都可在對話中切換。
+4. **共享並提出任務.** 開始共享畫面，先試測試鬧鐘等短任務。詢問能力會收到說明，要求計畫會顯示可檢查計畫，明確要求操作才執行。保持手機解鎖，觀察首次動作。停止會結束，失去共享則暫停，繼續時重新要求共享。
 
-## 程式碼與本機執行
+5. **檢查結果.** AI 應先核對結果才結束，預設隨後返回 Harness；可在「設定 → 任務完成」關閉返回，停留目標 App。重要操作請自行核對實際畫面。
 
-專案分為 `apps/web/`（網頁、Harness 和技能社群）與 `firmware/IPhoneAutomationHarness/`（Arduino 韌體）兩部分。網站也支援自行託管。
+## 日常操作
 
-需要 Node.js 22.13 以上：
+- 點會話列表標題選擇器切換會話／封存。普通列左滑可改名／封存，封存列可改名／還原／刪除，刪除需確認。下拉列表或點搜尋按鈕搜尋。
+
+- 向上捲動逐頁讀取舊訊息，新回覆保留閱讀位置，點「最新訊息」才回到最新內容。會話選單匯出，設定匯入；含圖片檔案上限 64 MiB。
+
+- 長文字可安裝剪貼簿教學的 iPhone Agent Clipboard，使用快捷指令複製或前景複製並繼續。任務等待複製確認、核對目標輸入欄後才貼上。
+
+- 12 個內建技能涵蓋觀察、規劃、導航、文字、捲動、拖放、恢復、挑戰、創作、時鐘及手勢修正。精確控件支援時直接輸入數字，否則小幅修正並等穩定。
+
+- 電腦或手機均可創作、編輯、發布自己的技能。作者歸屬使用瀏覽器產生的加密身分，不是 iOS 裝置 UID；更換瀏覽器前匯出加密備份。內建／下載技能唯讀，重新整理時檢查更新並保留啟用選擇，失敗保留原版本。
+
+- 選用 MCP 支援多個可由瀏覽器存取的 Streamable HTTP 伺服器，逐項授權工具；伺服器須支援 CORS。不執行 stdio，也不提供完整遠端 OAuth 託管。
+
+## 資料與限制
+
+會話、圖片、API 金鑰及登入資料儲存在目前瀏覽器，憑據不隨會話匯出，也不需解鎖密碼。選定訊息／圖片會傳給模型服務。清除網站資料會刪除本機內容，請匯出重要會話。公開技能僅上傳明確選擇的套件。
+
+實驗硬體功能請在觀察下使用。手機手勢、背景取屏、快捷指令及多手機仍需自行驗收，編譯與電腦檢查不代表實機通過。Safari 可能暫停背景工作。任務沒有預設整項步數／時間上限，各動作計畫仍有安全限制。Safari ChatGPT 訂閱登入與更新仍有相容邊界。橋目前僅一個活動 WebRTC 連線，多個保存的瀏覽器不代表同時控制。最新多用戶端註冊／匯入修正已準備在原始碼，尚未刷入實測。
+
+## 開發與自行託管
+
+需要 Node.js 22.13 以上。產品分為 apps/web 網頁與 firmware/IPhoneAutomationHarness 韌體；靜態網頁可搭配選用的簽名技能 API。手機共享需 HTTPS。
 
 ```sh
 npm ci
@@ -39,10 +55,8 @@ npm run build
 npm run preview
 ```
 
-電腦端可使用 localhost 預覽，手機螢幕分享需要 HTTPS。部署 `build/site` 時請依[頁面路由說明](../architecture/deployment.md#self-hosted-page-routing)設定。支援的開發板與編譯方式見 [Arduino 說明](../../firmware/IPhoneAutomationHarness/README.md)。
+維護者手動觸發發布，普通推送不執行 GitHub Actions。韌體重用、下載與部署請見發布說明。
 
-**手動發布：**一般推送不觸發 GitHub Actions。明確要求後才執行，重用未變更的韌體，編譯變更的 ESP32／C3／S3／C6 版本，將二進位檔發布至 Release，並隨網站部署同一批檔案。[發布設定](../architecture/manual-release.md)。
-
-[系統架構](../architecture/system-blueprint.md) · [操作與截圖同步](../architecture/actions.md) · [帳號與 MCP](../architecture/auth-and-backends.md) · [技能歸屬](../architecture/skill-community.md) · [多語系](../architecture/localization.md)
+[手機指南](../acceptance/zh-Hans.md) · [Arduino 說明](../../firmware/IPhoneAutomationHarness/README.md) · [架構](../architecture/overview.md) · [自行託管](../architecture/deployment.md) · [手動發布](../architecture/manual-release.md) · [剪貼簿教學](https://igent.cc/shortcuts/clipboard.html)
 
 [MIT License](../../LICENSE) · [Third-party notices](../../THIRD_PARTY_NOTICES.md)

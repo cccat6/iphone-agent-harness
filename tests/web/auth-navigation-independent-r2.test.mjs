@@ -46,9 +46,15 @@ test('official missing keys and old locked custom credentials fail locally witho
 
 test('skill child return uses existing history instead of pushing another skills list',async()=>{
  const calls=[],state={navigation:{async back(view){calls.push(['back',view]);}}};
- const ctx=vm.createContext({state,showSkills:async tab=>calls.push(['list',tab])}),start=source.indexOf('async function returnFromSkillPanel('),end=source.indexOf('\nasync function showSkillEditor(',start);assert.ok(start>=0&&end>start);vm.runInContext(source.slice(start,end),ctx);
+ const ctx=vm.createContext({state,isIOSPlatform:()=>true,showSkills:async tab=>calls.push(['list',tab])}),start=source.indexOf('async function returnFromSkillPanel('),end=source.indexOf('\nasync function showSkillEditor(',start);assert.ok(start>=0&&end>start);vm.runInContext(source.slice(start,end),ctx);
  await ctx.returnFromSkillPanel();assert.equal(calls.length,1);assert.equal(calls[0][0],'back');assert.equal(calls[0][1].panel.kind,'skills');assert.equal(calls[0][1].action,null);
  state.navigation=null;await ctx.returnFromSkillPanel();assert.deepEqual(calls[1],['list','local']);
+});
+test('desktop skill child return restores the community page without leaving that page or reopening Harness',async()=>{
+ const calls=[],dialog={open:true},state={navigation:{go(view,options){calls.push(['view',view,options]);}}};
+ const ctx=vm.createContext({state,isIOSPlatform:()=>false,location:{pathname:'/skills'},routeForPath:path=>path==='/skills'?'skills':null,$:()=>dialog,closeNavigationDialog(node){node.open=false;},async renderCommunityPage(){calls.push(['community']);},async showSkills(){throw new Error('Desktop return must not reopen the mobile skill panel');}});
+ const start=source.indexOf('async function returnFromSkillPanel('),end=source.indexOf('\nasync function showSkillEditor(',start);vm.runInContext(source.slice(start,end),ctx);
+ await ctx.returnFromSkillPanel();assert.equal(dialog.open,false);assert.equal(calls[0][0],'view');assert.equal(calls[0][1].panel,null);assert.equal(calls[0][2].replace,true);assert.deepEqual(calls[1],['community']);
 });
 test('skill catalog/local tabs still select their tab without navigating Back',async()=>{
  const nodes={'#skills-local':{},'#skills-catalog':{}},calls=[];

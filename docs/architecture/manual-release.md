@@ -21,8 +21,6 @@ A Web-only release still builds and deploys the current website, but does **not*
 
 The repository secret **`CLOUDFLARE_API_TOKEN`** is required. The existing account ID, Worker name, custom domain and D1 binding are already in [wrangler.jsonc](../../wrangler.jsonc); these are not secrets. Use a dedicated token scoped to the configured account and the `igent.cc` zone, with Workers Scripts edit, Workers Routes edit, Zone read and D1 edit permissions needed by the commands. Do not grant access to unrelated accounts/zones, put the token in Git or paste it into a conversation. Enter it directly in [repository Actions secrets](https://github.com/cccat6/iphone-agent-harness/settings/secrets/actions).
 
-At this change's local verification, the repository had no deployment secret, and the connected Cloudflare service returned `9109 Unauthorized` for token-management endpoints. The workflow fails early with a clear message until that one credential is provisioned. No manual workflow, GitHub Release or Cloudflare deployment was executed as part of preparing this change. Those remote effects require the owner's later request. [Local verification](../research/manual-release-verification.json) records exact checks and remaining scope.
-
 ## Maintainer tools
 
 ```sh
@@ -33,6 +31,6 @@ npm run build
 npx wrangler deploy --dry-run
 ```
 
-`plan` also supports authenticated Release lookup using `GH_TOKEN` and `GITHUB_REPOSITORY`; `--offline` never contacts GitHub. `seal` records the current build inputs **only after** the existing source/profile/dependency/artifact checks pass. Use it after a successful real four-profile compilation, not to relabel old binaries after a source/recipe change. The initial checked-in input record seals the already compiled four-profile artifacts; the installed Arduino CLI was independently checked as 1.5.1. No new compilation was needed for this workflow-only change.
+`plan` also supports authenticated Release lookup using `GH_TOKEN` and `GITHUB_REPOSITORY`; `--offline` never contacts GitHub. `seal` records the current build inputs **only after** the existing source/profile/dependency/artifact checks pass. Use it after a successful real four-profile compilation, not to relabel old binaries after a source/recipe change.
 
 Official references: [GitHub manual workflows](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow), [Cloudflare GitHub Actions deployment](https://developers.cloudflare.com/workers/ci-cd/external-cicd/github-actions/).

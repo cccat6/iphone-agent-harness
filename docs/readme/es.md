@@ -2,35 +2,51 @@
 
 [English](../../README.md) · [简体中文](zh-Hans.md) · [繁體中文](zh-Hant.md) · [日本語](ja.md) · [Русский](ru.md) · [Deutsch](de.md) · [Français](fr.md) · **Español**
 
-Un entorno de código abierto para que un agente de IA maneje el iPhone y el iPad entre distintas apps, desde el navegador y mediante un controlador Bluetooth ESP32.
+Un Harness de código abierto para que la IA opere un iPhone o iPad entre aplicaciones mediante un navegador y un puente Bluetooth ESP32.
 
-Diseñado para **Safari en iOS/iPadOS 27 o posterior**. En el iPhone y el iPad abre el Harness; en el ordenador ofrece la presentación, la comunidad de habilidades y el instalador de firmware ESP32.
+[igent.cc](https://igent.cc) · [GitHub](https://github.com/cccat6/iphone-agent-harness)
 
-Guía de uso: [English](../acceptance/README.md) · [简体中文](../acceptance/zh-Hans.md). Las pantallas principales y las acciones habituales.
+![Ilustración provisional: navegador, puente ESP32 y teléfono. Próximamente habrá un vídeo/GIF de demostración.](../../apps/web/media/demo-placeholder.svg)
 
-El sitio está en [igent.cc](https://igent.cc). Harness se conecta al puente ESP32 de la red local mediante **WebRTC Direct** desde la misma página. No requiere otra pestaña de conexión, un código de conexión ni instalar certificados. Importa los datos una vez desde el enlace de configuración USB o los ajustes del dispositivo; después puedes conectarte desde Harness. El firmware que integra RTC y Bluetooth está en validación con hardware real. Consulta la [guía de conexión y los resultados](../architecture/secure-lan.md).
+Ilustración provisional: navegador, puente ESP32 y teléfono. Próximamente habrá un vídeo/GIF de demostración.
 
+## Empieza en cinco pasos
 
-Con el firmware actual, selecciona el teléfono conectado y listo; la prueba de ocho dígitos es opcional. Deslizar una conversación permite renombrar/archivar y, en el archivo, renombrar/restaurar/eliminar. Las respuestas nuevas conservan la posición al leer mensajes antiguos; «Últimos» vuelve a los recientes. No hay un límite global predeterminado de tiempo o pasos; cada plan mantiene límites de seguridad. Las habilidades de corrección de gestos y reloj guían ajustes observados, la espera hasta que se detenga el control y la entrada numérica directa cuando esté disponible.
+Necesitas Safari en iOS/iPadOS 27+, ESP32/C3/S3/C6 con al menos 4 MB de flash, cable USB de datos, la misma red Wi-Fi de 2,4 GHz y una cuenta de IA o API compatible. Para instalar desde el navegador usa Chrome/Edge en ordenador.
 
-## Funciones
+1. **Instala el firmware.** Abre el instalador en el ordenador, elige la placa e instala. Lee la información y conserva el enlace del teléfono. Para una placa nueva, entra en su Wi-Fi de configuración, guarda la red habitual y devuelve el teléfono a esa red.
 
-- **Conversaciones:** mensajes e imágenes locales, búsqueda, cambio de nombre, fijado, archivo e importación y exportación de archivos. Conversación, planificación y ejecución comparten un mismo chat. Pedir un plan no inicia acciones. El título se genera automáticamente a partir de la primera petición; se conservan los nombres elegidos manualmente y los importados.
-- **Cuentas o API:** varias conexiones, endpoints compatibles con OpenAI y Anthropic, carga y cambio de modelos. El adaptador y la interfaz de acceso a la suscripción de ChatGPT están implementados; el inicio de sesión real en Safari sigue pendiente de verificación. Los modelos compatibles permiten elegir el esfuerzo de razonamiento, que se guarda por separado para cada cuenta y modelo.
-- **Contexto:** resúmenes automáticos del modelo con un umbral ajustable de **750 000 tokens** por defecto. El historial completo permanece en el dispositivo.
-- **Imágenes:** compresión JPEG con tres niveles de calidad y las dimensiones originales.
-- **Habilidades:** doce habilidades integradas, creación y edición de las propias, descargas y publicación en la comunidad. La dirección oficial ya está configurada. El Harness puede ayudarte a escribir y mejorar tus habilidades mediante el chat.
-- **MCP:** varios servidores Streamable HTTP, selección independiente de herramientas y uso de las herramientas autorizadas durante la ejecución.
+2. **Conecta el teléfono.** Abre el enlace o solicita la información del puente en Harness, guárdala y conecta el ESP32. Empareja iPhone Agent Bridge en Bluetooth de iOS, activa AssistiveTouch y selecciona el teléfono listo. La prueba de ocho dígitos es opcional en el firmware actual; el acceso total por teclado puede estar activado o no. No se necesita código, certificado ni pestaña adicional.
 
-Las conversaciones se guardan en el navegador; los mensajes e imágenes elegidos se envían al servicio de modelo seleccionado. Las claves API y los datos de acceso se guardan en este navegador, separados de las conversaciones y sus archivos exportados. No hace falta una contraseña de desbloqueo. Borrar los datos del sitio también elimina estas credenciales.
+3. **Elige una IA.** En Ajustes → Cuentas/API añade endpoint y clave y carga modelos, o sigue el acceso a ChatGPT. El modelo predeterminado se elige o escribe; todos los encontrados siguen disponibles. Crea una conversación y selecciona modelo y esfuerzo de razonamiento compatible.
 
-El endpoint de la API admite una base como `https://api.example.com/v1` o la URL completa `/chat/completions`; los servicios compatibles con Anthropic también admiten `/v1/messages`. El editor indica el prefijo necesario. Tras cargar la lista, elige o escribe el modelo predeterminado en el mismo campo. Todos los modelos encontrados siguen disponibles en la conversación.
+4. **Comparte y pide.** Comparte la pantalla y empieza con una tarea breve y segura, como una alarma de prueba. Las preguntas reciben explicación, pedir un plan muestra uno revisable y las órdenes explícitas pueden ejecutarse. Mantén el teléfono desbloqueado y observa los primeros intentos. Detener termina; perder la pantalla compartida pausa.
 
-## Proyecto y desarrollo local
+5. **Revisa el resultado.** La IA verifica antes de terminar y vuelve a Harness por defecto. Desactívalo en Ajustes → Finalización de tarea para permanecer en la aplicación. Comprueba personalmente los resultados importantes.
 
-Las dos partes del producto son `apps/web/` (sitio, Harness y comunidad) y `firmware/IPhoneAutomationHarness/` (firmware Arduino). También puedes alojar el sitio por tu cuenta.
+## Uso diario
 
-Usa Node.js 22.13 o posterior:
+- El selector del título de la lista alterna conversaciones y archivo. Desliza para Renombrar/Archivar, o Renombrar/Restaurar/Eliminar en archivo, con confirmación. Busca bajando la lista o con el botón de búsqueda.
+
+- Los mensajes antiguos se cargan al subir. Las respuestas conservan la posición de lectura; «Últimos» vuelve al final. Exporta en el menú e importa en Ajustes; máximo 64 MiB con imágenes.
+
+- Para texto largo instala iPhone Agent Clipboard desde el tutorial. Copia con Atajos o el botón en primer plano. La tarea espera confirmación y revisa el campo de destino antes de pegar.
+
+- 12 habilidades integradas cubren observación, planificación, entrada, recuperación, creación, reloj y corrección de gestos. Usan edición numérica directa cuando existe; si no, pequeños ajustes y espera hasta detenerse.
+
+- Crea, edita y publica habilidades desde ordenador o teléfono. La propiedad usa una identidad criptográfica del navegador, no un UID de iOS. Exporta una copia cifrada antes de cambiar de navegador. Las integradas/descargadas son de solo lectura; se actualizan al recargar conservando activación y versión anterior si falla.
+
+- MCP opcional conecta servidores Streamable HTTP accesibles al navegador, con herramientas autorizadas explícitamente y CORS. No ejecuta stdio ni aloja OAuth remoto completo.
+
+## Datos y límites
+
+Conversaciones, imágenes, claves y tokens se guardan en este navegador. Las credenciales no se exportan con conversaciones ni requieren contraseña de desbloqueo. Los contenidos seleccionados van al modelo. Borrar los datos del sitio los elimina: exporta lo importante. Publicar solo envía el paquete elegido explícitamente.
+
+Supervisa las funciones de hardware experimentales. Gestos, captura en segundo plano, Atajos y varios teléfonos requieren pruebas en tus dispositivos; compilar y probar en escritorio no demuestra estos resultados. Safari puede suspender el fondo. No hay límite global predeterminado de tiempo/pasos, pero cada plan conserva límites. Acceso y renovación de ChatGPT en Safari siguen siendo límites de compatibilidad. Solo hay un par WebRTC activo. La reparación de registro/importación multicliente está preparada en código, aún sin instalar ni validar en hardware.
+
+## Desarrollo y alojamiento propio
+
+Usa Node.js 22.13+. Dos partes: apps/web y firmware/IPhoneAutomationHarness. El sitio estático admite una API opcional de habilidades públicas firmadas. Compartir pantalla requiere HTTPS.
 
 ```sh
 npm ci
@@ -39,10 +55,8 @@ npm run build
 npm run preview
 ```
 
-La vista previa de ordenador usa localhost; compartir la pantalla del teléfono requiere HTTPS. Despliega `build/site` con las [rutas documentadas](../architecture/deployment.md#self-hosted-page-routing). La [guía de Arduino](../../firmware/IPhoneAutomationHarness/README.md) explica las placas y la compilación.
+Las publicaciones son manuales; los push normales no lanzan GitHub Actions. Consulta la guía para reutilizar firmware y desplegar.
 
-**Publicaciones manuales:** los pushes normales no activan GitHub Actions. Bajo petición, el flujo reutiliza el firmware sin cambios, compila las versiones ESP32/C3/S3/C6 modificadas y publica los mismos binarios en Releases y en el sitio. [Configuración de publicaciones](../architecture/manual-release.md).
-
-[Arquitectura](../architecture/system-blueprint.md) · [Acciones y capturas](../architecture/actions.md) · [Cuentas y MCP](../architecture/auth-and-backends.md) · [Autoría de habilidades](../architecture/skill-community.md) · [Idiomas](../architecture/localization.md)
+[Guía del teléfono](../acceptance/README.md) · [Arduino](../../firmware/IPhoneAutomationHarness/README.md) · [Arquitectura](../architecture/overview.md) · [Alojamiento propio](../architecture/deployment.md) · [Publicación manual](../architecture/manual-release.md) · [Tutorial del portapapeles](https://igent.cc/shortcuts/clipboard.html)
 
 [MIT License](../../LICENSE) · [Third-party notices](../../THIRD_PARTY_NOTICES.md)

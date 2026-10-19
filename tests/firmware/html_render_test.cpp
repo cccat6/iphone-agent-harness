@@ -23,6 +23,7 @@ int main(int argc,char** argv){
  for(const auto& value:{R"({"hostname":"my-bridge"})",R"({"hostname":"my-bridge","pairingCodeRequired":true})",R"({"hostname":"my-bridge","pairingCodeRequired":false})"}){JsonDocument doc;assert(!deserializeJson(doc,value));assert(iah::validBridgeSettingsUpdate(doc.as<JsonObjectConst>()));assert(iah::readBridgeSettings(value).hostname=="my-bridge");}
  for(const auto& value:{R"({"hostname":"evil.local"})",R"({"hostname":"ok","unknown":true})",R"({"pairingCodeRequired":true})"}){JsonDocument doc;assert(!deserializeJson(doc,value));assert(!iah::validBridgeSettingsUpdate(doc.as<JsonObjectConst>()));}
  std::string settings=iah::renderBridgeSettingsPage();assert(settings.find("pairingCodeRequired")==std::string::npos);assert(settings.find("connectionCode")==std::string::npos);assert(settings.find("setupPassword")==std::string::npos);assert(settings.find("checkbox")==std::string::npos);completePage(settings);assert(settings.find("/v1/settings")!=std::string::npos);
+ auto information=iah::renderBridgeSettingsPage(std::string(R"({"hostname":"igent.local","boardId":"fixture-board","harnessURL":"https://igent.cc/","rtc":{"ip":"192.168.0.125","port":18948,"fingerprint":"ABABABABABABABABABABABABABABABABABABABABABABABABABABABABABABABAB"}})"));completePage(information);assert(information.find("const bridgeInformation=JSON.parse(")!=std::string::npos);
  // Reproduce the actual ArduinoJson 7 destination replacement that caused the board bug.
  JsonDocument value;value.set("https://igent.cc");std::string broken="<!doctype html><script>const harnessOrigin=";serializeJson(value,broken);assert(broken=="\"https://igent.cc\"");
  auto helper=iah::renderLanBridgePage(std::string("https://igent.cc"));completePage(helper);assert(helper.find("id=\"back\"")!=std::string::npos);roundTrip(helper,"const harnessOrigin=","https://igent.cc");
@@ -30,6 +31,6 @@ int main(int argc,char** argv){
  const std::string escaped="quote\" slash\\ newline\n tab\t </script><script>injected</script>";
  for(const auto& page:{iah::renderLanBridgePage(escaped),iah::renderWifiSetupPage(escaped)}){completePage(page);assert(page.find("</script><script>")==std::string::npos);assert(page.find("\\u003c/script>")!=std::string::npos);}
  roundTrip(iah::renderLanBridgePage(escaped),"const harnessOrigin=",escaped);roundTrip(iah::renderWifiSetupPage(escaped),"const owner=",escaped);
- if(argc==2){std::ofstream(std::string(argv[1])+"/helper.html")<<helper;std::ofstream(std::string(argv[1])+"/setup.html")<<setup;std::ofstream(std::string(argv[1])+"/settings.html")<<settings;}
+ if(argc==2){std::ofstream(std::string(argv[1])+"/helper.html")<<helper;std::ofstream(std::string(argv[1])+"/setup.html")<<setup;std::ofstream(std::string(argv[1])+"/settings.html")<<settings;std::ofstream(std::string(argv[1])+"/information.html")<<information;}
  std::puts("Actual ArduinoJson HTML rendering passed: replacement regression, complete helper/setup pages, script-boundary escaping and JSON round trip");
 }

@@ -1,7 +1,8 @@
 // Verify the deployed bytes against the exact clean build, including firmware.
-import {readFile,writeFile,readdir} from 'node:fs/promises';
+import {readFile,writeFile,readdir,mkdir} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import {createRequire} from 'node:module';
+import path from 'node:path';
 import {parseArgs} from 'node:util';
 const {values}=parseArgs({options:{output:{type:'string'}}});
 const require=createRequire(import.meta.url),{fetch,EnvHttpProxyAgent}=require('undici');
@@ -23,6 +24,6 @@ try{
 }catch{checks.push({path:'network',passed:false});}
 finally{await dispatcher.close();}
 const report={checkedAt:new Date().toISOString(),origin,passed:checks.length===paths.length&&checks.every(x=>x.passed),checks};
-await writeFile(values.output||new URL('../docs/research/release-site-verification.json',import.meta.url),JSON.stringify(report,null,2)+'\n');
+const output=values.output||new URL('../build/release-site-verification.json',import.meta.url);await mkdir(output instanceof URL?new URL('./',output):path.dirname(output),{recursive:true});await writeFile(output,JSON.stringify(report,null,2)+'\n');
 console.log(JSON.stringify({passed:report.passed,verifiedFiles:checks.filter(x=>x.passed).length,expectedFiles:paths.length,failed:checks.filter(x=>!x.passed).map(x=>x.path)}));
 if(!report.passed)process.exitCode=1;

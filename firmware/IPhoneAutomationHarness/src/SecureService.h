@@ -136,7 +136,9 @@ class SecureService {
   if(header(r,"X-Harness-Window")=="1"&&localHost&&localOrigin)browserOrigin=origin_;
   String pagePath=r->uri;int pageQuery=pagePath.indexOf('?');if(pageQuery>=0)pagePath.remove(pageQuery);
   if(r->http&&r->method==HTTP_GET&&(pagePath=="/harness-link"||pagePath=="/settings"||pagePath=="/")){
-   String page=pagePath=="/harness-link"?renderLanBridgePage(origin_):String(renderBridgeSettingsPage());
+   String page;
+   if(pagePath=="/harness-link")page=renderLanBridgePage(origin_);
+   else{JsonDocument information;addIdentity(information);information["hostname"]=host_+".local";information["harnessURL"]=origin_+"/";addRtc(information);String encoded;serializeJson(information,encoded);page=renderBridgeSettingsPage(encoded);}
    httpd_resp_set_type(r->http,"text/html; charset=utf-8");httpd_resp_set_hdr(r->http,"Cache-Control","no-store");httpd_resp_set_hdr(r->http,"Referrer-Policy","no-referrer");httpd_resp_set_hdr(r->http,"X-Frame-Options","DENY");httpd_resp_set_hdr(r->http,"Content-Security-Policy","default-src 'none'; connect-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'");httpd_resp_set_hdr(r->http,"Connection","close");auto sent=httpd_resp_send(r->http,page.c_str(),page.length());return sent==ESP_OK?ESP_FAIL:sent;
   }
   if(browserOrigin.length()&&browserOrigin!=origin_)return error(r,403,"origin_not_allowed");
@@ -435,7 +437,7 @@ class SecureService {
   updateNetwork();
   if(setupDeadline_.due(apActive_,now())){ap_.stop();WiFi.softAPdisconnect(true);apActive_=false;setupDeadline_.closed();}
   if(!http_&&!apActive_&&WiFi.status()==WL_CONNECTED&&now()>=httpRetryAt_){httpRetryAt_=now()+10000;
-   httpd_config_t cfg=HTTPD_DEFAULT_CONFIG();cfg.server_port=80;cfg.max_open_sockets=2;cfg.max_uri_handlers=1;cfg.max_resp_headers=12;cfg.uri_match_fn=httpd_uri_match_wildcard;cfg.recv_wait_timeout=2;cfg.send_wait_timeout=2;cfg.stack_size=6144;cfg.task_priority=1;
+   httpd_config_t cfg=HTTPD_DEFAULT_CONFIG();cfg.server_port=80;cfg.max_open_sockets=2;cfg.lru_purge_enable=true;cfg.max_uri_handlers=1;cfg.max_resp_headers=12;cfg.uri_match_fn=httpd_uri_match_wildcard;cfg.recv_wait_timeout=2;cfg.send_wait_timeout=2;cfg.stack_size=6144;cfg.task_priority=1;
    if(httpd_start(&http_,&cfg)==ESP_OK){httpd_uri_t routeConfig{};routeConfig.uri="/*";routeConfig.method=(httpd_method_t)HTTP_ANY;routeConfig.handler=route;routeConfig.user_ctx=this;if(httpd_register_uri_handler(http_,&routeConfig)!=ESP_OK){httpd_stop(http_);http_=nullptr;Serial.println("{\"event\":\"http_route_registration_failed\"}");return;}maintenance_=false;if(apActive_){WiFi.softAPdisconnect(true);apActive_=false;}Serial.println("{\"event\":\"http_ready\",\"privateCredentialsLogged\":false}");}else http_=nullptr;
   }
   CoreLock lock(mutex_);clipboard_.tick(now());if(auth_.expiresAt()&&now()>=auth_.expiresAt()){releaseChallenge();auth_.invalidate();}

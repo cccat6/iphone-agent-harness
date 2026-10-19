@@ -2,35 +2,51 @@
 
 **English** · [简体中文](docs/readme/zh-Hans.md) · [繁體中文](docs/readme/zh-Hant.md) · [日本語](docs/readme/ja.md) · [Русский](docs/readme/ru.md) · [Deutsch](docs/readme/de.md) · [Français](docs/readme/fr.md) · [Español](docs/readme/es.md)
 
-An open-source AI harness for operating an iPhone or iPad across apps, using a browser and an ESP32 Bluetooth controller.
+An open-source browser harness that lets AI operate an iPhone or iPad across apps through an ESP32 Bluetooth bridge.
 
-Designed for **Safari on iOS/iPadOS 27 and later**. iPhone and iPad visitors open the Harness by default; desktop visitors get the project home, skill community and ESP32 firmware installer.
+[igent.cc](https://igent.cc) · [GitHub](https://github.com/cccat6/iphone-agent-harness)
 
-Using the app: [English](docs/acceptance/README.md) · [简体中文](docs/acceptance/zh-Hans.md). These guides explain the main screens and everyday actions.
+![Illustrated placeholder: browser, ESP32 bridge and phone. A demonstration video/GIF is coming soon.](apps/web/media/demo-placeholder.svg)
 
-The website is at [igent.cc](https://igent.cc). The Harness page connects directly to the local ESP32 bridge with **WebRTC Direct**; no extra connection tab, connection code or certificate installation is needed. Import bridge information once from the USB setup link or the local settings page, then reconnect from Harness. The integrated RTC/BLE firmware is undergoing hardware validation; see the [connection guide and results](docs/architecture/secure-lan.md).
+Illustrated placeholder: browser, ESP32 bridge and phone. A demonstration video/GIF is coming soon.
 
+## Start in five steps
 
-The connected, selected phone can be used when the bridge reports it ready; the eight-digit input test is optional on current firmware. Swipe session rows for rename/archive, or rename/restore/delete in the archive. Reading older messages stays in place as replies arrive; **Latest** returns to the newest messages. Tasks have no default whole-task step or time cutoff; each action plan retains its safety limits. The built-in gesture-correction and clock-and-time skills guide measured corrections, settling and direct numeric entry when supported.
+You need Safari on iOS/iPadOS 27 or later, an ESP32/C3/S3/C6 board with at least 4 MB flash, a data-capable USB cable, local 2.4 GHz Wi-Fi and an AI account or compatible API. Desktop Chrome or Edge is needed for browser flashing.
 
-## Features
+1. **Install the bridge.** Open the desktop firmware installer, choose your board and flash it. Read its device information and keep the phone connection link. For a new board, join the setup Wi-Fi and follow its page to save your normal Wi-Fi; return the phone to that network.
 
-- **Sessions:** local conversations and images, search, rename, pin, archive, and file import/export. Discussion, planning and execution share one conversation; asking for a plan does not start it. The first request also gets an automatic title; manual names and imported titles are preserved.
-- **Accounts or API:** multiple connections, OpenAI- and Anthropic-compatible API endpoints, model discovery and switching. The ChatGPT subscription adapter and login interface are implemented; real subscription sign-in in Safari still needs verification. Supported models offer a Reasoning Effort selector, with the choice saved separately for each account and model.
-- **Context:** automatic model-generated summaries, a default trigger of **750,000 tokens**, and a configurable threshold. Full history remains on the device.
-- **Images:** JPEG compression at three quality presets, preserving original dimensions.
-- **Skills:** twelve built-in skills, your own editable skills, community downloads and publishing. The official community address is built in. You can ask the Harness to help write and revise your own skills.
-- **MCP:** add multiple Streamable HTTP servers, choose their tools independently and use authorized tools during execution.
+2. **Connect your phone.** Open the supplied link or use Get bridge information in Harness. Save the information, return and choose Connect ESP32 bridge. In iOS Bluetooth settings pair iPhone Agent Bridge, enable AssistiveTouch and select the ready phone. The eight-digit input test is optional on current firmware; Full Keyboard Access may be on or off. No connection code, certificate installation or extra connection tab is needed.
 
-Sessions stay in this browser; selected messages and images are sent to your chosen model service. API keys and login tokens are saved in this browser, separately from sessions and exports. No unlock password is needed; clearing website data removes these credentials.
+3. **Choose an AI.** Under Settings → Accounts or API, add an API endpoint/key and load models, or follow ChatGPT sign-in. Select or type the default model; all discovered models remain selectable. Create a conversation and choose a model and supported reasoning effort.
 
-API endpoints accept a base such as `https://api.example.com/v1` or a complete `/chat/completions` URL; Anthropic-compatible services also accept `/v1/messages`. The editor explains the prefix to use. Load the model list, then select or type the default model in one field. Every discovered model remains available in the conversation model picker.
+4. **Share and ask.** Start screen sharing and give a short task, such as setting a test alarm. Capability questions receive an answer; asking for a plan shows a reviewable plan; explicit action requests may execute. Keep the phone unlocked and watch the first tasks. Stop ends the run; loss of sharing pauses it and Continue requests sharing again.
 
-## Project and local development
+5. **Review the result.** The AI verifies the result before ending. By default it then returns to Harness; turn this off under Settings → Task completion to stay in the target app. Confirm the visible outcome yourself before using consequential tasks.
 
-The two product parts are `apps/web/` (website, Harness and skill community) and `firmware/IPhoneAutomationHarness/` (Arduino firmware). The site can also be self-hosted.
+## Everyday use
 
-Use Node.js 22.13 or later:
+- Use the session-list title selector to switch between conversations and archives. Swipe a normal row for Rename/Archive, or an archived row for Rename/Restore/Delete. Deletion asks for confirmation. Search by pulling down the list or using the search button.
+
+- Older messages load as you scroll up. New replies preserve your reading position; Latest returns to recent messages. Export a conversation from its menu and import under Settings. Export/import includes images, with a 64 MiB file limit.
+
+- For long or multilingual text, install iPhone Agent Clipboard from the clipboard tutorial. Use Copy with Shortcuts, or Copy and continue in the foreground. Execution waits for copy confirmation, then checks the target field before pasting.
+
+- Twelve built-in skills cover observation, planning, navigation, text, scrolling, drag/drop, recovery, challenges, authoring, clock controls and gesture correction. Precise controls use direct numeric editing when available, otherwise small observed corrections and settling waits.
+
+- Create, edit and publish your own skills on desktop or phone. Ownership uses a browser-generated cryptographic identity, not an iOS device ID. Export its encrypted backup before changing browsers. Built-in and downloaded community skills stay read-only and check for updates on refresh; enabled/disabled choices remain. Failed updates retain the installed version.
+
+- Optional MCP supports multiple browser-accessible Streamable HTTP servers. Select and authorize their tools explicitly; servers must support browser CORS. It does not launch stdio programs or provide full remote OAuth hosting.
+
+## Data and limits
+
+Conversations, images, API keys and login tokens are stored in this browser; credentials are separate from conversation exports and do not require an unlock password. Selected messages/images go to your model provider. Clearing site data removes local data, so export important sessions. Public skill publishing sends only the package you deliberately choose.
+
+Use experimental hardware features with supervision. Integrated phone gestures, background capture, Shortcut behavior and multi-phone operation need testing on your own devices; compilation and desktop checks do not prove these outcomes. Safari may pause background work. Tasks have no default whole-task time/step cutoff, but each action plan retains safety limits. Real Safari ChatGPT subscription sign-in and refresh remain compatibility boundaries. The current bridge supports one active WebRTC peer; multiple saved browser clients do not imply simultaneous control. The latest multi-client enrollment/import repair is prepared in source, not yet physically flashed and validated.
+
+## Develop and self-host
+
+Use Node.js 22.13 or later. The two product parts are apps/web and firmware/IPhoneAutomationHarness. The website is static with an optional signed public-skill API. Phone screen sharing needs HTTPS.
 
 ```sh
 npm ci
@@ -39,10 +55,8 @@ npm run build
 npm run preview
 ```
 
-Desktop previews use localhost. Phone screen sharing requires HTTPS. Deploy `build/site` using the [documented routes](docs/architecture/deployment.md#self-hosted-page-routing). The [Arduino guide](firmware/IPhoneAutomationHarness/README.md) describes supported boards and builds.
+Releases are manual: normal pushes do not run GitHub Actions. See the release guide for firmware reuse, release assets and deployment.
 
-**Manual releases:** normal pushes do not run GitHub Actions. On request, the workflow reuses unchanged firmware, builds changed ESP32/C3/S3/C6 versions, publishes the binaries to Releases, and deploys the same files with the website. [Release setup](docs/architecture/manual-release.md).
-
-[Architecture](docs/architecture/system-blueprint.md) · [Actions and screenshots](docs/architecture/actions.md) · [Accounts and MCP](docs/architecture/auth-and-backends.md) · [Skill ownership](docs/architecture/skill-community.md) · [Languages](docs/architecture/localization.md)
+[Phone guide](docs/acceptance/README.md) · [Arduino guide](firmware/IPhoneAutomationHarness/README.md) · [Architecture](docs/architecture/overview.md) · [Self-hosting](docs/architecture/deployment.md) · [Manual releases](docs/architecture/manual-release.md) · [Clipboard tutorial](https://igent.cc/shortcuts/clipboard.html)
 
 [MIT License](LICENSE) · [Third-party notices](THIRD_PARTY_NOTICES.md)

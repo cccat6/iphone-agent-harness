@@ -181,3 +181,9 @@ body.harness-surface{position:fixed;inset:0;overflow:hidden}
 .session-swipe-action{min-width:78px;border:0;background:#dce9e3;color:#20463b;padding:12px 10px;font-size:12px}
 .session-swipe-action:nth-child(2){background:#c9dcd2}.session-swipe-action.danger-action{background:#b83d39;color:#fff}
 @media(prefers-reduced-motion:reduce){.session-swipe-front{transition:none}}
+
+/* The library switches in place; archives use the same list and row actions. */
+.session-list-title{display:flex;align-items:center;position:relative;margin:0;min-width:0;max-width:55%;font-size:1.5rem;line-height:1.3}
+.session-list-title select{appearance:none;-webkit-appearance:none;border:0;border-radius:8px;color:inherit;background:transparent;font:inherit;font-weight:650;min-height:44px;max-width:100%;padding:4px 24px 4px 0;cursor:pointer}
+.session-list-title>span{position:absolute;right:3px;font-size:1rem;pointer-events:none}
+.site-guide{max-width:960px;margin:72px auto;padding:0 24px}.site-guide>p{max-width:720px;color:var(--muted);line-height:1.7}.site-guide ol{list-style:none;counter-reset:none;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:24px 40px}.site-guide li{border-top:1px solid var(--line);padding-top:20px}.site-guide li p{color:var(--muted);line-height:1.75;margin:8px 0}.site-guide li h3{font-size:1.08rem;margin:0}.site-guide .guide-links{display:flex;flex-wrap:wrap;gap:12px;margin-top:24px}.site-demo{max-width:960px;margin:64px auto;padding:0 24px}.site-demo figure{margin:24px 0;max-width:800px;border:1px solid var(--line);border-radius:18px;overflow:hidden}.site-demo img{display:block;width:100%;height:auto}.site-demo figcaption{padding:20px;line-height:1.7}.site-demo figcaption p{color:var(--muted);margin:6px 0 0}@media(max-width:620px){.site-guide ol{grid-template-columns:1fr}.site-guide,.site-demo{margin:44px auto}}

@@ -1,8 +1,0 @@
-{
-  "checkedAt": "2026-10-18T09:05:49.323Z",
-  "scope": "One real DeepSeek chat request with deliberately disconnected synthetic bridge state. No phone input.",
-  "requests": 1,
-  "hardwareCalls": 0,
-  "reply": "当前 ESP32 桥处于断开状态（bridgeConnection: disconnected），执行通道未启用，因此现在无法向手机发送按键。",
-  "passed": true
-}

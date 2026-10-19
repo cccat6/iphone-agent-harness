@@ -1,72 +1,13 @@
-# Harness、后台执行与本地数据
+# Browser runtime and local data
 
-本文描述当前 JavaScript 实现。更细的函数和测试入口见[运行时实施](harness-runtime-implementation.md)，当前执行证据见[验收记录](../research/release-acceptance.md)。
+Conversations and image Blobs live in IndexedDB. Locale preference uses localStorage. API credentials and login tokens occupy separate browser-local records and are excluded from conversation exports. Clearing site data removes them. These records do not use an unlock password; do not describe browser storage as hardware-protected secret storage.
 
-## 固定循环与模式
+A Harness owns one active run; persistent session ownership prevents competing tabs. There is no default whole-task step, tool-call or time cutoff. Explicit caller budgets remain supported. Stop ends the run, loss of capture pauses it, repeated unchanged failures or missing prerequisites require honest recovery. This does not guarantee indefinite iOS background operation.
 
-```text
-用户消息 → 原子取得本会话 run → 固定本轮 Skill 版本
- → 准备上下文与目标状态 → 完整模型响应
- → 校验完整工具参数 → 顺序执行有界工具／动作计划
- → 保存工具结果、回执与压缩图片 → 下一模型回合或明确终态
-```
+Each action plan still has bounded time, event, byte and held-input limits. Unknown physical or remote mutation outcomes stop dependent operations rather than triggering a replay. User requests, tool calls and terminal results retain their order.
 
-每个 Harness 同时一个 run；IndexedDB 原子运行记录约束同一会话的多窗口争用。设备另有每目标、每运行 writer 租约，不能用浏览器的“正在运行”布尔值代替。默认不设整项任务的模型回合、工具调用或时长上限；调用方可显式配置有限预算，达到后仍记录 budget_exhausted。用户停止、录屏丢失暂停、重复无进展、未知交付等终止／恢复规则继续有效。单个动作计划仍至多 15 秒，并保留各段、按住、事件和字节安全限制；这不保证 Safari 无限后台运行。
+The UI loads indexed history in pages, decoding images when needed. Reading older messages preserves the viewport as new replies arrive; Latest reloads the recent window and restores following. Exports/imports include images up to 64 MiB. Imports stage a new session, leaving existing data intact if validation fails.
 
-Chat 不访问取屏与设备控制上下文，可讨论、搜索本地会话并按用户要求制作自有 Skill。Plan 可观察和规划，但没有修改手机的工具。Task 只有在身份、当页目标证明、设置确认、取屏与运行租约都符合时才能执行。目标是 Task 的完成条件，不是无限运行模式。
+Automatic model summaries default to a 750,000-token trigger. Full local history remains; summaries are context projections, not new observations. Three JPEG presets preserve image dimensions. Browser storage may be evicted; export important conversations and request retention in Settings.
 
-当前等待整个 assistant 响应正常结束，才处理工具调用。截断、无正常终止、参数超限或重复 ID 不会形成可执行的半截动作。停止会中断模型／工具工作，补齐工具历史并尝试释放自己的租约；无法确认外部已执行结果时使用 unknown，不自动重放。
-
-模型固定工具为 `phone_observe`、`phone_execute_plan`、`skills_list`、`skills_load`、`skills_create`、`skills_update`、`session_search`、`user_request_input`、`task_report`，按模式和当前状态裁剪。可选 MCP 仅增加固定 `mcp_list_tools`／Task 的 `mcp_call` 桥接，不动态注册远程工具。模型无发布 Skill、安装代码或改变设备权限的工具。
-
-## 模型、等待与后台
-
-已实现 OpenAI Chat Completions 风格、Anthropic Messages 风格、独立 Codex Responses 订阅适配；支持配置端点、模型、账号和流式选择。模型目录是产品实际请求，不是内置猜测列表。具体认证／CORS 边界见[模型与账号](auth-and-backends.md)。
-
-普通模型请求默认总时限 180 秒，可由 provider 配置覆盖；模型目录单请求 20 秒。没有在设置界面承诺独立首片／空闲超时参数。SSE、UTF-8、工具参数累积及整体响应都有限额。仅在正常响应完成后执行动作；流中断不等于服务端没有处理请求。
-
-早期 iPhone 12／iOS 27.0.1 实验有约 200 秒延迟／流式探针和四轮真实 DeepSeek 双协议请求的记录，见[后台报告](../research/background-api.md)。这些是特定设备、时长与条件下的观察，不能推出锁屏、内存压力或无限后台执行。当前产品循环在手机上的完整复验仍在手机清单中。
-
-录屏、网络片段、取帧和计时器只提供实际调度机会；它们不是后台权限。网络等待可以跨多个回调，约四秒取一帧不表示请求只有四秒预算。设备本地计时完成短段，不能越过等待网页截图的屏障，也不能唤醒被系统暂停的 Safari。
-
-当前没有注册 Service Worker，也没有用静音音频等方式伪造常驻。主屏幕入口、锁屏、系统中断和网络切换须分别验证。网页结束后不能静默重新取得屏幕授权；重新打开不会盲目续播旧输入。
-
-## 实际存储结构
-
-主库沿用 `iphone-automation-harness`、schema v2；产品改名不自动改库。表为：
-
-| Store | 当前内容 |
-|---|---|
-| sessions | 标题、模式、账号／模型、置顶／归档、序列、上下文 checkpoint、活动 run |
-| messages | 用户／assistant／工具记录、toolCallId、图片引用和已返回的供应商状态 |
-| events | 按会话递增的运行、意图、结果与恢复审计事件 |
-| frames | 单独的压缩 Blob、目标、原始／输出尺寸、方向、时间与本地引用 |
-| runs | 一轮的状态、预算和结束记录 |
-| settings | 普通设置与用户选择的加密凭据 vault；过滤原始 secret 字段 |
-| skills | 内置、自有和只读社区包、来源／版本／内容／启用状态 |
-
-作者私钥 CryptoKey 位于独立 `iah-creator-identity` 库；备份需要用户主动口令加密导出。语言偏好放 localStorage。未启用加密保存的模型凭据仅在页面内存中；口令不与密文一起保存。恢复的设备 token 也不能代替本页的真实 HID 目标证明。
-
-消息与事件追加使用 readwrite 事务同步序列。UI 每页读取 40 条消息，保留最多 120 条或约 2 MiB 的文字窗口；上拉读取更早消息，向后分页可返回较新消息。正常对话过滤内部运行快照。超长单条正文按 32 Ki 字符分段显示，原文完整保留；图片进入视口才读取，离屏后释放，最多同时保留 8 张。会话列表每页 80 条，仅读取显示字段，不驻留所有 checkpoint。工具输入意图在发送前记录，完整工具组及运行状态持久化。流式 UI 文字与持久完成消息是不同阶段，不承诺页面突然终止后能恢复每个尚未完成的 token。
-
-## 压缩、缓存和图片
-
-系统 prompt、固定工具指导、Skill 简短目录与版本放在稳定前缀，运行状态另放动态消息；Skill 正文按需读取。内置生成资源有综合 revision，本轮固定内存 Skill 快照，远端更新不替换执行中的说明；不宣称任意历史社区正文都被单独版本归档。缓存命中取决于后端，UI／事件仅展示真实返回的 usage，不伪造命中。
-
-用户设置只有自动压缩开关和触发阈值，默认 750,000 token。运行时按模型公开的容量信息调整预算；没有容量信息时不根据模型名猜测。压缩使用当前模型摘要，保留目标、近期完整工具调用／结果及错误／未知结果，完整历史留在本地。上下文超限时最多进行一次压缩后重试，已有流式输出或工具执行时不重放。图片数量调整单独处理，保留全部文字，不因此提前请求模型摘要。
-
-压缩改变发给模型的投影，不删除原会话和图片。图片保留采集到的完整像素尺寸，仅进行 JPEG 编码，质量分节省空间、均衡、高清三档；不裁剪或缩放。旧图不会被新的质量设置重写；不保存完整跨 App 录屏。单图、单轮图片数／字节及请求均有限额，存储不足明确失败；当前没有任意附件固定／全库自动淘汰界面或 OPFS 层。
-
-导出／导入为版本化 `iah-session` JSON，保留完整消息和可用图像；导入创建新会话，不覆盖原会话，并把历史 system 内容作为引用数据。普通会话导出不包含账号 vault 或作者私钥。浏览器存储是尽力保留，持久化申请结果要实际检查；不同 origin／浏览器／PWA 容器不能假设共享，应主动导出重要数据。
-
-## 恢复与信任边界
-
-回执区分 accepted、运行、终止、HID 已提交与画面观察。源流停止会失效未完成取帧、取消非 Chat 运行并清理监听；晚到的旧 bitmap／编码结果不能进入新流或目标。unknown 的操作须先核对设备与新画面；新 bootId 或方向变化使旧状态失效。
-
-同源网页代码可以访问本地数据，故不加载不受控远程脚本。Skill 与模型输出当作文字／数据，不执行 HTML、shell 或脚本。自托管 origin 是独立信任边界；站点不内嵌共享 Key，也不提供后台常驻／云端会话代管。
-
-### 会话文件与内存边界
-
-会话导入、导出仍使用兼容的 v1/v2 JSON 格式，总文件上限为 64 MiB。导入按 64 KiB 分块读取，先验证整个文件，再逐消息写入暂存会话；全部成功后才显示在列表中。导出逐消息读取元数据，逐张加载图片并写入 Blob 片段，不同时解码整段会话的图片。错误会清理本次导入，不修改已有会话。
-
-这限制了长会话的累计工作集，但不承诺任意大小的单条记录使用恒定内存：旧 JSON 文件的一条消息仍须作为一个 JSON 值解析，旧 IndexedDB 记录也须读取该单条记录后投影。既有合法的多图片消息没有新增 16 MiB 上限。会话头部采用导入、导出一致的 1 Mi 字符上限；完全分块存储单条超大消息及其图片需要后续独立格式迁移。
+[Implementation](harness-runtime-implementation.md) · [Actions](actions.md)

@@ -19,20 +19,10 @@ test('setting a default account must not reopen accounts after the user navigate
  f.writes[0].resolve({...f.writes[0].value,providers:[]});await saving;
  assert.equal(f.title,'language.label');
 });
-test('archive list loading must not close a settings page opened afterward',async()=>{
- const f=fixture();await f.open('home');const opening=f.node('#settings-archive').onclick();await f.open('language');
- f.refresh.resolve();await opening;
- assert.equal(f.dialog.open,true);assert.equal(f.title,'language.label');assert.equal(f.closeCount,0);
-});
 test('setting a default account still refreshes its current accounts page',async()=>{
  const f=fixture();await f.open('accounts');const saving=f.button.onclick();
  f.writes[0].resolve({...f.writes[0].value,providers:[]});await saving;
  assert.equal(f.title,'settings.accounts');assert.equal(f.dialog.open,true);
-});
-test('archive list completion closes the original settings directory normally',async()=>{
- const f=fixture();await f.open('home');const opening=f.node('#settings-archive').onclick();
- f.refresh.resolve();await opening;
- assert.equal(f.dialog.open,false);assert.equal(f.closeCount,1);
 });
 test('finishing default-account persistence after closing settings does not reopen it',async()=>{
  const f=fixture();await f.open('accounts');const saving=f.button.onclick();f.dialog.close();

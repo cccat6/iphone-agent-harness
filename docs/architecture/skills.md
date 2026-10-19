@@ -1,82 +1,28 @@
-# 提示词与 Skill
+# Skills and prompts
 
-## 1. 从参考实现得到的决定
+Skills are Markdown/JSON guidance for fixed tools, never executable plugins. The bundled catalog contains twelve entries:
 
-- Codex：基础指令、环境和工具边界分开；长期任务需要上下文预算、工具结果与恢复状态。
-- DeepSeek Harness：借鉴动态上下文与稳定系统前缀的分离、Skill 目录与正文的分离；不采用其插件注册和装配框架。
-- pi：借鉴小内核、事件流、用户 steering 与工具循环；会话历史与发给模型的投影分开，prompt 组合用普通固定代码。
-- OpenCode：按当前工具生成指导；流式输出和执行事件有各自顺序；有输出后的重试不能当作一次全新未执行请求。
-- DeepAgents：按需披露 Skill；摘要中间件独立；当前代码已将旧的通用 base prompt 标为弃用，不能拿该常量当现行唯一系统提示词。
-- UI-TARS／Anthropic Computer Use：动作空间、坐标、图像历史、错误与终止状态明确。参考其公开实现，不把桌面专用动作或要求输出详细 Thought 的模板原样搬过来。
+| Skill | Purpose |
+|---|---|
+| `screen-observation` | Read fresh screen evidence |
+| `temporal-observation` | Inspect bounded frame sequences |
+| `task-planning` | Plan and verify work |
+| `phone-navigation` | Navigate from current screen |
+| `text-entry` | Supported input and clipboard handoff |
+| `list-scroll` | Adjust visible lists |
+| `drag-and-drop` | Complete released drag gestures |
+| `recovery` | Re-observe and recover honestly |
+| `challenge-router` | Classify and route visible challenges |
+| `skill-authoring` | Create or revise owned local guidance |
+| `clock-and-time` | Exact clock/picker values and numeric entry |
+| `gesture-correction` | Learn from observed misses and overshoot |
 
-## 2. 我们的 prompt 组装
+Each has a manifest and complete [instruction body](../../apps/web/skills/). Package completeness is not a guarantee of success in every app or a universal challenge solver.
 
-稳定部分：产品角色、证据规则、可执行动作、批量执行语义、能力边界、数据规则、完成／失败规则。当前原文见 `prompts/system.md`。
+Create/edit/publish on desktop or phone through the public Skills page or Harness. Authorship uses a browser-generated cryptographic identity, not an iOS UID. Back it up encrypted before moving devices. Downloaded and builtin items are read-only; only owned items are directly editable/publishable.
 
-每轮动态上下文：目标 ID、board bootId、方向版本、当前帧及其时刻、实际能力、当前按键释放状态、剩余预算、设备连接、已加载 Skill 版本、最近错误。屏幕文字与 Skill 资源不冒充系统消息。
+On refresh, builtins are reconciled and unchanged installed community downloads are checked for newer versions. Enabled/disabled choices persist. Validation or network failure retains the installed version; local authored drafts and active run snapshots are not overwritten.
 
-模型适配层只加必要的 schema、坐标或工具消息格式；不把一种模型的私有系统提示词当成所有模型通用方案。`run.started` 记录 mode、providerId、model、promptRevision（内置生成资源与计划 schema 的综合 revision）及 Skill id／version。本轮 Skill 正文在内存中克隆固定；不会为任意作者／社区包额外保存一份历史内容 hash，也不记录完整端点配置或独立工具 schema 版本。因此这不是任意历史运行的完整可重建快照。
+Prompts live in [system.md](../../prompts/system.md), [modes.md](../../prompts/modes.md) and [context-summary.md](../../prompts/context-summary.md). Stable rules separate evidence, capabilities and user intent. Imported prose cannot expand runtime permissions. Component interaction notes require actual frames and remain scoped to target/orientation; unsupported numeric editing is not assumed.
 
-## 3. Skill 包结构
-
-```text
-apps/web/skills/<id>/
-  manifest.json          版本、触发描述、所需能力、文件 hash、入口
-  SKILL.md               操作方法、观察要求、成功条件和停止条件
-  recipes/*.json         可选的声明式动作模板，不是任意 JS
-  references/*.md        按需说明
-  fixtures/              脱敏测试画面与预期结果
-```
-
-入口遵循 name/description 的渐进披露思路；浏览器不会直接执行桌面 Skill 的 shell、Python 或任意脚本。核心执行能力固定，Skill 内容只能指导和组合已有操作；新增能力修改项目代码，不通过 Skill 安装新执行器。
-
-接口：`skills_list → select → skills_load({id,path?}) → propose plan → validate → execute → verify`。版本由本轮快照固定，不是传给 load 的参数。系统常驻目录只含简短 metadata，匹配后读取完整正文。正文版本与文件哈希锁定到当前 run；更新不会在一个按住的手势中替换实现。
-
-本地只维护用户选择的 Skill 清单和对应内容缓存，允许启用／停用／移除。不同来源的同名 Skill 不静默覆盖；以来源和 ID 区分，用户明确选择启用项。清单保留声明的 requiredCapabilities；实际工具可见性与计划验证独立约束执行，说明内容不能让模型临时发明未实现工具。
-
-## 4. 验证码作为可更新的专业 Skill
-
-按用户确定的产品方向，允许在用户授权的任务中通过可见界面自动处理验证码。没有“所有验证码都默认转人工”的产品限制。框架不宣称任何类型都能成功，实际取决于视觉模型、画面、交互方式和服务端接受结果。
-
-统一 `challenge` 分类与结果，不把某厂商的流程写进核心。
-
-| 家族 | 需要的能力 | 处理形态 |
-|---|---|---|
-| 勾选／确认 | 新截图、点按 | 点按后重新观察是否出现下一层 |
-| 文本／算式 | 图片、可用字符输入 | 识别、输入、提交、观察接受结果 |
-| 图片选择 | 多区域视觉、连续点按、截图 | 选择有限候选；动态换图后重新观察 |
-| 滑块／拼图 | 带时间轨迹的拖动、连续截图 | 依据画面规划路径，释放后确认 |
-| 旋转／排序 | 点按或单指拖动 | 按类型加载 recipe，不需要多指旋转手势 |
-| 动态／时序 | 有实际时间标记的多帧 | 先验证采样密度足够，再规划动作 |
-
-当前 `challenge-router` 提供分类与普通 Skill 路由说明，没有名为 `challenge.detect` 的工具或已训练的本地分类器，也不宣称附带了各家族已验证的求解器。未来可用独立版本的内容包补充家族流程。
-
-结果约定：`solved / failed / changed / insufficient_evidence / unsupported / needs_user`；记录 family、Skill 版本、尝试次数、所依据 frameId 和结果截图。一次点击被设备接收不等于验证码被接受；必须看到挑战消失、明确成功提示或任务页面继续。挑战刷新后废弃旧坐标。
-
-Skill 可以提出一次多个确定操作和中途取图，但不能在图片会重排时盲目执行剩余旧坐标。每次尝试有时限和次数预算；失败反馈用于选择下一次观察，不无限刷新重试。短信／邮件一次性口令需要用户提供或未来另行授权的数据源，不能靠截图 Skill 声称能取得。
-
-不需要把第三方账号凭据、Wi-Fi 密码或 API Key 放进验证码 Skill。当前设计使用用户可见的界面操作；不依赖私有反机器人接口、伪造平台签名或读取其他 App 内存。
-
-## 5. 安装与更新的实际行为
-
-站点一起托管 `skills/catalog.json`、manifest 与正文；用户在目录或社区逐项添加，本地保存完整内容、来源和版本，不只保存远程链接。静态 manifest 包验证路径、文件大小与 SHA-256；公开社区包还验证作者签名。跨域来源需允许 CORS。包只能携带文本 `.md`／`.json` 内容，不加载可执行代码。
-
-当前采用用户主动添加／更新，不声称已有定时自动更新后台。下载和校验成功后才保存；失败保留旧版本。本轮 Harness 固定 Skill 快照，正在运行时不热替换。禁用或删除是本地操作，不删除别人公开的包；内置包不能作为当前作者的原创发布。
-
-普通外来导入统一为只读社区来源。来源与 ID 命名空间防止同名碰撞；碰撞旧内置 ID 的外来内容保留为禁用社区项，再恢复真正内置包。用户自制内容通过 authoring 接口创建，记录当前 creatorId；下载不能靠伪造字段变成自己的包。
-
-## 6. 自有创作与社区发布
-
-`skills_create`／`skills_update` 只创建／修改当前本地作者拥有的 Skill，按请求加载 `skill-authoring`。内置和下载项只读；模型没有发布工具。用户可主动导出自己的包、查看所有权，或口令加密备份／恢复作者身份。公钥指纹标识作者，证明持有发布密钥，不证明内容原创性。
-
-官方站点 `igent.cc` 已部署公开 Skill Worker／D1，JSON 路径为 `/api/skills`，用户页面为 `/skills`。显式点击公开发布时，客户端签名可审查包，服务端验证 audience、作者、nonce、版本与大小并生成不可变 revision。只上传主动选择的公开 Skill，不上传会话、截图或模型凭据。下载验证签名后成为只读社区项。详见[社区契约](skill-community.md)。
-
-自托管静态站默认不连接官网发布服务；用户可配置自己的兼容社区端，或仅导出和托管包。没有发布端时不显示假的成功。这里的“插件市场”是内容目录，不是通用插件运行时、依赖解析或动态代码注册系统。
-
-## 7. 十个基础 Skill 与验收范围
-
-`screen-observation`、`temporal-observation`、`task-planning`、`phone-navigation`、`text-entry`、`list-scroll`、`drag-and-drop`、`recovery`、`challenge-router`、`skill-authoring`、`clock-and-time`、`gesture-correction` 共12项，均有完整正文与哈希清单。覆盖观察、时序、规划、导航、输入、滚动、拖放、恢复、挑战路由、原创 Skill 制作、时钟／精确值输入和手势修正。
-
-`gesture-correction` 根据实际点偏、滚动过冲、选择器反应调整距离／速度／终点保持，不推测全局坐标补偿。`phone_remember_interaction` 只接受当前run、目标和方向的真实帧证据，按控件替换简短经验。`clock-and-time` 与修正指导都优先探测控件是否支持直接数字编辑，再考虑小幅转轮拖动；保存前核对准确值。没有固定两次修正就放弃的规则，重复无变化或真实外部阻碍才请求具体帮助。
-
-包完整性、按需加载、作者限制、合成设备／实际模型工具循环已有自动与独立测试；不等于每个 Skill 已在新固件和所有原生 App 上通过。`challenge-router` 是有界路由方法，没有已验证的通用 CAPTCHA 求解器。逐内容与手机验收见[完整清单](../acceptance/zh-Hans.md)。
+[Ownership and publishing](skill-community.md)

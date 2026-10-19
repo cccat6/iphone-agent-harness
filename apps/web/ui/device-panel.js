@@ -28,19 +28,19 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
   let transport=null,legacyEndpoint='';
   let client=null,proof=null,targets=[],targetId='',root=null,dialog=null,controller=null,operation=0,working=false;
   let challenge=null,nonce='',armed=false,challengeTimer=null,testWait=null,unsubscribe=null,settings={},statusKey='notPaired',statusDetail='',checkedAt=null;
-  let legacyBinding=false;
-  let connectionActive=false,pendingSetup=null,connectionEpoch=0,monitorTimer=null,refreshTask=null,disposed=false;
+  let legacyBinding=false,challengeCancellation=Promise.resolve(),bindingError=null,verifiedRTC=null,challengeMayExist=false,challengeRetryController=null;
+  let connectionActive=false,pendingSetup=null,connectionEpoch=0,monitorTimer=null,refreshTask=null,disposed=false,lastRefreshStarted=0;
   let importError=null,progressTimer=null,progressStarted=0,informationEdit=0,informationSaving=null;
   try{pendingSetup=takeDeviceSetupLink();}catch(error){importError=error;}
   const componentError=key=>Object.assign(new Error('DEVICE_UI_'+key),{deviceMessageKey:key});
   const copy=(key,params={})=>Object.entries(params).reduce((text,[name,value])=>text.replaceAll('{'+name+'}',String(value)),(DEVICE_MESSAGES[getLocale()]||DEVICE_MESSAGES.en)[key]||key);
   const node=selector=>root?.querySelector(selector);
   const mounted=()=>Boolean(root?.isConnected&&getPanelRoot()?.contains(root));
-  const getState=()=>{const connected=Boolean(connectionActive&&client?.paired&&client.identityVerified),bluetoothConnected=Boolean(connected&&targets.some(target=>target.targetId===(client?.targetId||targetId)&&usableTarget(target))),targetBound=Boolean(connected&&bluetoothConnected&&client?.bindingVerified&&client.targetId===targetId),inputVerified=targetBound&&sameProof(proof,client),ready=targetBound;return {informationReady:!!information(),connected,bluetoothConnected,targetBound,inputVerified,ready,legacyInputTestRequired:Boolean(connected&&legacyBinding&&!targetBound),sharing:Boolean(capture.active),boardId:connected?client.boardId:null,targetId:ready?client.targetId:null,status:working?'connecting':ready?(capture.active?'sharing':'ready'):connected?'needs-target':'disconnected'};};
+  const getState=()=>{const connected=Boolean(connectionActive&&client?.paired&&client.identityVerified),selected=targets.find(target=>target.targetId===(client?.targetId||targetId)),bluetoothConnected=Boolean(connected&&selected?.connected),phoneInputReady=Boolean(bluetoothConnected&&usableTarget(selected)),targetBound=Boolean(connected&&phoneInputReady&&client?.bindingVerified&&client.targetId===targetId),inputVerified=targetBound&&sameProof(proof,client),ready=targetBound;return {informationReady:!!information(),connected,bluetoothConnected,phoneInputReady,targetBound,inputVerified,ready,legacyInputTestRequired:Boolean(connected&&legacyBinding&&!targetBound),sharing:Boolean(capture.active),checking:Boolean(refreshTask),boardId:connected?client.boardId:null,targetId:ready?client.targetId:null,status:working?'connecting':ready?(capture.active?'sharing':'ready'):connected?'needs-target':'disconnected'};};
   const publish=()=>onDeviceChange(getState().ready?client:null,getState());
   const setStatus=(key,detail='')=>{statusKey=key;statusDetail=detail;renderStatus();publish();};
   function invalidateProof(){proof=null;publish();}
-  function resetChallenge(){if((armed||challenge)&&client&&targetId)void client.cancelChallenge?.(targetId)?.catch?.(()=>{});if(testWait){testWait.reject(componentError('needsFreshChallenge'));testWait=null;}clearTimeout(challengeTimer);challengeTimer=null;challenge=null;nonce='';armed=false;const input=node('[data-nonce]');if(input)input.value='';}
+  function resetChallenge(){challengeRetryController?.abort();challengeRetryController=null;if(challengeMayExist&&client&&targetId){const tested=client,selected=targetId;challengeCancellation=challengeCancellation.catch(()=>{}).then(()=>tested.cancelChallenge?.(selected));challengeCancellation.catch(()=>{});}challengeMayExist=false;if(testWait){testWait.reject(componentError('needsFreshChallenge'));testWait=null;}clearTimeout(challengeTimer);challengeTimer=null;challenge=null;nonce='';armed=false;const input=node('[data-nonce]');if(input)input.value='';}
   function information(){
     if(importError)return null;
     try{const candidate=pendingSetup?pendingSetup:{baseUrl:defaultBridgeEndpoint(settings.deviceEndpoint),boardId:settings.deviceBoardId,rtc:settings.deviceRTC};
@@ -61,10 +61,10 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
   function startProgress(){stopProgress();progressStarted=Date.now();progressTimer=setInterval(()=>renderStatus(),1000);progressTimer?.unref?.();}
   function renderStatus(){
     if(!mounted())return;
-    const message=statusKey==='operationFailed'?copy('connectionFailed',{detail:statusDetail?.deviceMessageKey?copy(statusDetail.deviceMessageKey):localizeError(statusDetail)}):copy(statusKey,{count:nonce.length});
+    const message=statusKey==='operationFailed'?copy('connectionFailed',{detail:statusDetail?.deviceMessageKey?copy(statusDetail.deviceMessageKey):localizeError(statusDetail)}):copy(statusKey,{count:nonce.length,seconds:statusDetail?.seconds||0});
     const output=node('[data-device-status]');output.textContent=message;output.hidden=working||statusKey==='operationFailed'||statusKey==='infoRequired'||statusKey==='infoSaved';output.classList.toggle('error',statusKey==='operationFailed');
     const progress=node('[data-connection-progress]');if(progress){progress.hidden=!working&&statusKey!=='operationFailed';node('[data-progress-message]').textContent=message;node('[data-progress-elapsed]').textContent=working?copy('progressElapsed',{seconds:Math.floor((Date.now()-progressStarted)/1000)}):'';}
-    const details=node('[data-connection-error-details]');if(details){const text=statusKey==='operationFailed'&&!working?deviceErrorDetails(statusDetail):'';details.hidden=!text;node('[data-connection-error-content]').textContent=text;if(!text)details.open=false;}
+    const details=node('[data-connection-error-details]');if(details){const text=statusKey==='operationFailed'&&!working?deviceErrorDetails(statusDetail):'';details.hidden=!text;node('[data-connection-error-content]').textContent=text;details.open=Boolean(text);}
   }
   function renderState(){
     if(!mounted())return;
@@ -74,10 +74,11 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
     const state=getState(),connected=state.connected,verified=state.inputVerified,ready=state.ready;
     node('[data-bridge-state]').textContent=copy(connected?'bridgeConnected':'bridgeDisconnected');
     node('[data-bridge-address]').textContent=connected?client.baseUrl.origin:defaultBridgeEndpoint(settings.deviceEndpoint);
-    node('[data-bridge-settings]').hidden=!connected;node('[data-bridge-settings]').href=connected?client.baseUrl.origin+'/settings?lang='+encodeURIComponent(getLocale()):'#';
+    node('[data-bridge-settings]').hidden=!connected;node('[data-bridge-settings]').href=connected?(information()?.rtc?.ip?'http://'+information().rtc.ip:client.baseUrl.origin)+'/settings?lang='+encodeURIComponent(getLocale()):'#';
     const saved=information();node('[data-information-complete]').textContent=copy('infoSaved');node('[data-info-step]').hidden=false;node('[data-info-step]').dataset.complete=String(!!saved);node('[data-information-complete]').hidden=!saved;node('[data-info-help]').hidden=!!saved;node('[data-import-help]').hidden=!!saved;node('[data-import-connection]').textContent=copy(saved?'infoReload':'importConnection');
     node('[data-connect-help]').hidden=connected;
     let importOrigin=DEFAULT_BRIDGE_URL;try{const entered=node('[data-address]').value.trim(),origin=entered.includes('#device=')?parseDeviceSetupLink(entered).baseUrl:DeviceClient.createURL(entered);if(origin.startsWith('http:'))importOrigin=origin;}catch{}
+    const savedInformation=information();if(savedInformation?.rtc?.ip&&savedInformation.baseUrl===importOrigin)importOrigin='http://'+savedInformation.rtc.ip;
     const url=bridgeImportURL(importOrigin,getLocale());node('[data-import-connection]').href=url;node('[data-reimport-connection]').href=url;
     node('[data-information-state]').textContent=copy(saved?'infoSaved':'infoRequired');node('[data-connect-step]').dataset.unavailable=String(!saved);
     node('[data-test-controls]').hidden=!connected;
@@ -126,7 +127,15 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
     if(disposed||working||armed||!client?.paired||transport?.closed)return false;
     try{await refresh();return getState().ready;}catch{return false;}
   }
-  function foreground(){if(globalThis.document?.visibilityState==='hidden'&&armed)resetChallenge();else if(globalThis.document?.visibilityState==='visible')void checkConnection();}
+  async function refreshConnection({force=false}={}){
+    if(disposed||working||armed)return getState().ready;
+    if(refreshTask)return refreshTask.promise.catch(()=>false);
+    if(!client?.paired||!transport||transport.closed){if(connectionActive){connectionActive=false;targets=[];proof=null;checkedAt=null;publish();renderState();}return false;}
+    if(!force&&Date.now()-lastRefreshStarted<300)return getState().ready;
+    lastRefreshStarted=Date.now();
+    try{return await refresh();}catch{return false;}
+  }
+  function foreground(){if(globalThis.document?.visibilityState==='hidden'&&armed)resetChallenge();else if(globalThis.document?.visibilityState==='visible')void refreshConnection();}
   globalThis.document?.addEventListener?.('visibilitychange',foreground);
   async function associate(tested,selected,signal){
     try{await tested.bindTarget(selected,{signal});legacyBinding=false;}
@@ -138,7 +147,7 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
       legacyBinding=true;
     }
   }
-  async function refresh(signal,recoverExpiredCredential=null){
+  async function refresh(signal,recoverExpiredCredential=null,{allowAssociate=false}={}){
     const tested=client,epoch=connectionEpoch;
     if(!tested?.paired)return false;
     if(refreshTask?.client===tested&&refreshTask.epoch===epoch)return refreshTask.promise;
@@ -146,17 +155,19 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
     const abort=new AbortController(),cancel=()=>abort.abort(signal?.reason),timer=setTimeout(()=>{deadlineExpired=true;abort.abort();},8000);
     signal?.addEventListener('abort',cancel,{once:true});if(signal?.aborted)cancel();
     const current=()=>tested===client&&epoch===connectionEpoch&&!disposed;
-    const task={client:tested,epoch};refreshTask=task;
+    const task={client:tested,epoch};refreshTask=task;publish();
     task.promise=(async()=>{
       try{
-        await tested.identity({signal:abort.signal});
+        const identity=await tested.identity({signal:abort.signal});
+        if(identity?.rtc&&identity.boardId===tested.boardId&&current()&&!pendingSetup){const rtc=validateRTCConfiguration(identity.rtc);verifiedRTC=rtc;if(rtc.ip&&JSON.stringify(rtc)!==JSON.stringify(settings.deviceRTC)&&defaultBridgeEndpoint(settings.deviceEndpoint)===tested.baseUrl.origin)await savePublicSettings({deviceRTC:rtc,deviceBoardId:identity.boardId});}
         let binding;
         try{binding=await tested.getBinding({signal:abort.signal});}
         catch(error){
-          // Only an explicit reconnect may renew an expired saved credential.
-          // Limit recovery to this read; never replay input, timeouts or denials.
-          if(error.code!=='DEVICE_AUTH_EXPIRED'||error.status!==401||!recoverExpiredCredential||!current()||abort.signal.aborted)throw error;
-          await recoverExpiredCredential(abort.signal);
+          // Renew only an explicit expired credential after identity was verified.
+          // Never replay input, timeouts or denials, or renew during a user task.
+          if(error.code!=='DEVICE_AUTH_EXPIRED'||error.status!==401||error.serverCode!=='invalid_client_credential'||!current()||abort.signal.aborted||isBusy())throw error;
+          if(recoverExpiredCredential)await recoverExpiredCredential(abort.signal);
+          else{const saved=tested.exportCredentials();await tested.pair({clientId:saved.clientId,expectedFingerprint:saved.expectedFingerprint||saved.publicKeyFingerprint,setupPassword:''},{signal:abort.signal});if(!current()||abort.signal.aborted)return false;await store.saveLocalCredential('device:'+tested.baseUrl.origin,tested.exportCredentials());}
           if(!current()||abort.signal.aborted)return false;
           binding=await tested.getBinding({signal:abort.signal});
         }
@@ -166,19 +177,19 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
         // association stays fixed; only a single unambiguous new target is automatic.
         const available=targets.filter(usableTarget);
         if(binding.targetId){targetId=binding.targetId;if(binding.bindingVerified===true||tested.bindingVerified)legacyBinding=false;}
-        else if(available.length===1){targetId=available[0].targetId;if(!legacyBinding&&typeof tested.bindTarget==='function'){await associate(tested,targetId,abort.signal);if(!current()||abort.signal.aborted)return false;}}
+        else if(available.length===1){targetId=available[0].targetId;if(allowAssociate&&!legacyBinding&&typeof tested.bindTarget==='function'){try{await associate(tested,targetId,abort.signal);}catch(error){if(!['DEVICE_TARGET_BUSY','DEVICE_BOARD_BUSY','DEVICE_WRITER_BUSY'].includes(error.code))throw error;bindingError=error;}if(!current()||abort.signal.aborted)return false;}}
 
         // A lost Bluetooth link invalidates this page's proof permanently. A later
         // reconnect must pass a new input test, even if the board retains a binding.
         if(!sameProof(proof,tested)||!targets.some(target=>target.targetId===proof?.targetId&&usableTarget(target)))proof=null;
         if(!binding.targetId&&!targets.some(target=>target.targetId===targetId&&usableTarget(target)))targetId=targets.filter(usableTarget).length===1?targets.find(usableTarget).targetId:'';
-        if(!armed&&!working)statusKey=getState().inputVerified?'bound':getState().ready?'inputTestOptional':legacyBinding?'legacyInputTest':targets.some(usableTarget)?'phoneSelect':'noTargets';
+        if(!armed&&!working&&!(statusKey==='operationFailed'&&Number.isInteger(statusDetail?.status)&&statusDetail.status!==401))statusKey=getState().inputVerified?'bound':getState().ready?'inputTestOptional':legacyBinding?'legacyInputTest':targets.some(usableTarget)?'phoneSelect':'noTargets';
         publish();if(!armed)renderState();return getState().ready;
       }catch(error){
         if(deadlineExpired&&!signal?.aborted)error=new DeviceError('DEVICE_TIMEOUT');
         if(current()){connectionActive=false;targets=[];proof=null;checkedAt=null;setStatus('operationFailed',error);if(!armed)renderState();}
         throw error;
-      }finally{clearTimeout(timer);signal?.removeEventListener('abort',cancel);if(refreshTask===task)refreshTask=null;}
+      }finally{clearTimeout(timer);signal?.removeEventListener('abort',cancel);if(refreshTask===task){refreshTask=null;publish();}}
     })();
     return task.promise;
   }
@@ -214,8 +225,8 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
     });
     for(const key of ['[data-import-connection]','[data-reimport-connection]','[data-bridge-settings]'])node(key).onclick=()=>rememberDeviceSetupReturn();dialog=root.closest('dialog');dialog?.addEventListener('close',close);unsubscribe=subscribe(renderState);
     function connection(configuration,signal){
-      resetChallenge();stopMonitor();legacyBinding=false;connectionEpoch++;connectionActive=false;invalidateProof();
-      const previous=transport;transport=null;previous?.close();
+      resetChallenge();stopMonitor();legacyBinding=false;bindingError=null;verifiedRTC=null;connectionEpoch++;connectionActive=false;invalidateProof();
+      const previous=transport;transport=null;previous?.close();challengeCancellation=Promise.resolve();
       setStatus('rtcOpening');
       const bridge=bridgeFactory({baseUrl:configuration.baseUrl,rtc:configuration.rtc,onProgress:value=>{if(working){const stages={configuration:'rtcOpening',network:'rtcNetwork',handshake:'rtcHandshake',channel:'rtcChannel',ready:'rtcReading'};setStatus(stages[value.phase]||'rtcOpening');}},onDisconnect:error=>{if(transport!==bridge)return;stopMonitor();connectionEpoch++;connectionActive=false;targets=[];invalidateProof();resetChallenge();setStatus('operationFailed',error||componentError('rtcDisconnected'));renderState();}});
       const ready=bridge.open({signal});ready.catch(()=>{});return {bridge,ready};
@@ -242,7 +253,7 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
         await candidate.pair({...configuration,clientId:enrollmentId,setupPassword:'',expectedFingerprint},{signal:enrollmentSignal});
        };
        setStatus('pairing');
-       if(saved){candidate.restoreCredentials(saved);await candidate.pinIdentity(saved.expectedFingerprint,{signal});}
+       if(saved){candidate.restoreCredentials(saved);await candidate.pinIdentity(saved.expectedFingerprint||saved.publicKeyFingerprint,{signal});}
        else await enroll(clientId);
        if(configuration.boardId&&candidate.boardId!==configuration.boardId){candidate.clearCredentials();throw Object.assign(new Error('DEVICE_IDENTITY_MISMATCH'),{code:'DEVICE_IDENTITY_MISMATCH'});}
        if(!valid(current)){candidate.clearCredentials();return;}client=candidate;transport=bridge;connectionActive=true;
@@ -250,14 +261,14 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
         await store.deleteLocalCredential('device:'+configuration.baseUrl);
         if(!valid(current)||recoverySignal.aborted)return;
         await enroll(saved.clientId,recoverySignal,saved.expectedFingerprint||saved.publicKeyFingerprint);
-       }:null);if(!valid(current))return;
+       }:null,{allowAssociate:true});if(!valid(current))return;
        setStatus('rtcSaving');await store.saveLocalCredential('device:'+configuration.baseUrl,client.exportCredentials());
-       const deviceRTC=bridge?.exportConfiguration?.();await savePublicSettings({deviceEndpoint:configuration.baseUrl,deviceFingerprint:client.status().publicKeyFingerprint,...(deviceRTC?{deviceRTC}:{})});retained=true;pendingSetup=null;node('[data-configuration]').open=false;setStatus(getState().ready?'inputTestOptional':legacyBinding?'legacyInputTest':'paired');startMonitor();
+       const deviceRTC=verifiedRTC||bridge?.exportConfiguration?.();await savePublicSettings({deviceEndpoint:configuration.baseUrl,deviceFingerprint:client.status().publicKeyFingerprint,...(deviceRTC?{deviceRTC}:{})});retained=true;pendingSetup=null;node('[data-configuration]').open=false;if(bindingError)setStatus('operationFailed',bindingError);else setStatus(getState().ready?'inputTestOptional':legacyBinding?'legacyInputTest':'paired');startMonitor();
       }finally{if(!retained){bridge?.close();if(transport===bridge)transport=null;connectionActive=false;invalidateProof();}}
     });
     };
     node('[data-pair]').onclick=connect;
-    node('[data-refresh]').onclick=async()=>{await action(async({signal,current})=>{await refresh(signal);if(valid(current))setStatus(getState().ready?'inputTestOptional':legacyBinding?'legacyInputTest':'paired');});if(!working&&!isBusy()&&getState().bluetoothConnected&&document.visibilityState!=='hidden')return startTest();};
+    node('[data-refresh]').onclick=()=>action(async({signal,current})=>{await refresh(signal);if(valid(current))setStatus(getState().ready?'inputTestOptional':legacyBinding?'legacyInputTest':getState().bluetoothConnected?'phoneSelect':'noTargets');});
     node('[data-target]').onchange=()=>{if(working||isBusy()||!getState().connected){renderState();return;}const selected=node('[data-target]').value;return action(async({signal,current})=>{resetChallenge();invalidateProof();await associate(client,selected,signal);if(!valid(current))return;targetId=selected;await refresh(signal);setStatus(getState().ready?'inputTestOptional':legacyBinding?'legacyInputTest':'phoneSelect');});};
     node('[data-nonce]').addEventListener('keydown',event=>{
       if(!armed||document.activeElement!==event.currentTarget||nonce.length>=8)return;
@@ -272,16 +283,32 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
       if(document.activeElement!==field){armed=false;setStatus('focusNonce');return;}
       const input=new Promise((resolve,reject)=>testWait={resolve,reject});input.catch(()=>{});
       setStatus('receiving');const selected=targetId;
-      challengeTimer=setTimeout(()=>{resetChallenge();},30000);
       return action(async({signal,current})=>{try{
-       if(refreshTask)await refreshTask.promise.catch(()=>{});if(!valid(current))return;if(!connectionActive)throw componentError('needsFreshChallenge');
-       const tested=client,result=await tested.startChallenge(selected);if(!valid(current)||selected!==targetId||!armed){await tested.cancelChallenge?.(selected).catch(()=>{});return;}challenge=result;
+       await challengeCancellation;if(refreshTask)await refreshTask.promise.catch(()=>{});if(!valid(current)||!armed)return;if(!connectionActive)throw componentError('needsFreshChallenge');
+       const tested=client;let result;
+       for(let attempt=0;attempt<2;attempt++){
+        challengeMayExist=true;
+        try{result=await tested.startChallenge(selected);break;}
+        catch(error){
+         if(error.status===429&&error.serverCode==='challenge_busy_or_rate_limited'&&error.unknown!==true){
+          challengeMayExist=false;
+          if(attempt===0){
+           const retry=new AbortController();challengeRetryController=retry;const cancel=()=>retry.abort();signal.addEventListener('abort',cancel,{once:true});
+           try{for(let seconds=30;seconds>0;seconds--){if(!valid(current)||!armed||selected!==targetId||document.activeElement!==field)throw componentError('needsFreshChallenge');setStatus('challengeWaiting',{seconds});await new Promise((resolve,reject)=>{const aborted=()=>{clearTimeout(timer);reject(componentError('needsFreshChallenge'));},timer=setTimeout(()=>{retry.signal.removeEventListener('abort',aborted);resolve();},1000);retry.signal.addEventListener('abort',aborted,{once:true});if(retry.signal.aborted)aborted();});}}
+           finally{signal.removeEventListener('abort',cancel);if(challengeRetryController===retry)challengeRetryController=null;}
+           if(!valid(current)||!armed||selected!==targetId||document.activeElement!==field)throw componentError('needsFreshChallenge');continue;
+          }
+         }
+         throw error;
+        }
+       }
+       if(!valid(current)||selected!==targetId||!armed){await tested.cancelChallenge?.(selected).catch(()=>{});return;}challenge=result;setStatus('receiving');challengeTimer=setTimeout(()=>{resetChallenge();},30000);
        // HID may arrive before the start response. Await both, never expose the nonce.
        const observedNonce=await input;if(!valid(current)||selected!==targetId||!armed)return;
        armed=false;setStatus('confirming');const confirmed=await client.confirmChallenge(selected,{challengeId:challenge.challengeId,observedNonce},{signal});
        if(!valid(current)||selected!==targetId)return;if(confirmed.bindingVerified!==true||!client.bindingVerified)throw componentError('needsFreshChallenge');
-       proof=Object.fromEntries(['boardId','bootId','clientId','targetId'].map(key=>[key,client[key]]));checkedAt=new Date();testWait=null;challenge=null;resetChallenge();publish();setStatus('bound');
-      }catch(error){resetChallenge();throw error;}});
+       proof=Object.fromEntries(['boardId','bootId','clientId','targetId'].map(key=>[key,client[key]]));checkedAt=new Date();testWait=null;challenge=null;challengeMayExist=false;resetChallenge();publish();setStatus('bound');
+      }catch(error){resetChallenge();if(valid(current)&&client?.paired&&transport&&!transport.closed){try{await refresh();}catch{}}throw error;}});
     }
     node('[data-start-challenge]').onclick=startTest;
     node('[data-start-sharing]').onclick=()=>{
@@ -302,5 +329,5 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
   function destroy(){disposed=true;stopMonitor();connectionEpoch++;globalThis.document?.removeEventListener?.('visibilitychange',foreground);globalThis.removeEventListener?.('pagehide',suspend);close();transport?.close();transport=null;connectionActive=false;targets=[];invalidateProof();}
   function suspend(){stopMonitor();connectionEpoch++;close();const previous=transport;transport=null;previous?.close();connectionActive=false;targets=[];invalidateProof();}
   globalThis.addEventListener?.('pagehide',suspend);
-  return {open,dispose:close,destroy,getDevice:()=>getState().ready?client:null,getState,ensureReady};
+  return {open,dispose:close,destroy,getDevice:()=>getState().ready?client:null,getState,ensureReady,refreshConnection};
 }

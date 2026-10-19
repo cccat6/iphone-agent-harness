@@ -1,10 +1,12 @@
 const rows={
+ 'device.state.input':['Waiting for iPhone input connection…','正在等待 iPhone 输入连接…','正在等候 iPhone 輸入連線…','iPhone の入力接続を待機中…','Ожидание подключения ввода iPhone…','Warten auf die Eingabeverbindung des iPhone…','En attente de la connexion de saisie de l’iPhone…','Esperando la conexión de entrada del iPhone…'],
+ 'device.state.checking':['Checking bridge connection…','正在检查桥连接…','正在檢查橋接器連線…','ブリッジの接続を確認中…','Проверка подключения моста…','Verbindung zur Brücke wird geprüft…','Vérification du pont…','Comprobando la conexión del puente…'],
  'session.archive':['Archive','归档','封存','アーカイブ','Архивировать','Archivieren','Archiver','Archivar'],
  'session.unarchive':['Unarchive','取消归档','取消封存','アーカイブ解除','Разархивировать','Aus Archiv holen','Désarchiver','Desarchivar'],
  'session.delete':['Delete','删除','刪除','削除','Удалить','Löschen','Supprimer','Eliminar'],
  'session.stopBeforeDelete':['Stop this task before deleting its conversation.','请先停止此会话中的任务，再删除会话。','請先停止此會話中的任務，再刪除會話。','この会話のタスクを停止してから削除してください。','Остановите задачу перед удалением беседы.','Beende die Aufgabe, bevor du die Unterhaltung löschst.','Arrêtez la tâche avant de supprimer la conversation.','Detén la tarea antes de eliminar la conversación.'],
 
- 'device.state.phone':['Bluetooth phone not connected','手机蓝牙未连接','手機藍牙未連線','Bluetooth端末が未接続','Телефон Bluetooth не подключён','Bluetooth-Telefon nicht verbunden','Téléphone Bluetooth non connecté','Teléfono Bluetooth no conectado'],
+ 'device.state.phone':['iPhone not connected to bridge','iPhone 未与桥建立蓝牙连接','iPhone 未與橋接器建立藍牙連線','iPhone がブリッジに未接続','iPhone не подключён к мосту','iPhone nicht mit der Brücke verbunden','iPhone non connecté au pont','iPhone no conectado al puente'],
  'device.state.target':['Select the phone to control','选择要操作的手机','選擇要操作的手機','操作する端末を選択','Выберите телефон для управления','Telefon zur Steuerung auswählen','Sélectionner le téléphone à contrôler','Selecciona el teléfono que controlar'],
  'interaction.correctionSaved':['Interaction adjustment saved','已记录操作修正','已記錄操作修正','操作の調整を記録しました','Корректировка сохранена','Anpassung gespeichert','Ajustement enregistré','Ajuste guardado'],
 

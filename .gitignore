@@ -27,3 +27,26 @@ node_modules/
 .dev.vars.*
 
 *.local.h
+
+# Local research and retired diagnostics are not part of the public product.
+research/
+docs/research/
+firmware/experiments/
+apps/web/diagnostics/
+tools/webrtc_direct_probe/
+tests/browser/
+tools/lan_probe_server.py
+tools/verify_device_http_live.mjs
+tools/verify_device_live.mjs
+tools/verify_harness.mjs
+tools/verify_mcp_live.mjs
+tools/verify_model_discovery.mjs
+tools/verify_phone_harness_live.mjs
+tests/web/lna-diagnostic.test.mjs
+tests/web/lna-recording-lifecycle.test.mjs
+tests/web/rtc-direct-diagnostic.test.mjs
+tests/web/rtc-direct-lifecycle.test.mjs
+
+tools/verify_deployment.mjs
+
+docs/architecture/screenshots/

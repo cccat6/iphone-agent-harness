@@ -29,9 +29,9 @@ import { mountSessionSearch } from './ui/session-search.js';
 import { mountViewport } from './ui/viewport.js';
 import { createMCPSettings } from './ui/mcp-settings.js';
 import { discoverModels, normalizeProviderEndpoint } from './core/providers.js';
-import { installBuiltinSkills, downloadSkill } from './core/skills.js';
+import { installBuiltinSkills, downloadSkill, loadCommunityCatalog, readCatalogSkill, installCatalogSkill, syncInstalledCommunitySkills, publicBuiltinSkills } from './core/skills.js';
 import { openCreatorIdentity, importCreatorIdentity } from './community/identity.js';
-import { createAuthoredSkill, updateAuthoredSkill, isOwnedAuthored } from './community/authoring.js';
+import { createAuthoredSkill, updateAuthoredSkill, isOwnedAuthored, importOwnSkillFile } from './community/authoring.js';
 import { CommunityClient } from './community/client.js';
 import { canFlash, loadFirmwareManifest, flashFirmware, readDeviceSetup } from './core/flasher.js';
 import { startCodexLogin, completeCodexLogin, discoverCodexModels, getCodexAccount, registerCodexAccount, hasCodexAccount, removeCodexAccount, setCodexTokenObserver } from './core/codex.js';
@@ -104,16 +104,17 @@ function skillTextHTML(skill,field,{trustedCatalog=false,catalog=false}={}){
 
 function deviceSessionAvailable(){const value=state.devicePanel?.getState?.();return Boolean(value?.ready??(value?.connected&&value?.inputVerified));}
 function renderDeviceStatus(){
-  const value=state.deviceStatus||state.devicePanel?.getState?.()||{},ready=value.ready??value.inputVerified,key=value.status==='connecting'?'connecting':!value.connected?'offline':value.bluetoothConnected===false?'phone':!ready?'target':value.sharing?'sharing':'ready';
+  const value=state.devicePanel?.getState?.()||state.deviceStatus||{},ready=value.ready??value.inputVerified,key=value.status==='connecting'?'connecting':value.checking?'checking':!value.connected?'offline':value.bluetoothConnected===false?'phone':value.phoneInputReady===false?'input':!ready?'target':value.sharing?'sharing':'ready';
   $('#home-device-status').textContent=t('device.state.'+key);$('#home-device-detail').textContent=t(value.connected?'device.manage':'device.connectHint');$('#device-indicator').classList.toggle('verified',Boolean(ready));
   $('#conversation-device').textContent=t('device.state.'+key);$('#conversation-device').classList.toggle('connected',Boolean(ready));
   $('#new-session').setAttribute('aria-label',t('session.new'));$('#new-session').setAttribute('aria-describedby','home-device-status');
 }
-async function refreshSessions() { state.sessionListCursors=[];state.sessionListBefore=null;const request=state.sessionListGeneration=(state.sessionListGeneration||0)+1;const sessions=await state.store.listSessions({archived:state.archived,search:$('#session-search').value,limit:81});if(request!==state.sessionListGeneration)return;state.sessions=sessions.slice(0,80);state.sessionListMore=sessions.length>80;renderSessions(); }
+async function refreshSessions() { state.sessionListCursors=[];state.sessionListBefore=null;const request=state.sessionListGeneration=(state.sessionListGeneration||0)+1;const sessions=await state.store.listSessions({archived:state.archived,search:$('#session-search').value,limit:81});if(request!==state.sessionListGeneration)return;state.sessions=sessions.slice(0,80);state.libraryCommittedArchived=state.archived;state.sessionListMore=sessions.length>80;renderSessions(); }
+async function switchSessionLibrary(value){if(state.libraryCommittedArchived===undefined)state.libraryCommittedArchived=state.archived;const previous=state.libraryCommittedArchived,generation=state.libraryGeneration=(state.libraryGeneration||0)+1;state.archived=value==='archived';$('#sessions').setAttribute('aria-busy','true');try{await refreshSessions();if(generation===state.libraryGeneration)state.libraryCommittedArchived=state.archived;}catch(error){if(generation===state.libraryGeneration){state.archived=previous;renderSessions();}throw error;}finally{if(generation===state.libraryGeneration)$('#sessions').setAttribute('aria-busy','false');}}
 async function pageSessions(back=false){const cursor=back?state.sessionListCursors.at(-1):state.sessions.at(-1);if(!back&&!state.sessionListMore||back&&!state.sessionListCursors.length)return;const request=state.sessionListGeneration=(state.sessionListGeneration||0)+1,sessions=await state.store.listSessions({archived:state.archived,search:$('#session-search').value,limit:81,before:cursor});if(request!==state.sessionListGeneration)return;if(back)state.sessionListCursors.pop();else state.sessionListCursors.push(state.sessionListBefore);state.sessionListBefore=cursor;state.sessions=sessions.slice(0,80);state.sessionListMore=sessions.length>80;renderSessions();$('#sessions').scrollTop=0;}
 
 function renderSessions() {
-  $('#archive-toggle').textContent=t('session.backList');$('#archive-toggle').hidden=!state.archived;$('#list-label').textContent=t(state.archived?'session.archived':'session.listTitle');
+  const library=$('#list-label');library.value=state.archived?'archived':'active';library.setAttribute('aria-label',t('library.switch'));library.options[0].textContent=t('session.listTitle');library.options[1].textContent=t('session.archived');
   const sessions=[...state.sessions].sort((a,b)=>Number(b.pinned)-Number(a.pinned) || new Date(b.updatedAt)-new Date(a.updatedAt));
   state.sessionSwipe?.destroy();$('#sessions').innerHTML=sessions.length?sessions.map(session=>`<div class="session-swipe ${state.current?.id===session.id?'active':''}" data-session-row="${escapeHTML(session.id)}"><div class="session-swipe-actions" data-swipe-actions>${(session.archived?['rename','restore','delete']:['rename','archive']).map(action=>`<button type="button" class="session-swipe-action ${action==='delete'?'danger-action':''}" data-session-action="${action}">${escapeHTML(t({rename:'session.renameTitle',restore:'session.unarchive',delete:'session.delete',archive:'session.archive'}[action]))}</button>`).join('')}</div><div class="session-swipe-front"><button class="session-row ${state.current?.id===session.id?'active':''}" data-session="${escapeHTML(session.id)}"><span class="row-title"><span>${escapeHTML(session.title||t('session.new'))}</span>${session.pinned?`<span class="row-pin">${t('session.pinned')}</span>`:''}</span><small>${escapeHTML(modeLabel(session.mode)||'对话')} · ${dateLabel(session.updatedAt)}</small></button><button type="button" class="session-row-menu icon-button" data-session-menu="${escapeHTML(session.id)}" aria-label="${escapeHTML(t('session.actions'))}">···</button></div></div>`).join(''):`<div class="list-empty"><strong>${escapeHTML(t(state.archived?'session.noArchive':$('#session-search').value?'session.noMatch':'session.emptyTitle'))}</strong>${!state.archived&&!$('#session-search').value?`<p>${escapeHTML(t(deviceSessionAvailable()?'session.empty':'session.connectStart'))}</p>`:''}</div>`;
   if(state.sessionListCursors?.length)$('#sessions').insertAdjacentHTML('afterbegin',`<button class="secondary-button history-page" id="sessions-previous">${escapeHTML(t('session.previousPage'))}</button>`);
@@ -144,7 +145,7 @@ function renderReasoningOptions(){
   select.innerHTML=['auto',...options].map(value=>`<option value="${value}">${escapeHTML(t('reasoning.'+value))}</option>`).join('');select.value=selected;
 }
 function updateModeDescription() { $('#mode-description').textContent=t(capture.active?'interaction.sharing':'interaction.notSharing'); }
-async function newSession({fromSubmit=false}={}) { if(!(fromSubmit?deviceSessionAvailable():await state.devicePanel?.ensureReady?.())){await showDevices();toast(t('device.startHint'));return null;} if((state.running||state.submitting)&&!fromSubmit)throw new Error('请先停止当前任务，再切换会话。');const session=await state.store.createSession({title:t('session.new'),titleState:'pending',mode:'auto',modelId:$('#model-select').value||state.settings.activeProviderId||providers()[0]?.id||''}); await refreshSessions(); await openSession(session.id,{fromSubmit}); $('#message-input').focus();return session; }
+async function newSession({fromSubmit=false}={}) { if(!(fromSubmit?deviceSessionAvailable():await state.devicePanel?.ensureReady?.())){await showDevices();toast(t('device.startHint'));return null;} if((state.running||state.submitting)&&!fromSubmit)throw new Error('请先停止当前任务，再切换会话。');state.archived=false;const session=await state.store.createSession({title:t('session.new'),titleState:'pending',mode:'auto',modelId:$('#model-select').value||state.settings.activeProviderId||providers()[0]?.id||''}); await refreshSessions(); await openSession(session.id,{fromSubmit}); $('#message-input').focus();return session; }
 function historyWindow(){return state.history||(state.history=createHistoryWindow(state.store,{includeInternal:!!state.settings.developerMode}));}
 async function refreshConversationPresentation(){state.history?.clear();state.history=null;if(state.current){applyHistory(await historyWindow().load(state.current.id));}renderMessages();}
 function applyHistory(page){if(!page)return false;state.messages=page.messages;state.hasOlder=page.hasOlder;state.hasNewer=page.hasNewer;state.messageLimit=page.messages.length;return true;}
@@ -198,7 +199,7 @@ function setRunning(running) { state.running=running;if($('#reasoning-select'))$
 function onHarnessEvent(event) {
   if(event.type==='session.title'){if(state.current?.id===event.sessionId){state.current.title=event.title;$('#session-title').textContent=event.title;}void refreshSessions().catch(report);return;}
   if((event.internal||event.message?.internal)&&!state.settings.developerMode)return;
-  if(event.type==='status') { if(event.status==='paused')state.capturePaused=state.current?.id;$('#run-status').textContent=event.status==='paused'?t('interaction.paused'):({awaiting_model:'正在等待模型回复…',compacting:'正在整理上下文…',executing:'正在处理工具请求…',completed:'本轮已完成',needs_user:'需要补充信息或连接设备',unknown:'操作结果待核对',budget_exhausted:'达到本轮预算，进度已保存',cancelled:'已停止',failed:'本轮未完成'})[event.status]||event.status; }
+  if(event.type==='status') { if(event.status==='paused')state.capturePaused=state.current?.id;$('#run-status').textContent=event.status==='paused'?t('interaction.paused'):event.status==='returning_to_harness'?t('taskSettings.returning'):({awaiting_model:'正在等待模型回复…',compacting:'正在整理上下文…',executing:'正在处理工具请求…',completed:'本轮已完成',needs_user:'需要补充信息或连接设备',unknown:'操作结果待核对',budget_exhausted:'达到本轮预算，进度已保存',cancelled:'已停止',failed:'本轮未完成'})[event.status]||event.status; }
   if(event.type==='delta') { state.pending=(state.pending||'')+event.text;if(state.hasNewer){renderLatestControl();return;}const body=$('.message.pending .message-body');if(body){body.textContent=state.pending;conversationFollow().afterRender();}else renderMessages(); }
   if(event.type==='message' && event.message) { const message=event.message;if(message.role==='assistant')state.pending=null;if(message.role==='user'&&!message.internal)conversationFollow().follow();if(!conversationFollow().following&&(message.role!=='user'||message.internal)){applyHistory(historyWindow().deferNewer());renderLatestControl();return;}applyHistory(historyWindow().append(message));renderMessages(); }
   if(event.type==='error') { state.lastError=localizeError(event.message);renderMessages(); }
@@ -224,7 +225,7 @@ async function sendMessage(event,textOverride=null,modeOverride=null) {
     sessionId=state.current.id;if(state.hasNewer)await showLatestConversation();conversationFollow().follow();await state.store.updateSession(sessionId,{mode,modelId});
     state.capturePaused=false;generation=++state.runGeneration;controller=new AbortController();state.abort=controller;state.lastError=null;state.lastErrorProfile={name:selectedProvider()?.name||selectedProvider()?.id||'',model:selectionParts($('#model-select').value).modelId};state.pending=null;setRunning(true);$('#run-status').textContent=t('status.preparing');
     if(textOverride===null){$('#message-input').value='';state.drafts.delete(sessionId);resizeInput();}
-    await state.harness.run({sessionId,text,mode,modelId,signal:controller.signal});
+    await state.skillSync;await state.harness.run({sessionId,text,mode,modelId,signal:controller.signal});
   }catch(error){
     if(generation!==null&&generation===state.runGeneration)state.lastError=error;
     else report(error);
@@ -298,13 +299,12 @@ async function showSettings(section='home') {
     panel(t('nav.settings'),'',`<nav class="settings-navigation">
       <div class="settings-group">${row('settings-accounts','settings.accounts')}${row('settings-devices','nav.devices')}${row('open-skills','nav.skills')}${row('settings-mcp','mcp.title')}</div>
       <div class="settings-group">${row('settings-context','context.title')}${row('settings-language','language.label')}${row('settings-storage','settings.localStorage')}</div>
-      <div class="settings-group">${row('settings-archive','session.viewArchive')}${row('import-session','session.import')}</div><label class="check-field"><input id="developer-mode" type="checkbox" ${settings.developerMode===true?'checked':''}>${systemTextHTML('providerRefinement.developer')}</label><p class="quiet-note">${systemTextHTML('providerRefinement.developerHelp')}</p>
+      <div class="settings-group">${row('settings-behavior','taskSettings.title')}${row('import-session','session.import')}</div><label class="check-field"><input id="developer-mode" type="checkbox" ${settings.developerMode===true?'checked':''}>${systemTextHTML('providerRefinement.developer')}</label><p class="quiet-note">${systemTextHTML('providerRefinement.developerHelp')}</p>
     </nav>`);
     $('#developer-mode').onchange=guard(async event=>{state.settings=await state.store.saveSettings({developerMode:event.target.checked});await refreshConversationPresentation();});
-    for(const page of ['accounts','mcp','context','language','storage'])$('#settings-'+page).onclick=guard(()=>showSettings(page));
+    for(const page of ['accounts','mcp','context','language','storage','behavior'])$('#settings-'+page).onclick=guard(()=>showSettings(page));
     $('#settings-devices').onclick=guard(async()=>{const opened=await showDevices();if(opened?.isConnected&&$('#panel-dialog').open&&$('#panel-content').contains(opened))panelBack(()=>showSettings());});
     $('#open-skills').onclick=guard(async()=>{state.skillsFromSettings=true;await showSkills();});
-    $('#settings-archive').onclick=guard(async()=>{if(state.running||state.submitting)throw new Error(t('session.stopBeforeImport'));const active=state.panelGeneration;state.archived=true;await refreshSessions();if(active!==state.panelGeneration)return;$('#app').classList.remove('in-conversation');$('#panel-dialog').close();});
     $('#import-session').onclick=()=>{if(state.running||state.submitting){toast(t('session.stopBeforeImport'));return;}$('#panel-dialog').close();importSessionFile();};
     return;
   }
@@ -321,6 +321,9 @@ async function showSettings(section='home') {
   }else if(section==='mcp'){
     panel(t('mcp.title'),'','<div id="mcp-settings" class="standalone-mcp"></div>');
     state.mcpPanel.mount($('#mcp-settings'),{servers:state.settings.mcpServers,endpoint:state.settings.mcpEndpoint||''});$('#mcp-settings details').open=true;
+  }else if(section==='behavior'){
+    panel(t('taskSettings.title'),'',`<label class="check-field"><input id="return-to-harness" type="checkbox" ${settings.returnToHarness!==false?'checked':''}>${systemTextHTML('taskSettings.return')}</label><p class="quiet-note">${systemTextHTML('taskSettings.returnHelp')}</p>`);
+    $('#return-to-harness').onchange=guard(async event=>{state.settings=await state.store.saveSettings({returnToHarness:event.target.checked});});
   }else if(section==='context'){
     const context=normalizeContextSettings(state.settings.context),images=normalizeImageSettings(state.settings.images);
     panel(t('context.title'),'',`<form id="context-form">
@@ -454,7 +457,7 @@ async function showSkills(tab=state.skillTab) {
   $('#skills-local').onclick=guard(()=>showSkills('local'));$('#skills-catalog').onclick=guard(()=>showSkills('catalog'));
   if(local) {
     $('#create-skill').onclick=guard(()=>showSkillEditor());$('#creator-identity').onclick=guard(showCreatorIdentity);
-    $('#import-skill').onclick=()=>chooseFile('.json,.md,.txt,text/markdown,application/json',async(text,name)=>{const imported=name.endsWith('.json')?JSON.parse(text):{name:name.replace(/\.[^.]+$/,''),content:text,version:'local'};validateSkill(imported);const skill={id:'imported-'+shortId(),name:String(imported.name||imported.title||name),description:String(imported.description||''),content:imported.content,version:String(imported.version||'local'),resources:imported.resources||{},enabled:true,source:'community',readonly:true,provenance:{kind:'community',originalId:typeof imported.id==='string'?imported.id:'',importedAt:Date.now()}};await state.store.saveSkill(skill);await showSkills('local');toast(t('skills.saved'));});
+    $('#import-skill').onclick=()=>chooseFile('.json,.md,.txt,text/markdown,application/json',async(text,name)=>{await importSkillFileToLibrary(text,name);await showSkills('local');toast(t('skills.saved'));});
     $$('[data-skill-delete]').forEach(button=>button.onclick=guard(async()=>{if(!confirm(t('confirm.removeSkill')))return;await state.store.deleteSkill(button.dataset.skillDelete);await showSkills('local');}));
     $$('[data-skill-toggle]').forEach(button=>button.onclick=guard(async()=>{const skill=state.skills.find(item=>item.id===button.dataset.skillToggle);await state.store.saveSkill({...skill,enabled:skill.enabled===false});await showSkills('local');}));
     $$('[data-skill-view]').forEach(button=>button.onclick=()=>viewSkill(state.skills.find(item=>item.id===button.dataset.skillView)));
@@ -462,7 +465,16 @@ async function showSkills(tab=state.skillTab) {
     $$('[data-skill-share]').forEach(button=>button.onclick=()=>shareSkill(state.skills.find(item=>item.id===button.dataset.skillShare)));
   } else await loadSkillMarket();
 }
-async function returnFromSkillPanel(){if(state.navigation)await state.navigation.back({panel:{kind:'skills',tab:'local'},action:null});else await showSkills('local');}
+async function importSkillFileToLibrary(text,name){
+  const identity=await creatorIdentity();
+  try{return await importOwnSkillFile({store:state.store,identity,text,fileName:name});}
+  catch(error){if(error.code!=='SKILL_NOT_OWNED')throw error;}
+  const imported=/\.json$/i.test(name)?JSON.parse(text):{name:name.replace(/\.[^.]+$/,''),content:text};
+  imported.content=imported.content||imported.instructions||imported.body;validateSkill(imported);
+  const skill={id:'imported-'+shortId(),name:String(imported.name||imported.title||name),description:String(imported.description||''),content:imported.content,version:String(imported.version||'local'),resources:imported.resources||{},enabled:true,source:'community',readonly:true,provenance:{kind:'community',originalId:typeof imported.id==='string'?imported.id:'',importedAt:Date.now()}};
+  await state.store.saveSkill(skill);return skill;
+}
+async function returnFromSkillPanel(){if(!isIOSPlatform()&&routeForPath(location.pathname)==='skills'){closeNavigationDialog($('#panel-dialog'));if(state.navigation)state.navigation.go({panel:null,action:null},{replace:true});await renderCommunityPage();return;}if(state.navigation)await state.navigation.back({panel:{kind:'skills',tab:'local'},action:null});else await showSkills('local');}
 async function showSkillEditor(skill=null){
   if(!state.store)throw state.bootError||new Error(t('settings.storageRequired'));
   const identity=await creatorIdentity();if(skill&&!isOwnedAuthored(skill,identity.creatorId))throw Object.assign(new Error('SKILL_READ_ONLY'),{code:'SKILL_READ_ONLY'});
@@ -491,13 +503,15 @@ function shareSkill(skill) {
 }
 
 async function loadSkillMarket(){
-  const container=$('#catalog-list');if(!container)return;
-  const client=new CommunityClient({baseUrl:communityEndpoint()});
-  try {
-    const result=await client.list();if(!container.isConnected)return;const entries=result.items||[];
-    container.innerHTML=entries.length?entries.map((skill,index)=>`<div class="skill-card"><div class="card-title">${skillTextHTML(skill,'name',{catalog:true})}<span class="tag" data-no-i18n>${escapeHTML(skill.version||'')}</span></div><div class="card-detail">${skillTextHTML(skill,'description',{catalog:true})}</div><button class="secondary-button" data-market-add="${index}">${t('skills.addLocal')}</button></div>`).join(''):`<div class="empty-card">${t('community.empty')}</div>`;
-    $$('[data-market-add]',container).forEach(button=>button.onclick=guard(async()=>{button.disabled=true;try{const entry=entries[Number(button.dataset.marketAdd)],skill=await client.download(entry.creatorId,entry.slug);await state.store.saveSkill(skill);state.skills=await state.store.listSkills();toast(t('skills.saved'));}finally{if(button.isConnected)button.disabled=false;}}));
-  }catch(error){if(container.isConnected){container.replaceChildren();const note=document.createElement('p');note.className='quiet-note';setLocalizedText(note,()=>localizeError(error));container.append(note);}}
+  const container=$('#catalog-list');if(!container)return;const endpoint=communityEndpoint();let entries=publicBuiltinSkills(),cursor='',installed=await state.store.listSkills();
+  const current=()=>container.isConnected&&$('#catalog-list')===container;
+  function render(error=null){
+    container.innerHTML=`${error?`<p class="quiet-note">${escapeHTML(t('communityRefinement.sourceError'))} ${escapeHTML(localizeError(error))}</p>`:''}${entries.map((skill,index)=>{const builtin=skill.source==='builtin',id=builtin?skill.id:`community:${skill.creatorId}/${skill.slug}`,added=installed.some(item=>item.id===id);return `<div class="skill-card"><div class="card-title">${skillTextHTML(skill,'name',{trustedCatalog:builtin,catalog:true})}<span class="tag" data-no-i18n>${escapeHTML(skill.version||'')}</span></div><p class="card-detail">${skillTextHTML(skill,'description',{trustedCatalog:builtin,catalog:true})}</p><div class="panel-actions"><button class="secondary-button" data-market-read="${index}">${t('communityRefinement.view')}</button><button class="secondary-button" data-market-add="${index}" ${added?'disabled':''}>${t(added?'communityRefinement.installed':'skills.addLocal')}</button></div><pre class="diagnostic-json" data-market-preview="${index}" data-no-i18n hidden></pre></div>`;}).join('')}${cursor?`<button class="secondary-button" data-market-more>${t('session.nextPage')}</button>`:''}`;
+    $$('[data-market-read]',container).forEach(button=>button.onclick=guard(async()=>{button.disabled=true;try{const skill=await readCatalogSkill(entries[Number(button.dataset.marketRead)],{endpoint});if(!current()||!button.isConnected)return;const preview=$(`[data-market-preview="${button.dataset.marketRead}"]`,container);preview.textContent=skill.content;preview.hidden=false;button.hidden=true;}finally{if(button.isConnected)button.disabled=false;}}));
+    $$('[data-market-add]',container).forEach(button=>button.onclick=guard(async()=>{button.disabled=true;try{await installCatalogSkill(state.store,entries[Number(button.dataset.marketAdd)],{endpoint});installed=await state.store.listSkills();state.skills=installed;if(current())render();toast(t('skills.saved'));}finally{if(button.isConnected)button.disabled=false;}}));
+    const more=$('[data-market-more]',container);if(more)more.onclick=guard(async()=>{more.disabled=true;try{const result=await loadCommunityCatalog({endpoint,cursor});if(!current())return;if(result.error)throw result.error;entries.push(...result.entries);cursor=result.cursor||'';render();}finally{if(more.isConnected)more.disabled=false;}});
+  }
+  render();try{const result=await loadCommunityCatalog({endpoint});if(!current())return;entries=result.entries;cursor=result.cursor||'';render(result.error);}catch(error){if(current())render(error);}
 }
 
 
@@ -597,16 +611,18 @@ async function applyNavigationView(view,{isCurrent=()=>true}={}){
     else if(target.kind==='language')showLanguageSettings();
   }
   if(!isCurrent())return;
+  refreshBridgeAfterNavigation();
   if(view.action?.kind==='session-menu')await showSessionMenu();
   else if(view.action?.kind==='rename'){const session=await state.store.getSession(view.action.sessionId||state.current?.id);if(session&&isCurrent())showRenameDialog(session,{fromList:!!view.action.fromList});}
 }
+function refreshBridgeAfterNavigation(){void state.devicePanel?.refreshConnection?.().catch(report);renderDeviceStatus();}
 function rememberRouteDraft(){if(state.current)state.drafts.set(state.current.id,$('#message-input').value);}
 function navigate(route,{replace=false}={}){
   if(!Object.hasOwn(canonicalRoutes,route))return;
   if(state.flashing){toast(t('flash.runningNavigation'));return;}
   rememberRouteDraft();const url=new URL(routeHref(route),location.origin);
   if(state.navigation){state.navigation.go({route,panel:null,action:null},{replace});closeNavigationDialog($('#panel-dialog'));closeNavigationDialog($('#action-dialog'));}else if(url.href!==location.href)history[replace?'replaceState':'pushState']({route},'',url);
-  renderPlatform();
+  renderPlatform();refreshBridgeAfterNavigation();
 }
 function onNavigationClick(event){
   if(event.defaultPrevented||event.button!==0||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;
@@ -659,21 +675,26 @@ function renderPlatform() {
   $('#site-language').onclick=showLanguageSettings;for(const link of $$('.repository-link'))link.href=SITE_CONFIG.repository;
   if(page==='skills'){renderCommunityPage();return;}
   if(page==='flash'){renderFlashPage();return;}
-  $('#site-main').innerHTML=`<section class="site-hero"><div class="eyebrow">IPHONE AGENT HARNESS</div><h1>${t('home.heroTitle')}</h1><p>${t('home.subtitle')}</p><div class="site-cta">${ios?`<a class="primary" href="${routeHref('harness')}">${t('home.openHarness')} ↗</a>`:`<a class="primary" href="${routeHref('skills')}">${t('home.exploreSkills')} ↗</a>`}<a class="secondary-button" href="${routeHref(ios?'skills':'flash')}">${t(ios?'home.exploreSkills':'home.setupBridge')}</a></div>${!ios?`<p class="site-platform-note">${t('home.phoneRequirement')}</p>`:''}</section><section class="site-feature-grid"><article><span>▣</span><h2>${t('home.featureScreen')}</h2><p>${t('home.featureScreenDescription')}</p></article><article><span>◇</span><h2>${t('home.featureSkills')}</h2><p>${t('home.featureSkillsDescription')}</p></article><article><span>⌂</span><h2>${t('home.featureLocal')}</h2><p>${t('home.featureLocalDescription')}</p></article></section><section class="site-how"><h2>${t('home.setupTitle')}</h2><ol><li>${t('home.stepFlash')}</li><li>${t('home.stepWifi')}</li><li>${t('home.stepHarness')}</li></ol></section>`;
+  $('#site-main').innerHTML=`<section class="site-hero"><div class="eyebrow">IPHONE AGENT HARNESS</div><h1>${t('home.heroTitle')}</h1><p>${t('home.subtitle')}</p><div class="site-cta">${ios?`<a class="primary" href="${routeHref('harness')}">${t('home.openHarness')} ↗</a>`:`<a class="primary" href="${routeHref('skills')}">${t('home.exploreSkills')} ↗</a>`}<a class="secondary-button" href="${routeHref(ios?'skills':'flash')}">${t(ios?'home.exploreSkills':'home.setupBridge')}</a></div>${!ios?`<p class="site-platform-note">${t('home.phoneRequirement')}</p>`:''}</section><section class="site-feature-grid"><article><span>▣</span><h2>${t('home.featureScreen')}</h2><p>${t('home.featureScreenDescription')}</p></article><article><span>◇</span><h2>${t('home.featureSkills')}</h2><p>${t('home.featureSkillsDescription')}</p></article><article><span>⌂</span><h2>${t('home.featureLocal')}</h2><p>${t('home.featureLocalDescription')}</p></article></section>${homeGuideHTML(ios)}`;
 }
+function homeGuideHTML(ios){return `<section class="site-guide" id="get-started"><h2>${t('guide.title')}</h2><p>${t('guide.intro')}</p><ol>${['flash','connect','model','task','skills'].map(step=>`<li><h3>${t('guide.'+step+'Title')}</h3><p>${t('guide.'+step+'Body')}</p></li>`).join('')}</ol><div class="guide-links">${ios?`<a class="primary" href="${routeHref('harness')}">${t('guide.start')}</a>`:`<a class="primary" href="${routeHref('flash')}">${t('home.setupBridge')}</a>`}<a class="secondary-button" href="${new URL('./shortcuts/clipboard.html',import.meta.url).href}">${t('guide.clipboard')}</a><a class="secondary-button" href="${SITE_CONFIG.repository}" target="_blank" rel="noopener">${t('guide.github')}</a></div></section><section class="site-demo"><h2>${t('guide.demos')}</h2><figure><img src="${new URL('./media/demo-placeholder.svg',import.meta.url).href}" alt="" width="800" height="400" loading="lazy"><figcaption><strong>${t('guide.demoPending')}</strong><p>${t('guide.demoDescription')}</p></figcaption></figure></section>`;}
 async function renderCommunityPage(){
-  const generation=(state.communityGeneration||0)+1;state.communityGeneration=generation;
-  $('#site-main').innerHTML=`<section class="site-page-heading"><h1>${t('community.title')}</h1><p>${t('community.description')}</p><div class="panel-actions"><button id="site-own-skills" class="primary" ${state.store?'':'disabled'}>${t('skills.mine')}</button><button id="site-create-skill" class="secondary-button" ${state.store?'':'disabled'}>${t('skills.create')}</button><button id="site-identity" class="secondary-button" ${state.store?'':'disabled'}>${t('community.identity')}</button></div></section><div id="community-status" class="quiet-note">${t(communityEndpoint()?'community.loading':'community.notConfigured')}</div><div id="community-cards" class="community-grid"></div>`;
-  $('#site-own-skills').onclick=guard(()=>{state.skillsFromSettings=false;return showSkills('local');});$('#site-create-skill').onclick=guard(()=>{state.skillsFromSettings=false;return showSkillEditor();});$('#site-identity').onclick=guard(showCreatorIdentity);
-  const endpoint=communityEndpoint();
-  try{
-    let entries,catalogUrl;
-    if(endpoint){const client=new CommunityClient({baseUrl:endpoint});const result=await client.list();entries=result.items||[];}else{catalogUrl=new URL('./skills/catalog.json',location.href).href;const response=await fetch(catalogUrl,{credentials:'omit'});if(!response.ok)throw new Error('HTTP '+response.status);const catalog=await response.json();entries=catalog.skills||catalog;}
-    if(generation!==state.communityGeneration||routeForPath(location.pathname)!=='skills'||!$('#community-cards'))return;
-    if(endpoint)$('#community-status').textContent=entries.length?'':t('community.empty');else $('#community-status').textContent=t('community.notConfigured');
-    $('#community-cards').innerHTML=entries.map((skill,index)=>`<article class="skill-card"><div class="card-title">${skillTextHTML(skill,'name',{trustedCatalog:!endpoint&&isBuiltinCatalog(catalogUrl),catalog:true})}<span class="tag" data-no-i18n>${escapeHTML(skill.version||'')}</span></div><p class="card-detail">${skillTextHTML(skill,'description',{trustedCatalog:!endpoint&&isBuiltinCatalog(catalogUrl),catalog:true})}</p><p class="card-detail">${endpoint?escapeHTML((skill.creatorId||'').slice(0,12)):t('community.bundled')}</p><button class="secondary-button" data-community-install="${index}" ${state.store?'':'disabled'}>${t('skills.addLocal')}</button></article>`).join('');
-    $$('[data-community-install]').forEach(button=>button.onclick=guard(async()=>{button.disabled=true;try{const entry=entries[Number(button.dataset.communityInstall)];const skill=endpoint?await new CommunityClient({baseUrl:endpoint}).download(entry.creatorId,entry.slug):await downloadSkill(entry,catalogUrl);await state.store.saveSkill(skill);toast(t('skills.saved'));}finally{button.disabled=false;}}));
-  }catch(error){if(generation===state.communityGeneration&&routeForPath(location.pathname)==='skills'&&$('#community-status'))$('#community-status').textContent=localizeError(error);}
+  const generation=(state.communityGeneration||0)+1;state.communityGeneration=generation;const endpoint=communityEndpoint();
+  $('#site-main').innerHTML=`<section class="site-page-heading"><h1>${t('community.title')}</h1><p>${t('community.description')}</p></section><section class="site-community-authoring"><h2>${t('communityRefinement.workspace')}</h2><p class="quiet-note">${t('communityRefinement.workspaceHelp')}</p><div class="panel-actions"><button id="site-create-skill" class="primary" ${state.store?'':'disabled'}>${t('skills.create')}</button><button id="site-import-own" class="secondary-button" ${state.store?'':'disabled'}>${t('communityRefinement.importOwn')}</button><button id="site-identity" class="secondary-button" ${state.store?'':'disabled'}>${t('community.identity')}</button></div><p class="quiet-note">${t('communityRefinement.importHelp')}</p><div id="community-authored" class="community-grid"></div></section><section class="site-community-browser"><h2>${t('communityRefinement.browse')}</h2><p class="quiet-note">${t('communityRefinement.syncHelp')}</p><div id="community-status" class="quiet-note">${t('community.loading')}</div><div id="community-cards" class="community-grid"></div><button id="community-more" class="secondary-button" hidden>${t('session.nextPage')}</button></section>`;
+  const current=()=>generation===state.communityGeneration&&routeForPath(location.pathname)==='skills'&&!!$('#community-cards');
+  $('#site-create-skill').onclick=guard(()=>{state.skillsFromSettings=false;return showSkillEditor();});$('#site-identity').onclick=guard(showCreatorIdentity);
+  $('#site-import-own').onclick=()=>chooseFile('.md,.json,text/markdown,application/json',async(text,fileName)=>{try{const skill=await importOwnSkillFile({store:state.store,identity:await creatorIdentity(),text,fileName});state.skills=await state.store.listSkills();if(current())await showSkillEditor(skill);}catch(error){if(error.code==='SKILL_NOT_OWNED')throw new Error(t('communityRefinement.importNotOwned'));throw error;}});
+  let installed=[],entries=publicBuiltinSkills(),cursor='';
+  if(state.store){try{const identity=await creatorIdentity();installed=await state.store.listSkills();if(!current())return;const owned=installed.filter(skill=>isOwnedAuthored(skill,identity.creatorId));$('#community-authored').innerHTML=owned.length?owned.map((skill,index)=>`<article class="skill-card"><div class="card-title" data-no-i18n>${escapeHTML(skill.name)}<span class="tag">${escapeHTML(skill.version)}</span></div><p class="card-detail" data-no-i18n>${escapeHTML(skill.description||'')}</p><div class="panel-actions"><button class="secondary-button" data-authored-edit="${index}">${t('common.edit')}</button><button class="secondary-button" data-authored-publish="${index}">${t('skills.publish')}</button></div></article>`).join(''):`<p class="quiet-note">${t('communityRefinement.emptyAuthored')}</p>`;$$('[data-authored-edit]').forEach(button=>button.onclick=guard(()=>showSkillEditor(owned[Number(button.dataset.authoredEdit)])));$$('[data-authored-publish]').forEach(button=>button.onclick=()=>shareSkill(owned[Number(button.dataset.authoredPublish)]));}catch(error){if(current())$('#community-authored').textContent=localizeError(error);}}
+  function renderCards(){
+    $('#community-cards').innerHTML=entries.map((skill,index)=>{const builtin=skill.source==='builtin',id=builtin?skill.id:`community:${skill.creatorId}/${skill.slug}`,added=installed.some(item=>item.id===id);return `<article class="skill-card"><div class="card-title">${skillTextHTML(skill,'name',{trustedCatalog:builtin,catalog:true})}<span class="tag" data-no-i18n>${escapeHTML(skill.version||'')}</span></div><p class="card-detail">${skillTextHTML(skill,'description',{trustedCatalog:builtin,catalog:true})}</p><p class="card-detail">${t(builtin?'communityRefinement.builtin':'skills.sourceCommunity')}</p><div class="panel-actions"><button class="secondary-button" data-community-read="${index}">${t('communityRefinement.view')}</button>${isIOSPlatform()?`<button class="secondary-button" data-community-install="${index}" ${!state.store||added?'disabled':''}>${t(added?'communityRefinement.installed':'skills.addLocal')}</button>`: ''}</div><pre class="diagnostic-json" data-community-preview="${index}" data-no-i18n hidden></pre></article>`;}).join('');
+    $$('[data-community-read]').forEach(button=>button.onclick=guard(async()=>{button.disabled=true;try{const skill=await readCatalogSkill(entries[Number(button.dataset.communityRead)],{endpoint});if(!current()||!button.isConnected)return;const preview=$(`[data-community-preview="${button.dataset.communityRead}"]`);preview.textContent=skill.content;preview.hidden=false;button.hidden=true;}finally{if(button.isConnected)button.disabled=false;}}));
+    $$('[data-community-install]').forEach(button=>button.onclick=guard(async()=>{button.disabled=true;try{await installCatalogSkill(state.store,entries[Number(button.dataset.communityInstall)],{endpoint});installed=await state.store.listSkills();state.skills=installed;if(current())renderCards();toast(t('skills.saved'));}finally{if(button.isConnected)button.disabled=false;}}));
+    $('#community-more').hidden=!cursor;
+  }
+  renderCards();try{const result=await loadCommunityCatalog({endpoint});if(!current())return;entries=result.entries;cursor=result.cursor||'';$('#community-status').textContent=result.error?t('communityRefinement.sourceError')+' '+localizeError(result.error):'';renderCards();}
+  catch(error){if(current())$('#community-status').textContent=localizeError(error);}
+  $('#community-more').onclick=guard(async()=>{const button=$('#community-more');button.disabled=true;try{const result=await loadCommunityCatalog({endpoint,cursor});if(!current())return;if(result.error)throw result.error;entries.push(...result.entries);cursor=result.cursor||'';renderCards();}finally{if(button.isConnected)button.disabled=false;}});
 }
 
 async function renderFlashPage(){
@@ -697,12 +718,12 @@ async function boot() {
   const returningDeviceSetup=pendingDeviceSetupReturn({consume:true});
   const pendingDeviceSetup=location.hash.startsWith('#device=')||returningDeviceSetup;
   renderPlatform();
-  state.store=await openStore();void requestStorageProtection();await installBuiltinSkills(state.store);state.settings=await state.store.getSettings()||{};await restoreProviderCredentials(state.store,providers(),{registerAccount:registerCodexAccount,onError:report});state.skills=await state.store.listSkills();
+  state.store=await openStore();void requestStorageProtection();await installBuiltinSkills(state.store);state.settings=await state.store.getSettings()||{};await restoreProviderCredentials(state.store,providers(),{registerAccount:registerCodexAccount,onError:report});state.skills=await state.store.listSkills();state.skillSync=syncInstalledCommunitySkills(state.store,{endpoint:communityEndpoint(),signal:AbortSignal.timeout(10000)}).then(async result=>{state.skills=await state.store.listSkills();if(result.errors.length)toast(t('skills.updateUnavailable'));}).catch(error=>{console.warn('Skill update unavailable',error?.code||error?.name||'unknown');toast(t('skills.updateUnavailable'));});
   state.devicePanel=createDevicePanel({store:state.store,capture,openPanel:(...args)=>{state.nextPanelView={kind:'devices'};return panel(...args);},getPanelRoot:()=>$('#panel-content .panel-body'),onDeviceChange:(device,summary)=>{state.device=device;state.deviceStatus=summary;const pending=clipboard.getSnapshot();if(pending&&(!summary.ready||summary.targetId!==pending.targetId))clipboard.clear();renderDeviceStatus();},onSettingsChange:settings=>{state.settings=settings;},isBusy:()=>state.running||state.submitting,onToast:toast});
   state.mcpAccess=createMCPAccess();state.mcpPanel=createMCPSettings({access:state.mcpAccess,store:state.store,onSettingsChange:settings=>{state.settings=settings;}});
   void state.mcpPanel.restore({servers:state.settings.mcpServers,endpoint:state.settings.mcpEndpoint||''}).catch(report);
-  state.harness=createHarness({store:state.store,onEvent:onHarnessEvent,capture,device:deviceAdapter,getContext:deviceContext,getDeviceStatus:deviceStatus,clipboard,mcp:state.mcpAccess});
-  $('#new-session').onclick=guard(newSession);state.sessionSearch=mountSessionSearch({surface:$('.sidebar'),scrollArea:$('#sessions'),field:$('#session-search-wrap'),input:$('#session-search'),toggle:$('#toggle-session-search'),cancel:$('#cancel-session-search'),onQueryChange:guard(refreshSessions)});$('#archive-toggle').onclick=guard(async()=>{state.archived=!state.archived;await refreshSessions();});
+  state.harness=createHarness({store:state.store,onEvent:onHarnessEvent,capture,device:deviceAdapter,getContext:deviceContext,getDeviceStatus:deviceStatus,getHarnessState:({sessionId})=>({visible:document.visibilityState==='visible'&&document.hasFocus()&&routeForPath(location.pathname)==='harness'&&state.current?.id===sessionId&&$('#app').classList.contains('in-conversation')&&!$('#panel-dialog').open&&!$('#action-dialog').open,sessionId:state.current?.id||null,origin:location.origin,url:new URL(routeHref('harness')+'?session='+encodeURIComponent(sessionId),location.origin).href}),clipboard,mcp:state.mcpAccess});
+  $('#new-session').onclick=guard(newSession);state.sessionSearch=mountSessionSearch({surface:$('.sidebar'),scrollArea:$('#sessions'),field:$('#session-search-wrap'),input:$('#session-search'),toggle:$('#toggle-session-search'),cancel:$('#cancel-session-search'),onQueryChange:guard(refreshSessions)});$('#list-label').onchange=guard(event=>switchSessionLibrary(event.target.value));
   $('#back-sessions').onclick=guard(()=>state.navigation?state.navigation.back({screen:'list',sessionId:null,panel:null,action:null}):$('#app').classList.remove('in-conversation'));$('#session-menu').onclick=guard(showSessionMenu);
   $('#conversation-device').onclick=guard(showDevices);$('#open-settings').onclick=guard(showSettings);$('#open-devices').onclick=guard(showDevices);
   $('#conversation-latest').onclick=guard(showLatestConversation);
@@ -717,6 +738,6 @@ async function boot() {
   mountViewport();const followLayout=()=>state.conversationFollow?.afterRender();window.addEventListener('resize',followLayout);window.visualViewport?.addEventListener('resize',followLayout);
   renderDeviceStatus();renderModelOptions();renderMessages();await refreshSessions();$('#app').inert=false;localizeView();renderPlatform();
   const params=new URLSearchParams(location.search);const sessionId=params.get('session');if(sessionId)await openSession(sessionId);state.navigation=createViewNavigation({history,location,urlForView:navigationURL,applyView:applyNavigationView,initialView:{route:routeForPath(location.pathname)||'main',screen:sessionId?'session':'list',sessionId:sessionId||null,panel:null,action:null}});if(pendingDeviceSetup)await showDevices();else if(state.navigation.current.panel||state.navigation.current.action)await state.navigation.restoreCurrent();
-  window.addEventListener('pageshow',event=>{if(event.persisted&&pendingDeviceSetupReturn({consume:true}))void showDevices().catch(report);});
+  window.addEventListener('pageshow',event=>{refreshBridgeAfterNavigation();if(event.persisted&&pendingDeviceSetupReturn({consume:true}))void showDevices().catch(report);});window.addEventListener('focus',refreshBridgeAfterNavigation);document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')refreshBridgeAfterNavigation();});
 }
 boot().catch(error=>{console.error(error);state.bootError=error;$('#app').inert=true;renderPlatform();toast(localizeError(error));});

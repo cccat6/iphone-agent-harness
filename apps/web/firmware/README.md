@@ -6,13 +6,9 @@ The current product source is **0.4.0-rtc-direct**. Harness control uses a singl
 
 `RtcIdentity.h` and `rtc-defaults.json` provide the same long-lived communication certificate/fingerprint for every board. Users do not install a CA or maintain per-device certificates. Board identity, browser tokens, phone input proof and writer leases remain separate authorization checks.
 
-The current four-profile build uses source `d6d8f75211fd14b8aa57d3f5ebf0f32d7fa425fe4f588df263a4eeb62a4b244a`. Its C3 application SHA-256 is `e77b201b3dd2ed6014b1206957ade1380f8e7ea5ad4b2ecd901c44fd914412df` (1,569,472 bytes). This revision adds authenticated phone association without mandatory keyboard testing, automatic native-key verification after one test action, and own-challenge cancellation. Identity, active-target, lease and pending-release fences remain. All four builds are compiled and sealed; this revision has not been physically flashed or phone-validated in the current run.
+Each release includes compiled firmware for all four supported profiles. See `build-report.json` and `manifest.json` for exact source provenance, part sizes and SHA-256. Compilation and host tests are separate from physical phone validation; the release metadata records this distinction.
 
-The [previous Safari evidence](../../../docs/research/rtc-control-final-safari-20261019.json) covers application `0ca0500ee626f8eece9b39cd76957d21ca42d43347b08d577ff0c03f355a4b6e`, not the current build. It records a 7000-byte request, reconnect passing eight checks, an HTTP 200 empty clipboard result and Japanese device settings. Phone HID and the combined phone workflow still require their own checks.
-
-Earlier transport evidence: on 2026-10-19, the complete C3 production candidate passed eight desktop-browser checks in both [Chrome](../../../docs/research/rtc-control-chrome-20261019.json) and [Safari 27.0.1](../../../docs/research/rtc-control-safari-20261019.json), including a 7000-byte request, authorization checks and disconnect/reconnect. Its application SHA-256 is `f4bbb07aa39d3c9325d74319b0b266076ace2819787b9c5d712052293a815c1f`, built from source `8ec1b81184bfaa8fbde0842f326154b27a59b4dfd5b803379eb16f46fe4dbf1d`. BLE initialized and advertised with one saved bond and no connected phone. This establishes the desktop-to-board transport path; phone HID, background capture, Shortcut use and combined task acceptance remain separate.
-
-The full phone workflow is undergoing hardware acceptance. [Phone prototype results](../../../docs/research/rtc-direct-c3-iphone-20261019.json) include short successes and intermittent failures; they do not establish complete product acceptance. The exact downloadable firmware version and validation fields come from the release's manifest.
+Current firmware associates the selected phone without requiring a keyboard test. An optional input test verifies native keyboard input. The browser's Refresh action reads connection state; Start input test is the explicit input action.
 
 ## Hardware profiles
 
@@ -26,6 +22,8 @@ The full phone workflow is undergoing hardware acceptance. [Phone prototype resu
 Chip-name labels stay untranslated (`ESP32-C3`, `ESP32-S3`, `ESP32-C6`, `ESP32`). Surrounding installation UI may be localized.
 
 ## Current compiled artifacts
+
+Current source SHA-256: `4fe4a826abb95c7ebdf6f40129bfd2e4156db058925e2e82c434ed12c7bfcef6`. C3 application SHA-256: `2defef0fd9af99211b7cdf642e7969505330117ed6be15afa89fcc5e9156ecc2` (1,570,400 bytes). These hashes identify the downloadable build; they do not certify phone acceptance.
 
 `manifest.json` and `build-report.json` are the authoritative record for the binaries in this directory: firmware version, source hashes, pinned dependencies and per-profile build results. Each application and auxiliary image has its own byte count and SHA-256. The clean builder verifies the current source allowlist before publication, so an older binary is not presented as a new RTC build merely because the source has changed.
 

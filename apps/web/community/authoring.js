@@ -13,3 +13,17 @@ export async function createAuthoredSkill({store,identity,input}){
 export async function updateAuthoredSkill({store,identity,id,patch}){
  if(!identity?.creatorId)fail('IDENTITY_REQUIRED');const skill=(await store.listSkills()).find(s=>s.id===id);if(!skill)fail('SKILL_NOT_FOUND');if(!isOwnedAuthored(skill,identity.creatorId))fail('SKILL_READ_ONLY');if(!patch||Object.keys(patch).some(k=>!['name','description','content','resources'].includes(k)))fail('INVALID_PAYLOAD');const parts=skill.version.split('.').map(Number);parts[2]++;return saved(store,identity,{...skill,...structuredClone(patch),version:parts.join('.')},{expectedDigest:skill.provenance.digest});
 }
+
+// File import is an explicit authoring action, never an ownership conversion for
+// a downloaded community package. Creator identity can be restored separately.
+export async function importOwnSkillFile({store,identity,text,fileName='skill.md'}){
+ if(!identity?.creatorId)fail('IDENTITY_REQUIRED');
+ let value;if(/\.json$/i.test(fileName)){try{value=JSON.parse(text);}catch{fail('INVALID_PAYLOAD');}if(!value||typeof value!=='object'||Array.isArray(value))fail('INVALID_PAYLOAD');}
+ else value={content:text,name:String(fileName).replace(/\.[^.]+$/,'')};
+ if(['community','builtin'].includes(value.source)||value.readonly===true||value.id&&(typeof value.id!=='string'||!value.id.startsWith(identity.creatorId+'/'))||value.provenance?.creatorId&&value.provenance.creatorId!==identity.creatorId)fail('SKILL_NOT_OWNED');
+ const candidate=value.slug||value.provenance?.slug||value.id?.slice(identity.creatorId.length+1)||String(fileName).replace(/\.[^.]+$/,'').toLowerCase().replace(/[^a-z0-9-]+/g,'-').replace(/^-+|-+$/g,'');
+ const slug=validateSlug(candidate||'skill-'+crypto.randomUUID().slice(0,8)),input={slug,name:value.name||slug,description:value.description||'',content:value.content||value.instructions||value.body,resources:value.resources||{}};
+ const existing=(await store.listSkills()).find(skill=>skill.id===identity.creatorId+'/'+slug);
+ if(existing){const {slug:unused,...patch}=input;return updateAuthoredSkill({store,identity,id:existing.id,patch});}
+ return createAuthoredSkill({store,identity,input});
+}

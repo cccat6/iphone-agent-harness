@@ -21,8 +21,6 @@ GitHub Actions **仅在你要求时运行**。普通推送、PR、标签和 Rele
 
 仓库需要 Secret：**`CLOUDFLARE_API_TOKEN`**。账号 ID、Worker、域名及 D1 绑定已放在 [wrangler.jsonc](../../wrangler.jsonc)，这些不是密钥。请用专用 Token，只授权当前账号和 `igent.cc` 区域，包含这些命令所需的 Workers Scripts 编辑、Workers Routes 编辑、Zone 读取、D1 编辑权限；不要授权无关账号／域名。直接填入 [GitHub Actions Secrets](https://github.com/cccat6/iphone-agent-harness/settings/secrets/actions)，不要提交到 Git 或粘贴进聊天。
 
-本次本地检查时，仓库尚无部署 Secret；已连接的 Cloudflare 服务在访问 Token 管理接口时返回 `9109 Unauthorized`。在配置这一项之前，工作流会提前明确报错。本次只准备流程，没有触发 Actions、创建远端 Release 或部署 Cloudflare；这些操作等你之后明确要求再执行。[本地验证记录](../research/manual-release-verification.json)列出了确切范围。
-
 ## 维护命令
 
 ```sh
@@ -33,6 +31,6 @@ npm run build
 npx wrangler deploy --dry-run
 ```
 
-`plan` 可通过 `GH_TOKEN` 和 `GITHUB_REPOSITORY` 查询 Release；`--offline` 不访问 GitHub。`seal` 只在现有源码、配置、依赖和二进制检查通过后记录输入：应在真实完成四平台编译后使用，不能用它把旧二进制重新标为新源码。初始输入记录对应此前实际编译的四种固件，并已检查当时安装的 Arduino CLI 为 1.5.1；本次工作流改动无需重新编译。
+`plan` 可通过 `GH_TOKEN` 和 `GITHUB_REPOSITORY` 查询 Release；`--offline` 不访问 GitHub。`seal` 只在现有源码、配置、依赖和二进制检查通过后记录输入：应在真实完成四平台编译后使用，不能用它把旧二进制重新标为新源码。
 
 官方参考：[GitHub 手动运行](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow)、[Cloudflare Actions 部署](https://developers.cloudflare.com/workers/ci-cd/external-cicd/github-actions/)。

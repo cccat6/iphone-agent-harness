@@ -13,6 +13,6 @@ The root MIT license applies to original iPhone Agent Harness source. Upstream d
 
 Firmware uses the pinned upstream toolchain. The complete RTC TLS family is retained as a checked-in, version-matched source snapshot so its record buffers can be rebuilt consistently; other SDK crypto and X.509 libraries remain upstream binaries. `tools/build_firmware.py`, the sketch sources, `build_opt.h`, resource limits and the generated build report document how to rebuild and relink the images. Local Wi-Fi configuration and per-device private keys are not part of the distributed binary build.
 
-Architecture research references are listed in `docs/research/harnesses.md`; this project does not redistribute Claude Code or Cursor internal source. Vendor code is not relicensed by the root project license.
+This project does not redistribute Claude Code or Cursor internal source. Vendor code retains its upstream license and is not relicensed by the root project license.
 
 The four interface icons `new-session.svg`, `settings.svg`, `search.svg`, and `skills.svg` come from [Lucide](https://github.com/lucide-icons/lucide), under the ISC license retained at `apps/web/icons/LUCIDE-LICENSE`.

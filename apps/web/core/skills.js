@@ -1,6 +1,8 @@
 import {readText} from './http.js';
 import {BUILTIN_SKILLS} from './assets.js';
 import {checkAbort} from './control.js';
+import {CommunityClient} from '../community/client.js';
+import {sealInstalledSkill,installedDigest,isUnchangedInstall} from '../community/installed.js';
 export async function installBuiltinSkills(store){
   const installed=new Map((await store.listSkills()).map(s=>[s.id,s]));
   for(const skill of BUILTIN_SKILLS){
@@ -42,11 +44,58 @@ export async function downloadSkill(entry,catalogUrl,{fetchImpl=fetch,signal}={}
       details={...entry,resources};for(const key of ['name','description','version'])if(typeof value[key]==='string')details[key]=value[key];
       if(value.requiredCapabilities!==undefined){if(!Array.isArray(value.requiredCapabilities)||value.requiredCapabilities.length>100||value.requiredCapabilities.some(c=>typeof c!=='string'||c.length>100))throw new Error('Skill JSON 格式无效');details.requiredCapabilities=value.requiredCapabilities;}
     }
-    return {...details,id:localId,packageId:entry.id,content,source:'community',readonly:true,provenance:{kind:'community',sourceUrl:root.href},sourceUrl:root.href,enabled:true};
+    return sealInstalledSkill({...details,id:localId,packageId:entry.id,catalogUrl:new URL(catalogUrl).href,catalogEntry:structuredClone(entry),content,source:'community',readonly:true,provenance:{kind:'community',sourceUrl:root.href},sourceUrl:root.href,enabled:true});
   }
   const manifest=JSON.parse(await read(root));if(manifest.id!==entry.id||manifest.version!==entry.version||manifest.entry!=='SKILL.md'||!Array.isArray(manifest.files)||manifest.files.length>100)throw new Error('Skill 清单不匹配');
   const resources={};let total=0;
   for(const file of manifest.files){if(typeof file.path!=='string'||file.path.includes('..')||!/^[-A-Za-z0-9_./]+$/.test(file.path)||file.path.startsWith('/')||!['md','json'].includes(file.path.split('.').pop()))throw new Error('Skill 文件路径或类型不支持');const text=await read(new URL(file.path,root));const bytes=new TextEncoder().encode(text);total+=bytes.length;if(total>4000000)throw new Error('Skill 包过大');const hash=[...new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))].map(x=>x.toString(16).padStart(2,'0')).join('');if(hash!==file.sha256||bytes.length!==file.bytes)throw new Error('Skill 内容校验失败');if(Object.hasOwn(resources,file.path))throw new Error('重复 Skill 文件');resources[file.path]=text;}
   if(!resources[manifest.entry])throw new Error('Skill 缺少入口正文');
-  return {id:localId,packageId:manifest.id,name:entry.name||manifest.id,description:manifest.description,version:manifest.version,content:resources[manifest.entry],resources,manifest,requiredCapabilities:manifest.requiredCapabilities,source:'community',readonly:true,provenance:{kind:'community',sourceUrl:root.href},sourceUrl:root.href,enabled:true};
+  return sealInstalledSkill({id:localId,catalogUrl:new URL(catalogUrl).href,catalogEntry:structuredClone(entry),packageId:manifest.id,name:entry.name||manifest.id,description:manifest.description,version:manifest.version,content:resources[manifest.entry],resources,manifest,requiredCapabilities:manifest.requiredCapabilities,source:'community',readonly:true,provenance:{kind:'community',sourceUrl:root.href},sourceUrl:root.href,enabled:true});
+}
+
+
+export function publicBuiltinSkills(){return BUILTIN_SKILLS.map(skill=>({id:skill.id,name:skill.name,description:skill.description,version:skill.version,source:'builtin',readonly:true,requiredCapabilities:skill.requiredCapabilities||[]}));}
+export async function loadCommunityCatalog({endpoint='',cursor='',fetchImpl=fetch,signal}={}){
+ const entries=cursor?[]:publicBuiltinSkills();if(!endpoint)return {entries};
+ try{const result=await new CommunityClient({baseUrl:endpoint,fetchImpl}).list({cursor,signal});return {entries:[...entries,...(result.items||[]).map(item=>({...item,source:'community'}))],cursor:result.cursor||result.nextCursor||''};}
+ catch(error){checkAbort(signal);return {entries,error};}
+}
+export async function readCatalogSkill(entry,{endpoint='',fetchImpl=fetch,signal}={}){
+ checkAbort(signal);if(entry.source!=='builtin')return new CommunityClient({baseUrl:endpoint,fetchImpl}).download(entry.creatorId,entry.slug,{signal});
+ const bundled=BUILTIN_SKILLS.find(item=>item.id===entry.id);if(!bundled)throw new Error('Skill 未安装或未启用');return {...structuredClone(bundled),readonly:true};
+}
+export async function installCatalogSkill(store,entry,options={}){
+ const skill=await readCatalogSkill(entry,options),previous=(await store.listSkills()).find(item=>item.id===skill.id);
+ checkAbort(options.signal);const next={...skill,enabled:previous?previous.enabled!==false:true};await store.saveSkill(next);return next;
+}
+// Refresh only installed, untouched downloads. Author drafts and active run
+// snapshots are deliberately outside this path. A failed source cannot prevent
+// other independent installed Skills from being checked.
+export async function syncInstalledCommunitySkills(store,{endpoint='',fetchImpl=fetch,signal}={}){
+ const result={updated:[],skipped:[],errors:[]},installed=await store.listSkills(),catalogs=new Map();
+ for(const old of installed){
+  checkAbort(signal);if(old.source!=='community')continue;
+  try{
+   if(!await isUnchangedInstall(old)){result.skipped.push(old.id);continue;}
+   const baseline=await installedDigest(old),provenance=JSON.stringify(old.provenance);let candidate;
+   if(old.provenance?.creatorId&&old.provenance?.slug){
+    if(!endpoint){result.skipped.push(old.id);continue;}
+    const client=new CommunityClient({baseUrl:endpoint,fetchImpl}),expected=client.baseUrl+'/skills/'+old.provenance.creatorId+'/'+old.provenance.slug;
+    if(old.sourceUrl!==expected||old.id!==`community:${old.provenance.creatorId}/${old.provenance.slug}`){result.skipped.push(old.id);continue;}
+    candidate=await client.download(old.provenance.creatorId,old.provenance.slug,{signal});
+    if(candidate.provenance.revision<old.provenance.revision)throw new Error('Skill update revision moved backwards');
+    if(candidate.provenance.revision===old.provenance.revision){if(candidate.provenance.digest!==old.provenance.digest)throw new Error('Skill revision content changed');continue;}
+   }else if(old.catalogUrl&&old.catalogEntry){
+    if(!catalogs.has(old.catalogUrl))catalogs.set(old.catalogUrl,(async()=>{const response=await fetchImpl(old.catalogUrl,{signal,credentials:'omit',referrerPolicy:'no-referrer',cache:'no-store'});if(!response.ok)throw new Error('HTTP '+response.status);return JSON.parse(await readText(response,{maxBytes:1048576,signal}));})());
+    const catalog=await catalogs.get(old.catalogUrl),entry=(catalog.skills||catalog).find(item=>item.id===old.packageId);
+    if(!entry||entry.version===old.version)continue;
+    if(new URL(entry.manifestUrl||entry.url,old.catalogUrl).href!==old.sourceUrl){result.skipped.push(old.id);continue;}
+    candidate=await downloadSkill(entry,old.catalogUrl,{fetchImpl,signal});
+   }else{result.skipped.push(old.id);continue;}
+   checkAbort(signal);const current=(await store.listSkills()).find(item=>item.id===old.id);
+   if(!current||!await isUnchangedInstall(current)||await installedDigest(current)!==baseline||JSON.stringify(current.provenance)!==provenance){result.skipped.push(old.id);continue;}
+   if(typeof store.replaceSkillIfUnchanged!=='function'||!await store.replaceSkillIfUnchanged(current,{...candidate,id:old.id,enabled:current.enabled!==false})){result.skipped.push(old.id);continue;}result.updated.push(old.id);
+  }catch(error){checkAbort(signal);result.errors.push({id:old.id,error});}
+ }
+ return result;
 }

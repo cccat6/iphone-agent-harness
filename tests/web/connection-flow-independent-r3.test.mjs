@@ -45,7 +45,7 @@ test('successive valid imports serialize persistence and enable only the latest 
 test('connection failure exposes optional safe details and clears them during an explicit retry',async t=>{
  const failure=new DeviceError('DEVICE_CLIENT_CAPACITY','DO_NOT_RENDER_RAW_SECRET',{status:409,serverCode:'client_capacity'}),f=await fixture(t,{openError:failure});
  await f.store.saveSettings({deviceEndpoint:endpoint,deviceRTC:rtc});await f.panel.open();assert.equal(f.field('[data-connection-error-details]').hidden,true);
- await f.field('[data-pair]').onclick();assert.equal(f.field('[data-connection-error-details]').hidden,false);assert.equal(f.field('[data-connection-error-details]').open,false);assert.equal(f.field('[data-connection-error-content]').textContent,'DEVICE_CLIENT_CAPACITY\nHTTP 409\nclient_capacity');assert.doesNotMatch(f.field('[data-progress-message]').textContent,/DO_NOT_RENDER_RAW_SECRET/);
+ await f.field('[data-pair]').onclick();assert.equal(f.field('[data-connection-error-details]').hidden,false);assert.equal(f.field('[data-connection-error-details]').open,true);assert.equal(f.field('[data-connection-error-content]').textContent,'DEVICE_CLIENT_CAPACITY\nHTTP 409\nclient_capacity');assert.doesNotMatch(f.field('[data-progress-message]').textContent,/DO_NOT_RENDER_RAW_SECRET/);
  const retry=f.field('[data-pair]').onclick();assert.equal(f.field('[data-connection-error-details]').hidden,true);assert.equal(f.field('[data-connection-error-content]').textContent,'');await retry;assert.equal(f.opens(),2);
 });
 

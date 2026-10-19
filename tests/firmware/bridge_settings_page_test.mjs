@@ -94,3 +94,21 @@ async function managementFailureScenario(locale){
 }
 for(const locale of ['en','zh-Hans','zh-Hant','ja','ru','de','fr','es']){await managementFailureScenario(locale);await scenario(locale,'a'.repeat(64),true);}
 console.log('Bridge management failures: eight locales retain safe HTTP/reason details for page load and save errors');
+
+// The actual server-rendered information page must need only its initial HTML
+// request. A second phone never enrolls, fetches protected data or competes for RTC.
+const informationHtml=fs.readFileSync(process.argv[2].replace(/settings\.html$/,'information.html'),'utf8'),informationScript=informationHtml.match(/<script>([\s\S]*)<\/script>/)[1];
+for(const locale of ['en','zh-Hans','zh-Hant','ja','ru','de','fr','es']){
+ const fields=new Map(),element=id=>{if(!fields.has(id))fields.set(id,{textContent:'',hidden:true});return fields.get(id);};let requests=0;
+ const context={navigator:{languages:[locale]},location:{search:'?import=1'},URLSearchParams,document:{documentElement:{},title:'',getElementById:element,querySelector:element},crypto:webcrypto,AbortController,setTimeout,clearTimeout,Uint8Array,URL,btoa,fetch:async()=>{requests++;throw new Error('RTC owner must not matter');}};
+ vm.createContext(context);vm.runInContext(informationScript,context);await new Promise(resolve=>setImmediate(resolve));assert.equal(requests,0);assert.equal(element('connect').hidden,false);assert.equal(element('settings').hidden,true);assert.equal(parseDeviceSetupLink(element('connect').href).rtc.ip,'192.168.0.125');
+}
+// A fetch implementation that ignores AbortSignal still cannot hide the retry
+// button forever. Two bounded attempts finish at 16.5s without any enrollment.
+{
+ const fields=new Map(),element=id=>{if(!fields.has(id))fields.set(id,{textContent:'',hidden:true});return fields.get(id);};const timers=new Map();let id=0,calls=0;
+ const context={navigator:{languages:['en']},location:{search:'?import=1'},URLSearchParams,document:{documentElement:{},title:'',getElementById:element,querySelector:element},crypto:webcrypto,AbortController,Uint8Array,URL,btoa,setTimeout(handler,delay){const key=++id;timers.set(key,{handler,delay});return key;},clearTimeout(key){timers.delete(key);},fetch(){calls++;return new Promise(()=>{});}};
+ vm.createContext(context);vm.runInContext(script,context);const settle=async()=>{for(let i=0;i<12;i++)await Promise.resolve();};const fire=async delay=>{const row=[...timers].find(([,value])=>value.delay===delay);assert.ok(row,'deadline must exist');timers.delete(row[0]);row[1].handler();await settle();};await fire(8000);await fire(500);await fire(8000);assert.equal(calls,2);assert.equal(element('retry').hidden,false);assert.ok(element('status').textContent.includes(vm.runInContext('m[16]',context)));
+}
+const secureSource=fs.readFileSync(new URL('../../firmware/IPhoneAutomationHarness/src/SecureService.h',import.meta.url),'utf8');assert.match(secureSource,/max_open_sockets=2;cfg\.lru_purge_enable=true/,'idle preconnect sockets must be reclaimed within the existing two-socket budget');
+console.log('Bridge multi-phone import: embedded public snapshot needs no follow-up request; stalled fetch has hard deadlines; idle socket purge enabled');

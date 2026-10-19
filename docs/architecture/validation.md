@@ -1,66 +1,16 @@
-# 实施与验收
+# Validation and acceptance
 
-## 当前证据
+Maintainers run the repository checks; users need not rebuild software or inspect logs to try the phone workflow. Start with the [English phone guide](../acceptance/README.md) or [简体中文手机指南](../acceptance/zh-Hans.md).
 
-截至 2026-10-19，早期 iPhone 12／iOS 27.0.1 实验观察到跨 App 网页取屏、后台延迟／流式请求、四轮真实 DeepSeek 双协议请求，以及旧实验固件的 Home、点按、按住、拖动、滑动和三点定位。旧实验不代替新产品固件验收。
+Keep these evidence levels separate:
 
-产品代码、公开 Skill 服务、八语页面、四类固件构建和独立复查记录均已纳入仓库；Mac 上的真实 DeepSeek、合成图像／设备闭环与 C3 候选版 CA／主机名验证 HTTPS 已有证据。最终逐功能状态见[当前验收记录](../research/release-acceptance.md)。当前四芯片候选源码hash为 `d6d8f75211fd14b8aa57d3f5ebf0f32d7fa425fe4f588df263a4eeb62a4b244a`，已编译，授权USB当前未连接，因此尚未刷写或实机验收。手机操作见[简明八步清单](../acceptance/zh-Hans.md)，电脑构建／诊断由维护者完成。下面保留分层验收方法；其中未执行的手机测试为最终人工清单，不表示已经通过，也不要求用户重新执行电脑检查。当前按用户要求暂缓手机配合。
+- Automated/host tests validate finite protocols, state and error paths.
+- Native desktop checks validate the tested browser interactions.
+- Firmware compilation and artifact verification establish a reproducible binary, not radio behavior.
+- Physical acceptance observes the actual phone screen, release state, timing and recovery.
 
-## 阶段 1：先验证两个架构关口
+Important phone checks are fresh cross-app capture, correct selected target, tap/key/drag/swipe outcomes, exact picker values, cancellation without stuck input, lost-sharing pause, reconnect, clipboard confirmation and completion verification. Test additional phones/iPads separately. A HID submission receipt does not prove visible success.
 
-| 项目 | 操作 | 通过条件 |
-|---|---|---|
-| LAN | 托管 HTTPS Harness 导入实际 LAN IP并从同页连接 WebRTC Direct，读取真实 identity／targets；本地 HTTP仅配网／设置／快捷指令 | 核对真实连接、board/boot、选定可用目标绑定、错误认证拒绝；八位输入测试可选，旧固件保留旧版提示 |
-| mDNS | 同一局域网；板子重启／IP 变化；普通和访客 Wi-Fi | 正常网络自动重连；隔离情况下正确报错；不要求手输 IP 才能正常使用 |
-| 后台非流式 | 模拟后端等待 10/30/60/120 秒，手机切到其他 App | 请求、响应、JS 回调时刻和取屏状态分开记录；多个回合可继续 |
-| 后台流式 | 首片延迟、规则片段、长时间无片段、断网、异常结束 | 不执行半截参数；停止／错误正确保存；能区分模型等待和页面暂停 |
-| PWA | Safari 与主屏幕入口分别执行同样测试 | 不能用 Safari 一次成功代替 PWA 结论 |
+Hardware features remain experimental. Latest multi-client enrollment/import changes are prepared in source but require flashing and physical validation. Background survival, combined BLE/RTC memory, multi-phone isolation and Safari subscription authorization cannot be inferred from desktop or mock tests. Avoid indefinite background or simultaneous-peer claims.
 
-模拟后端不调用收费模型，也不收屏幕图片。若持续性通过，再由用户选择模型后端与凭据，验证真实图像输入、流式工具调用、CORS 与多轮闭环。
-
-阶段 1 不需发 HID 动作，避免把网络问题和输入问题混在一起。网站取屏仍需HTTPS；正常局域网控制走WebRTC Direct，不要求安装每板CA。设备设置页和USB返回链接提供实际IP，不能把原型短测或旧HTTPS结果当成当前RTC/BLE候选通过。
-
-## 阶段 2：协议与单手机
-
-- 校验计划、能力、目标、方向、时限、路径和完整按下／释放。
-- 一次计划执行多个动作，在中间截图，后续动作无需每步重问 LLM；能选择 review 边界提前交回模型。
-- 同一个 segmentId 重发不重复输入；同 ID 不同内容拒绝；旧 bootId、过期请求拒绝。
-- 断线、取消、异常、重启和截图失败都有有限结果；unknown 不自动重播。
-- 接收回执、HID 提交、屏幕观察三层记录可区分。
-
-## 阶段 3：手机手势与时序
-
-- 原生设置列表、Safari 页面和一个测试 App 分别验证点按／长按／拖动；不从受控网页直接推断所有 App。
-- 同一路径对照 terminal hold 与即时松开，观察释放后的持续位移，证明真实惯性。
-- 手势过程中请求多帧，报告实际帧数与时间。快速画面达不到采样要求时明确拒绝时序判断。
-- 测试方向变化、键盘弹出、AssistiveTouch 配置、页面缩放与裁切映射；复用三点定位法。
-- 用本地生成的验证码夹具验证各家族路由和版本更新；公开站点的挑战成功率另行测量，不能由夹具通过代替。
-
-## 阶段 4：本地会话与恢复
-
-- 使用有限、真实需求规模的会话检查首屏、分页、追加与压缩；分别记录媒体占用，不做压力测试，不给未经测量的性能承诺。
-- 模型流中断、浏览器结束、IDB 配额不足、写入失败、导入包损坏时，保留既有数据；普通历史导出不包含凭据。
-- Safari／PWA 容器迁移、origin 改变、自托管导入导出有明确路径。
-- 检查会话多标签页写入与数据库迁移的重复运行约束。当前未注册 Service Worker，不宣称已实现 SW 更新协调。
-
-## 阶段 5：一块 C3、两部手机
-
-- 两部手机各自录屏、模型会话和授权；C3 按连接句柄隔离输入。
-- A 发送 Home 时 B 没有动作；A 拖动期间 B 的坐标和按键状态不改变。
-- 同目标的第二个 writer 被拒绝或等待；不同目标可独立运行，取消只影响指定目标。
-- 记录 RTC/BLE 内存、Wi-Fi 共存、请求吞吐和输入延迟，再确定公开支持数量。
-
-## 实施顺序
-
-1. LAN 与后台关口探针。
-2. 规范化模型消息、存储、日志和可中断单 run 循环。
-3. 单目标协议、幂等回执、批量计划和截图屏障。
-4. 取帧观察组与手势速度调度。
-5. Skill 目录、按需加载和验证码家族夹具。
-6. 多目标隔离、发布包和自托管文档。
-
-这不是六套平行重写。先做浏览器、设备和模型之间的稳定契约，之后每个阶段复用同一份事件、计划和证据格式。
-
-## 硬件实验约束
-
-仅用户指定的 `/dev/cu.usbmodem1101` 为本项目 C3。其他串口属于其他工作，不能打开、重置或刷写。真机测试遵守用户配合的操作窗口；失败立即停止输入，保留日志。固件变更导致 HID 描述变化时重新配对并重测。
+For local checks, use the commands in the [project README](../../README.md), [Arduino guide](../../firmware/IPhoneAutomationHarness/README.md) and [manual release guide](manual-release.md). Do not publish credentials or personal screens in issue reports; provide versions, redacted symptoms and reproduction steps.

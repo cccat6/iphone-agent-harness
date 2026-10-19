@@ -117,3 +117,11 @@ test('receipt eviction never discards unresolved submissions to make room',async
  await client.getResult({...ctx,segmentId:'pending-0'});await client.submitSegment(await segment(ctx,'pending-after-reconcile'));assert.equal(f.calls.filter(c=>c.path.endsWith('/segments')).length,513);
  await assert.rejects(client.submitSegment(await segment(ctx,'pending-0')),code('DEVICE_SEGMENT_ALREADY_SUBMITTED'));
 });
+
+test('input test rate limit retains HTTP status and fixed reason without resending input',async()=>{
+ const f=fixture(),client=new DeviceClient({baseUrl:'https://iah-a.local',fetchImpl:f.fetch,now:()=>f.now});await client.pair({clientId:'client-a',expectedFingerprint:FP});f.handler=({path})=>path.endsWith('/challenge/start')?Response.json({error:'challenge_busy_or_rate_limited'},{status:429}):null;
+ await assert.rejects(client.startChallenge('phone-a'),error=>error.code==='DEVICE_CHALLENGE_BUSY'&&error.status===429&&error.serverCode==='challenge_busy_or_rate_limited');assert.equal(f.calls.filter(call=>call.path.endsWith('/challenge/start')).length,1);assert.equal(client.identityVerified,true);
+});
+test('malformed HTTP error response still preserves its status for user-visible diagnostics',async()=>{
+ const f=fixture(),client=new DeviceClient({baseUrl:'https://iah-a.local',fetchImpl:f.fetch,now:()=>f.now});f.handler=()=>new Response('upstream temporary page',{status:502});await assert.rejects(client.identity(),error=>error.code==='DEVICE_RESPONSE_INVALID'&&error.status===502);
+});

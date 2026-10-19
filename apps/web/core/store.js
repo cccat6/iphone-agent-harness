@@ -121,6 +121,9 @@ export async function openStore({memory=false,name=DB_NAME}={}){
     async saveSkill(skill){if(!skill?.id)throw new Error('Skill 缺少标识');const value=safeSettings(clone(skill));await transaction(['skills'],'readwrite',s=>s.skills.put(value));return value;},
     async createSkill(skill){return transaction(['skills'],'readwrite',async s=>{if(await s.skills.get(skill.id))throw Object.assign(new Error('SKILL_EXISTS'),{code:'SKILL_EXISTS'});const value=safeSettings(clone(skill));await s.skills.put(value);return value;});},
     async compareAndSwapSkill(skill,expectedDigest){return transaction(['skills'],'readwrite',async s=>{const old=await s.skills.get(skill.id);if(!old||old.provenance?.digest!==expectedDigest)throw Object.assign(new Error('SKILL_CONFLICT'),{code:'SKILL_CONFLICT'});const value=safeSettings(clone(skill));await s.skills.put(value);return value;});},
+    // Compare and write within one store transaction: another tab may edit or
+    // disable a download while its upstream content is being verified.
+    async replaceSkillIfUnchanged(expected,skill){if(!expected?.id||skill?.id!==expected.id)throw new Error('Skill 缺少标识');const value=safeSettings(clone(skill)),baseline=JSON.stringify(safeSettings(clone(expected)));return transaction(['skills'],'readwrite',async s=>{const current=await s.skills.get(expected.id);if(!current||JSON.stringify(current)!==baseline)return false;await s.skills.put(value);return true;});},
     deleteSkill:id=>transaction(['skills'],'readwrite',s=>s.skills.delete(id)),
     close(){closed=true;if(db)disconnect(db);},persistent:!memory,
   };return store;

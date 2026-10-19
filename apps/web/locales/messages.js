@@ -1,3 +1,5 @@
+import {PRODUCT_NAVIGATION_MESSAGES} from './product-navigation.js';
+import {COMMUNITY_REFINEMENT_MESSAGES} from './community-refinement.js';
 import {REASONING_MESSAGES} from './reasoning.js';
 import {INTERACTION_MESSAGES} from './interaction-refinement.js';
 import {PROVIDER_REFINEMENT_MESSAGES} from './provider-refinement.js';
@@ -5403,3 +5405,7 @@ for(const [locale,table] of Object.entries(INTERACTION_MESSAGES))Object.assign(m
 
 for(const [locale,table] of Object.entries(REASONING_MESSAGES))Object.assign(messages[locale],table);
 for(const [locale,table] of Object.entries(CREDENTIAL_STATE_MESSAGES))Object.assign(messages[locale],table);
+
+for(const [locale,table] of Object.entries(COMMUNITY_REFINEMENT_MESSAGES))Object.assign(messages[locale],table);
+
+for(const [locale,table] of Object.entries(PRODUCT_NAVIGATION_MESSAGES))Object.assign(messages[locale],table);

@@ -303,13 +303,6 @@ class ContractTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "capability"):
             validate_plan(plan, capabilities=CAPABILITIES - {"capture.motion"})
 
-    def test_pinned_reading_hashes(self):
-        index = load(ROOT / "research/harness-reference/readings.json")
-        if not (ROOT / "research/harness-reference/repos/codex").exists():
-            self.skipTest("Download the optional source snapshots to verify source hashes")
-        for entry in index:
-            path = ROOT / "research/harness-reference/repos" / entry["repository"] / entry["path"]
-            self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), entry["file_sha256"])
 
 
 if __name__ == "__main__":

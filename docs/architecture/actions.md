@@ -1,117 +1,25 @@
-# 手机操作与批量执行
+# Actions, timing and evidence
 
-## 1. 两层计划
+The model proposes a bounded plan; the browser validates it and compiles timed input segments for the ESP32. Screenshots remain browser-owned and never pass through the bridge.
 
-LLM 调用 `phone_execute_plan`，一次给出多个顺序步骤。网页计划包含动作、等待、截图和观察窗口。网页校验并编译为一个或多个 **ESP32 计时输入段**。ESP32 不取屏，不接收图片，也不调用模型。
-
-```text
-LLM 一次返回计划
-  tap → 等待 → capture → swipe → capture
-网页执行器
-  输入段 A → 取图并保存在本地 → 输入段 B → 取图 → 汇总一个 tool result
-```
-
-中途截图默认不调用模型，后续确定的步骤继续执行；最后把带顺序标签的图片和回执一次交给模型。如果下一步依赖截图判断，则用 `capture.review=true` 结束当前计划，交回模型重新规划。第一版不执行模型产生的任意 if/loop/JavaScript。
-
-计划是效率单位，输入段是实时计时单位，截图是证据单位。三者不能混为一个“点击 API”。
-
-## 2. 操作词汇
-
-| 操作 | 明确语义 |
+| Operation | Meaning |
 |---|---|
-| `tap` | 定位、按下、短暂保持、松开 |
-| `drag` | 按住后按路径移动，在终点按指定时间保持再松开 |
-| `swipe` | 按下、按时间路径移动、在末段仍有速度时立即松开 |
-| `pointer_sequence` | 显式的 `down / move / up` 时间序列；一个序列内完整释放 |
-| `key` | 键盘 usage、普通修饰键和按住时间；不暗示支持 Apple Fn |
-| `home` | 经过验证的 Consumer Home 输入 |
-| `wait` | 有界等待，不生成输入 |
-| `capture` | 安全边界上的单帧或多帧取图，保持或交回模型 |
-| `observe` | 对一段完整手势同时请求有限的取帧窗口 |
+| `tap` | Move, press, hold briefly, release |
+| `drag` | Held path with optional endpoint hold before release |
+| `swipe` | Timed path released while moving, without an endpoint hold |
+| `pointer_sequence` | Complete down/move/up sequence |
+| `key`, `home` | Supported keyboard and Consumer Home reports |
+| `wait`, `capture` | Bounded delay or released screenshot barrier |
+| `observe` | Complete gesture alongside a bounded frame request |
 
-用户可表达“按下 → 拖动 → 松开”，编译器把它变成一个完整 `pointer_sequence`。不会把按下留在两个 LLM 回合之间；等待模型几十秒期间必须释放输入。暂不支持两个 pointer ID、多指缩放或旋转。
+One HID pointer is available, not native multitouch. Coordinates are 0–10000 over the full display, with explicit frame/orientation metadata. Stale frame, target or orientation invalidates continuation. Keyboard mappings and app responses must be observed; arbitrary Unicode, Apple Fn and wheel behavior are not universally promised.
 
-HID 是指针／键盘路径，经 iOS 辅助触控产生操作。能按住和拖动，不代表所有原生 App 都把它当作真实手指；惯性也必须逐类验证。当前已验证鼠标拖动和指针式滑动，尚未验证此协议的速度控制。早期对照中滚轮和指针式滑动均观察到列表移动；当前计划用有明确轨迹的指针式滑动，Fn-H 不默认提供。
+Plans have at most 30 steps and 15 seconds of execution budget. Device segments have at most 128 reports, 8192 UTF-8 bytes and five seconds, with three seconds maximum held input; negotiated capabilities may be stricter. A held gesture is never split across network requests.
 
-输入释放后另有界面停稳等待，默认 tap 250ms、key 150ms、Home 450ms、drag／pointer_sequence 350ms、swipe 700ms；`settleMs` 可覆写为0–3000ms，计入整份计划的时间限制。转轮等慢控件先从1200ms开始，必要时按实际画面增至1200–2000ms。这里等待发生在松开之后，不改变swipe释放速度；睡眠结束不证明画面已稳定，仍须新帧核对。精确值优先尝试控件支持的直接编辑，过冲后缩小手势并记录可见反馈。
+Post-release settling defaults are tap 250 ms, key 150 ms, Home 450 ms, drag/pointer sequence 350 ms and swipe 700 ms. `settleMs` may override 0–3000 ms and counts toward the plan budget. Pickers may need 1200–2000 ms and fresh frames. Waiting is not proof of visual stability; a swipe's post-release delay does not alter its release velocity.
 
-## 3. 惯性滑动的关键
+A capture barrier persists a released frame before continuing. `review` returns to the model before a decision. Motion observation reports actual frames/timing and insufficient evidence where necessary; requested cadence is not guaranteed. Received plan, submitted HID and visible success are distinct.
 
-拖动与滑动不能只用相同起终点加一个 duration 区分。路径点必须带相对时间：`{x,y,tMs}`，设备按单调时钟执行和插值。
+Cancel, lost sharing, disconnection, expiry or late execution stop dependent work and attempt release. Unknown delivery is reconciled, never blindly replayed. Use [gesture-correction](../../apps/web/skills/gesture-correction/SKILL.md) and [clock-and-time](../../apps/web/skills/clock-and-time/SKILL.md) for measured correction or supported direct entry.
 
-- `drag` 可以显式设置 `endHoldMs`，满足放置、滑块停止、选区调整。
-- `swipe` 不追加终点等待，不先减速到零再松开；最后一个 move 和 up 在设备连续调度中紧邻提交。
-- 释放速度由末尾实际移动采样决定；记录最后若干 HID 报告的计划时间、提交时间和坐标。
-- 不人为给 UI 增加随机噪声。根据目标滚动距离、方向、持续时间调整速度曲线。
-- 终点停顿、BLE 报告拥塞、轨迹插值末尾重复点，均可能抹掉速度；不能用浏览器每步 HTTP 调用来计时。
-- 产品固件当前公布 40ms 报告间隔与 20ms 指针定位等待；执行器按能力编译，实际提交精度仍需 BLE 实测。
-
-验收必须看松开后的列表位移，而不是只看回执“已发送 up”。需要比较同一路径的终点保持与立即释放，并记录多帧中的继续移动和最终位置。
-
-## 4. 坐标与证据
-
-- 对模型公开统一 0–10000 坐标空间，原点为完整共享显示的左上角。
-- 保留原图宽高、方向、显示区域、缩放／裁切变换和 `orientationEpoch`；裁切图上的坐标必须先映射回全图。
-- 不能把 Safari 视口中心、安全区、CSS 像素中心直接当成 HID 全屏中心。
-- 每个计划声明所依据的 `frameId` 和方向版本；方向改变或目标改变使未执行部分失效。
-- 截图时间分成请求、取得 bitmap、编码完成、可用的 media time；若无法得到真实帧采集时刻，应标为未知，不能把 JPEG 编码完成时间当作画面的采集时刻。
-- 控制成功的证据分层：接收计划、设备接受、HID 已提交、截图观察到目标状态。只有最后一项才能支持“页面打开了”等结果声明。
-
-## 5. 截图屏障与移动中取帧
-
-**安全截图屏障**：输入已经释放后，网页等待设备段完成，取图并落入本地附件库，再继续下一段。屏障有超时；失败则停止后续依赖步骤。没有“截图失败也继续盲点”的默认行为。
-
-**移动中观察**：`observe` 包含一个完整的手势和一个采样请求。网页先启动有界采样，再派发计时输入段，两者并行。它不会为了等截图而在滑动终点停住。实际帧可少于请求数，必须回报采样失败、实际时间和对齐误差。
-
-第一版不承诺在某个 HID 报告后精确 20ms 拍到屏幕。用设备计时与手机单调时钟估计偏移／往返误差；报告动作、帧的时间范围与不确定性。可观测的有效后台取图目前约四秒一张，快速变化场景未必能靠计时取图捕获。
-
-高时间分辨率的备选是短时录屏缓冲后抽取多帧；但必须验证 Safari 的编码／解码路径。MediaRecorder 的 MP4 chunk 不一定独立可播放，环形缓冲需保留初始化段和可解码边界。不能直接丢掉前段然后假设每个 Blob 都是独立视频。取不到所需时序就返回 `insufficient_temporal_evidence`，不伪造连续帧。
-
-默认一组 3–5 帧，单组硬上限 8 帧、单计划累计最多 24 帧，保留帧序号、相对时间、对应动作和裁切信息。重复画面可能是静态页面，不能仅凭哈希相同断言录屏卡住。所有缩略图和原图引用都要对应同一个目标。
-
-## 6. 网页计划与设备输入段的边界
-
-网页层：见 `specs/action-plan.schema.json`。它含 `capture/observe`，不能原样 POST 到固件的输入队列。
-
-固件实现契约见 [受保护局域网](secure-lan.md)：
-
-```text
-GET  /v1/identity
-GET  /v1/capabilities
-POST /v1/pair
-GET  /v1/binding
-POST /v1/targets/:target/challenge/start
-POST /v1/targets/:target/challenge/confirm
-POST /v1/targets/:target/leases/claim
-POST /v1/targets/:target/leases/renew
-POST /v1/targets/:target/segments
-GET  /v1/targets/:target/results/:id
-POST /v1/targets/:target/release
-```
-
-`release` 使用 `cancelPending` 与 `invalidateLease` 停止未完成工作并作废该运行租约。整板配置通过物理 USB 或受保护配网窗口完成，没有任意远程 settings 修改接口。
-
-输入段包含 `protocolVersion, boardId, bootId, targetId, clientId, leaseId, segmentId, planId, segmentIndex, ttlMs, payloadHash, events[]`。事件只允许带相对时间的 HID 键、指针报告、Home、释放；无截图、URL、模型参数或任意代码。
-
-设备格式见 `specs/device-segment.schema.json`，示例见 `specs/examples/swipe.segment.json`。每段开始要求输入状态已知且释放；指针坐标可以延续，按住状态不能跨段。所有在段内按下的通道在段末释放。
-
-`payloadHash` 为完整输入段除该字段之外的规范化 JSON 的 SHA-256：键递归按字典序排列，UTF-8，无多余空格；当前 wire 标识为 ASCII、数值全为整数，避免跨语言浮点差异。哈希不是身份认证；传输使用经信任的 HTTPS、精确 Origin 和每客户端 bearer token。运行租约、bootId、段 ID 与哈希负责授权范围、幂等和重放约束，不声称存在逐请求签名。
-
-`ttlMs` 在设备接受时转换为本机 deadline，避免要求手机和 ESP32 的 UTC 完全一致。重复的 segmentId＋同一哈希返回既有结果；同 ID 不同内容拒绝。超期、旧 bootId、失效租约、错误目标全部拒绝。
-
-当前限额：网页计划最多 30 步、总执行预算 15 秒；产品设备单段最多 5 秒、128 条采样报告与 8192 UTF-8 字节、单次按住最长 3 秒。完整批次在首个输入前检查实际序列化字节数，不能把按住的手势拆成多个网络段。最终还需设备协商；一个等待截图／LLM 的大计划不能变成无限固件队列。全批次先验证结构和限额，避免走到一半才发现后半段格式错误。
-
-## 7. 失败、取消与恢复
-
-- 固件用单调时钟／有界任务调度，网络请求和其他目标不能占住计时循环。
-- 任一失败默认停止同计划后续依赖步骤，并为未执行步骤写 `skipped`。同一手机的修改操作不并行。
-- 收到取消、BLE 断开、租约过期、执行超时或异常时尽力发送释放报告；BLE 断开不能保证报告送达，重连后先重置输入状态。
-- 预先接受的短段可以在网页暂时失去调度时跑完，但不能越过需要网页截图的屏障。按住状态由设备自身 watchdog 约束，不靠网页定时器兜底。
-- IDB 先记录提交意图，再发送；设备接受只表示入队，不能显示成执行成功。
-- 网络超时后先查询同一个 ID，不生成新 ID 重发。设备重启导致结果缓存丢失时标记 `unknown`，重新取屏核对；不能承诺跨断电 exactly-once。
-- 取消网络请求不会撤回已经送出的 HID；“停止”结果要同时区分网页停了、固件确认取消、输入释放和当前屏幕观察。
-- 断线恢复后不自动续播旧的连续点击，先核对任务、目标、输入状态和新画面。
-
-## 8. 验证边界
-
-本轮 schema 和校验器可以证明计划格式和部分不变量明确，不能证明真实惯性、手机点击效果、BLE 精度、后台采样频率或设备吞吐。这些都列入 [真机验收](validation.md)。
+[Plan schema](../../specs/action-plan.schema.json) · [Examples](../../specs/examples/)

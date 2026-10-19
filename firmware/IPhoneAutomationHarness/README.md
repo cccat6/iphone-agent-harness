@@ -2,7 +2,7 @@
 
 Version **0.4.0-rtc-direct** connects the Harness page to the bridge through WebRTC Direct on the local network. HTTP remains available for Wi-Fi setup, device settings and clipboard Shortcuts. Daily control uses one Harness page, without a persistent connection tab, connection code or phone certificate installation.
 
-The production firmware is separate from the preserved `phone_chain_c3*` and `firmware/experiments/rtc_direct_probe` experiments. Its integrated BLE/RTC hardware acceptance is recorded separately from the successful short phone transport prototype tests.
+Hardware functionality remains experimental. Test phone input, release/recovery, combined radio behavior and the complete workflow on the intended devices; compilation does not establish physical acceptance.
 
 ## Hardware and build
 
@@ -20,18 +20,18 @@ sh tests/firmware/rtc/run.sh
 python3 tools/build_firmware_test.py
 ```
 
-The development Mac additionally uses `--build-property tools.ctags.cmd.path=/usr/bin/true`. The clean builder copies allowlisted product sources, excluding private Wi-Fi configuration, model credentials and experimental firmware. It opens no serial port and contains no upload command. Build provenance, offsets, sizes and hashes are recorded with the downloadable firmware.
+The clean builder copies allowlisted product sources, excluding private Wi-Fi configuration, model credentials and experimental firmware. It opens no serial port and contains no upload command. Build provenance, offsets, sizes and hashes are recorded with the downloadable firmware.
 
 ## First configuration and daily connection
 
 1. After flashing, choose **Read device information** on the desktop installer. It provides the device Wi-Fi details and a phone connection link.
-2. For a new board, connect the phone to that device Wi-Fi, open `http://192.168.4.1` and enter the home 2.4 GHz Wi-Fi details. A board already configured for that network can skip this step.
+2. For a new board, connect the phone to that device Wi-Fi, open the setup address shown by the installer and enter the home 2.4 GHz Wi-Fi details. A board already configured for that network can skip this step.
 3. Return the phone to the home network. Open the supplied link, or visit `http://igent.local/settings` and choose **Return to Harness**. That same-tab return imports the board's actual numeric RTC address; no manual IP entry or direct WebRTC resolution of `igent.local` is needed.
 4. In Harness, choose **Connect ESP32 bridge**. The connection stays inside the Harness page; the manager does not need to remain open.
 5. Pair **iPhone Agent Bridge** in iOS Bluetooth settings and enable AssistiveTouch. Full Keyboard Access may stay on or off. Bluetooth pairing has no browser-triggered time window.
-6. Start the connection test and confirm the eight digits automatically received through HID, then share the screen and start a task.
+6. Select the connected, usable phone in Harness. Current firmware target binding is sufficient for readiness; the eight-digit input test is optional. Share the screen and start a short supervised task.
 
-The default local management name is `igent.local`. `/settings` changes the hostname while the bridge is idle and supplies its new address. Saved browser credentials are reused, but phone input proof must be current. Multiple bridges can use different names.
+The default local management name is `igent.local`. `/settings` changes the hostname while the bridge is idle and supplies its new address. Saved browser credentials are reused, but live board/boot, selected target and writer lease are checked again. Multiple bridges can use different names.
 
 Connection codes are removed. Old `pairingCodeRequired` settings and legacy supplied `setupPassword` values do not reinstate them. Normal updates preserve Wi-Fi settings, Bluetooth bonds, board identity and browser grants.
 
@@ -39,7 +39,7 @@ Connection codes are removed. Old `pairingCodeRequired` settings and legacy supp
 
 `src/RtcBridge.h` owns UDP 18948, ICE-lite, DTLS and the bounded SCTP/RPC adapter. It connects one ordered, negotiated data channel, ID 0. `RtcSctp.h` implements receive reordering, duplicate suppression, SACKs, finite retransmission, cookie/tag/checksum checks and heartbeat/closing. `RtcRpc.h` assembles 256-byte chunks into bounded requests and replies; monotonic request numbers prevent same-connection replay before application dispatch.
 
-The shared long-lived ECDSA certificate in `RtcIdentity.h` matches `apps/web/firmware/rtc-defaults.json`. The project uses this common communication configuration rather than per-device certificate maintenance. It is not a board identity or authorization token: the application still checks the board, boot, browser token, verified phone, writer lease and operation identity. It contains no website or model-service credentials.
+The shared long-lived ECDSA certificate in `RtcIdentity.h` matches `apps/web/firmware/rtc-defaults.json`. The project uses this common communication configuration rather than per-device certificate maintenance. It is not a board identity or authorization token: the application still checks the board, boot, browser token, bound usable phone, writer lease and operation identity. It contains no website or model-service credentials.
 
 The RTC callback dispatches the same application routes used by the local service. No website server forwards commands. Closing or losing a connection cancels its coordination; unknown mutation delivery is reconciled by receipt ID rather than automatically repeated.
 
@@ -55,7 +55,6 @@ Newline-delimited JSON at 115200 supports configuration and diagnostics, not arb
 
 ```json
 {"op":"setup-info"}
-{"op":"setup-config","ssid":"YOUR_WIFI","password":"YOUR_PASSWORD","origin":"https://igent.cc","unixTime":1792252800}
 {"op":"setup-finish"}
 {"op":"setup-window"}
 {"op":"status"}
@@ -64,7 +63,7 @@ Newline-delimited JSON at 115200 supports configuration and diagnostics, not arb
 {"op":"wifi-reconnect"}
 ```
 
-Use the current Unix timestamp. `setup-config` acknowledges `configurationAccepted:true` with `status:"connecting"`; configuration completes only after a fresh IP event for the submitted SSID. Check status before `setup-finish`. Failed joins preserve the previous saved network and keep setup available. A failed saved-network boot opens setup after 30 seconds.
+For `setup-config`, supply exactly `op`, `ssid`, `password`, `origin` and a current numeric `unixTime` in seconds; use your network values and the deployed Harness HTTPS origin. Do not paste credentials into an issue or chat. `setup-config` acknowledges `configurationAccepted:true` with `status:"connecting"`; configuration completes only after a fresh IP event for the submitted SSID. Check status before `setup-finish`. Failed joins preserve the previous saved network and keep setup available. A failed saved-network boot opens setup after 30 seconds.
 
 `setup-info` returns `IAH_SETUP` with board/boot identity, device Wi-Fi details, `httpUrl`, `transport:"webrtc-direct"` and RTC configuration. Compatibility fields report an empty setup password, `pairingCodeRequired:false` and `manualTrustRequired:false`. Return links contain no owner credential. Legacy `setup-profile` remains parseable but supplies no profile for ordinary setup. `setup-window` cancels input and reopens device Wi-Fi.
 
@@ -72,7 +71,7 @@ Use the current Unix timestamp. `setup-config` acknowledges `configurationAccept
 
 ## Scheduling and resources
 
-The product supports two BLE connections/bonds, eight registered network clients and one writer lease per phone. The current RTC adapter has one active peer and one active RPC. New ICE traffic cannot evict a live connection or active writer. An additional phone can replace an offline saved phone, but connected phones are not evicted and each replacement needs its own input test.
+The product supports two BLE connections/bonds, eight registered network clients and one writer lease per phone. The current RTC adapter has one active peer and one active RPC. New ICE traffic cannot evict a live connection or active writer. An additional phone can replace an offline saved phone, but connected phones are not evicted and each replacement needs its own explicit target binding; the digit test is optional on current firmware.
 
 The RTC task runs on core 0 at priority 1 with an 8 KiB stack. HTTP management and the Arduino loop each use a 6 KiB stack and remain separate. Network receive, JSON and hashing stay outside the short Core mutex. NimBLE jobs validate the stable phone identity and connection generation immediately before notification; callbacks do not wait on the Core mutex.
 
@@ -82,12 +81,10 @@ The RTC task runs on core 0 at priority 1 with an 8 KiB stack. HTTP management a
 
 The 7168-byte boot-local segment replay filter resides in RTC RAM and is cleared for each new Core boot. This is separate from RPC's constant-memory monotonic request numbering. Cancelling, lease expiry, BLE loss and timing misses stop dependent work and request input release. Screenshots remain browser-owned; the board never invents screenshot completion.
 
-## Verification status
+## Validation and limitations
 
-The manifest and build report identify actual compiled artifacts; `--verify-only` rejects stale source provenance. Protocol tests cover packet loss/reordering/duplicates, RPC size/replay boundaries and the final-response/next-request race. They do not measure BLE plus DTLS runtime memory or actual phone behavior.
+The firmware manifest/build report identify compiled artifacts, and `--verify-only` rejects stale provenance. Host protocol tests check ordering, replay, finite retries and resource bounds. They do not establish actual phone gestures, background capture, Shortcut completion or multi-phone reliability.
 
-The final C3 candidate uses source `1299070b61333af8b5dd9227b2e2132d216cc01ad4811cc4860c4ef8e4c43523` and application SHA-256 `0ca0500ee626f8eece9b39cd76957d21ca42d43347b08d577ff0c03f355a4b6e` (1,558,032 bytes). [Final Safari evidence](../../docs/research/rtc-control-final-safari-20261019.json) records the flashed boot, a 7000-byte request and reconnect passing all eight checks, an HTTP 200 empty clipboard result, and Japanese device settings. Phone HID and the combined phone workflow still require their own checks.
+The bridge currently supports one active WebRTC peer/RPC. Saved client capacity does not imply simultaneous control. The latest multi-client enrollment/import repair is prepared in source and still requires flashing and physical validation. Use supervised, reversible first tasks and confirm the visible result.
 
-Earlier transport evidence: on 2026-10-19, the complete C3 production candidate passed eight desktop-browser checks in both [Chrome](../../docs/research/rtc-control-chrome-20261019.json) and [Safari 27.0.1](../../docs/research/rtc-control-safari-20261019.json), including a 7000-byte request, authorization checks and disconnect/reconnect. Its application SHA-256 is `f4bbb07aa39d3c9325d74319b0b266076ace2819787b9c5d712052293a815c1f`, built from source `8ec1b81184bfaa8fbde0842f326154b27a59b4dfd5b803379eb16f46fe4dbf1d`. BLE initialized and advertised with one saved bond and no connected phone. This establishes the desktop-to-board transport path; phone HID, background capture, Shortcut use and combined task acceptance remain separate.
-
-[Short phone prototype results](../../docs/research/rtc-direct-c3-iphone-20261019.json) include successful foreground/background requests and intermittent failures. The complete production RTC/BLE firmware, Shortcut use, gestures and multi-phone behavior are being accepted separately. Historical HTTP and connection-window reports remain historical evidence.
+[Phone guide](../../docs/acceptance/README.md) · [Public architecture](../../docs/architecture/overview.md) · [Manual releases](../../docs/architecture/manual-release.md)

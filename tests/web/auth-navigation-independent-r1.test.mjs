@@ -29,20 +29,20 @@ test('same-document website navigation retains conversation identity through bro
 const source=await readFile(new URL('../../apps/web/app.js',import.meta.url),'utf8');
 function viewFixture(){
  const classes=new Set(['in-conversation']),nodes={'#panel-dialog':{open:false},'#action-dialog':{open:false},'#app':{classList:{add:name=>classes.add(name),remove:name=>classes.delete(name)}}},loads=[];
- const state={current:{id:'one'},running:true,submitting:true,capturePaused:true,pending:'Live reply',skills:[]};
- const ctx=vm.createContext({state,$:selector=>nodes[selector],closeNavigationDialog(){},renderPlatform(){},toast(){},t:key=>key,openSession:async id=>{loads.push(id);},showSettings:async()=>{},renderProviderForm(){},providers:()=>[],showDevices:async()=>{},showSkills:async()=>{},showSessionMenu:async()=>{}});
+ const refreshes=[];const state={devicePanel:{refreshConnection:async()=>refreshes.push('refresh')},current:{id:'one'},running:true,submitting:true,capturePaused:true,pending:'Live reply',skills:[]};
+ const ctx=vm.createContext({state,$:selector=>nodes[selector],closeNavigationDialog(){},renderDeviceStatus(){refreshes.push('badge');},report(error){throw error;},renderPlatform(){},toast(){},t:key=>key,openSession:async id=>{loads.push(id);},showSettings:async()=>{},renderProviderForm(){},providers:()=>[],showDevices:async()=>{},showSkills:async()=>{},showSessionMenu:async()=>{}});
  const start=source.indexOf('async function applyNavigationView('),end=source.indexOf('\nfunction rememberRouteDraft(',start);assert.ok(start>=0&&end>start);vm.runInContext(source.slice(start,end)+'\nglobalThis.apply=applyNavigationView;',ctx);
- return {state,classes,loads,apply:view=>ctx.apply(view)};
+ return {state,classes,loads,refreshes,apply:view=>ctx.apply(view)};
 }
 test('restoring a panel on the active conversation does not reload or reset a live stream or capture pause',async()=>{
- const f=viewFixture();await f.apply({route:'harness',screen:'session',sessionId:'one',panel:{kind:'settings',section:'accounts'}});assert.deepEqual(f.loads,[]);assert.equal(f.state.pending,'Live reply');assert.equal(f.state.capturePaused,true);assert.ok(f.classes.has('in-conversation'));
+ const f=viewFixture();await f.apply({route:'harness',screen:'session',sessionId:'one',panel:{kind:'settings',section:'accounts'}});assert.deepEqual(f.loads,[]);assert.equal(f.state.pending,'Live reply');assert.equal(f.state.capturePaused,true);assert.ok(f.classes.has('in-conversation'));assert.deepEqual(f.refreshes,['refresh','badge']);
 });
 
 function realSessionViewFixture(){
  let release;const read=new Promise(resolve=>release=resolve),classes=new Set(['in-conversation']);
  const nodes={'#panel-dialog':{open:false},'#action-dialog':{open:false},'#app':{classList:{add:name=>classes.add(name),remove:name=>classes.delete(name)}},'#message-input':{value:'draft'}};
- const state={current:{id:'one'},running:false,submitting:false,drafts:new Map(),navigation:{restoring:true},store:{getSession:()=>read}};
- let historyLoads=0;const ctx=vm.createContext({state,$:selector=>nodes[selector],closeNavigationDialog(){},renderPlatform(){},toast(){},t:key=>key,historyWindow:()=>({load:async()=>{historyLoads++;throw new Error('Stale or missing session must not load history');}})});
+ const refreshes=[];const state={devicePanel:{refreshConnection:async()=>refreshes.push('refresh')},current:{id:'one'},running:false,submitting:false,drafts:new Map(),navigation:{restoring:true},store:{getSession:()=>read}};
+ let historyLoads=0;const ctx=vm.createContext({state,$:selector=>nodes[selector],closeNavigationDialog(){},renderDeviceStatus(){refreshes.push('badge');},report(error){throw error;},renderPlatform(){},toast(){},t:key=>key,historyWindow:()=>({load:async()=>{historyLoads++;throw new Error('Stale or missing session must not load history');}})});
  const sessionStart=source.indexOf('async function openSession('),sessionEnd=source.indexOf('\nasync function pageHistory(',sessionStart),viewStart=source.indexOf('async function applyNavigationView('),viewEnd=source.indexOf('\nfunction rememberRouteDraft(',viewStart);
  vm.runInContext(source.slice(sessionStart,sessionEnd)+'\n'+source.slice(viewStart,viewEnd)+'\nglobalThis.apply=applyNavigationView;',ctx);
  return {state,classes,release,apply:view=>ctx.apply(view),get historyLoads(){return historyLoads;}};
