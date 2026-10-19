@@ -49,7 +49,9 @@ jobs:
           ./tests/firmware/run_html_render.sh build/test-headers
           ARDUINOJSON_INCLUDE=build/test-headers sh tests/firmware/rtc/run.sh
           python3 tools/verify_rtc_tls_link_test.py
+          python3 tools/build_c2_sdk_test.py
           python3 tools/build_firmware_test.py
+          python3 tools/build_c2_sdk_test.py
           python3 tools/firmware_release_test.py
       - name: Reuse firmware for unchanged sources and build configuration
         id: firmware
@@ -72,7 +74,13 @@ jobs:
           "$RUNNER_TEMP/iah-arduino-cli/arduino-cli" core install esp32:esp32@3.3.11 \
             --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
           "$RUNNER_TEMP/iah-arduino-cli/arduino-cli" lib install 'NimBLE-Arduino@2.5.1' 'ArduinoJson@7.4.3'
-      - name: Compile ESP32, ESP32-C3, ESP32-S3 and ESP32-C6
+      - name: Build the pinned ESP32-C2 SDK only when compilation is needed
+        if: steps.firmware.outputs.compile == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build gperf bison flex gawk libffi-dev libssl-dev python3-venv
+          python3 tools/build_c2_sdk.py --jobs 2
+      - name: Compile supported ESP32 firmware profiles
         if: steps.firmware.outputs.compile == 'true'
         run: |
           python3 tools/build_firmware.py --parallel 1 --jobs 2

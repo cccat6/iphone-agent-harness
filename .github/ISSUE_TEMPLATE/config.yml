@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Share a custom skill
+    url: https://igent.cc/skills
+    about: Create and publish custom skills in the website community.
+  - name: Setup guide
+    url: https://github.com/cccat6/iphone-agent-harness/blob/main/docs/guide/README.md
+    about: Firmware, Wi-Fi, Bluetooth, models, clipboard and skills.

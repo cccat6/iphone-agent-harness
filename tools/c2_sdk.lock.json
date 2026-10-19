@@ -1,0 +1,61 @@
+{
+  "format": "iah-c2-sdk-recipe/1",
+  "arduinoVersion": "3.3.11",
+  "repositories": {
+    "builder": {
+      "url": "https://github.com/espressif/esp32-arduino-lib-builder.git",
+      "commit": "ee57070cc8571c488a64b8ef028684acdc6ff5e2"
+    },
+    "idf": {
+      "url": "https://github.com/espressif/esp-idf.git",
+      "commit": "b774170ff46c393eeb5e495ea37936038d3f4f4f",
+      "tag": "v5.5.5"
+    },
+    "arduino": {
+      "url": "https://github.com/espressif/arduino-esp32.git",
+      "commit": "189089bb76e74978dc95abebefdad42b0d421ba9",
+      "tag": "3.3.11"
+    }
+  },
+  "target": "esp32c2",
+  "toolchainVersion": "esp-14.2.0_20260121",
+  "matrix": {
+    "target": "esp32c2",
+    "skip": 1,
+    "features": [],
+    "idf_libs": [
+      "dio",
+      "60m"
+    ],
+    "bootloaders": [
+      [
+        "dio",
+        "60m"
+      ]
+    ],
+    "mem_variants": []
+  },
+  "gnuTools": [
+    {
+      "name": "sed",
+      "version": "4.9",
+      "url": "https://ftp.gnu.org/gnu/sed/sed-4.9.tar.xz",
+      "sha256": "6e226b732e1cd739464ad6862bd1a1aba42d7982922da7a53519631d24975181"
+    },
+    {
+      "name": "gawk",
+      "version": "5.3.2",
+      "url": "https://ftp.gnu.org/gnu/gawk/gawk-5.3.2.tar.xz",
+      "sha256": "f8c3486509de705192138b00ef2c00bbbdd0e84c30d5c07d23fc73a9dc4cc9cc"
+    }
+  ],
+  "pathCanonicalization": "Python os.path.realpath adapter for GNU realpath -m used by the official SDK copy scripts",
+  "xtalMHz": [
+    26,
+    40
+  ],
+  "constraints": {
+    "url": "https://dl.espressif.com/dl/esp-idf/espidf.constraints.v5.5.txt",
+    "sha256": "4839993120d0bdf9757504d402d1a18287e76758cb28d311abc64f2503d11977"
+  }
+}

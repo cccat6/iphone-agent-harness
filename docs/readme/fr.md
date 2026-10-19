@@ -2,51 +2,86 @@
 
 [English](../../README.md) · [简体中文](zh-Hans.md) · [繁體中文](zh-Hant.md) · [日本語](ja.md) · [Русский](ru.md) · [Deutsch](de.md) · **Français** · [Español](es.md)
 
-Un Harness open source qui permet à une IA de piloter un iPhone ou iPad entre applications depuis un navigateur et un pont Bluetooth ESP32.
+**Un assistant IA pour iPhone avec un navigateur et un ESP32-C3 autour de 2 dollars US.**
 
-[igent.cc](https://igent.cc) · [GitHub](https://github.com/cccat6/iphone-agent-harness)
+Demandez à l’iPhone de lire un écran, saisir du texte, ajuster un contrôle ou suivre un court parcours entre applications. Un petit ESP32 alimenté fournit les entrées Bluetooth ; Safari gère la conversation et la capture.
+
+[Harness](https://igent.cc/) · [Installateur web](https://igent.cc/flash) · [Guide complet](../guide/fr.md) · [Compétences](https://igent.cc/skills) · [Architecture](../architecture/overview.md)
+
+- **Flasher dans le navigateur.** Les images prêtes s’installent avec Chrome/Edge sur ordinateur, sans compilateur, Arduino ni construction d’application.
+
+- **Le téléphone reste sans fil.** Une fois configuré, le pont peut rester alimenté sur une étagère à portée Bluetooth/Wi-Fi. Pas de câble USB au téléphone.
+
+- **Garder le réseau habituel.** Téléphone et pont partagent le LAN Wi-Fi ; le point d’accès ESP sert seulement à la configuration initiale. Sans application native, certificat, onglet auxiliaire ou relais LAN séparé. Confirmez la demande habituelle lorsque vous partagez l’écran.
 
 ![Illustration provisoire : navigateur, pont ESP32 et téléphone. Une vidéo/GIF de démonstration arrive prochainement.](../../apps/web/media/demo-placeholder.svg)
 
-Illustration provisoire : navigateur, pont ESP32 et téléphone. Une vidéo/GIF de démonstration arrive prochainement.
+Vidéo / GIF de démonstration à venir.
 
-## Démarrer en cinq étapes
+## Fonctionnement
 
-Prévoir Safari sur iOS/iPadOS 27+, un ESP32/C3/S3/C6 avec au moins 4 Mo de flash, un câble USB de données, le même Wi-Fi 2,4 GHz et un compte IA ou une API compatible. Le flashage web demande Chrome/Edge sur ordinateur.
+Safari envoie l’écran et le contexte choisi à l’IA. Harness vérifie le plan, le transmet localement par WebRTC à l’ESP32, puis le pont utilise souris/clavier Bluetooth. Une nouvelle observation vérifie le résultat.
 
-1. **Installer le firmware.** Sur ordinateur, ouvrir l’installateur, choisir la carte et la flasher. Lire les informations et garder le lien pour le téléphone. Pour une carte neuve, rejoindre son Wi-Fi de configuration, enregistrer le réseau habituel puis y reconnecter le téléphone.
+![Architecture : navigateur, IA choisie, ESP32 local et téléphone](../media/architecture.fr.svg)
 
-2. **Connecter le téléphone.** Ouvrir le lien ou récupérer les informations du pont dans Harness, les enregistrer puis connecter l’ESP32. Associer iPhone Agent Bridge dans Bluetooth iOS, activer AssistiveTouch et sélectionner le téléphone prêt. Le test de huit chiffres est facultatif avec le firmware actuel ; l’accès complet au clavier peut rester activé ou non. Aucun code, certificat ou onglet supplémentaire n’est nécessaire.
+[Architecture](../architecture/overview.md)
 
-3. **Choisir une IA.** Dans Réglages → Comptes/API, ajouter endpoint et clé puis charger les modèles, ou suivre la connexion ChatGPT. Choisir ou saisir le modèle par défaut ; tous les modèles trouvés restent disponibles. Créer une conversation et choisir le modèle et son effort de raisonnement pris en charge.
+## Choisir une carte
 
-4. **Partager et demander.** Partager l’écran et commencer par une tâche courte sans risque, comme une alarme de test. Une question de capacité reçoit une réponse, une demande de plan montre un plan vérifiable, une action explicite peut être exécutée. Garder le téléphone déverrouillé et observer les premiers essais. Arrêter termine ; perdre le partage met en pause.
+Une carte ESP32-C3 simple à environ **2 dollars US** est un exemple de budget, pas un devis ni une garantie. Vendeur, transport et modèle influencent le prix. Choisissez la vraie puce et un câble USB de données.
 
-5. **Vérifier le résultat.** L’IA vérifie avant de terminer puis revient par défaut dans Harness. Désactiver ce retour dans Réglages → Fin de tâche pour rester dans l’application cible. Vérifier personnellement les résultats importants.
+| Puce | Firmware | Remarque |
+|---|---|---|
+| ESP32-C2 | Image précompilée | 2 Mo minimum ; 26/40 MHz auto ; USB–UART ; application unique sans OTA |
+| ESP32-C3 | Image précompilée | 4 Mo de flash ; installation web |
+| ESP32-C5 | Image précompilée | 4 Mo de flash ; profil 80 MHz ; USB CDC natif |
+| ESP32-C6 | Image précompilée | 4 Mo de flash ; installation web |
+| ESP32-S3 | Image précompilée | 4 Mo de flash ; installation web |
+| ESP32 (classic) | Image précompilée | 4 Mo de flash ; installation web |
 
-## Utilisation courante
+## Installer et essayer
 
-- Le sélecteur du titre de liste bascule entre conversations et archives. Balayer propose Renommer/Archiver, ou Renommer/Restaurer/Supprimer dans les archives, avec confirmation. Tirer la liste vers le bas ou utiliser la recherche.
+Le guide complet décrit les onze étapes :
 
-- Les anciens messages se chargent en remontant. Les réponses préservent la position de lecture ; « Derniers » revient aux récents. Exporter par le menu et importer dans Réglages : 64 Mio maximum avec images.
+1. **[Accessibilité](../guide/fr.md#accessibility).** Activer AssistiveTouch ; accès complet au clavier facultatif.
 
-- Installer iPhone Agent Clipboard via le tutoriel pour les textes longs. Copier avec Raccourcis ou le bouton au premier plan. La tâche attend la confirmation et vérifie le champ cible avant de coller.
+2. **[Flasher](../guide/fr.md#flash).** Choisir puce et image dans l’installateur sur ordinateur.
 
-- 12 compétences intégrées couvrent observation, planification, saisie, reprise, création, horloge et correction des gestes. Saisie numérique directe si possible, sinon petits ajustements et attente de stabilisation.
+3. **[Wi-Fi](../guide/fr.md#wifi).** Enregistrer le réseau 2,4 GHz habituel et y reconnecter le téléphone.
 
-- Créer, modifier et publier ses compétences sur ordinateur ou téléphone. La propriété repose sur une identité cryptographique du navigateur, pas un UID iOS. En faire une sauvegarde chiffrée avant de changer de navigateur. Compétences intégrées/téléchargées en lecture seule, vérifiées à l’actualisation ; activation conservée et ancienne version maintenue en cas d’échec.
+4. **[Bluetooth](../guide/fr.md#bluetooth).** Associer iPhone Agent Bridge dans iOS.
 
-- MCP facultatif : serveurs Streamable HTTP accessibles au navigateur, outils explicitement autorisés et CORS requis. Pas de processus stdio ni d’hébergement OAuth distant complet.
+5. **[Ouvrir Harness](../guide/fr.md#open-harness).** Safari iOS/iPadOS 27+, téléphone déverrouillé.
 
-## Données et limites
+6. **[Configurer l’IA](../guide/fr.md#models).** API OpenAI/Anthropic compatible ou connexion ChatGPT ; charger les modèles.
 
-Conversations, images, clés et jetons sont conservés dans ce navigateur. Les identifiants sont exclus des exports et ne demandent pas de mot de passe de déverrouillage. Les contenus choisis vont au modèle. Effacer les données du site les supprime : exporter les conversations importantes. La publication envoie seulement le paquet choisi explicitement.
+7. **[Connecter/tester le pont](../guide/fr.md#bridge).** Importer le lien, choisir le téléphone prêt ; test de chiffres facultatif.
 
-Surveiller les fonctions matérielles expérimentales. Gestes, capture en arrière-plan, Raccourcis et plusieurs téléphones doivent être testés sur vos appareils ; compilation et tests de bureau ne les prouvent pas. Safari peut suspendre l’arrière-plan. Pas de limite globale de durée/étapes par défaut, mais chaque plan garde ses limites. Connexion et renouvellement ChatGPT dans Safari restent une limite de compatibilité. Un seul pair WebRTC actif est pris en charge. La réparation d’inscription/import multiclient est préparée dans le code, pas encore flashée ni validée physiquement.
+8. **[Raccourci presse-papiers](../guide/fr.md#clipboard).** Ajouter iPhone Agent Clipboard et attendre la confirmation de copie.
 
-## Développer et auto-héberger
+9. **[Compétence communautaire](../guide/fr.md#install-skills).** Installer le paquet voulu depuis le catalogue.
 
-Utiliser Node.js 22.13+. Deux parties : apps/web et firmware/IPhoneAutomationHarness. Le site statique peut utiliser l’API facultative de compétences publiques signées. Le partage d’écran demande HTTPS.
+10. **[Créer une compétence](../guide/fr.md#authoring).** Éditer sur ordinateur/téléphone ; identité cryptographique du navigateur.
+
+11. **[Publier](../guide/fr.md#publish).** Envoyer explicitement un paquet public et sauvegarder son identité.
+
+## Des conversations qui gardent votre place
+
+Questions, plans vérifiables et actions partagent la même conversation. Le titre de liste ouvre les archives ; balayer permet renommer/archiver ou restaurer/supprimer. Les réponses préservent la lecture ; « Derniers » ramène aux récents. L’export inclut les images. L’IA vérifie avant de finir et revient normalement dans Harness, désactivable dans Fin de tâche.
+
+12 compétences intégrées couvrent observation, planification, saisie, reprise, horloge et correction des gestes. Intégrées/téléchargées en lecture seule, actualisées sans perdre l’activation. Vos créations sont modifiables et liées à l’identité du navigateur, pas à un UID iOS. MCP facultatif utilise des outils choisis sur des serveurs Streamable HTTP compatibles CORS.
+
+## Vos données et votre hébergement
+
+Conversations, clés, jetons et images sont enregistrés dans le navigateur. Notre hôte ne reçoit ni conversations, ni captures, ni clés de modèle : il sert les pages statiques et compétences publiques ; les contenus choisis vont directement au modèle, les appels MCP autorisés au serveur configuré. Publier envoie seulement le paquet choisi. Exportez conversations et identité d’auteur séparément avant nettoyage ou changement de navigateur.
+
+Le matériel reste expérimental : gestes, arrière-plan, Raccourcis et plusieurs téléphones demandent une vérification réelle. Safari peut suspendre les tâches ; un seul pair WebRTC est actif. Vérifiez la compatibilité de l’abonnement ChatGPT dans Safari. Arrêt reste disponible et chaque plan garde ses limites.
+
+## Développer et contribuer
+
+Auto-hébergez le site, choisissez vos modèles et éventuellement l’API de compétences. Issues et PR sont bienvenus. Partagez les compétences réutilisables via la communauté du site.
+
+Pour développer localement, utiliser Node.js 22.13 ou ultérieur.
 
 ```sh
 npm ci
@@ -55,8 +90,10 @@ npm run build
 npm run preview
 ```
 
-Les publications sont manuelles ; les pushs ordinaires ne lancent pas GitHub Actions. Consulter le guide pour réutiliser les firmwares et déployer.
-
-[Guide téléphone](../acceptance/README.md) · [Arduino](../../firmware/IPhoneAutomationHarness/README.md) · [Architecture](../architecture/overview.md) · [Auto-hébergement](../architecture/deployment.md) · [Publications manuelles](../architecture/manual-release.md) · [Tutoriel presse-papiers](https://igent.cc/shortcuts/clipboard.html)
+[Arduino](../../firmware/IPhoneAutomationHarness/README.md) · [Auto-hébergement](../architecture/deployment.md) · [Publications manuelles](../architecture/manual-release.md)
 
 [MIT License](../../LICENSE) · [Third-party notices](../../THIRD_PARTY_NOTICES.md)
+
+## Remerciements
+
+Merci à [onehumanbeing/esp32-iphone-agent](https://github.com/onehumanbeing/esp32-iphone-agent) pour l’inspiration. Ce projet suit sa propre architecture de navigateur, capture et pont Bluetooth.

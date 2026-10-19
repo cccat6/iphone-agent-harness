@@ -16,6 +16,7 @@ import sys
 import tempfile
 from datetime import datetime, timezone
 from verify_rtc_tls_link import verify_tls_link
+import build_c2_sdk as c2_sdk
 
 ROOT = Path(__file__).resolve().parents[1]
 SKETCH = ROOT / 'firmware' / 'IPhoneAutomationHarness'
@@ -113,15 +114,32 @@ RTC_TLS_FILES = tuple("src/RtcTls/" + name for name in (
 SOURCE_FILES += RTC_TLS_FILES
 
 PROFILES = {
-    'esp32c3': {'label': 'ESP32-C3', 'board': 'ESP32C3 Dev Module', 'usbCdc': True,
+    'esp32c2': {'label': 'ESP32-C2 · 26 MHz', 'chip': 'esp32c2', 'board': 'ESP32C2 Dev Module', 'usbCdc': False, 'flashFreq': '60m', 'xtalMHz': 26, 'minFlashMB': 2, 'appCapacityBytes': 0x1E0000, 'partitions': 'partitions/c2-2m.csv',
+                'fqbn': 'esp32:esp32:esp32c2:FlashMode=dio,FlashFreq=60,FlashSize=2M,PartitionScheme=minimal'},
+    'esp32c2-40': {'label': 'ESP32-C2 · 40 MHz', 'chip': 'esp32c2', 'board': 'ESP32C2 Dev Module', 'usbCdc': False, 'flashFreq': '60m', 'xtalMHz': 40, 'minFlashMB': 2, 'appCapacityBytes': 0x1E0000, 'partitions': 'partitions/c2-2m.csv',
+                'fqbn': 'esp32:esp32:esp32c2:FlashMode=dio,FlashFreq=60,FlashSize=2M,PartitionScheme=minimal'},
+    'esp32c3': {'label': 'ESP32-C3', 'board': 'ESP32C3 Dev Module', 'usbCdc': True, 'flashFreq': '80m',
                 'fqbn': 'esp32:esp32:esp32c3:CDCOnBoot=cdc,FlashMode=dio,FlashSize=4M,PartitionScheme=huge_app'},
-    'esp32s3': {'label': 'ESP32-S3', 'board': 'ESP32S3 Dev Module', 'usbCdc': True,
+    'esp32s3': {'label': 'ESP32-S3', 'board': 'ESP32S3 Dev Module', 'usbCdc': True, 'flashFreq': '80m',
                 'fqbn': 'esp32:esp32:esp32s3:USBMode=hwcdc,CDCOnBoot=cdc,FlashMode=dio,FlashSize=4M,PartitionScheme=huge_app,PSRAM=disabled'},
-    'esp32c6': {'label': 'ESP32-C6', 'board': 'ESP32C6 Dev Module', 'usbCdc': True,
+    'esp32c5': {'label': 'ESP32-C5', 'board': 'ESP32C5 Dev Module', 'usbCdc': True, 'flashFreq': '80m', 'bootloaderOffset': 0x2000,
+                'fqbn': 'esp32:esp32:esp32c5:CDCOnBoot=cdc,FlashMode=dio,FlashSize=4M,PartitionScheme=huge_app,PSRAM=disabled'},
+    'esp32c6': {'label': 'ESP32-C6', 'board': 'ESP32C6 Dev Module', 'usbCdc': True, 'flashFreq': '80m',
                 'fqbn': 'esp32:esp32:esp32c6:CDCOnBoot=cdc,FlashMode=dio,FlashSize=4M,PartitionScheme=huge_app'},
-    'esp32': {'label': 'ESP32', 'board': 'ESP32 Dev Module', 'usbCdc': False,
+    'esp32': {'label': 'ESP32', 'board': 'ESP32 Dev Module', 'usbCdc': False, 'flashFreq': '80m',
               'fqbn': 'esp32:esp32:esp32:FlashMode=dio,FlashSize=4M,PartitionScheme=huge_app,PSRAM=disabled'},
 }
+
+
+def c2_configuration(xtal):return {'xtalMHz':xtal,'bluetoothLEEnabled':True,'wifiEnabled':True}
+def verify_c2_configuration(sdk:Path,xtal:int):
+    config=(sdk/'sdkconfig').read_text();header=(sdk/'dio_qspi/include/sdkconfig.h').read_text()
+    if not re.search(r'(?m)^CONFIG_XTAL_FREQ='+str(xtal)+r'$',config) or not re.search(r'(?m)^#define CONFIG_XTAL_FREQ '+str(xtal)+r'$',header):
+        raise RuntimeError('ESP32-C2 SDK crystal frequency does not match the selected profile')
+    for flag in ['CONFIG_BT_ENABLED','CONFIG_BT_NIMBLE_ENABLED','CONFIG_ESP_WIFI_ENABLED']:
+        if not re.search(r'(?m)^'+flag+r'=y$',config) or not re.search(r'(?m)^#define '+flag+r' 1$',header):
+            raise RuntimeError('ESP32-C2 SDK must enable Wi-Fi and Bluetooth LE: '+flag)
+    return c2_configuration(xtal)
 
 
 def digest(data: bytes) -> str:
@@ -150,7 +168,7 @@ def dependencies(cli: str):
     return {'arduinoEsp32': CORE_VERSION, 'NimBLE-Arduino': '2.5.1', 'ArduinoJson': '7.4.3'}
 
 
-def copy_clean_sketch(destination: Path):
+def copy_clean_sketch(destination: Path, *, generated_files=()):
     """Allowlist source files. Never package ignored config.local.h or old relay config."""
     if destination.resolve() == SKETCH.resolve():
         raise RuntimeError('Build staging must not overwrite source sketch')
@@ -158,7 +176,7 @@ def copy_clean_sketch(destination: Path):
         raise RuntimeError('Persistent staging must not contain symlinks')
     if destination.exists():
         actual = {p.relative_to(destination).as_posix() for p in destination.rglob('*') if p.is_file()}
-        if not actual.issubset(set(SOURCE_FILES)):
+        if not actual.issubset(set(SOURCE_FILES)|set(generated_files)):
             raise RuntimeError('Persistent staging has unapproved files; use a dedicated clean work directory')
     destination.mkdir(parents=True, exist_ok=True)
     for relative in SOURCE_FILES:
@@ -167,22 +185,22 @@ def copy_clean_sketch(destination: Path):
         data = (SKETCH / relative).read_bytes()
         if not path.is_file() or path.read_bytes() != data:
             path.write_bytes(data)
-    source_files = sorted(p for p in destination.rglob('*') if p.is_file())
+    source_files = sorted(p for p in destination.rglob('*') if p.is_file() and p.relative_to(destination).as_posix() not in generated_files)
     checksums = {p.relative_to(destination).as_posix(): digest(p.read_bytes()) for p in source_files}
     return digest(json.dumps(checksums, sort_keys=True, separators=(',', ':')).encode()), checksums
 
 
-def validate_partition_table(data: bytes):
+def validate_partition_table(data: bytes, flash_mb=4, app_bytes=0x300000):
     entries = []
     for at in range(0, len(data) - 31, 32):
         magic, kind, subtype, offset, size, label, flags = struct.unpack('<HBBLL16sL', data[at:at + 32])
         if magic in (0xFFFF, 0xEBEB):
             break
-        if magic != 0x50AA or not size or offset + size > 4 * 1024 * 1024:
-            raise RuntimeError('Invalid or larger-than-4MB partition table')
+        if magic != 0x50AA or not size or offset + size > flash_mb * 1024 * 1024:
+            raise RuntimeError(f'Invalid or larger-than-{flash_mb}MB partition table')
         entries.append((kind, subtype, offset, size, label.split(b'\0')[0].decode('ascii')))
-    if not any(kind == 0 and offset == 0x10000 and size == 0x300000 for kind, subtype, offset, size, label in entries):
-        raise RuntimeError('Expected a 3MB application partition at 0x10000')
+    if not any(kind == 0 and offset == 0x10000 and size == app_bytes for kind, subtype, offset, size, label in entries):
+        raise RuntimeError('Unexpected application partition capacity at 0x10000')
     intervals = sorted((offset, offset + size) for kind, subtype, offset, size, label in entries)
     if not intervals or any(intervals[i][1] > intervals[i + 1][0] for i in range(len(intervals) - 1)):
         raise RuntimeError('Empty or overlapping partition table')
@@ -190,7 +208,13 @@ def validate_partition_table(data: bytes):
 
 
 def collect_parts(build: Path, profile_id: str, output: Path):
+    profile=PROFILES[profile_id];flash_mb=profile.get('minFlashMB',4);app_bytes=profile.get('appCapacityBytes',0x300000)
     args = (build / 'flash_args').read_text().splitlines()
+    parameters = re.search(r'--flash-freq\s+(\S+)', args[0] if args else '')
+    if not parameters or parameters.group(1) != PROFILES[profile_id]['flashFreq']:
+        raise RuntimeError('Compiled flash frequency does not match the board profile')
+    capacity=re.search(r'--flash-size\s+(\S+)',args[0] if args else '')
+    if not capacity or capacity.group(1)!=str(flash_mb)+'MB':raise RuntimeError('Compiled flash size does not match the board profile')
     entries = []
     for line in args:
         match = re.fullmatch(r'\s*(0x[0-9a-fA-F]+)\s+([^\s]+\.bin)\s*', line)
@@ -199,7 +223,7 @@ def collect_parts(build: Path, profile_id: str, output: Path):
             if Path(name).name != name:
                 raise RuntimeError('Unexpected nonlocal flash filename')
             entries.append((offset, name))
-    expected_boot = 0x1000 if profile_id == 'esp32' else 0
+    expected_boot = PROFILES[profile_id].get('bootloaderOffset', 0x1000 if profile_id == 'esp32' else 0)
     if [x[0] for x in entries] != [expected_boot, 0x8000, 0xE000, 0x10000]:
         raise RuntimeError(f'Unexpected flash layout for {profile_id}')
     names = ['bootloader.bin', 'partitions.bin', 'boot_app0.bin', 'application.bin']
@@ -209,12 +233,12 @@ def collect_parts(build: Path, profile_id: str, output: Path):
     previous_end = 0
     for (offset, source_name), name in zip(entries, names):
         data = (build / source_name).read_bytes()
-        if not data or offset < previous_end or offset + len(data) > 4 * 1024 * 1024:
+        if not data or offset < previous_end or offset + len(data) > flash_mb * 1024 * 1024:
             raise RuntimeError('Empty, overlapping, or out-of-bounds flash image')
         if name == 'partitions.bin':
-            validate_partition_table(data)
-        if name == 'application.bin' and len(data) > 0x300000:
-            raise RuntimeError('Application exceeds the 4 MB Huge APP partition')
+            validate_partition_table(data,flash_mb,app_bytes)
+        if name == 'application.bin' and len(data) > app_bytes:
+            raise RuntimeError('Application exceeds the declared application partition')
         previous_end = offset + len(data)
         destination = published / name
         destination.write_bytes(data)
@@ -230,13 +254,17 @@ def validate_manifest(path: Path):
     for profile in data['profiles']:
         if not all(isinstance(profile.get(k), str) and profile[k] for k in ['id', 'label', 'chip', 'board']) or not isinstance(profile.get('usbCdc'), bool):
             raise RuntimeError('Missing firmware profile identity or USB mode')
-        if profile['id'] in seen or profile['chip'] not in PROFILES or profile['minFlashMB'] != 4:
+        if profile['id'] in seen or profile['id'] not in PROFILES or profile['chip'] != PROFILES[profile['id']].get('chip',profile['id']) or profile['minFlashMB'] != PROFILES[profile['id']].get('minFlashMB',4):
             raise RuntimeError('Invalid or duplicate firmware profile')
+        if profile.get('xtalMHz') != PROFILES[profile['id']].get('xtalMHz'):
+            raise RuntimeError('Firmware crystal variant does not match the board profile')
+        if profile.get('flashFreq', PROFILES[profile['id']]['flashFreq']) != PROFILES[profile['id']]['flashFreq']:
+            raise RuntimeError('Firmware flash frequency does not match the board profile')
         seen.add(profile['id'])
         end = 0
         if len(profile['parts']) != 4:
             raise RuntimeError('Incomplete firmware parts')
-        expected_offsets = [0x1000 if profile['chip'] == 'esp32' else 0, 0x8000, 0xE000, 0x10000]
+        expected_offsets = [PROFILES[profile['id']].get('bootloaderOffset', 0x1000 if profile['chip'] == 'esp32' else 0), 0x8000, 0xE000, 0x10000]
         if [part.get('offset') for part in profile['parts']] != expected_offsets:
             raise RuntimeError('Firmware offsets do not match the compiled board layout')
         for part in profile['parts']:
@@ -247,7 +275,7 @@ def validate_manifest(path: Path):
                 raise RuntimeError('Firmware path escapes manifest directory')
             image = (path.parent / relative).read_bytes()
             if relative.name == 'partitions.bin':
-                validate_partition_table(image)
+                validate_partition_table(image,profile['minFlashMB'],PROFILES[profile['id']].get('appCapacityBytes',0x300000))
             if len(image) != part['size'] or digest(image) != part['sha256']:
                 raise RuntimeError('Firmware size/hash mismatch')
             if not isinstance(part['offset'], int) or part['offset'] < end:
@@ -263,6 +291,12 @@ def verify_sources(output: Path):
     if not report_path.is_file():
         raise RuntimeError('Missing build report: cannot prove binaries match current firmware source')
     report = json.loads(report_path.read_text())
+    for profile in report.get('profiles',[]):
+        config=PROFILES.get(profile.get('id'),{})
+        if config.get('chip')=='esp32c2' and profile.get('compiled'):
+            sdk=profile.get('sdkProvenance',{})
+            if sdk.get('recipe')!=c2_sdk.provenance(config['xtalMHz']) or sdk.get('configuration')!=c2_configuration(config['xtalMHz']) or not re.fullmatch('[a-f0-9]{64}',str(sdk.get('filesSha256',''))) or not isinstance(sdk.get('fileCount'),int) or sdk['fileCount']<1:
+                raise RuntimeError('C2 SDK build provenance is stale or incomplete')
     recorded = report.get('sourceFiles')
     if not isinstance(recorded, dict) or set(recorded) != set(SOURCE_FILES):
         raise RuntimeError('Build report has no complete current allowlisted source record; rebuild firmware')
@@ -286,6 +320,7 @@ def main():
     parser.add_argument('--parallel', type=int, default=1, help='Independent chip builds; each uses --jobs workers')
     parser.add_argument('--work-dir', type=Path, help='Dedicated persistent build cache; contains allowlisted staging and compiler output only')
     parser.add_argument('--verify-only', action='store_true')
+    parser.add_argument('--c2-sdk-cache', type=Path, default=c2_sdk.DEFAULT_CACHE, help='Private pinned C2 SDK cache produced by tools/build_c2_sdk.py')
     args = parser.parse_args()
     if args.verify_only:
         count = validate_manifest(args.output / 'manifest.json')
@@ -311,7 +346,14 @@ def main():
         def compile_profile(profile_id):
             profile = PROFILES[profile_id]
             build = work / (profile_id + '-build')
+            profile_sketch=sketch
+            if profile.get('partitions'):
+                profile_sketch=work/(profile_id+'-sketch')/'IPhoneAutomationHarness';copy_clean_sketch(profile_sketch,generated_files=('partitions.csv',));shutil.copyfile(ROOT/'tools'/profile['partitions'],profile_sketch/'partitions.csv')
             command = [args.arduino_cli, 'compile', '--jobs', str(args.jobs), '--fqbn', profile['fqbn'], '--build-path', str(build)]
+            sdk_metadata=None
+            if profile.get('chip')=='esp32c2':
+                sdk=c2_sdk.verified_sdk(args.c2_sdk_cache,profile['xtalMHz']);record=json.loads((sdk/'iah-sdk-provenance.json').read_text());sdk_metadata={'recipe':record['recipe'],'filesSha256':digest(json.dumps(record['files'],sort_keys=True,separators=(',',':')).encode()),'fileCount':len(record['files']),'configuration':verify_c2_configuration(sdk,profile['xtalMHz'])}
+                command+=['--build-property','runtime.tools.esp32c2-libs.path='+str(sdk),'--build-property','upload.maximum_size='+str(profile['appCapacityBytes'])]
             if (ROOT / 'tools' / 'libraries').is_dir():
                 command += ['--libraries', str(ROOT / 'tools' / 'libraries')]
             # All implementation lives in ordinary main.cpp, so no Arduino
@@ -323,17 +365,19 @@ def main():
                 # remove this file before hooks, so a no-op hook is unsafe. Copy
                 # the exact options with their source timestamp instead.
                 command += ['--build-property', 'recipe.hooks.prebuild.5.pattern=/bin/cp -p "{build.source.path}/build_opt.h" "{build.path}/build_opt.h"']
-            command.append(str(sketch))
-            print(f'Compiling {profile["label"]} (4 MB, CDC={profile["usbCdc"]})', flush=True)
+            command.append(str(profile_sketch))
+            print(f'Compiling {profile["label"]} ({profile.get("minFlashMB",4)} MB, CDC={profile["usbCdc"]})', flush=True)
             run = subprocess.run(command, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
             summary = [line for line in run.stdout.splitlines() if line.startswith(('Sketch uses', 'Global variables use'))]
             report = {'id': profile_id, 'fqbn': profile['fqbn'], 'compiled': run.returncode == 0, 'summary': summary}
+            if sdk_metadata:report['sdkProvenance']=sdk_metadata
             if run.returncode == 0:
                 if (build / 'build_opt.h').read_bytes() != (sketch / 'build_opt.h').read_bytes():
                     raise RuntimeError('Compiled options do not match allowlisted source')
                 report['rtcTlsLink'] = verify_tls_link(build, sketch / 'src' / 'RtcTls')
                 parts = collect_parts(build, profile_id, args.output)
-                built = {'id': profile_id, 'label': profile['label'], 'chip': profile_id, 'board': profile['board'], 'minFlashMB': 4, 'usbCdc': profile['usbCdc'], 'parts': parts}
+                built = {'id': profile_id, 'label': profile['label'], 'chip': profile.get('chip',profile_id), 'board': profile['board'], 'minFlashMB': profile.get('minFlashMB',4), 'usbCdc': profile['usbCdc'], 'flashFreq': profile['flashFreq'], 'parts': parts}
+                if profile.get('xtalMHz'):built['xtalMHz']=profile['xtalMHz']
                 for line in summary:
                     print(line, flush=True)
             else:
@@ -354,7 +398,7 @@ def main():
         compiled.sort(key=lambda value: order[value['id']])
         reports.sort(key=lambda value: order[value['id']])
     manifest = {'schemaVersion': 1, 'firmwareVersion': '0.4.0-rtc-direct', 'executionEnabled': True, 'physicalValidation': False, 'requiresManualTrust': False, 'stage': 'rtc-control-phone-validation-pending', 'profiles': compiled}
-    report = {'builtAt': datetime.now(timezone.utc).isoformat(), 'dependencies': pinned, 'sourceSha256': source_hash, 'sourceFiles': source_files, 'serialPortsOpened': False, 'flashed': False, 'profiles': reports, 'excluded': [{'chip': 'esp32s2', 'reason': 'No Bluetooth LE radio'}]}
+    report = {'builtAt': datetime.now(timezone.utc).isoformat(), 'dependencies': pinned, 'sourceSha256': source_hash, 'sourceFiles': source_files, 'serialPortsOpened': False, 'flashed': False, 'profiles': reports, 'excluded': [{'chip': 'esp32s2', 'reason': 'No Bluetooth LE radio; cannot control an iPhone over BLE without extra hardware'}]}
     for name, value in [('manifest.json', manifest), ('build-report.json', report)]:
         temporary_path = args.output / (name + '.tmp')
         temporary_path.write_text(json.dumps(value, ensure_ascii=False, indent=2) + '\n')

@@ -12,8 +12,9 @@ build=importlib.util.module_from_spec(spec)
 spec.loader.exec_module(build)
 
 
-def partition_table():
+def partition_table(flash_mb=4):
     entries=[(1,2,0x9000,0x5000,b'nvs'),(1,0,0xe000,0x2000,b'otadata'),(0,16,0x10000,0x300000,b'app0'),(1,130,0x310000,0xe0000,b'spiffs'),(1,3,0x3f0000,0x10000,b'coredump')]
+    if flash_mb==2:entries=[(1,2,0x9000,0x5000,b'nvs'),(1,0,0xe000,0x2000,b'otadata'),(0,0,0x10000,0x1e0000,b'app0'),(1,3,0x1f0000,0x10000,b'coredump')]
     result=b''.join(struct.pack('<HBBLL16sL',0x50aa,t,s,o,n,label,0) for t,s,o,n,label in entries)
     return result+b'\xff'*(3072-len(result))
 
@@ -35,6 +36,53 @@ class FirmwareArtifacts(unittest.TestCase):
     def test_valid_offsets_hashes_and_4mb_partitions(self):
         with tempfile.TemporaryDirectory() as temporary:
             path,_=self.fixture(Path(temporary));self.assertEqual(build.validate_manifest(path),1)
+
+    def test_c5_requires_its_0x2000_bootloader_offset(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path,manifest=self.fixture(Path(temporary));root=path.parent
+            (root/'esp32c3').rename(root/'esp32c5')
+            profile=manifest['profiles'][0];profile.update(id='esp32c5',chip='esp32c5',label='ESP32-C5',board='ESP32C5 Dev Module')
+            for part in profile['parts']:part['path']=part['path'].replace('esp32c3/','esp32c5/')
+            profile['parts'][0]['offset']=0x2000;path.write_text(json.dumps(manifest));self.assertEqual(build.validate_manifest(path),1)
+            profile['parts'][0]['offset']=0;path.write_text(json.dumps(manifest))
+            with self.assertRaisesRegex(RuntimeError,'offsets'):build.validate_manifest(path)
+
+    def test_mismatched_flash_frequency_is_rejected(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path,manifest=self.fixture(Path(temporary));manifest['profiles'][0]['flashFreq']='60m';path.write_text(json.dumps(manifest))
+            with self.assertRaisesRegex(RuntimeError,'frequency'):build.validate_manifest(path)
+
+    def test_c2_crystal_profiles_share_physical_chip_but_require_exact_variant(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path,manifest=self.fixture(Path(temporary));root=path.parent;original=manifest['profiles'][0];profiles=[]
+            import copy,shutil
+            for profile_id,xtal in [('esp32c2',26),('esp32c2-40',40)]:
+                shutil.copytree(root/'esp32c3',root/profile_id);profile=copy.deepcopy(original);profile.update(id=profile_id,chip='esp32c2',label='ESP32-C2',board='ESP32C2 Dev Module',usbCdc=False,flashFreq='60m',xtalMHz=xtal,minFlashMB=2)
+                for part in profile['parts']:part['path']=part['path'].replace('esp32c3/',profile_id+'/')
+                part=profile['parts'][1];raw=partition_table(2);(root/part['path']).write_bytes(raw);part.update(size=len(raw),sha256=build.digest(raw))
+                profiles.append(profile)
+            manifest['profiles']=profiles;path.write_text(json.dumps(manifest));self.assertEqual(build.validate_manifest(path),2)
+            profiles[1]['xtalMHz']=26;path.write_text(json.dumps(manifest))
+            with self.assertRaisesRegex(RuntimeError,'crystal'):build.validate_manifest(path)
+
+    def test_c2_sdk_configuration_proves_crystal_wifi_and_ble(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            sdk=Path(temporary);(sdk/'dio_qspi/include').mkdir(parents=True)
+            for xtal in [26,40]:
+                config='CONFIG_XTAL_FREQ='+str(xtal)+'\n'+'\n'.join(flag+'=y' for flag in ['CONFIG_BT_ENABLED','CONFIG_BT_NIMBLE_ENABLED','CONFIG_ESP_WIFI_ENABLED'])+'\n'
+                header='#define CONFIG_XTAL_FREQ '+str(xtal)+'\n'+'\n'.join('#define '+flag+' 1' for flag in ['CONFIG_BT_ENABLED','CONFIG_BT_NIMBLE_ENABLED','CONFIG_ESP_WIFI_ENABLED'])+'\n'
+                (sdk/'sdkconfig').write_text(config);(sdk/'dio_qspi/include/sdkconfig.h').write_text(header)
+                self.assertEqual(build.verify_c2_configuration(sdk,xtal)['xtalMHz'],xtal)
+                with self.assertRaisesRegex(RuntimeError,'crystal'):build.verify_c2_configuration(sdk,40 if xtal==26 else 26)
+                (sdk/'sdkconfig').write_text(config.replace('CONFIG_BT_ENABLED=y','CONFIG_BT_ENABLED=n'))
+                with self.assertRaisesRegex(RuntimeError,'Bluetooth'):build.verify_c2_configuration(sdk,xtal)
+
+    def test_c2_two_mb_partition_has_headroom_and_preserves_nvs(self):
+        entries=build.validate_partition_table(partition_table(2),2,0x1e0000)
+        self.assertIn((1,2,0x9000,0x5000,'nvs'),entries)
+        self.assertIn((0,0,0x10000,0x1e0000,'app0'),entries)
+        self.assertEqual(max(offset+size for _,_,offset,size,_ in entries),2*1024*1024)
+        with self.assertRaisesRegex(RuntimeError,'2MB'):build.validate_partition_table(partition_table(),2,0x1e0000)
 
     def test_corrupted_binary_and_bad_flash_offsets_are_rejected(self):
         with tempfile.TemporaryDirectory() as temporary:

@@ -11,6 +11,8 @@ await mkdir(destination,{recursive:true});
 await cp(path.join(root,'LICENSE'),path.join(destination,'LICENSE.txt'));
 await cp(path.join(root,'THIRD_PARTY_NOTICES.md'),path.join(destination,'THIRD_PARTY_NOTICES.md'));
 await cp(path.join(root,'apps/web'),destination,{recursive:true,filter:source=>source!==path.join(root,'apps/web/api')&&source!==path.join(root,'apps/web/diagnostics')&&source!==path.join(root,'apps/web/worker.js')&&!source.endsWith('worker-configuration.d.ts')&&!/(^|\/)\.env($|\.)|\.local\.|\.DS_Store$/.test(source)});
+await mkdir(path.join(destination,'media'),{recursive:true});
+for(const name of await readdir(path.join(root,'docs/media')))if(/^architecture(?:\.[-A-Za-z]+)?\.svg$/.test(name))await cp(path.join(root,'docs/media',name),path.join(destination,'media',name));
 await cp(path.join(root,'specs'),path.join(destination,'specs'),{recursive:true});
 await cp(path.join(root,'prompts'),path.join(destination,'prompts'),{recursive:true});
 const catalog={version:1,skills:[]};

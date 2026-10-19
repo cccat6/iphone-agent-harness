@@ -16,4 +16,4 @@ Browser data belongs to its origin: moving hosts requires explicit export/import
 
 ## Releases
 
-Normal pushes do not start GitHub Actions. An explicitly requested [manual release](manual-release.md) validates source, reuses or builds four firmware profiles, publishes release assets, includes the same binaries in the site, deploys and verifies served files. Configure required deployment credentials before dispatch. A deployment success is not physical-phone acceptance.
+Normal pushes do not start GitHub Actions. An explicitly requested [manual release](manual-release.md) validates source, reuses or builds all declared firmware profiles, publishes release assets, includes the same binaries in the site, deploys and verifies served files. Configure required deployment credentials before dispatch. A deployment success is not physical-phone acceptance.

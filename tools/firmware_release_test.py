@@ -32,8 +32,8 @@ def fixture():
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(SOURCE_ROOT / 'firmware/IPhoneAutomationHarness' / name, destination)
         (root / 'tools').mkdir()
-        for recipe in ('build_firmware.py', 'verify_rtc_tls_link.py'):
-            shutil.copyfile(SOURCE_ROOT / 'tools' / recipe, root / 'tools' / recipe)
+        for recipe in ('build_firmware.py', 'verify_rtc_tls_link.py', 'build_c2_sdk.py', 'c2_sdk.lock.json', 'c2_sdk.components.lock', 'partitions/c2-2m.csv'):
+            (root/'tools'/recipe).parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(SOURCE_ROOT / 'tools' / recipe, root / 'tools' / recipe)
         shutil.copyfile(SOURCE_ROOT / 'LICENSE', root / 'LICENSE')
         output = root / 'apps/web/firmware'
         output.mkdir(parents=True)
@@ -47,12 +47,12 @@ def fixture():
         profiles=[]
         for profile_id,config in release.builder.PROFILES.items():
             parts=[]
-            for name,offset,raw in zip(release.PARTS,[0x1000 if profile_id=='esp32' else 0,0x8000,0xe000,0x10000],[b'fixture boot',partitions,b'fixture OTA',b'fixture app']):
+            for name,offset,raw in zip(release.PARTS,[config.get('bootloaderOffset',0x1000 if profile_id=='esp32' else 0),0x8000,0xe000,0x10000],[b'fixture boot',(partitions if config.get('minFlashMB',4)==4 else b''.join(struct.pack('<HBBLL16sL',0x50aa,t,s,o,n,label,0) for t,s,o,n,label in [(1,2,0x9000,0x5000,b'nvs'),(1,0,0xe000,0x2000,b'otadata'),(0,0,0x10000,0x1e0000,b'app0'),(1,3,0x1f0000,0x10000,b'coredump')])+b'\xff'*32),b'fixture OTA',b'fixture app']):
                 destination=output/profile_id/name;destination.parent.mkdir(exist_ok=True);destination.write_bytes(raw)
                 parts.append({'path':f'{profile_id}/{name}','offset':offset,'size':len(raw),'sha256':release.sha(raw)})
-            profiles.append({'id':profile_id,'label':config['label'],'chip':profile_id,'board':config['board'],'minFlashMB':4,'usbCdc':config['usbCdc'],'parts':parts})
+            profiles.append({'id':profile_id,'label':config['label'],'chip':config.get('chip',profile_id),'board':config['board'],'minFlashMB':config.get('minFlashMB',4),'usbCdc':config['usbCdc'],'flashFreq':config['flashFreq'],**({'xtalMHz':config['xtalMHz']} if config.get('xtalMHz') else {}),'parts':parts})
         source_files={name:release.sha((sketch/name).read_bytes()) for name in release.builder.SOURCE_FILES}
-        report={'dependencies':release.DEPENDENCIES,'sourceFiles':source_files,'sourceSha256':release.sha(json.dumps(source_files,sort_keys=True,separators=(',',':')).encode()),'profiles':[{'id':name,'fqbn':config['fqbn'],'compiled':True} for name,config in release.builder.PROFILES.items()]}
+        report={'dependencies':release.DEPENDENCIES,'sourceFiles':source_files,'sourceSha256':release.sha(json.dumps(source_files,sort_keys=True,separators=(',',':')).encode()),'profiles':[{'id':name,'fqbn':config['fqbn'],'compiled':True,**({'sdkProvenance':{'recipe':release.builder.c2_sdk.provenance(config['xtalMHz']),'filesSha256':'a'*64,'fileCount':100,'configuration':release.builder.c2_configuration(config['xtalMHz'])}} if config.get('chip')=='esp32c2' else {})} for name,config in release.builder.PROFILES.items()]}
         (output/'manifest.json').write_text(json.dumps({'schemaVersion':1,'profiles':profiles}))
         (output/'build-report.json').write_text(json.dumps(report))
         with patch.object(release, 'ROOT', root), patch.object(release, 'FIRMWARE', output), patch.object(release.builder, 'SKETCH', sketch):
@@ -98,7 +98,7 @@ class FirmwareReleaseTests(unittest.TestCase):
             report = json.loads(original)
             report['profiles'].pop()
             report_path.write_text(json.dumps(report))
-            with self.assertRaisesRegex(RuntimeError, 'four profiles'):
+            with self.assertRaisesRegex(RuntimeError, 'configured profiles'):
                 release.validate()
             report = json.loads(original)
             report['dependencies']['NimBLE-Arduino'] = '0.0.0'
@@ -110,10 +110,10 @@ class FirmwareReleaseTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, 'hash'):
                 release.validate()
 
-    def test_pack_has_all_16_loose_binaries_metadata_licenses_and_reproducible_archive(self):
+    def test_pack_has_all_configured_loose_binaries_metadata_licenses_and_reproducible_archive(self):
         with fixture() as (root, sketch, output):
             folder = release.pack()
-            self.assertEqual(len(list(folder.glob('*.bin'))), 16)
+            self.assertEqual(len(list(folder.glob('*.bin'))), len(release.builder.PROFILES)*len(release.PARTS))
             sums = release.checksums((folder / 'SHA256SUMS').read_text())
             self.assertEqual(set(sums), {p.name for p in folder.iterdir()} - {'SHA256SUMS'})
             for name, digest in sums.items():
@@ -232,7 +232,7 @@ class FirmwareReleaseTests(unittest.TestCase):
             self.assertNotIn('\n  ' + trigger + '\n', text.split('jobs:')[0])
         self.assertIn("if: github.ref == 'refs/heads/main'", text)
         self.assertIn('cancel-in-progress: false', text)
-        self.assertEqual(text.count("if: steps.firmware.outputs.compile == 'true'"), 2)
+        self.assertEqual(text.count("if: steps.firmware.outputs.compile == 'true'"), 3)
         order = ['firmware_release.py plan', 'build_firmware.py --parallel', 'firmware_release.py verify', 'npm run build', 'firmware_release.py publish', 'wrangler deploy\n', 'verify_release_site.mjs']
         positions = [text.index(item) for item in order]
         self.assertEqual(positions, sorted(positions))

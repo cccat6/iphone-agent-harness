@@ -6,7 +6,7 @@ Hardware functionality remains experimental. Test phone input, release/recovery,
 
 ## Hardware and build
 
-Only Wi-Fi, BLE and USB/UART serial are used. No user GPIO, LED, button, display, sensor or relay behavior is added. C3/S3/C6 retain native USB CDC; original ESP32 uses its development board's USB-to-UART bridge. Boards need at least 4 MB ordinary SPI flash. Generic DIO profiles require no PSRAM. ESP32-S2 has no BLE and H2 has no Wi-Fi, so neither is supported.
+Only Wi-Fi, BLE and USB/UART serial are used. No user GPIO, LED, button, display, sensor or relay behavior is added. C3/C5/C6/S3 retain native USB CDC; original ESP32 uses its development board's USB-to-UART bridge. C2 boards need at least 2 MB flash; other declared profiles need at least 4 MB ordinary SPI flash. C2 has separate 26/40 MHz SDK builds and uses USB-to-UART. Generic DIO profiles require no PSRAM. ESP32-S2 has no BLE and H2 has no Wi-Fi, so neither is supported.
 
 Pinned dependencies: ESP32 Arduino **3.3.11**, NimBLE-Arduino **2.5.1**, ArduinoJson **7.4.3**. Open `IPhoneAutomationHarness.ino`; the implementation is in ordinary `main.cpp` and `src/`.
 
@@ -77,7 +77,7 @@ The RTC task runs on core 0 at priority 1 with an 8 KiB stack. HTTP management a
 
 `src/RtcTls` builds the complete TLS source family matching the ESP-IDF SDK, with 2048-byte input and output record content limits. Crypto and X.509 retain the matching SDK libraries. This reduces the two calculated record-buffer allocations by 28,672 bytes; the [link guard](../../tools/verify_rtc_tls_link.py) checks that no precompiled SDK TLS objects are mixed in. See the [source and configuration record](src/RtcTls/README.md). Full combined BLE, HTTP and RTC acceptance remains tracked separately from this allocation calculation.
 
-`ResourceLimits.h` retains peripheral-only NimBLE, ATT MTU 23, two connections/bonds and MSYS pools 8/8 on C3/S3/C6; original ESP32 preserves its SDK-disabled second pool, 8/0. Core has 128 events per target and an 8192-byte request ceiling. Motion reports have a 40 ms minimum interval and 20 ms pointer settling. A held gesture is not split to fit a network request.
+`ResourceLimits.h` retains peripheral-only NimBLE, ATT MTU 23, two connections/bonds and MSYS pools 8/8 on C3/C5/C6/S3; original ESP32 preserves its SDK-disabled second pool, 8/0. Core has 128 events per target and an 8192-byte request ceiling. Motion reports have a 40 ms minimum interval and 20 ms pointer settling. A held gesture is not split to fit a network request.
 
 The 7168-byte boot-local segment replay filter resides in RTC RAM and is cleared for each new Core boot. This is separate from RPC's constant-memory monotonic request numbering. Cancelling, lease expiry, BLE loss and timing misses stop dependent work and request input release. Screenshots remain browser-owned; the board never invents screenshot completion.
 

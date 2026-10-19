@@ -113,10 +113,14 @@
     "src/RtcTls/x509_internal.h": "cff993cc6af31de0b42a009ef25320ea2c6657a9e8e32ffef43aadb00a640f41"
   },
   "recipeFiles": {
-    "build_firmware.py": "77526070d1e42c0ad115590d652460ba68b058a85d0322c3635d8e0525dbae06",
-    "verify_rtc_tls_link.py": "ccda6913da963200ea367112c350e05bb733761324d50804c0c808d8a5da4b8b"
+    "build_firmware.py": "ded5d7ed19eff57d7a93cc9e13642405fab01ccdb810e9550509d8e71d042e7e",
+    "verify_rtc_tls_link.py": "ccda6913da963200ea367112c350e05bb733761324d50804c0c808d8a5da4b8b",
+    "build_c2_sdk.py": "8e8712c9dc7da3a3cda12cce5800ff623acb783be187615b8d0a751fbffd3822",
+    "c2_sdk.lock.json": "05ad1d7a7f0c3adb6d0a302533f2a78a2ad99737fdf71e88be1f9a342dc4ea6a",
+    "c2_sdk.components.lock": "de86c6e0b54dadef599400692273e5bd9b36564dc0ca90c85f3c0900e2b120de",
+    "partitions/c2-2m.csv": "b49b7fc83f81c845f74e4a324a026c0acde081305d11d55912dc7c998ca57ba0"
   },
-  "recipeSha256": "191ea0a5b8f9ef6a212f7a12eec3955fa8515ae04b7e1f0b5407f6e54d56fe7b",
+  "recipeSha256": "f04a07dd701fcc474dbc8d1023d1d31eae25838f3f75658f37b80d556f3a8120",
   "arduinoCli": "1.5.1",
   "dependencies": {
     "arduinoEsp32": "3.3.11",
@@ -124,28 +128,64 @@
     "ArduinoJson": "7.4.3"
   },
   "profiles": {
+    "esp32c2": {
+      "label": "ESP32-C2 \u00b7 26 MHz",
+      "chip": "esp32c2",
+      "board": "ESP32C2 Dev Module",
+      "usbCdc": false,
+      "flashFreq": "60m",
+      "xtalMHz": 26,
+      "minFlashMB": 2,
+      "appCapacityBytes": 1966080,
+      "partitions": "partitions/c2-2m.csv",
+      "fqbn": "esp32:esp32:esp32c2:FlashMode=dio,FlashFreq=60,FlashSize=2M,PartitionScheme=minimal"
+    },
+    "esp32c2-40": {
+      "label": "ESP32-C2 \u00b7 40 MHz",
+      "chip": "esp32c2",
+      "board": "ESP32C2 Dev Module",
+      "usbCdc": false,
+      "flashFreq": "60m",
+      "xtalMHz": 40,
+      "minFlashMB": 2,
+      "appCapacityBytes": 1966080,
+      "partitions": "partitions/c2-2m.csv",
+      "fqbn": "esp32:esp32:esp32c2:FlashMode=dio,FlashFreq=60,FlashSize=2M,PartitionScheme=minimal"
+    },
     "esp32c3": {
       "label": "ESP32-C3",
       "board": "ESP32C3 Dev Module",
       "usbCdc": true,
+      "flashFreq": "80m",
       "fqbn": "esp32:esp32:esp32c3:CDCOnBoot=cdc,FlashMode=dio,FlashSize=4M,PartitionScheme=huge_app"
     },
     "esp32s3": {
       "label": "ESP32-S3",
       "board": "ESP32S3 Dev Module",
       "usbCdc": true,
+      "flashFreq": "80m",
       "fqbn": "esp32:esp32:esp32s3:USBMode=hwcdc,CDCOnBoot=cdc,FlashMode=dio,FlashSize=4M,PartitionScheme=huge_app,PSRAM=disabled"
+    },
+    "esp32c5": {
+      "label": "ESP32-C5",
+      "board": "ESP32C5 Dev Module",
+      "usbCdc": true,
+      "flashFreq": "80m",
+      "bootloaderOffset": 8192,
+      "fqbn": "esp32:esp32:esp32c5:CDCOnBoot=cdc,FlashMode=dio,FlashSize=4M,PartitionScheme=huge_app,PSRAM=disabled"
     },
     "esp32c6": {
       "label": "ESP32-C6",
       "board": "ESP32C6 Dev Module",
       "usbCdc": true,
+      "flashFreq": "80m",
       "fqbn": "esp32:esp32:esp32c6:CDCOnBoot=cdc,FlashMode=dio,FlashSize=4M,PartitionScheme=huge_app"
     },
     "esp32": {
       "label": "ESP32",
       "board": "ESP32 Dev Module",
       "usbCdc": false,
+      "flashFreq": "80m",
       "fqbn": "esp32:esp32:esp32:FlashMode=dio,FlashSize=4M,PartitionScheme=huge_app,PSRAM=disabled"
     }
   }

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import vm from 'node:vm';
 import {openStore} from '../../apps/web/core/store.js';
-import {setLocale,t,SUPPORTED_LOCALES} from '../../apps/web/i18n.js';
+import {setLocale,getLocale,t,SUPPORTED_LOCALES} from '../../apps/web/i18n.js';
 const source=await readFile(new URL('../../apps/web/app.js',import.meta.url),'utf8');
 test('production return callback verifies the exact visible focused conversation and excludes website pages and open panels',()=>{
  const nodes={'#app':{classList:{contains:()=>true}},'#panel-dialog':{open:false},'#action-dialog':{open:false}};
@@ -30,7 +30,7 @@ test('the actual completion setting is enabled by default and persists opt-out w
 
 test('the homepage has a localized five-step guide and truthful demo placeholder in all eight languages',()=>{
  const start=source.indexOf('function homeGuideHTML('),end=source.indexOf('\n',start);assert.ok(start>=0&&end>start);
- const context=vm.createContext({t,routeHref:route=>route==='harness'?'/':'/'+route,URL,SITE_CONFIG:{repository:'https://github.com/cccat6/iphone-agent-harness'}});
+ const context=vm.createContext({t,getLocale,routeHref:route=>route==='harness'?'/':'/'+route,URL,SITE_CONFIG:{repository:'https://github.com/cccat6/iphone-agent-harness'}});
  vm.runInContext(source.slice(start,end).replaceAll('import.meta.url',JSON.stringify('https://igent.cc/app.js')),context);
  try{for(const {code}of SUPPORTED_LOCALES){setLocale(code);const mobile=context.homeGuideHTML(true),desktop=context.homeGuideHTML(false);assert.equal((mobile.match(/<li>/g)||[]).length,5);assert.ok(!mobile.includes('guide.'));assert.ok(mobile.includes(t('guide.demoPending')));assert.match(mobile,/href="\/"/);assert.match(desktop,/href="\/flash"/);assert.ok(mobile.includes('demo-placeholder.svg'));assert.ok(!mobile.includes('<video'));assert.ok(mobile.includes('shortcuts/clipboard.html'));}}finally{setLocale('auto');}
 });

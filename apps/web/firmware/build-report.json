@@ -1,5 +1,5 @@
 {
-  "builtAt": "2026-10-19T12:40:12.304687+00:00",
+  "builtAt": "2026-10-19T13:48:47.925912+00:00",
   "dependencies": {
     "arduinoEsp32": "3.3.11",
     "NimBLE-Arduino": "2.5.1",
@@ -122,6 +122,154 @@
   "flashed": false,
   "profiles": [
     {
+      "id": "esp32c2",
+      "fqbn": "esp32:esp32:esp32c2:FlashMode=dio,FlashFreq=60,FlashSize=2M,PartitionScheme=minimal",
+      "compiled": true,
+      "summary": [
+        "Sketch uses 1304808 bytes (66%) of program storage space. Maximum is 1966080 bytes.",
+        "Global variables use 48244 bytes (14%) of dynamic memory, leaving 279436 bytes for local variables. Maximum is 327680 bytes."
+      ],
+      "sdkProvenance": {
+        "recipe": {
+          "format": "iah-c2-sdk-build/1",
+          "recipeSha256": "05ad1d7a7f0c3adb6d0a302533f2a78a2ad99737fdf71e88be1f9a342dc4ea6a",
+          "bootstrapSha256": "8e8712c9dc7da3a3cda12cce5800ff623acb783be187615b8d0a751fbffd3822",
+          "componentsLockSha256": "de86c6e0b54dadef599400692273e5bd9b36564dc0ca90c85f3c0900e2b120de",
+          "repositories": {
+            "builder": {
+              "url": "https://github.com/espressif/esp32-arduino-lib-builder.git",
+              "commit": "ee57070cc8571c488a64b8ef028684acdc6ff5e2"
+            },
+            "idf": {
+              "url": "https://github.com/espressif/esp-idf.git",
+              "commit": "b774170ff46c393eeb5e495ea37936038d3f4f4f",
+              "tag": "v5.5.5"
+            },
+            "arduino": {
+              "url": "https://github.com/espressif/arduino-esp32.git",
+              "commit": "189089bb76e74978dc95abebefdad42b0d421ba9",
+              "tag": "3.3.11"
+            }
+          },
+          "toolchainVersion": "esp-14.2.0_20260121",
+          "matrix": {
+            "target": "esp32c2",
+            "skip": 1,
+            "features": [],
+            "idf_libs": [
+              "dio",
+              "60m"
+            ],
+            "bootloaders": [
+              [
+                "dio",
+                "60m"
+              ]
+            ],
+            "mem_variants": []
+          },
+          "xtalMHz": 26
+        },
+        "filesSha256": "4546386825180d0931fafc6fd654f12c212cbd4b436849d66dbbf3e41ff55fdf",
+        "fileCount": 1931,
+        "configuration": {
+          "xtalMHz": 26,
+          "bluetoothLEEnabled": true,
+          "wifiEnabled": true
+        }
+      },
+      "rtcTlsLink": {
+        "recordContentBytes": 2048,
+        "tlsUnitsCompiled": 20,
+        "sdkTlsMembers": [],
+        "verifiedLiveSymbols": [
+          "mbedtls_ssl_setup",
+          "mbedtls_ssl_handshake",
+          "mbedtls_ssl_session_reset",
+          "mbedtls_ssl_read",
+          "mbedtls_ssl_write",
+          "mbedtls_ssl_cookie_check",
+          "mbedtls_ssl_handshake_server_step",
+          "mbedtls_ssl_handshake_client_step"
+        ],
+        "linkMapSha256": "4b25ea09985bcb73b2ea518d6ae05b42a9c7eb99d87e9802a3b8ef7f931c1164"
+      }
+    },
+    {
+      "id": "esp32c2-40",
+      "fqbn": "esp32:esp32:esp32c2:FlashMode=dio,FlashFreq=60,FlashSize=2M,PartitionScheme=minimal",
+      "compiled": true,
+      "summary": [
+        "Sketch uses 1304748 bytes (66%) of program storage space. Maximum is 1966080 bytes.",
+        "Global variables use 48244 bytes (14%) of dynamic memory, leaving 279436 bytes for local variables. Maximum is 327680 bytes."
+      ],
+      "sdkProvenance": {
+        "recipe": {
+          "format": "iah-c2-sdk-build/1",
+          "recipeSha256": "05ad1d7a7f0c3adb6d0a302533f2a78a2ad99737fdf71e88be1f9a342dc4ea6a",
+          "bootstrapSha256": "8e8712c9dc7da3a3cda12cce5800ff623acb783be187615b8d0a751fbffd3822",
+          "componentsLockSha256": "de86c6e0b54dadef599400692273e5bd9b36564dc0ca90c85f3c0900e2b120de",
+          "repositories": {
+            "builder": {
+              "url": "https://github.com/espressif/esp32-arduino-lib-builder.git",
+              "commit": "ee57070cc8571c488a64b8ef028684acdc6ff5e2"
+            },
+            "idf": {
+              "url": "https://github.com/espressif/esp-idf.git",
+              "commit": "b774170ff46c393eeb5e495ea37936038d3f4f4f",
+              "tag": "v5.5.5"
+            },
+            "arduino": {
+              "url": "https://github.com/espressif/arduino-esp32.git",
+              "commit": "189089bb76e74978dc95abebefdad42b0d421ba9",
+              "tag": "3.3.11"
+            }
+          },
+          "toolchainVersion": "esp-14.2.0_20260121",
+          "matrix": {
+            "target": "esp32c2",
+            "skip": 1,
+            "features": [],
+            "idf_libs": [
+              "dio",
+              "60m"
+            ],
+            "bootloaders": [
+              [
+                "dio",
+                "60m"
+              ]
+            ],
+            "mem_variants": []
+          },
+          "xtalMHz": 40
+        },
+        "filesSha256": "2972ee06bbf63fa686e4315fa9f1568dce850b00b2b77c1b9b5183a3da9a784b",
+        "fileCount": 1931,
+        "configuration": {
+          "xtalMHz": 40,
+          "bluetoothLEEnabled": true,
+          "wifiEnabled": true
+        }
+      },
+      "rtcTlsLink": {
+        "recordContentBytes": 2048,
+        "tlsUnitsCompiled": 20,
+        "sdkTlsMembers": [],
+        "verifiedLiveSymbols": [
+          "mbedtls_ssl_setup",
+          "mbedtls_ssl_handshake",
+          "mbedtls_ssl_session_reset",
+          "mbedtls_ssl_read",
+          "mbedtls_ssl_write",
+          "mbedtls_ssl_cookie_check",
+          "mbedtls_ssl_handshake_server_step",
+          "mbedtls_ssl_handshake_client_step"
+        ],
+        "linkMapSha256": "4bb58ae22ce5acc926c19ac2f9b6815da663e87682871a6f3f9e32b650acc0e6"
+      }
+    },
+    {
       "id": "esp32c3",
       "fqbn": "esp32:esp32:esp32c3:CDCOnBoot=cdc,FlashMode=dio,FlashSize=4M,PartitionScheme=huge_app",
       "compiled": true,
@@ -169,6 +317,31 @@
           "mbedtls_ssl_handshake_client_step"
         ],
         "linkMapSha256": "af65834051b9b2fa210128744fd67a9f5c9055494b0d069877f25e56cbcf635f"
+      }
+    },
+    {
+      "id": "esp32c5",
+      "fqbn": "esp32:esp32:esp32c5:CDCOnBoot=cdc,FlashMode=dio,FlashSize=4M,PartitionScheme=huge_app,PSRAM=disabled",
+      "compiled": true,
+      "summary": [
+        "Sketch uses 1780221 bytes (56%) of program storage space. Maximum is 3145728 bytes.",
+        "Global variables use 58616 bytes (17%) of dynamic memory, leaving 269064 bytes for local variables. Maximum is 327680 bytes."
+      ],
+      "rtcTlsLink": {
+        "recordContentBytes": 2048,
+        "tlsUnitsCompiled": 20,
+        "sdkTlsMembers": [],
+        "verifiedLiveSymbols": [
+          "mbedtls_ssl_setup",
+          "mbedtls_ssl_handshake",
+          "mbedtls_ssl_session_reset",
+          "mbedtls_ssl_read",
+          "mbedtls_ssl_write",
+          "mbedtls_ssl_cookie_check",
+          "mbedtls_ssl_handshake_server_step",
+          "mbedtls_ssl_handshake_client_step"
+        ],
+        "linkMapSha256": "df0171340036dc4277f5c4d59523eca8acb08e8ed62be3079ca3bb5f6ff4995e"
       }
     },
     {
@@ -225,7 +398,7 @@
   "excluded": [
     {
       "chip": "esp32s2",
-      "reason": "No Bluetooth LE radio"
+      "reason": "No Bluetooth LE radio; cannot control an iPhone over BLE without extra hardware"
     }
   ]
 }

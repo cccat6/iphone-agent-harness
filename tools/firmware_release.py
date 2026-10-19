@@ -31,7 +31,7 @@ def sha(data):
 def inputs(root=None):
     root = root or ROOT
     source = {name: sha((root / 'firmware/IPhoneAutomationHarness' / name).read_bytes()) for name in builder.SOURCE_FILES}
-    recipes = {name: sha((root / 'tools' / name).read_bytes()) for name in ('build_firmware.py', 'verify_rtc_tls_link.py')}
+    recipes = {name: sha((root / 'tools' / name).read_bytes()) for name in ('build_firmware.py', 'verify_rtc_tls_link.py', 'build_c2_sdk.py', 'c2_sdk.lock.json', 'c2_sdk.components.lock', 'partitions/c2-2m.csv')}
     return {'format': 'iah-firmware-inputs/1', 'sourceFiles': source,
             'recipeFiles': recipes, 'recipeSha256': sha(json.dumps(recipes, sort_keys=True, separators=(',', ':')).encode()),
             'arduinoCli': CLI_VERSION, 'dependencies': DEPENDENCIES, 'profiles': builder.PROFILES}
@@ -54,14 +54,14 @@ def validate(output=None, *, sealed=True):
     if any((output / path).is_symlink() for path in core_paths()):
         raise RuntimeError('Firmware package cannot contain symlinks')
     if builder.validate_manifest(output / 'manifest.json') != len(builder.PROFILES):
-        raise RuntimeError('All four firmware profiles are required')
+        raise RuntimeError('All configured firmware profiles are required')
     builder.verify_sources(output)
     manifest = json.loads((output / 'manifest.json').read_text())
     if {p['id'] for p in manifest['profiles']} != set(builder.PROFILES):
         raise RuntimeError('Firmware profile set does not match the build recipe')
     for profile in manifest['profiles']:
         expected = builder.PROFILES[profile['id']]
-        if profile['chip'] != profile['id'] or profile['usbCdc'] != expected['usbCdc'] or profile['board'] != expected['board']:
+        if profile['chip'] != expected.get('chip',profile['id']) or profile['usbCdc'] != expected['usbCdc'] or profile['board'] != expected['board'] or profile.get('flashFreq') != expected['flashFreq'] or profile.get('xtalMHz') != expected.get('xtalMHz'):
             raise RuntimeError('Firmware board/USB configuration does not match the recipe')
         if [part['path'] for part in profile['parts']] != [f"{profile['id']}/{name}" for name in PARTS]:
             raise RuntimeError('Firmware part filenames do not match the recipe')
@@ -69,7 +69,7 @@ def validate(output=None, *, sealed=True):
     if report['dependencies'] != DEPENDENCIES:
         raise RuntimeError('Firmware dependency versions do not match')
     if len(report['profiles']) != len(builder.PROFILES) or {p['id'] for p in report['profiles']} != set(builder.PROFILES):
-        raise RuntimeError('Build report must cover all four profiles')
+        raise RuntimeError('Build report must cover all configured profiles')
     if any(not p['compiled'] or p['fqbn'] != builder.PROFILES[p['id']]['fqbn'] for p in report['profiles']):
         raise RuntimeError('Firmware compilation report does not match the recipe')
     if sealed and json.loads((output / 'build-inputs.json').read_text()) != inputs():
@@ -230,7 +230,7 @@ def publish(repository, commit):
         return
     notes = ROOT / 'build/firmware-release-notes.md'
     notes.write_text(f'Firmware inputs: `{fingerprint}`\n\nSource commit: `{commit}`\n\n'
-                     'ESP32, ESP32-C3, ESP32-S3 and ESP32-C6, 4 MB. '
+                     f'{len(builder.PROFILES)} compiled profiles: C2 (26/40 MHz crystals, 2 MB minimum), C3, C5, C6, S3 and classic ESP32 (4 MB minimum). '
                      'Each board has bootloader, partitions, boot_app0 and application binaries. '
                      'Use manifest.json for offsets and SHA-256. The archive also contains licenses. '
                      'The website build uses these same firmware bytes for online flashing; see Actions for deployment status. '
@@ -256,7 +256,7 @@ def main():
         seal()
     elif args.command == 'verify':
         validate()
-        print('Verified all four current-source firmware profiles and sealed build inputs')
+        print(f'Verified all {len(builder.PROFILES)} current-source firmware profiles and sealed build inputs')
     elif args.command == 'pack':
         print(pack())
     else:

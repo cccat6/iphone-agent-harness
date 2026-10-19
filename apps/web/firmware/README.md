@@ -6,20 +6,22 @@ The current product source is **0.4.0-rtc-direct**. Harness control uses a singl
 
 `RtcIdentity.h` and `rtc-defaults.json` provide the same long-lived communication certificate/fingerprint for every board. Users do not install a CA or maintain per-device certificates. Board identity, browser tokens, phone input proof and writer leases remain separate authorization checks.
 
-Each release includes compiled firmware for all four supported profiles. See `build-report.json` and `manifest.json` for exact source provenance, part sizes and SHA-256. Compilation and host tests are separate from physical phone validation; the release metadata records this distinction.
+Each release includes compiled firmware for all declared supported profiles. See `build-report.json` and `manifest.json` for exact source provenance, part sizes and SHA-256. Compilation and host tests are separate from physical phone validation; the release metadata records this distinction.
 
 Current firmware associates the selected phone without requiring a keyboard test. An optional input test verifies native keyboard input. The browser's Refresh action reads connection state; Start input test is the explicit input action.
 
 ## Hardware profiles
 
-- Minimum **4 MB flash**, 3 MB Huge APP partition; 2 MB boards are unsupported.
-- ESP32-C3/S3/C6 use native USB CDC. The development board must actually route its native USB connector.
+- ESP32-C2: **2 MB flash** minimum, a single factory application with 1,966,080 bytes and no OTA slot. Both 26/40 MHz crystal builds are provided.
+- Other declared profiles: **4 MB flash** minimum with the 3 MB Huge APP layout.
+- ESP32-C3/C5/C6/S3 use native USB CDC. The development board must actually route its native USB connector.
+- ESP32-C2 uses USB-to-UART; it has no native USB CDC.
 - Original ESP32 has no native USB CDC; its USB connector normally uses an external UART bridge such as CP210x/CH340.
 - Generic DIO profiles do not require PSRAM and do not cover unusual octal-flash modules.
 - S2 is excluded because it has no BLE; H2 because it has no Wi-Fi.
 - No LED/button/sensor/display/relay/user GPIO behavior is configured; native USB/UART wiring still depends on the board.
 
-Chip-name labels stay untranslated (`ESP32-C3`, `ESP32-S3`, `ESP32-C6`, `ESP32`). Surrounding installation UI may be localized.
+Chip-name labels stay untranslated (`ESP32-C2`, `ESP32-C3`, `ESP32-C5`, `ESP32-C6`, `ESP32-S3`, `ESP32`). Surrounding installation UI may be localized.
 
 ## Current compiled artifacts
 
@@ -34,25 +36,26 @@ Build verification opens no serial port. Hardware results are recorded separatel
 Schema version 1 includes `firmwareVersion`, `stage`, `executionEnabled`, `physicalValidation`, `requiresManualTrust` and profiles with:
 
 ```text
-{id,label,chip,board,minFlashMB,usbCdc,
+{id,label,chip,board,minFlashMB,usbCdc,flashFreq,
  parts:[{path,offset,sha256,size}]}
 ```
 
 Chip names use lowercase esptool identifiers. Each actual profile has four parts:
 
-| Part | C3 / S3 / C6 | Original ESP32 |
-|---|---:|---:|
-| Bootloader | `0x0000` | `0x1000` |
-| Partition table | `0x8000` | `0x8000` |
-| Initial OTA metadata | `0xe000` | `0xe000` |
-| Application | `0x10000` | `0x10000` |
+| Part | Offset |
+|---|---|
+| Bootloader | Use each profile's manifest: C5 is `0x2000`, original ESP32 is `0x1000`; other currently declared profiles use `0x0000`. |
+| Partition table | `0x8000` |
+| Initial OTA metadata | `0xe000` |
+| Application | `0x10000` |
 
 Offsets are parsed from Arduino's generated `flash_args`; they are not guessed. NVS is not included in these part writes. Normal writes and explicit full-chip erase are different operations.
 
 ## Reproduction
 
 ```sh
-python3 tools/build_firmware.py --parallel 2 --jobs 4
+python3 tools/build_c2_sdk.py --jobs 2
+python3 tools/build_firmware.py --parallel 2 --jobs 2
 python3 tools/build_firmware.py --verify-only
 python3 tools/build_firmware_test.py
 ./tests/firmware/run.sh
@@ -65,6 +68,8 @@ The builder installs nothing, opens no serial port and contains no upload comman
 
 Browser USB flashing additionally requires Web Serial; an iPhone Safari tab does not gain USB flashing merely because it runs the Harness. First setup and exact local serial/HTTP contracts are in [Arduino README](../../../firmware/IPhoneAutomationHarness/README.md) and [protected LAN design](../../../docs/architecture/secure-lan.md).
 
+The C2 SDK builder pins the official library builder, ESP-IDF, Arduino core and component graph. Its two crystal variants live in a private cache and are verified by complete file digests; it does not install a replacement global Boards Manager SDK. Cached firmware reuse needs no SDK build.
+
 For repeat builds, `--work-dir /absolute/dedicated/cache` retains compiler artifacts. Staging is still limited to the public source allowlist; unexpected files cause a failure. This cache never opens a port and must not be used for local credential files. `--verify-only` checks each current source hash and the combined provenance hash as well as published binary hashes/offsets.
 
-C3/S3/C6 use MSYS pools 8/8. The classic ESP32 SDK omits the second pool size, so that target preserves its disabled second pool (8/0) rather than enabling an undefined allocation; its physical two-phone throughput remains unverified. Effective values are available in USB diagnostics.
+C3/C5/C6/S3 use MSYS pools 8/8. The classic ESP32 SDK omits the second pool size, so that target preserves its disabled second pool (8/0) rather than enabling an undefined allocation; its physical two-phone throughput remains unverified. Effective values are available in USB diagnostics.

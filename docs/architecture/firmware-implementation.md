@@ -2,7 +2,7 @@
 
 [Arduino setup and build](../../firmware/IPhoneAutomationHarness/README.md) · [Transport](secure-lan.md) · [Actions](actions.md)
 
-The firmware supports ESP32, ESP32-C3, ESP32-S3 and ESP32-C6 with at least 4 MB ordinary SPI flash. ESP32-S2 lacks BLE and H2 lacks Wi-Fi. No application-specific GPIO peripherals are required. Pinned dependencies and reproducible build instructions are in the Arduino guide; generated manifests identify actual offsets, sizes and hashes.
+The firmware targets Wi-Fi/BLE ESP32 families listed in the release manifest. C2 uses a 2 MB single-app layout with separately built 26/40 MHz SDK variants; other declared profiles use a 4 MB Huge APP layout. No application-specific GPIO peripherals are required. Pinned dependencies and reproducible build instructions are in the Arduino guide; generated manifests identify actual offsets, sizes and hashes.
 
 Local HTTP provides Wi-Fi provisioning, device settings and clipboard handoff. WebRTC Direct carries normal control through one ordered data channel. Shared communication certificate configuration removes per-board CA installation; board identity and browser tokens remain separate application checks.
 
