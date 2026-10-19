@@ -68,9 +68,9 @@ for(const preexisting of [false,true])test(`independent R9: saved local credenti
 
 test('independent R9: displayed device form validation detail follows locale without another action',async t=>{
  const prior=getLocalePreference();t.after(()=>setLocale(prior));setLocale('en');const store=await openStore({memory:true}),f=panelFixture(t,store,()=>{throw new Error('no request expected');});
- await store.saveSettings({deviceEndpoint:panelEndpoint,deviceRTC:rtc});await f.panel.open();f.fill();f.field('[data-fingerprint]').value='invalid';await f.field('[data-pair]').onclick();
- assert.ok(f.field('[data-device-status]').textContent.includes(DEVICE_MESSAGES.en.invalidFingerprint));
- for(const {code} of SUPPORTED_LOCALES){setLocale(code);assert.ok(f.field('[data-device-status]').textContent.includes(DEVICE_MESSAGES[code].invalidFingerprint),code+': '+f.field('[data-device-status]').textContent);assert.equal(f.field('[data-fingerprint]').value,'invalid');}
+ await store.saveSettings({deviceEndpoint:panelEndpoint,deviceRTC:rtc});await f.panel.open();f.fill('not-an-address');await f.field('[data-pair]').onclick();
+ assert.ok(f.field('[data-device-status]').textContent.includes(DEVICE_MESSAGES.en.invalidAddress));
+ for(const {code} of SUPPORTED_LOCALES){setLocale(code);assert.ok(f.field('[data-device-status]').textContent.includes(DEVICE_MESSAGES[code].invalidAddress),code+': '+f.field('[data-device-status]').textContent);assert.equal(f.field('[data-address]').value,'not-an-address');}
 });
 
 test('USB setup link stays masked and localized without extra serial reads or certificate downloads',async t=>{

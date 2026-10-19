@@ -51,7 +51,7 @@ test('explicit store.close is final and cannot reopen or mutate data',async t=>{
 
 test('a real newer schema upgrade releases the old handle and asks old code to reload without deleting data',async t=>{
  const f=fixture(t),store=await openStore({name:f.name});t.after(()=>store.close());await store.saveSettings({sentinel:'preserve across upgrade'});
- const upgraded=await new Promise((resolve,reject)=>{const request=indexedDB.open(f.name,3);request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);request.onblocked=()=>reject(new Error('old handle blocked upgrade'));});t.after(()=>upgraded.close());
+ const upgraded=await new Promise((resolve,reject)=>{const request=indexedDB.open(f.name,4);request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);request.onblocked=()=>reject(new Error('old handle blocked upgrade'));});t.after(()=>upgraded.close());
  await assert.rejects(store.getSettings(),{code:'STORE_VERSION_CHANGED'});
  const saved=await new Promise((resolve,reject)=>{const request=upgraded.transaction('settings').objectStore('settings').get('settings');request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});assert.equal(saved.value.sentinel,'preserve across upgrade');
 });

@@ -43,10 +43,13 @@ flowchart LR
     Storage[("Local browser storage<br/>Sessions · images · keys")]
     Apps -->|Screen sharing| Harness
     Harness <--> Storage
+    Shortcut["Apple Shortcuts<br/>iOS clipboard"]
   end
   Harness <-->|Context / replies| AI["Your chosen AI"]
   Harness <-->|WebRTC · local Wi-Fi| Bridge["ESP32 bridge"]
   Bridge -->|Bluetooth keyboard / mouse| Apps
+  Bridge -->|Local HTTP · text| Shortcut
+  Shortcut -->|Copy confirmed| Harness
 ```
 
 [Architecture details](docs/architecture/overview.md)
@@ -108,6 +111,14 @@ Actual Harness screens with sample content; the conversation below is an example
     <td><img src="apps/web/media/skills-example.jpg" width="240" alt="Skills"></td>
   </tr>
 </table>
+
+## 📋 Long text, in any language
+
+The bridge handles everyday typing and shortcuts as a Bluetooth keyboard. For long or multilingual text, **iPhone Agent Clipboard** uses Apple Shortcuts to copy the text, then the agent pastes it into the chosen field.
+
+The browser sends the text to the ESP32 in small chunks over local WebRTC. The bridge streams those chunks in one HTTP response to the Shortcut, which puts the complete text on the iPhone clipboard.
+
+[Set up clipboard copy](docs/guide/README.md#clipboard)
 
 ## 🔒 Your data stays with you
 

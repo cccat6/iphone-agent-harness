@@ -8,6 +8,6 @@ Each action plan still has bounded time, event, byte and held-input limits. Unkn
 
 The UI loads indexed history in pages, decoding images when needed. Reading older messages preserves the viewport as new replies arrive; Latest reloads the recent window and restores following. Exports/imports include images up to 64 MiB. Imports stage a new session, leaving existing data intact if validation fails.
 
-Automatic model summaries default to a 750,000-token trigger. Compaction summarizes model context while retaining the full local history. Three JPEG presets preserve image dimensions. Settings provides session import/export and browser storage retention controls.
+Automatic model summaries default to a 750,000-token trigger. Compaction summarizes model context while retaining the full local history. Three JPEG presets preserve image dimensions. Export a conversation from its menu; import a conversation file in Settings. Browser storage retention controls are also in Settings.
 
 [Implementation](harness-runtime-implementation.md) · [Actions](actions.md)

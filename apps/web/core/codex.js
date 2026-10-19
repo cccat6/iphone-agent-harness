@@ -16,7 +16,7 @@ function opaque(bytes=32){const v=crypto.getRandomValues(new Uint8Array(bytes));
 function decode64(value){return Uint8Array.from(atob(value.replaceAll('-','+').replaceAll('_','/').padEnd(Math.ceil(value.length/4)*4,'=')),c=>c.charCodeAt(0));}
 function jwt(token){try{return JSON.parse(new TextDecoder().decode(decode64(token.split('.')[1])));}catch{return {};}}
 function failure(message,status){const e=new Error(message+(status?`（HTTP ${status}）`:''));if(status)e.status=status;return e;}
-async function request(url,{fetchImpl=fetch,signal,...init}={}){check(signal);try{return await fetchImpl(safeURL(url),{...init,signal,credentials:'omit',referrerPolicy:'no-referrer',cache:'no-store'});}catch{check(signal);throw failure('订阅连接失败；请检查浏览器 CORS、网络或服务可用性');}}
+async function request(url,{fetchImpl=fetch,signal,...init}={}){check(signal);try{return await fetchImpl.call(globalThis,safeURL(url),{...init,signal,credentials:'omit',referrerPolicy:'no-referrer',cache:'no-store'});}catch{check(signal);throw failure('订阅连接失败；请检查浏览器 CORS、网络或服务可用性');}}
 async function post(url,body,options={},form=false){return request(url,{...options,method:'POST',headers:{'content-type':form?'application/x-www-form-urlencoded':'application/json'},body:form?new URLSearchParams(body):JSON.stringify(body)});}
 async function json(r,label){
  if(!r.ok)throw failure(label,r.status);const reader=r.body?.getReader();if(!reader)throw failure(label+'：响应格式无效');let total=0;const chunks=[];

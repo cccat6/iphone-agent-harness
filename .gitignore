@@ -1,6 +1,7 @@
 tools/libraries/
 tools/certificates/
 build/
+/apps/web/.firmware-*/
 *.local.json
 research/ios27-web-chain/network-token.txt
 research/ios27-web-chain/relay-state.json

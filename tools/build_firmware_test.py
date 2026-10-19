@@ -6,6 +6,9 @@ from pathlib import Path
 import struct
 import tempfile
 import unittest
+from unittest.mock import patch
+import subprocess
+import sys
 
 spec=importlib.util.spec_from_file_location('build_firmware',Path(__file__).with_name('build_firmware.py'))
 build=importlib.util.module_from_spec(spec)
@@ -138,6 +141,123 @@ class FirmwareArtifacts(unittest.TestCase):
                 (source/'main.cpp').write_text('// public source');report['sourceSha256']='0'*64;(root/'build-report.json').write_text(json.dumps(report))
                 with self.assertRaisesRegex(RuntimeError,'overall'):build.verify_sources(root)
             finally:build.SKETCH=original
+
+
+class FirmwarePublication(unittest.TestCase):
+    def snapshot(self, folder):
+        return {p.relative_to(folder).as_posix(): p.read_bytes() for p in folder.rglob('*') if p.is_file()}
+
+    def prior(self, root):
+        output = root / 'published'; output.mkdir()
+        (output / 'esp32c3').mkdir(); (output / 'esp32c3/application.bin').write_bytes(b'prior app')
+        (output / 'manifest.json').write_bytes(b'prior manifest')
+        (output / 'build-inputs.json').write_bytes(b'prior seal')
+        (output / 'README.md').write_bytes(b'current docs')
+        (output / 'licenses').mkdir(); (output / 'licenses/MIT').write_bytes(b'license')
+        return output
+
+    def test_collect_and_validation_failures_preserve_the_whole_prior_set(self):
+        for failure in ['collect', 'validate']:
+            with self.subTest(failure=failure), tempfile.TemporaryDirectory() as temporary:
+                root=Path(temporary); output=self.prior(root); before=self.snapshot(output)
+                with self.assertRaisesRegex(RuntimeError, failure):
+                    with build.staged_output(output) as candidate:
+                        (candidate/'esp32c3').mkdir()
+                        (candidate/'esp32c3/application.bin').write_bytes(b'new partial app')
+                        raise RuntimeError(failure)
+                self.assertEqual(self.snapshot(output),before)
+
+    def test_collect_invalid_later_part_never_changes_published_earlier_parts(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary); output=self.prior(root); before=self.snapshot(output)
+            compiler=root/'compiler';compiler.mkdir()
+            (compiler/'flash_args').write_text('--flash-freq 80m --flash-size 4MB\n0x0 boot.bin\n0x8000 partition.bin\n0xe000 ota.bin\n0x10000 app.bin\n')
+            for name,raw in [('boot.bin',b'new boot'),('partition.bin',b'bad partition'*256),('ota.bin',b'ota'),('app.bin',b'app')]:
+                (compiler/name).write_bytes(raw)
+            with self.assertRaisesRegex(RuntimeError,'partition'):
+                with build.staged_output(output) as candidate:
+                    build.collect_parts(compiler,'esp32c3',candidate)
+            self.assertEqual(self.snapshot(output),before)
+
+    def test_directory_swap_failure_restores_previous_output(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary); output=self.prior(root); before=self.snapshot(output)
+            rename=Path.rename
+            def interrupted(path, target):
+                if path.name=='candidate': raise OSError('swap failed')
+                return rename(path,target)
+            with self.assertRaisesRegex(OSError,'swap failed'), patch.object(Path,'rename',interrupted):
+                with build.staged_output(output) as candidate:
+                    (candidate/'manifest.json').write_text('new manifest')
+            self.assertEqual(self.snapshot(output),before)
+
+    def test_success_retains_docs_and_licenses_and_removes_old_seal(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary); output=self.prior(root)
+            with build.staged_output(output) as candidate:
+                (candidate/'manifest.json').write_text('new manifest')
+            self.assertEqual((output/'README.md').read_bytes(),b'current docs')
+            self.assertEqual((output/'licenses/MIT').read_bytes(),b'license')
+            self.assertEqual((output/'manifest.json').read_text(),'new manifest')
+            self.assertFalse((output/'build-inputs.json').exists())
+            self.assertFalse((output/'esp32c3').exists())
+
+    def test_docs_and_license_edits_during_compilation_survive_publication(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary);output=self.prior(root)
+            with build.staged_output(output) as candidate:
+                (output/'README.md').write_text('new instructions during compilation')
+                (output/'licenses/MIT').unlink()
+                (output/'licenses/New').write_text('new notice')
+                (candidate/'manifest.json').write_text('new manifest')
+            self.assertEqual((output/'README.md').read_text(),'new instructions during compilation')
+            self.assertFalse((output/'licenses/MIT').exists())
+            self.assertEqual((output/'licenses/New').read_text(),'new notice')
+
+    def test_main_recipe_edit_during_compilation_preserves_prior_set(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary); output=self.prior(root);before=self.snapshot(output)
+            def compiler(command,**kwargs):
+                location=Path(command[command.index('--build-path')+1]);location.mkdir()
+                (location/'build_opt.h').write_bytes((build.SKETCH/'build_opt.h').read_bytes())
+                return subprocess.CompletedProcess(command,0,'')
+            argv=['build_firmware.py','--arduino-cli',sys.executable,'--profiles','esp32c3','--output',str(output)]
+            with patch.object(sys,'argv',argv),patch.object(build,'dependencies',return_value={}),patch.object(build.subprocess,'run',side_effect=compiler),patch.object(build,'verify_tls_link',return_value={}),patch.object(build,'collect_parts',return_value=[]),patch.object(build,'validate_manifest'),patch.object(build,'verify_sources'),patch.object(build,'recipe_files',side_effect=[{'recipe':'before'},{'recipe':'after'}]):
+                with self.assertRaisesRegex(RuntimeError,'recipe changed during compilation'):build.main()
+            self.assertEqual(self.snapshot(output),before)
+
+    def test_production_requires_complete_set_and_partial_builds_use_separate_output(self):
+        with self.assertRaisesRegex(RuntimeError,'every profile'):
+            build.check_output_profiles(build.ROOT/'apps/web/firmware',['esp32c3'])
+        build.check_output_profiles(build.ROOT/'build/partial',['esp32c3'])
+        with self.assertRaisesRegex(RuntimeError,'once'):
+            build.check_output_profiles(build.ROOT/'build/partial',['esp32c3','esp32c3'])
+
+    def test_main_compiler_failure_preserves_prior_output(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary); output=self.prior(root);before=self.snapshot(output)
+            argv=['build_firmware.py','--arduino-cli',sys.executable,'--profiles','esp32c3','--output',str(output)]
+            with patch.object(sys,'argv',argv), patch.object(build,'dependencies',return_value={}), patch.object(build.subprocess,'run',return_value=subprocess.CompletedProcess([],1,'compiler error')):
+                with self.assertRaisesRegex(RuntimeError,'Compilation failed'):
+                    build.main()
+            self.assertEqual(self.snapshot(output),before)
+
+    def test_main_final_validation_failure_preserves_prior_output(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary); output=self.prior(root);before=self.snapshot(output)
+            def compiler(command,**kwargs):
+                location=Path(command[command.index('--build-path')+1]);location.mkdir()
+                (location/'build_opt.h').write_bytes((build.SKETCH/'build_opt.h').read_bytes())
+                flag=command[command.index('--build-property')+1]
+                self.assertRegex(flag, r'^compiler\.cpp\.extra_flags=-DIAH_BUILD_ID=[a-f0-9]{16}$')
+                return subprocess.CompletedProcess(command,0,'')
+            def collect(location,profile,candidate):
+                (candidate/profile).mkdir();(candidate/profile/'application.bin').write_bytes(b'new compiled app')
+                return []
+            argv=['build_firmware.py','--arduino-cli',sys.executable,'--profiles','esp32c3','--output',str(output)]
+            with patch.object(sys,'argv',argv), patch.object(build,'dependencies',return_value={}), patch.object(build.subprocess,'run',side_effect=compiler), patch.object(build,'verify_tls_link',return_value={}), patch.object(build,'collect_parts',side_effect=collect), patch.object(build,'validate_manifest',side_effect=RuntimeError('manifest validation failed')):
+                with self.assertRaisesRegex(RuntimeError,'manifest validation failed'):build.main()
+            self.assertEqual(self.snapshot(output),before)
 
 
 if __name__=='__main__':unittest.main()

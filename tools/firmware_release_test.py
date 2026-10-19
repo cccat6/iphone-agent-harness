@@ -53,7 +53,8 @@ def fixture():
             profiles.append({'id':profile_id,'label':config['label'],'chip':config.get('chip',profile_id),'board':config['board'],'minFlashMB':config.get('minFlashMB',4),'usbCdc':config['usbCdc'],'flashFreq':config['flashFreq'],**({'xtalMHz':config['xtalMHz']} if config.get('xtalMHz') else {}),'parts':parts})
         source_files={name:release.sha((sketch/name).read_bytes()) for name in release.builder.SOURCE_FILES}
         report={'dependencies':release.DEPENDENCIES,'sourceFiles':source_files,'sourceSha256':release.sha(json.dumps(source_files,sort_keys=True,separators=(',',':')).encode()),'profiles':[{'id':name,'fqbn':config['fqbn'],'compiled':True,**({'sdkProvenance':{'recipe':release.builder.c2_sdk.provenance(config['xtalMHz']),'filesSha256':'a'*64,'fileCount':100,'configuration':release.builder.c2_configuration(config['xtalMHz'])}} if config.get('chip')=='esp32c2' else {})} for name,config in release.builder.PROFILES.items()]}
-        (output/'manifest.json').write_text(json.dumps({'schemaVersion':1,'profiles':profiles}))
+        report.update(firmwareVersion=release.builder.firmware_version(),buildId=report['sourceSha256'][:16],recipeFiles=release.builder.recipe_files(root))
+        (output/'manifest.json').write_text(json.dumps({'schemaVersion':1,'firmwareVersion':report['firmwareVersion'],'buildId':report['buildId'],'profiles':profiles}))
         (output/'build-report.json').write_text(json.dumps(report))
         with patch.object(release, 'ROOT', root), patch.object(release, 'FIRMWARE', output), patch.object(release.builder, 'SKETCH', sketch):
             (output/'build-inputs.json').write_text(json.dumps(release.inputs()))
@@ -168,9 +169,11 @@ class FirmwareReleaseTests(unittest.TestCase):
                 return ''
             with patch.object(release,'release',return_value=metadata),patch.object(release,'gh',side_effect=fake_gh):
                 plan=release.plan('owner/repo');self.assertEqual(plan['origin'],'release-draft');self.assertFalse(plan['compile'])
-                release.validate();calls.clear();release.publish('owner/repo','a'*40)
-                self.assertEqual([c[1] for c in calls],['upload','edit'])
-                self.assertIn('--clobber',calls[0]);self.assertIn('--draft=false',calls[1])
+                release.validate();calls.clear()
+                published={'draft':False,'assets':[{'name':name,'digest':'sha256:'+release.sha(raw)} for name,raw in snapshot.items()]}
+                with patch.object(release,'release',side_effect=[metadata,published]):release.publish('owner/repo','a'*40)
+                self.assertEqual([c[1] for c in calls],['upload','edit','download','edit'])
+                self.assertIn('--clobber',calls[0]);self.assertIn('--draft=false',calls[1]);self.assertIn('--latest',calls[-1])
 
     def test_published_cache_corruption_fails_instead_of_wasting_a_rebuild(self):
         with fixture():
@@ -212,18 +215,86 @@ class FirmwareReleaseTests(unittest.TestCase):
     def test_draft_publish_and_published_reuse_never_overwrite_a_published_release(self):
         with fixture() as (root, sketch, output):
             calls = []
-            with patch.object(release, 'release', return_value=None), patch.object(release, 'gh', side_effect=lambda *a, **k: calls.append(a)):
+            with patch.object(release, 'release', side_effect=[None,{'draft':False}]), patch.object(release,'verify_published_assets'), patch.object(release,'restore') as verify, patch.object(release, 'gh', side_effect=lambda *a, **k: calls.append(a)):
                 release.publish('owner/repo', 'a' * 40)
-            self.assertEqual([c[1] for c in calls], ['create', 'upload', 'edit'])
+                verify.assert_called_once()
+            self.assertEqual([c[1] for c in calls], ['create', 'upload', 'edit','edit'])
+            self.assertIn('--latest',calls[-1])
             self.assertIn('--draft', calls[0])
             self.assertIn('--target', calls[0])
             self.assertIn('--clobber', calls[1])
             self.assertIn('--draft=false', calls[2])
             calls.clear()
-            with patch.object(release, 'release', return_value={'draft': False}), patch.object(release, 'restore') as restore, patch.object(release, 'gh', side_effect=lambda *a, **k: calls.append(a)):
+            with patch.object(release, 'release', return_value={'draft': False}), patch.object(release,'verify_published_assets'), patch.object(release, 'restore') as restore, patch.object(release, 'gh', side_effect=lambda *a, **k: calls.append(a)):
                 release.publish('owner/repo', 'a' * 40)
                 restore.assert_called_once()
-            self.assertEqual(calls, [])
+            self.assertEqual([c[1] for c in calls],['edit'])
+            self.assertIn('--latest',calls[0])
+
+    def test_failed_published_verification_never_promotes_latest(self):
+        for existing in [None, {'draft':False}]:
+            with self.subTest(existing=existing), fixture():
+                calls=[]
+                sequence=[existing,{'draft':False}] if existing is None else [existing]
+                with patch.object(release,'release',side_effect=sequence), patch.object(release,'restore',side_effect=RuntimeError('corrupt release')), patch.object(release,'gh',side_effect=lambda *a,**k:calls.append(a)):
+                    with self.assertRaisesRegex(RuntimeError,'corrupt release'):release.publish('owner/repo','a'*40)
+                self.assertFalse(any('--latest' in command for command in calls))
+
+    def test_every_uploaded_asset_is_verified_before_promotion(self):
+        with fixture():
+            folder=release.pack()
+            metadata={'draft':False,'assets':[{'name':p.name,'digest':'sha256:'+release.sha(p.read_bytes())} for p in folder.iterdir()]}
+            release.verify_published_assets('owner/repo','tag',folder,metadata)
+            metadata['assets'][-1]['digest']='sha256:'+'0'*64
+            calls=[]
+            snapshot={p.name:p.read_bytes() for p in folder.iterdir()}
+            def fake_gh(*args,**kwargs):
+                calls.append(args)
+                if args[:2]==('release','download'):
+                    destination=Path(args[args.index('--dir')+1])
+                    for index,item in enumerate(args):
+                        if item=='--pattern':(destination/args[index+1]).write_bytes(snapshot[args[index+1]])
+            with patch.object(release,'release',return_value=metadata),patch.object(release,'gh',side_effect=fake_gh):
+                with self.assertRaisesRegex(RuntimeError,'checksum mismatch'):release.publish('owner/repo','a'*40)
+            self.assertFalse(any('--latest' in command for command in calls))
+
+    def test_published_release_reuse_preserves_new_docs_and_immutable_archive(self):
+        with fixture() as (_,_,output):
+            folder=release.pack();snapshot={p.name:p.read_bytes() for p in folder.iterdir()}
+            metadata={'draft':False,'assets':[{'name':name,'digest':'sha256:'+release.sha(raw)} for name,raw in snapshot.items()]}
+            fingerprint=release.key(release.inputs())
+            (output/'README.md').write_text('Updated public instructions')
+            (output/'licenses/fixture-LICENSE').write_text('Updated notice')
+            self.assertEqual(release.key(release.inputs()),fingerprint)
+            calls=[]
+            def fake_gh(*args,**kwargs):
+                calls.append(args)
+                if args[:2]==('release','download'):
+                    destination=Path(args[args.index('--dir')+1])
+                    for index,item in enumerate(args):
+                        if item=='--pattern':(destination/args[index+1]).write_bytes(snapshot[args[index+1]])
+                return ''
+            with patch.object(release,'release',return_value=metadata),patch.object(release,'gh',side_effect=fake_gh):
+                release.publish('owner/repo','a'*40)
+            self.assertEqual((output/'README.md').read_text(),'Updated public instructions')
+            self.assertEqual((output/'licenses/fixture-LICENSE').read_text(),'Updated notice')
+            self.assertEqual([call[1] for call in calls],['download','edit'])
+            self.assertIn('--latest',calls[-1])
+
+    def test_seal_rejects_recipe_changes_since_compilation(self):
+        with fixture() as (root,_,output):
+            previous=(output/'build-inputs.json').read_bytes()
+            recipe=root/'tools/partitions/c2-2m.csv';recipe.write_text(recipe.read_text()+'\n# changed recipe\n')
+            with self.assertRaisesRegex(RuntimeError,'recipe changed'):release.seal()
+            self.assertEqual((output/'build-inputs.json').read_bytes(),previous)
+
+    def test_manifest_version_and_build_id_match_source(self):
+        with fixture() as (_,_,output):
+            path=output/'manifest.json';manifest=json.loads(path.read_text());original=path.read_text()
+            manifest['firmwareVersion']='wrong';path.write_text(json.dumps(manifest))
+            with self.assertRaisesRegex(RuntimeError,'version'):release.validate()
+            manifest=json.loads(original);manifest['buildId']='wrong';path.write_text(json.dumps(manifest))
+            with self.assertRaisesRegex(RuntimeError,'build ID'):release.validate()
 
     def test_workflow_has_only_manual_trigger_and_copies_firmware_before_site_build(self):
         text = (SOURCE_ROOT / '.github/workflows/checks.yml').read_text()
@@ -232,6 +303,7 @@ class FirmwareReleaseTests(unittest.TestCase):
             self.assertNotIn('\n  ' + trigger + '\n', text.split('jobs:')[0])
         self.assertIn("if: github.ref == 'refs/heads/main'", text)
         self.assertIn('cancel-in-progress: false', text)
+        self.assertEqual(text.count('python3 tools/build_c2_sdk_test.py'),1)
         self.assertEqual(text.count("if: steps.firmware.outputs.compile == 'true'"), 3)
         order = ['firmware_release.py plan', 'build_firmware.py --parallel', 'firmware_release.py verify', 'npm run build', 'firmware_release.py publish', 'wrangler deploy\n', 'verify_release_site.mjs']
         positions = [text.index(item) for item in order]

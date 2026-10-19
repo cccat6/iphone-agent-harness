@@ -55,15 +55,14 @@ export async function flashFirmware({profile,profiles=[profile],manifestUrl=mani
 
 // Secrets from explicit USB setup reads are returned only to the local setup UI.
 // They never pass through onLog, remote APIs or ordinary settings.
-export function parseDeviceSetupLine(line,{profile=false}={}){
-  const prefix=profile?'IAH_PROFILE ':'IAH_SETUP ';if(!line.startsWith(prefix))return null;
+export function parseDeviceSetupLine(line){
+  const prefix='IAH_SETUP ';if(!line.startsWith(prefix))return null;
   let value;try{value=JSON.parse(line.slice(prefix.length));}catch{throw fail('flash_setup_invalid','Invalid USB setup response');}
-  if(profile){if(value.format!=='iah-profile/1'||!(value.publicKeyFingerprint===null||typeof value.publicKeyFingerprint==='string'&&/^[a-f0-9]{64}$/i.test(value.publicKeyFingerprint))||(value.mobileconfig!==null&&(typeof value.mobileconfig!=='string'||value.mobileconfig.length>60000)))throw fail('flash_setup_invalid','Invalid certificate profile response');return value;}
-  if(value.format!=='iah-setup/1'||typeof value.boardId!=='string'||!value.boardId||typeof value.hostname!=='string'||!/^[-a-z0-9]+\.local$/i.test(value.hostname)||typeof value.apSsid!=='string'||new TextEncoder().encode(value.apSsid).length>32||typeof value.apPassword!=='string'||value.apPassword.length<8||value.apPassword.length>63||typeof value.caReady!=='boolean')throw fail('flash_setup_invalid','Invalid USB setup fields');
+  if(value.format!=='iah-setup/1'||typeof value.boardId!=='string'||!value.boardId||typeof value.hostname!=='string'||!/^[-a-z0-9]+\.local$/i.test(value.hostname)||typeof value.apSsid!=='string'||new TextEncoder().encode(value.apSsid).length>32||typeof value.apPassword!=='string'||value.apPassword.length<8||value.apPassword.length>63)throw fail('flash_setup_invalid','Invalid USB setup fields');
   let url;try{url=new URL(value.httpUrl||value.httpsUrl);}catch{throw fail('flash_setup_invalid','Invalid controller address');}if(!['https:','http:'].includes(url.protocol)||url.pathname!=='/'||url.search||url.hash||url.hostname!==value.hostname.toLowerCase()||url.username||url.password)throw fail('flash_setup_invalid','Invalid controller address');
-  if(value.caReady&&!/^[a-f0-9]{64}$/i.test(value.publicKeyFingerprint||''))throw fail('flash_setup_invalid','Missing controller fingerprint');const {setupPassword,owner,...information}=value;if(value.rtc){try{information.rtc=validateRTCConfiguration(value.rtc,{fallbackHost:value.hostname});}catch{throw fail('flash_setup_invalid','Invalid device RTC configuration');}}return information;
+  if(value.caReady&&!/^[a-f0-9]{64}$/i.test(value.publicKeyFingerprint||''))throw fail('flash_setup_invalid','Missing controller fingerprint');const {setupPassword,owner,caReady,caProfileUrl,httpsUrl,manualTrustRequired,...information}=value;if(!information.httpUrl&&httpsUrl)information.httpUrl=httpsUrl;if(value.rtc){try{information.rtc=validateRTCConfiguration(value.rtc,{fallbackHost:value.hostname});}catch{throw fail('flash_setup_invalid','Invalid device RTC configuration');}}return information;
 }
-export async function readDeviceSetup({port,profile=false,serial=globalThis.navigator?.serial,signal,timeoutMs=10000}={}){
+export async function readDeviceSetup({port,serial=globalThis.navigator?.serial,signal,timeoutMs=10000}={}){
   if(flashing||serialReading)throw fail('flash_busy','Firmware operation is already running');if(!port&&!serial?.requestPort)throw fail('flash_unsupported','Web Serial is unavailable');
   serialReading=true;let reader,writer,opened=false,timer;const timeout=new AbortController(),active=signal?AbortSignal.any([signal,timeout.signal]):timeout.signal;
   try{
@@ -77,9 +76,9 @@ export async function readDeviceSetup({port,profile=false,serial=globalThis.navi
     }
     if(!port.readable||!port.writable||port.readable.locked||port.writable.locked)throw fail('flash_setup_busy','The selected serial port is in use');
     reader=port.readable.getReader();writer=port.writable.getWriter();
-    await abortable(writer.write(new TextEncoder().encode(JSON.stringify({op:profile?'setup-profile':'setup-info'})+'\n')),active);
+    await abortable(writer.write(new TextEncoder().encode(JSON.stringify({op:'setup-info'})+'\n')),active);
     const decoder=new TextDecoder('utf-8',{fatal:true});let pending='';
-    while(true){const {done,value}=await abortable(reader.read(),active);if(done)throw fail('flash_setup_closed','The controller disconnected');pending+=decoder.decode(value,{stream:true});if(pending.length>100000)throw fail('flash_setup_invalid','USB setup response exceeded its limit');let split;while((split=pending.indexOf('\n'))>=0){const line=pending.slice(0,split).replace(/\r$/,''),result=parseDeviceSetupLine(line,{profile});pending=pending.slice(split+1);if(result)return result;}}
+    while(true){const {done,value}=await abortable(reader.read(),active);if(done)throw fail('flash_setup_closed','The controller disconnected');pending+=decoder.decode(value,{stream:true});if(pending.length>100000)throw fail('flash_setup_invalid','USB setup response exceeded its limit');let split;while((split=pending.indexOf('\n'))>=0){const line=pending.slice(0,split).replace(/\r$/,''),result=parseDeviceSetupLine(line);pending=pending.slice(split+1);if(result)return result;}}
   }catch(error){if(active.aborted)throw fail('flash_setup_timeout','USB setup could not be read before the request ended');throw error;}
   finally{clearTimeout(timer);try{await reader?.cancel();}catch{}try{reader?.releaseLock();}catch{}try{writer?.releaseLock();}catch{}if(opened)try{await port.close();}catch{}serialReading=false;}
 }

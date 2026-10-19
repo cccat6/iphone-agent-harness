@@ -46,7 +46,7 @@ Bluetooth permite que el puente maneje el teléfono. La conexión Wi-Fi entre Ha
 
 Abre [igent.cc](https://igent.cc/) en Safari en tu iPhone o iPad para entrar directamente en Harness.
 
-Cuando pidas una acción, permite compartir pantalla y mantén el teléfono desbloqueado. Después puedes cambiar de app. Al dejar de compartir, la tarea se pausa. Pulsa **Continuar** en Harness para compartir de nuevo y reanudarla.
+Cuando pidas una acción, permite compartir pantalla y mantén el teléfono desbloqueado. Después puedes cambiar de app. Al dejar de compartir, la tarea se pausa. Pulsa **Compartir pantalla y continuar** en Harness para compartir de nuevo y reanudarla.
 
 <a id="models"></a>
 ## 6. Configura una API o cuenta ChatGPT

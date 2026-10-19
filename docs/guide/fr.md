@@ -46,7 +46,7 @@ Le Bluetooth sert à commander le téléphone. La connexion Wi-Fi entre Harness 
 
 Ouvrez [igent.cc](https://igent.cc/) dans Safari sur l’iPhone ou l’iPad pour accéder directement à Harness.
 
-Quand vous demandez une action, autorisez le partage d’écran et gardez le téléphone déverrouillé. Vous pouvez ensuite passer à une autre app. Arrêter le partage met la tâche en pause ; appuyez sur **Continuer** dans Harness pour partager à nouveau et reprendre.
+Quand vous demandez une action, autorisez le partage d’écran et gardez le téléphone déverrouillé. Vous pouvez ensuite passer à une autre app. Arrêter le partage met la tâche en pause ; appuyez sur **Partager l’écran et continuer** dans Harness pour partager à nouveau et reprendre.
 
 <a id="models"></a>
 ## 6. Configurer une API ou un compte ChatGPT

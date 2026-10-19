@@ -77,7 +77,7 @@ test('R13 actual chooseFile rejects early at distinct bounds and actual download
 
 test('R13 real application wiring, corrected locale messages and bilingual backup limits remain aligned',()=>{
   assert.match(app,/registerErrorCatalog\(BACKUP_ERRORS\)/);
-  assert.match(app,/if\(action==='export'\)\{download\(await exportSessionFile\(state\.store,session\.id\)/);
+  assert.match(app,/exportSession:async id=>\{download\(await exportSessionFile\(state\.store,id\)/);
   const sessionImport=app.split('\n').find(line=>line.includes("$('#import-session').onclick="));
   assert.match(sessionImport,/importSessionFile\(\)/);
   const importFlow=app.slice(app.indexOf('function importSessionFile(){'),app.indexOf('function panelBack('));

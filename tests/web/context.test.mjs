@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {normalizeContextSettings,prepareContext,repairToolHistory,projectContext} from '../../apps/web/core/context.js';
+import {normalizeContextSettings,prepareContext,repairToolHistory} from '../../apps/web/core/context.js';
 
 const clone=v=>structuredClone(v);
 class Memory {
@@ -94,9 +94,9 @@ test('disabled auto compaction preserves all messages and images while still rep
  const store=new Memory(history(40)),m=model();const result=await run(store,{settings:{...compactSettings,autoCompact:false,maxImages:0},invoke:m.invoke,pageSize:5});assert.equal(result.compacted,false);assert.equal(result.messages.length,store.rows.length);assert.deepEqual(result.messages,store.rows);assert.equal(result.metrics.estimated,true);assert.ok(result.metrics.estimatedTotalTokens>compactSettings.triggerTokens);assert.equal(store.writes.length,0);assert.equal(m.calls.length,0);
 });
 
-test('legacy projection and history repair remain compatible and internal snapshots are not user goals',()=>{
+test('history repair preserves user goals and internal snapshots',()=>{
  const raw=[{id:'u',seq:1,role:'user',text:'actual goal'},{id:'a',seq:2,role:'assistant',text:'',toolCalls:[{id:'call',name:'observe',arguments:{}}]},{id:'internal',seq:3,role:'user',internal:true,text:'runtime'}, {id:'a2',seq:4,role:'assistant',text:'reply'}];
- assert.equal(repairToolHistory(raw).find(m=>m.role==='tool').recovered,true);const projected=projectContext(raw,{maxChars:1});assert.ok(projected.messages.some(m=>m.role==='user'&&m.text==='actual goal'));assert.equal(raw.length,4);
+ assert.equal(repairToolHistory(raw).find(m=>m.role==='tool').recovered,true);assert.ok(repairToolHistory(raw).some(m=>m.role==='user'&&m.text==='actual goal')); assert.equal(raw.length,4);
 });
 
 

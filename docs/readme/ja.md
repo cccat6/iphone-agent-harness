@@ -43,10 +43,13 @@ flowchart LR
     Storage[("ブラウザー内の保存領域<br/>会話 · 画像 · キー")]
     Apps -->|画面共有| Harness
     Harness <--> Storage
+    Shortcut["Appleショートカット<br/>iOSクリップボード"]
   end
   Harness <-->|コンテキスト / 応答| AI["選択したAI"]
   Harness <-->|WebRTC · 同じWi-Fi| Bridge["ESP32ブリッジ"]
   Bridge -->|Bluetoothキーボード / マウス| Apps
+  Bridge -->|ローカルHTTP · テキスト| Shortcut
+  Shortcut -->|コピー完了| Harness
 ```
 
 [構成図](../architecture/overview.md)
@@ -108,6 +111,14 @@ flowchart LR
     <td><img src="../../apps/web/media/skills-example.jpg" width="240" alt="スキル"></td>
   </tr>
 </table>
+
+## 📋 長文も、さまざまな言語も
+
+普段の文字入力やキー操作は、ブリッジのBluetoothキーボードを使います。長文や多言語テキストには **iPhone Agent Clipboard**。Appleのショートカットでコピーし、エージェントが目的の欄に貼り付けます。
+
+ブラウザーからESP32へ、ローカルWebRTCでテキストを小分けに送信します。ブリッジは一つのHTTP応答としてショートカットに順次渡し、全文をiPhoneのクリップボードにコピーします。
+
+[クリップボードの設定](../guide/ja.md#clipboard)
 
 ## 🔒 データは手元に
 

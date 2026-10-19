@@ -2,7 +2,6 @@
 #include <fstream>
 #include <iostream>
 #include <string>
-#include "../../firmware/IPhoneAutomationHarness/src/LanBridgePage.h"
 #include "../../firmware/IPhoneAutomationHarness/src/WifiSetupPage.h"
 #include "../../firmware/IPhoneAutomationHarness/src/SetupState.h"
 #if ARDUINOJSON_VERSION_MAJOR != 7 || ARDUINOJSON_VERSION_MINOR != 4 || ARDUINOJSON_VERSION_REVISION != 3
@@ -11,10 +10,10 @@
 int main(int argc,char** argv){
  assert(argc==2);
  JsonDocument d;d.set("regression");std::string old="<!doctype html>";serializeJson(d,old);assert(old=="\"regression\"");
- std::string origin="https://igent.cc",owner(64,'b');
- auto helper=iah::renderLanBridgePage(origin),setup=iah::renderWifiSetupPage(owner);
- for(auto* page:{&helper,&setup}){assert(page->find("<!doctype html>")==0);assert(page->rfind("</script>")==page->size()-9);}
- std::ofstream(std::string(argv[1])+"/helper.html")<<helper;std::ofstream(std::string(argv[1])+"/setup.html")<<setup;
+ std::string owner(64,'b');
+ auto setup=iah::renderWifiSetupPage(owner);
+ for(auto* page:{&setup}){assert(page->find("<!doctype html>")==0);assert(page->rfind("</script>")==page->size()-9);}
+ std::ofstream(std::string(argv[1])+"/setup.html")<<setup;
  using State=iah::WifiJoinState;unsigned combinations=0;
  // Independent acceptance truth table: every prerequisite is necessary, and
  // completing storage is a separate gate from receiving a candidate IP.

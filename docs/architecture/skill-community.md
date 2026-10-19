@@ -1,6 +1,6 @@
 # Skill ownership and public publishing
 
-The public Skills page works on desktop and phone. It supports reading builtins, downloading community packages, creating/editing owned skills and explicit publication. The browser stores owned skills and installed packages locally.
+The public Skills page supports browsing, creating, editing and publishing your own skills on desktop and phone. On iPhone and iPad, you can also install community skills for use in Harness. Skills and drafts are saved in the current browser.
 
 | Source | Local use | Publishing |
 |---|---|---|
@@ -14,6 +14,6 @@ Publishing sends only the chosen package, public key, signature and revision met
 
 Bundles support relative Markdown/JSON resources within the package. Refresh checks unchanged installed downloads; failed updates preserve the active version and existing enable state. Author drafts remain under the creator’s control.
 
-The official API is `/api/skills` on igent.cc. The included Worker handles publication writes. Published packages and their revision history are available from that API.
+The official API is `/api/skills` on igent.cc. The included Worker handles publication writes. The API lists and returns the latest published version of each skill. D1 retains earlier revisions.
 
 [API implementation](../../apps/web/api/README.md) · [Skills](skills.md)

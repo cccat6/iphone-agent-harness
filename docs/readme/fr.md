@@ -43,10 +43,13 @@ flowchart LR
     Storage[("Stockage local du navigateur<br/>Conversations · images · clés")]
     Apps -->|Partage d’écran| Harness
     Harness <--> Storage
+    Shortcut["Raccourcis Apple<br/>Presse-papiers iOS"]
   end
   Harness <-->|Contexte / réponses| AI["Votre IA"]
   Harness <-->|WebRTC · Wi-Fi local| Bridge["Pont ESP32"]
   Bridge -->|Clavier / souris Bluetooth| Apps
+  Bridge -->|HTTP local · texte| Shortcut
+  Shortcut -->|Copie confirmée| Harness
 ```
 
 [Architecture](../architecture/overview.md)
@@ -108,6 +111,14 @@ Véritables écrans de Harness avec des données de démonstration.
     <td><img src="../../apps/web/media/skills-example.jpg" width="240" alt="Compétences"></td>
   </tr>
 </table>
+
+## 📋 Des textes longs, dans plusieurs langues
+
+La saisie courante et les raccourcis clavier passent par le clavier Bluetooth du pont. Pour les textes longs ou multilingues, **iPhone Agent Clipboard** copie le contenu avec Raccourcis d’Apple, puis l’agent le colle dans le champ choisi.
+
+Le navigateur envoie le texte à l’ESP32 par petits blocs via le WebRTC local. Le pont transmet ces blocs dans une seule réponse HTTP au raccourci, qui place le texte complet dans le presse-papiers de l’iPhone.
+
+[Configurer le presse-papiers](../guide/fr.md#clipboard)
 
 ## 🔒 Vos données restent chez vous
 

@@ -14,9 +14,10 @@
 #include <lwip/sockets.h>
 #include <lwip/inet.h>
 #include "Admission.h"
-#include "Pki.h"
+#include "CryptoUtils.h"
+#include "FirmwareVersion.h"
+#include "SetupState.h"
 #include "Wire.h"
-#include "LanBridgePage.h"
 #include "WifiSetupPage.h"
 #include "BridgeSettings.h"
 #include "BridgeSettingsPage.h"
@@ -29,7 +30,7 @@ class CoreLock {SemaphoreHandle_t mutex_;public:explicit CoreLock(SemaphoreHandl
 class SecureService {
  Core& core_;Sink& sink_;Preferences& prefs_;SemaphoreHandle_t mutex_;String board_,boot_,host_,owner_,apPassword_,origin_;
  std::atomic<uint32_t>& wifiEpoch_;WifiJoinState wifiJoin_;String candidateNetwork_,candidateSsid_,candidatePassword_,candidateOrigin_,previousNetwork_;bool startCandidate_=false;
- WebServer ap_{80};httpd_handle_t http_=nullptr;std::atomic_bool maintenance_{false};Pki pki_;Admission auth_;bool apActive_=false,configComplete_=false,storageReady_=false;SetupDeadline setupDeadline_;SavedNetworkRetry savedRetry_;bool recoverySetup_=false;uint64_t httpRetryAt_=0;
+ WebServer ap_{80};httpd_handle_t http_=nullptr;std::atomic_bool maintenance_{false};String identityFingerprint_;Admission auth_;bool apActive_=false,configComplete_=false,storageReady_=false;SetupDeadline setupDeadline_;SavedNetworkRetry savedRetry_;bool recoverySetup_=false;uint64_t httpRetryAt_=0;
  BridgeSettings bridgeSettings_;std::atomic<uint64_t> restartAt_{0};
  uint64_t challengeNext_=0;size_t challengeEvent_=0;uint16_t challengeHandle_=InvalidHandle;
  struct Request {
@@ -74,7 +75,7 @@ class SecureService {
  }
  void addSettings(JsonDocument& d){addIdentity(d);d["hostname"]=bridgeSettings_.hostname;d["newURL"]="http://"+String(bridgeSettings_.hostname.c_str())+".local";d["harnessURL"]=origin_+"/";addRtc(d);}
  void addRtc(JsonDocument& d){auto rtc=d["rtc"].to<JsonObject>();if(WiFi.status()==WL_CONNECTED)rtc["ip"]=WiFi.localIP().toString();rtc["port"]=18948;rtc["fingerprint"]=RtcIdentity::fingerprint;}
- void addIdentity(JsonDocument& d){d["boardId"]=board_;d["bootId"]=boot_;}
+ void addIdentity(JsonDocument& d){d["boardId"]=board_;d["bootId"]=boot_;firmware::addIdentity(d);}
  void addTargets(JsonDocument& d){auto list=d["targets"].to<JsonArray>();for(const auto& t:core_.targets())if(!t.id.empty()){auto row=list.add<JsonObject>();row["targetId"]=t.id;row["connected"]=t.connHandle!=InvalidHandle;row["encrypted"]=t.encrypted;row["hidSubscribed"]=t.subscribed;row["inputReleased"]=!t.releasePending;bool challenge=auth_.typing(now())&&auth_.target()==t.id;row["inputState"]=(!t.releasePending&&!t.running&&!challenge)?"released":"unknown";row["running"]=t.running||challenge;}}
  void receipt(JsonDocument& d,const Result& result){addIdentity(d);d["targetId"]=result.targetId;d["clientId"]=result.clientId;d["segmentId"]=result.segmentId;d["planId"]=result.planId;d["payloadHash"]=result.payloadHash;d["status"]=statusName(result.status);d["releaseSubmitted"]=result.releaseSubmitted;d["acceptedAtDeviceMs"]=result.acceptedAt;d["startedAtDeviceMs"]=result.startedAt;d["endedAtDeviceMs"]=result.endedAt;d["submitted"]=result.submitted;d["maxLatenessMs"]=result.maxLatenessMs;}
  void clearClipboard(){clipboard_.clear();clipboardRequest_="";clipboardClient_="";clipboardTarget_="";clipboardToken_="";clipboardSource_="";}
@@ -128,17 +129,15 @@ class SecureService {
  }
  esp_err_t handle(Request* r){
   String browserOrigin=header(r,"Origin");
-  // The local bridge page sends same-origin HTTP requests. Its own script verifies
-  // the Harness window/origin/nonce before forwarding; bearer and Core fences remain mandatory.
+  // The local settings page sends same-origin HTTP requests; client tokens and
+  // target leases use the same admission checks as the RTC path.
   String localName=host_+".local",localIp=WiFi.localIP().toString(),hostHeader=header(r,"Host");hostHeader.toLowerCase();
   bool localHost=hostHeader==localName||hostHeader==localName+":80"||hostHeader==localIp||hostHeader==localIp+":80";
   bool localOrigin=browserOrigin.isEmpty()||browserOrigin=="http://"+localName||browserOrigin=="http://"+localName+":80"||browserOrigin=="http://"+localIp||browserOrigin=="http://"+localIp+":80";
   if(header(r,"X-Harness-Window")=="1"&&localHost&&localOrigin)browserOrigin=origin_;
   String pagePath=r->uri;int pageQuery=pagePath.indexOf('?');if(pageQuery>=0)pagePath.remove(pageQuery);
-  if(r->http&&r->method==HTTP_GET&&(pagePath=="/harness-link"||pagePath=="/settings"||pagePath=="/")){
-   String page;
-   if(pagePath=="/harness-link")page=renderLanBridgePage(origin_);
-   else{JsonDocument information;addIdentity(information);information["hostname"]=host_+".local";information["harnessURL"]=origin_+"/";addRtc(information);String encoded;serializeJson(information,encoded);page=renderBridgeSettingsPage(encoded);}
+  if(r->http&&r->method==HTTP_GET&&(pagePath=="/settings"||pagePath=="/")){
+   JsonDocument information;addIdentity(information);information["hostname"]=host_+".local";information["harnessURL"]=origin_+"/";addRtc(information);String encoded;serializeJson(information,encoded);String page=renderBridgeSettingsPage(encoded);
    httpd_resp_set_type(r->http,"text/html; charset=utf-8");httpd_resp_set_hdr(r->http,"Cache-Control","no-store");httpd_resp_set_hdr(r->http,"Referrer-Policy","no-referrer");httpd_resp_set_hdr(r->http,"X-Frame-Options","DENY");httpd_resp_set_hdr(r->http,"Content-Security-Policy","default-src 'none'; connect-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'");httpd_resp_set_hdr(r->http,"Connection","close");auto sent=httpd_resp_send(r->http,page.c_str(),page.length());return sent==ESP_OK?ESP_FAIL:sent;
   }
   if(browserOrigin.length()&&browserOrigin!=origin_)return error(r,403,"origin_not_allowed");
@@ -165,14 +164,14 @@ class SecureService {
    return error(r,404,"not_found");
   }
   if(r->method==HTTP_GET&&parts[1]=="identity"){
-   JsonDocument d;addIdentity(d);d["protocolVersion"]=1;d["hostname"]=host_+".local";d["publicKeyFingerprint"]=pki_.caFingerprint;
-   d["firmwareVersion"]="0.4.0-rtc-direct";d["harnessURL"]=origin_+"/";addRtc(d);d["transport"]="webrtc-direct";d["tls"]=false;d["requiresManualTrust"]=false;d["pairingAvailable"]=true;d["pairingCodeRequired"]=false;return send(r,200,d);
+   JsonDocument d;addIdentity(d);d["protocolVersion"]=1;d["hostname"]=host_+".local";d["publicKeyFingerprint"]=identityFingerprint_;
+   d["harnessURL"]=origin_+"/";addRtc(d);d["transport"]="webrtc-direct";d["pairingAvailable"]=true;d["pairingCodeRequired"]=false;return send(r,200,d);
   }
   if(r->method==HTTP_GET&&parts[1]=="clock"){JsonDocument d;addIdentity(d);d["deviceTimeMs"]=now();return send(r,200,d);}
   if(r->method==HTTP_GET&&parts[1]=="capabilities"){
    JsonDocument d;addIdentity(d);d["protocolVersion"]=1;d["executionEnabled"]=!maintenance_;d["pairingAvailable"]=true;
    d["maxTargets"]=MaxTargets;d["maxClients"]=MaxClients;d["maxEvents"]=WireMaxEvents;d["reportIntervalMs"]=40;d["pointerSettleMs"]=20;d["maxRequestBytes"]=WireMaxRequestBytes;d["maxSegmentMs"]=MaxSegmentMs;
-   d["maxHoldMs"]=MaxHoldMs;d["maxLeaseMs"]=MaxLeaseMs;d["captureOnDevice"]=false;d["physicalValidation"]=false;d["maxConcurrentRequests"]=1;addRtc(d);d["clipboardChunkBytes"]=ClipboardMailbox::ChunkBytes;d["clipboardStreaming"]=true;
+   d["maxHoldMs"]=MaxHoldMs;d["maxLeaseMs"]=MaxLeaseMs;d["captureOnDevice"]=false;d["maxConcurrentRequests"]=1;addRtc(d);d["clipboardChunkBytes"]=ClipboardMailbox::ChunkBytes;d["clipboardStreaming"]=true;
    d["freeHeapBytes"]=ESP.getFreeHeap();d["minFreeHeapBytes"]=ESP.getMinFreeHeap();d["transport"]="webrtc-direct";
    auto operations=d["operations"].to<JsonArray>();for(auto op:{"tap","drag","swipe","pointer_sequence","key","home","wait","capture","observe"})operations.add(op);
    return send(r,200,d);
@@ -195,7 +194,7 @@ class SecureService {
     if(enrolled==Admission::Enrollment::PersistenceFailed)return {503,"credential_persistence_failed"};
     if(enrolled!=Admission::Enrollment::Accepted)return {409,"board_busy"};
     if(r->rtc)rememberRtcClient(client.c_str());
-    addIdentity(d);d["clientId"]=client;d["token"]=token;d["hostname"]=host_+".local";d["publicKeyFingerprint"]=pki_.caFingerprint;return {200,""};
+    addIdentity(d);d["clientId"]=client;d["token"]=token;d["hostname"]=host_+".local";d["publicKeyFingerprint"]=identityFingerprint_;return {200,""};
    });
   }
   Grant grant;bool authenticated=false;
@@ -395,14 +394,12 @@ class SecureService {
   JsonDocument config;for(auto key:{"ssid","password","origin","unixTime"})config[key]=input[key];config["setupPassword"]=owner_;
   return configure(config);
  }
- void profileInfo(){JsonDocument doc;doc["format"]="iah-profile/1";doc["publicKeyFingerprint"]=pki_.caFingerprint;if(pki_.certPem.length())doc["mobileconfig"]=pki_.mobileconfig(board_);else doc["mobileconfig"]=nullptr;Serial.print("IAH_PROFILE ");serializeJson(doc,Serial);Serial.println();}
  bool finishSetup(){return setupDeadline_.finish(apActive_,!startCandidate_&&wifiJoin_.canFinish(configComplete_,WiFi.status()==WL_CONNECTED,hasNetworkAddress()),now());}
- bool trustProfileChanged()const{return pki_.trustProfileChanged;}
- const String& publicFingerprint()const{return pki_.caFingerprint;}
+ const String& publicFingerprint()const{return identityFingerprint_;}
  SecureService(Core& core,Sink& sink,Preferences& prefs,SemaphoreHandle_t mutex,const String& board,const String& boot,const String& host,std::atomic<uint32_t>& wifiEpoch):core_(core),sink_(sink),prefs_(prefs),mutex_(mutex),board_(board),boot_(boot),host_(host),wifiEpoch_(wifiEpoch){}
  void begin(bool needsWifi){
   bridgeSettings_=readBridgeSettings(prefs_.getString("bridgeSettings", "").c_str());
-  owner_=prefs_.getString("owner","");apPassword_=prefs_.getString("apPass","");origin_=prefs_.getString("origin","https://igent.cc");JsonDocument network;if(!deserializeJson(network,prefs_.getString("network","")))origin_=network["origin"]|"https://igent.cc";configComplete_=!needsWifi;if(owner_.isEmpty()){owner_=randomHex(32);prefs_.putString("owner",owner_);}if(apPassword_.isEmpty()){apPassword_=randomHex(12);prefs_.putString("apPass",apPassword_);}storageReady_=prefs_.getString("owner","")==owner_&&prefs_.getString("apPass","")==apPassword_;if(!storageReady_){Serial.println("{\"error\":\"ownership_storage_not_ready\"}");return;}pki_.caFingerprint=sha256Hex(owner_); // Stable board identity label, not a TLS certificate proof.
+  owner_=prefs_.getString("owner","");apPassword_=prefs_.getString("apPass","");origin_=prefs_.getString("origin","https://igent.cc");JsonDocument network;if(!deserializeJson(network,prefs_.getString("network","")))origin_=network["origin"]|"https://igent.cc";configComplete_=!needsWifi;if(owner_.isEmpty()){owner_=randomHex(32);prefs_.putString("owner",owner_);}if(apPassword_.isEmpty()){apPassword_=randomHex(12);prefs_.putString("apPass",apPassword_);}storageReady_=prefs_.getString("owner","")==owner_&&prefs_.getString("apPass","")==apPassword_;if(!storageReady_){Serial.println("{\"error\":\"ownership_storage_not_ready\"}");return;}identityFingerprint_=sha256Hex(owner_); // Persistent identity label derived from the saved board secret.
   for(size_t i=0;i<MaxClients;i++){JsonDocument doc;auto text=prefs_.getString(("grant"+String(i)).c_str(),"");if(!deserializeJson(doc,text)){std::string id=doc["id"]|"",hash=doc["hash"]|"",origin=doc["origin"]|"",target=doc["target"]|"";if(!core_.target(target))target.clear();if(auth_.install(id,hash,origin,target)&&!target.empty())core_.bindClient(id,target);}}
   ap_.on("/",HTTP_GET,[this]{
    if(!apRequest()){ap_.send(403,"text/plain","Connect to this device's setup Wi-Fi first.");return;}
@@ -410,13 +407,12 @@ class SecureService {
    String page=renderWifiSetupPage(owner_);
    ap_.send(200,"text/html; charset=utf-8",page);
   });
-  ap_.on("/configure",HTTP_POST,[this]{if(!apRequest()||ap_.header("Origin")!="http://192.168.4.1"){ap_.send(403,"application/json","{\"error\":\"protected_ap_origin_required\"}");return;}JsonDocument body;if(ap_.arg("plain").length()>2048||deserializeJson(body,ap_.arg("plain"))||!configure(body)){ap_.send(403,"application/json","{\"error\":\"configuration_rejected\"}");return;}JsonDocument reply;reply["accepted"]=true;reply["status"]="connecting";reply["httpUrl"]="http://"+host_+".local";reply["boardId"]=board_;reply["publicKeyFingerprint"]=pki_.caFingerprint;reply["manualTrustRequired"]=false;String out;serializeJson(reply,out);ap_.sendHeader("Cache-Control","no-store");ap_.send(202,"application/json",out);});
+  ap_.on("/configure",HTTP_POST,[this]{if(!apRequest()||ap_.header("Origin")!="http://192.168.4.1"){ap_.send(403,"application/json","{\"error\":\"protected_ap_origin_required\"}");return;}JsonDocument body;if(ap_.arg("plain").length()>2048||deserializeJson(body,ap_.arg("plain"))||!configure(body)){ap_.send(403,"application/json","{\"error\":\"configuration_rejected\"}");return;}JsonDocument reply;reply["accepted"]=true;reply["status"]="connecting";reply["httpUrl"]="http://"+host_+".local";reply["boardId"]=board_;reply["publicKeyFingerprint"]=identityFingerprint_;String out;serializeJson(reply,out);ap_.sendHeader("Cache-Control","no-store");ap_.send(202,"application/json",out);});
   ap_.on("/connection-status",HTTP_GET,[this]{if(!apRequest()){ap_.send(403,"application/json","{\"error\":\"setup_only\"}");return;}JsonDocument reply;bool connected=!startCandidate_&&wifiJoin_.canFinish(configComplete_,WiFi.status()==WL_CONNECTED,hasNetworkAddress());reply["status"]=connected?"connected":wifiJoin_.name();reply["configured"]=connected;reply["harnessURL"]=origin_+"/";if(connected)addRtc(reply);reply["pairingCodeRequired"]=false;reply["httpUrl"]="http://"+host_+".local";reply["boardId"]=board_;String out;serializeJson(reply,out);ap_.sendHeader("Cache-Control","no-store");ap_.send(200,"application/json",out);});
   ap_.on("/finish",HTTP_POST,[this]{JsonDocument d;if(!apRequest()||ap_.header("Origin")!="http://192.168.4.1"||deserializeJson(d,ap_.arg("plain"))||!constantEqual(std::string(d["setupPassword"]|""),owner_.c_str())||!configComplete_){ap_.send(403,"text/plain","Owner proof required");return;}if(!finishSetup()){ap_.send(409,"application/json","{\"error\":\"wifi_not_connected\"}");return;}ap_.send(200,"application/json","{\"configured\":true}");});
-  ap_.on("/ca.mobileconfig",HTTP_GET,[this]{if(!apRequest()||pki_.certPem.isEmpty()){ap_.send(403,"text/plain","Use the protected setup AP after configuration.");return;}auto profile=pki_.mobileconfig(board_);ap_.sendHeader("Cache-Control","no-store");ap_.sendHeader("Content-Disposition","attachment; filename=igent-device-ca.mobileconfig");ap_.send(200,"application/x-apple-aspen-config",profile);});
   ap_.onNotFound([this]{ap_.send(403,"application/json","{\"error\":\"setup_only\"}");});const char* headers[]={"Origin"};ap_.collectHeaders(headers,1);if(needsWifi)openSetup();
  }
- void setupInfo(){JsonDocument info;info["format"]="iah-setup/1";info["storageReady"]=storageReady_;info["boardId"]=board_;info["bootId"]=boot_;info["apSsid"]="iPhone-Harness-"+board_.substring(4);info["apPassword"]=apPassword_;info["setupPassword"]="";info["pairingCodeRequired"]=false;info["hostname"]=host_+".local";info["httpUrl"]="http://"+host_+".local";info["httpsUrl"]=nullptr;info["transport"]="webrtc-direct";addRtc(info);info["manualTrustRequired"]=false;info["caReady"]=false;info["apActive"]=apActive_;if(pki_.caFingerprint.length())info["publicKeyFingerprint"]=pki_.caFingerprint;else info["publicKeyFingerprint"]=nullptr;if(apActive_&&!pki_.certPem.isEmpty())info["caProfileUrl"]="http://192.168.4.1/ca.mobileconfig";else info["caProfileUrl"]=nullptr;Serial.print("IAH_SETUP ");serializeJson(info,Serial);Serial.println();}
+ void setupInfo(){JsonDocument info;info["format"]="iah-setup/1";info["storageReady"]=storageReady_;addIdentity(info);info["apSsid"]="iPhone-Harness-"+board_.substring(4);info["apPassword"]=apPassword_;info["pairingCodeRequired"]=false;info["hostname"]=host_+".local";info["httpUrl"]="http://"+host_+".local";info["transport"]="webrtc-direct";addRtc(info);info["apActive"]=apActive_;info["publicKeyFingerprint"]=identityFingerprint_;Serial.print("IAH_SETUP ");serializeJson(info,Serial);Serial.println();}
  void openSetup(){
   recoverySetup_=false;
   setupDeadline_.opened();maintenance_=true;

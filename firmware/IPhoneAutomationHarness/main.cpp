@@ -25,6 +25,7 @@
 #include "config.example.h"
 #include "src/SecureService.h"
 #include "src/RtcBridge.h"
+#include "src/FirmwareVersion.h"
 
 SET_LOOP_TASK_STACK_SIZE(6144);
 static_assert(CONFIG_BT_NIMBLE_MAX_CONNECTIONS==2&&CONFIG_BT_NIMBLE_MAX_BONDS==2,"Arduino build_opt.h must configure the actual NimBLE host");
@@ -341,10 +342,9 @@ void configureSerial(){
   if(op=="wifi-power"){wifiPower(d);continue;}
   if(op=="wifi-reconnect"){wifiReconnect();continue;}
   if(op=="setup-info"){secureService->setupInfo();continue;}
-  if(op=="setup-profile"){secureService->profileInfo();continue;}
   if(op=="setup-finish"){bool ok=secureService->finishSetup();Serial.printf("{\"setupFinishing\":%s}\n",ok?"true":"false");continue;}
   if(op=="setup-window"){secureService->openSetup();continue;}
-  if(op=="setup-config"){bool ok=secureService->configureFromSerial(d);JsonDocument reply;reply["configurationAccepted"]=ok;reply["secureConfigured"]=false;reply["status"]=secureService->configurationStatus();if(ok){reply["publicKeyFingerprint"]=secureService->publicFingerprint();reply["trustProfileChanged"]=secureService->trustProfileChanged();reply["manualTrustRequired"]=false;}serializeJson(reply,Serial);Serial.println();continue;}
+  if(op=="setup-config"){bool ok=secureService->configureFromSerial(d);JsonDocument reply;reply["configurationAccepted"]=ok;reply["status"]=secureService->configurationStatus();if(ok){reply["publicKeyFingerprint"]=secureService->publicFingerprint();}serializeJson(reply,Serial);Serial.println();continue;}
   if(op=="status"){JsonDocument out;out["boardId"]=boardId;out["bootId"]=bootId;out["wifiConfigured"]=secureService->networkConfigured();out["configurationStatus"]=secureService->configurationStatus();out["wifiConnected"]=WiFi.status()==WL_CONNECTED;out["executionEnabled"]=secureService->networkReady();serializeJson(out,Serial);Serial.println();continue;}
   Serial.println("{\"error\":\"unsupported_configuration_operation\"}");
  }
@@ -362,7 +362,7 @@ void setup(){
  startBle();sink.beginRouting();
  secureService=new SecureService(*core,sink,preferences,coreMutex,boardId,bootId,hostname,wifiGotIps);secureService->begin(ssid.isEmpty());
  rtcBridge=new iah::RtcBridge();if(xTaskCreatePinnedToCore(rtcTask,"iah-rtc",8192,nullptr,1,&rtcTaskHandle,0)!=pdPASS)Serial.println("{\"event\":\"rtc_task_failed\"}");
-Serial.println("{\"firmware\":\"0.4.0-rtc-direct\",\"physicalValidation\":false}");
+JsonDocument boot;iah::firmware::addIdentity(boot);serializeJson(boot,Serial);Serial.println();
 }
 void loop(){
  syncPeers();{CoreLock lock(coreMutex);core->tick(nowMs());}configureSerial();secureService->loop();

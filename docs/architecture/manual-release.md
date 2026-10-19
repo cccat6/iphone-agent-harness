@@ -11,7 +11,7 @@ The [Manual release workflow](https://github.com/cccat6/iphone-agent-harness/act
 3. Reuse matching published or checked-in firmware. When those inputs change, compile all seven profiles: C2 at 26 MHz and 40 MHz, C3, C5, C6, S3 and classic ESP32. C2 uses a 2 MB layout; the others use 4 MB.
 4. Verify source provenance, dependencies, flash offsets, partition bounds, sizes and SHA-256 hashes.
 5. Build the website with the selected firmware and flashing manifest.
-6. Publish `firmware-<full-input-SHA256>`. A release contains 28 binary parts, manifest, build report, build-input record, a complete archive and `SHA256SUMS`. Draft uploads can resume; matching published releases are reused.
+6. Publish `firmware-<full-input-SHA256>`. A release contains 28 binary parts, manifest, build report, build-input record, a complete archive and `SHA256SUMS`. Draft uploads can resume; matching published releases are reused. Published files are verified before that release becomes GitHub Latest.
 7. Apply the community database schema and deploy the Worker and website to `igent.cc`.
 8. Read back deployed files and compare their hashes with the build. Save the verification reports as Actions artifacts.
 
@@ -32,5 +32,9 @@ npx wrangler deploy --dry-run
 ```
 
 `plan` can look up releases with `GH_TOKEN` and `GITHUB_REPOSITORY`; `--offline` uses local artifacts. After compiling all declared profiles, `seal` verifies the artifacts and records their build inputs.
+
+Firmware version comes from `src/FirmwareVersion.h`. Each build embeds the first 16 characters of the source SHA-256 as its build ID; the manifest and build report carry the same values.
+
+Compilation writes into a staging directory and replaces the firmware set after every selected profile passes validation. The previous set stays available if compilation or validation fails. For a single-board build, use an isolated destination, for example `python3 tools/build_firmware.py --profiles esp32c3 --output build/c3-firmware`. The website directory always receives the full profile set.
 
 [Website deployment](deployment.md) · [Arduino guide](../../firmware/IPhoneAutomationHarness/README.md)

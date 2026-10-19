@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Compile clean, static-hostable diagnostic firmware; never touches serial ports."""
+"""Compile clean, static-hostable firmware; never touches serial ports."""
 from __future__ import annotations
 import argparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from contextlib import nullcontext
+from contextlib import nullcontext, contextmanager
 import hashlib
 import json
 import os
@@ -21,7 +21,8 @@ import build_c2_sdk as c2_sdk
 ROOT = Path(__file__).resolve().parents[1]
 SKETCH = ROOT / 'firmware' / 'IPhoneAutomationHarness'
 CORE_VERSION = '3.3.11'
-SOURCE_FILES = ('IPhoneAutomationHarness.ino', 'main.cpp', 'config.example.h', 'ResourceLimits.h', 'build_opt.h', 'src/Core.h', 'src/Canonical.h', 'src/SetupState.h', 'src/HidReportMap.h', 'src/Admission.h', 'src/Pki.h', 'src/Wire.h', 'src/SecureService.h', 'src/LanBridgePage.h', 'src/HtmlJson.h', 'src/WifiSetupPage.h', 'src/BridgeSettings.h', 'src/BridgeSettingsPage.h', 'src/ClipboardMailbox.h', 'src/ClipboardWire.h', 'src/RtcIdentity.h', 'src/RtcSctp.h', 'src/RtcRpc.h', 'src/RtcBridge.h', 'src/StrictJson.h')
+RECIPE_FILES = ('build_firmware.py', 'verify_rtc_tls_link.py', 'build_c2_sdk.py', 'c2_sdk.lock.json', 'c2_sdk.components.lock', 'partitions/c2-2m.csv')
+SOURCE_FILES = ('IPhoneAutomationHarness.ino', 'main.cpp', 'config.example.h', 'ResourceLimits.h', 'build_opt.h', 'src/Core.h', 'src/Canonical.h', 'src/SetupState.h', 'src/HidReportMap.h', 'src/Admission.h', 'src/CryptoUtils.h', 'src/FirmwareVersion.h', 'src/Wire.h', 'src/SecureService.h', 'src/HtmlJson.h', 'src/WifiSetupPage.h', 'src/BridgeSettings.h', 'src/BridgeSettingsPage.h', 'src/ClipboardMailbox.h', 'src/ClipboardWire.h', 'src/RtcIdentity.h', 'src/RtcSctp.h', 'src/RtcRpc.h', 'src/RtcBridge.h', 'src/StrictJson.h')
 
 # Exact ESP-IDF 5.5.5 TLS family; explicit names keep local config files excluded.
 RTC_TLS_FILES = tuple("src/RtcTls/" + name for name in (
@@ -311,6 +312,73 @@ def verify_sources(output: Path):
     return len(current)
 
 
+def recipe_files(root=None):
+    root = root or ROOT
+    return {name: digest((root / 'tools' / name).read_bytes()) for name in RECIPE_FILES}
+
+
+def firmware_version():
+    source = (SKETCH / 'src/FirmwareVersion.h').read_text()
+    match = re.search(r'Version\[\]\s*=\s*"([A-Za-z0-9.+-]+)"', source)
+    if not match:
+        raise RuntimeError('FirmwareVersion.h must declare the firmware Version')
+    return match.group(1)
+
+
+def replace_output(candidate: Path, output: Path):
+    """Publish a validated sibling directory, restoring the prior one on failure."""
+    backup = candidate.parent / 'previous'
+    had_output = output.exists()
+    if had_output:
+        output.rename(backup)
+    try:
+        candidate.rename(output)
+    except BaseException:
+        if had_output:
+            backup.rename(output)
+        raise
+    if had_output:
+        shutil.rmtree(backup)
+
+
+@contextmanager
+def staged_output(output: Path):
+    if output.is_symlink():
+        raise RuntimeError('Firmware output must not be a symlink')
+    output = output.resolve()
+    output.parent.mkdir(parents=True, exist_ok=True)
+    if output.exists() and any(p.is_symlink() for p in output.rglob('*')):
+        raise RuntimeError('Firmware output must not contain symlinks')
+    with tempfile.TemporaryDirectory(prefix='.' + output.name + '-staging-', dir=output.parent) as temp:
+        candidate = Path(temp) / 'candidate'
+        candidate.mkdir()
+        yield candidate
+        # Read notices at publication time: a long compilation may overlap a
+        # documentation edit. Preserve the current files, including deletions.
+        generated = set(PROFILES) | {'manifest.json', 'build-report.json', 'build-inputs.json'}
+        for path in candidate.iterdir():
+            if path.name not in generated:
+                shutil.rmtree(path) if path.is_dir() else path.unlink()
+        if output.exists():
+            if any(p.is_symlink() for p in output.rglob('*')):
+                raise RuntimeError('Firmware output must not contain symlinks')
+            for source in output.iterdir():
+                if source.name not in generated:
+                    destination = candidate / source.name
+                    if source.is_dir():
+                        shutil.copytree(source, destination)
+                    else:
+                        shutil.copy2(source, destination)
+        replace_output(candidate, output)
+
+
+def check_output_profiles(output: Path, profiles):
+    if len(profiles) != len(set(profiles)):
+        raise RuntimeError('Each firmware profile must be selected once')
+    if output.resolve() == (ROOT / 'apps/web/firmware').resolve() and set(profiles) != set(PROFILES):
+        raise RuntimeError('The website firmware directory requires every profile; use --output for a partial build')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--arduino-cli', default=os.environ.get('ARDUINO_CLI') or shutil.which('arduino-cli') or '/Applications/Arduino IDE.app/Contents/Resources/app/lib/backend/resources/arduino-cli')
@@ -333,23 +401,26 @@ def main():
         raise RuntimeError('--parallel must be between 1 and 4')
     if not 1 <= args.jobs <= 16:
         raise RuntimeError('--jobs must be between 1 and 16')
+    check_output_profiles(args.output, args.profiles)
+    recipe_snapshot = recipe_files()
     pinned = dependencies(args.arduino_cli)
-    args.output.mkdir(parents=True, exist_ok=True)
     compiled, reports, failed = [], [], []
     if args.work_dir:
         args.work_dir.mkdir(parents=True, exist_ok=True)
     manager = nullcontext(str(args.work_dir)) if args.work_dir else tempfile.TemporaryDirectory(prefix='iah-firmware-build-')
-    with manager as temporary:
+    with staged_output(args.output) as candidate, manager as temporary:
         work = Path(temporary)
         sketch = work / 'IPhoneAutomationHarness'
         source_hash, source_files = copy_clean_sketch(sketch)
+        version = firmware_version()
+        build_id = source_hash[:16]
         def compile_profile(profile_id):
             profile = PROFILES[profile_id]
             build = work / (profile_id + '-build')
             profile_sketch=sketch
             if profile.get('partitions'):
                 profile_sketch=work/(profile_id+'-sketch')/'IPhoneAutomationHarness';copy_clean_sketch(profile_sketch,generated_files=('partitions.csv',));shutil.copyfile(ROOT/'tools'/profile['partitions'],profile_sketch/'partitions.csv')
-            command = [args.arduino_cli, 'compile', '--jobs', str(args.jobs), '--fqbn', profile['fqbn'], '--build-path', str(build)]
+            command = [args.arduino_cli, 'compile', '--jobs', str(args.jobs), '--fqbn', profile['fqbn'], '--build-path', str(build), '--build-property', 'compiler.cpp.extra_flags=-DIAH_BUILD_ID=' + build_id]
             sdk_metadata=None
             if profile.get('chip')=='esp32c2':
                 sdk=c2_sdk.verified_sdk(args.c2_sdk_cache,profile['xtalMHz']);record=json.loads((sdk/'iah-sdk-provenance.json').read_text());sdk_metadata={'recipe':record['recipe'],'filesSha256':digest(json.dumps(record['files'],sort_keys=True,separators=(',',':')).encode()),'fileCount':len(record['files']),'configuration':verify_c2_configuration(sdk,profile['xtalMHz'])}
@@ -375,7 +446,7 @@ def main():
                 if (build / 'build_opt.h').read_bytes() != (sketch / 'build_opt.h').read_bytes():
                     raise RuntimeError('Compiled options do not match allowlisted source')
                 report['rtcTlsLink'] = verify_tls_link(build, sketch / 'src' / 'RtcTls')
-                parts = collect_parts(build, profile_id, args.output)
+                parts = collect_parts(build, profile_id, candidate)
                 built = {'id': profile_id, 'label': profile['label'], 'chip': profile.get('chip',profile_id), 'board': profile['board'], 'minFlashMB': profile.get('minFlashMB',4), 'usbCdc': profile['usbCdc'], 'flashFreq': profile['flashFreq'], 'parts': parts}
                 if profile.get('xtalMHz'):built['xtalMHz']=profile['xtalMHz']
                 for line in summary:
@@ -397,16 +468,18 @@ def main():
         order = {value: index for index, value in enumerate(args.profiles)}
         compiled.sort(key=lambda value: order[value['id']])
         reports.sort(key=lambda value: order[value['id']])
-    manifest = {'schemaVersion': 1, 'firmwareVersion': '0.4.0-rtc-direct', 'executionEnabled': True, 'physicalValidation': False, 'requiresManualTrust': False, 'stage': 'rtc-control-phone-validation-pending', 'profiles': compiled}
-    report = {'builtAt': datetime.now(timezone.utc).isoformat(), 'dependencies': pinned, 'sourceSha256': source_hash, 'sourceFiles': source_files, 'serialPortsOpened': False, 'flashed': False, 'profiles': reports, 'excluded': [{'chip': 'esp32s2', 'reason': 'No Bluetooth LE radio; cannot control an iPhone over BLE without extra hardware'}]}
-    for name, value in [('manifest.json', manifest), ('build-report.json', report)]:
-        temporary_path = args.output / (name + '.tmp')
-        temporary_path.write_text(json.dumps(value, ensure_ascii=False, indent=2) + '\n')
-        temporary_path.replace(args.output / name)
-    validate_manifest(args.output / 'manifest.json')
-    verify_sources(args.output)
-    print(f'Published {len(compiled)} compiled profiles; failed: {failed or "none"}', flush=True)
-    return 1 if failed else 0
+        if failed:
+            raise RuntimeError('Compilation failed for: ' + ', '.join(failed))
+        manifest = {'schemaVersion': 1, 'firmwareVersion': version, 'buildId': build_id, 'executionEnabled': True, 'requiresManualTrust': False, 'profiles': compiled}
+        report = {'builtAt': datetime.now(timezone.utc).isoformat(), 'firmwareVersion': version, 'buildId': build_id, 'dependencies': pinned, 'recipeFiles': recipe_snapshot, 'sourceSha256': source_hash, 'sourceFiles': source_files, 'serialPortsOpened': False, 'flashed': False, 'profiles': reports}
+        for name, value in [('manifest.json', manifest), ('build-report.json', report)]:
+            (candidate / name).write_text(json.dumps(value, ensure_ascii=False, indent=2) + '\n')
+        validate_manifest(candidate / 'manifest.json')
+        verify_sources(candidate)
+        if recipe_files() != recipe_snapshot:
+            raise RuntimeError('Firmware build recipe changed during compilation; rebuild before publishing')
+    print(f'Published {len(compiled)} compiled profiles, firmware {version}, build {build_id}', flush=True)
+    return 0
 
 
 if __name__ == '__main__':

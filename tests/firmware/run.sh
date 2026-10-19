@@ -48,3 +48,8 @@ compile_test "$project_root/tests/firmware/strict_json_test.cpp" -I "$json_inclu
 "$binary_path"
 compile_test "$project_root/tests/firmware/clipboard_wire_test.cpp" -I "$json_include"
 "$binary_path"
+
+compile_test "$project_root/tests/firmware/firmware_identity_test.cpp" -I "$json_include"
+"$binary_path"
+compile_test "$project_root/tests/firmware/firmware_identity_test.cpp" -I "$json_include" '-DIAH_BUILD_ID=0123456789abcdef' '-DEXPECTED_IAH_BUILD_ID="0123456789abcdef"'
+"$binary_path"

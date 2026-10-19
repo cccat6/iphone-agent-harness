@@ -1,17 +1,27 @@
 {
-  "builtAt": "2026-10-19T13:48:47.925912+00:00",
+  "builtAt": "2026-10-19T17:36:01.404775+00:00",
+  "firmwareVersion": "0.5.0-rtc-direct",
+  "buildId": "168c2b6f004ad789",
   "dependencies": {
     "arduinoEsp32": "3.3.11",
     "NimBLE-Arduino": "2.5.1",
     "ArduinoJson": "7.4.3"
   },
-  "sourceSha256": "4fe4a826abb95c7ebdf6f40129bfd2e4156db058925e2e82c434ed12c7bfcef6",
+  "recipeFiles": {
+    "build_firmware.py": "0d764c4a08867c140c26dc27f303c2357f8f80f20fa99b463a87cd32ebe3e7c3",
+    "verify_rtc_tls_link.py": "ccda6913da963200ea367112c350e05bb733761324d50804c0c808d8a5da4b8b",
+    "build_c2_sdk.py": "e0e22f566bf4893f18db795ca05bac85e06d4e97c8b9737e4ed18fd6ddd8a9a4",
+    "c2_sdk.lock.json": "05ad1d7a7f0c3adb6d0a302533f2a78a2ad99737fdf71e88be1f9a342dc4ea6a",
+    "c2_sdk.components.lock": "de86c6e0b54dadef599400692273e5bd9b36564dc0ca90c85f3c0900e2b120de",
+    "partitions/c2-2m.csv": "b49b7fc83f81c845f74e4a324a026c0acde081305d11d55912dc7c998ca57ba0"
+  },
+  "sourceSha256": "168c2b6f004ad7891a02199467c9b2ad2628108c1c295e24e046a7d5d89def83",
   "sourceFiles": {
     "IPhoneAutomationHarness.ino": "37feb9fe2dee7989b3a1ba21c34912238a03572f7c5338c471bf3cf66ee33167",
     "ResourceLimits.h": "28abf59b2e419885a3d81d6dcbc7b156a11709aa491d8c4a0a16e902b6f3831a",
     "build_opt.h": "a0f100f642c14b2ec613aac33270f5d41185269cfb80055777331420fc0f8955",
     "config.example.h": "920a5f5c61e3df5299cd3855d35117d159ae04685ce439f5301d77bf509373b7",
-    "main.cpp": "5feb9e29e9c4003ec2e4b3fdee5a165abb4ee969dc2f85a1ea3192082c7fb562",
+    "main.cpp": "c0ae27ba540b7028015b4746c515fc8d9b5ee6f308af90003e631041c168bf42",
     "src/Admission.h": "3db7f1aed75fd0f04f0653730d3cc608543ed6f826b7e918088452882bb5603d",
     "src/BridgeSettings.h": "362e554eb32a6e4ca32e35605ba062eba207f0deecc892f6d190398cd51c117d",
     "src/BridgeSettingsPage.h": "28214e7c1290471b3455c6a158c04cc800e8eab35765690936933dc00c92f454",
@@ -19,10 +29,10 @@
     "src/ClipboardMailbox.h": "75ca3090f0e8c31a4f6e5023388818da89d1b82e4c7d1496e8d8c30ac14c8296",
     "src/ClipboardWire.h": "7897c094a693c4036009c818ad0e3fb3fa7dae4c549ff798b4120c20c92ec4ad",
     "src/Core.h": "01a8c5ceb83613cc17094dc8c532feef491f09ed9c98f6260ed580806b845963",
+    "src/CryptoUtils.h": "9e2eab4564cfc2bf5500fda4b1d125a5dc5e9610f7e0910a12bc0b9f8a63c3bd",
+    "src/FirmwareVersion.h": "7cbc000eb6323dfab6b49870ad5d542140b6ecbb1e4c00b29f74d67487468cf2",
     "src/HidReportMap.h": "80fa777f8c4fadc3d1ebc3bad707e3c38b6df1b7221956ade90cff7e8acd9aa5",
     "src/HtmlJson.h": "6882cd27144fe46335e8215f65b08c3545e7f4c1907d8b68fc97a6072a38360d",
-    "src/LanBridgePage.h": "63d6a697be7ebd1d51ed00bc3f5ead2ae3dc9f1c81bce543d6b7ce1640286536",
-    "src/Pki.h": "7e43c08dc5b9e1c23f2a71b19cc6625c0377521f8b0d0cb670351c2e6c41681d",
     "src/RtcBridge.h": "96db240ae06539fd45d300a8c15977e8e2c40b0cfdbde7e774170773ceaffa58",
     "src/RtcIdentity.h": "7c257108c7e66ef28f0d68308ac41682e0ba998f815c3001dd5a5026a2954918",
     "src/RtcRpc.h": "956ac12af461584748336c929aa630d2f49fc138ce3a9e2ac7a60b4d3e1366f2",
@@ -112,11 +122,11 @@
     "src/RtcTls/ssl_tls13_server.c": "7f94239126ea2f7b7f7544a7b1ba66115f0667dba72dcdc5486afa4105bf5e05",
     "src/RtcTls/threading_internal.h": "08347420c45a7b160e3b0732be31708f9a3a0d2683d9e3038d77909f010cfe98",
     "src/RtcTls/x509_internal.h": "cff993cc6af31de0b42a009ef25320ea2c6657a9e8e32ffef43aadb00a640f41",
-    "src/SecureService.h": "2b3382c4e45fd24de5a2a48aa9b2b4329a8e545b73e98354e843801164bd4e9d",
-    "src/SetupState.h": "18cde7744e8a1973a423ba12c3eef9967c89c616b1856b8df3c3d91be06f6002",
+    "src/SecureService.h": "0ad1dd413fc9c019b1ad200f953ca4e9b4bf88bcd3dc05eb0a3341b2131772a5",
+    "src/SetupState.h": "72b44713dc65483a17f1bd24aba063c4dd646c107479fc72783f2be0c1833237",
     "src/StrictJson.h": "0a476d23a4e862f381cccb515c0d2bc26d265f0c587bb3c92ef8a71cfe1ba337",
     "src/WifiSetupPage.h": "a8ccacaa257b6d9398533a8fe9ba91b102f1e4b718a6a21a930d213b469046e8",
-    "src/Wire.h": "92d87161708ad530a90d6dbb576ff5b2e83dc7d65ea19298e31feaa8a248a5d4"
+    "src/Wire.h": "c8747b8e108045cb9c05d111ff701e9038c9bb1edcc727cd25670e6734696f6b"
   },
   "serialPortsOpened": false,
   "flashed": false,
@@ -126,14 +136,14 @@
       "fqbn": "esp32:esp32:esp32c2:FlashMode=dio,FlashFreq=60,FlashSize=2M,PartitionScheme=minimal",
       "compiled": true,
       "summary": [
-        "Sketch uses 1304808 bytes (66%) of program storage space. Maximum is 1966080 bytes.",
+        "Sketch uses 1291432 bytes (65%) of program storage space. Maximum is 1966080 bytes.",
         "Global variables use 48244 bytes (14%) of dynamic memory, leaving 279436 bytes for local variables. Maximum is 327680 bytes."
       ],
       "sdkProvenance": {
         "recipe": {
           "format": "iah-c2-sdk-build/1",
           "recipeSha256": "05ad1d7a7f0c3adb6d0a302533f2a78a2ad99737fdf71e88be1f9a342dc4ea6a",
-          "bootstrapSha256": "8e8712c9dc7da3a3cda12cce5800ff623acb783be187615b8d0a751fbffd3822",
+          "bootstrapSha256": "e0e22f566bf4893f18db795ca05bac85e06d4e97c8b9737e4ed18fd6ddd8a9a4",
           "componentsLockSha256": "de86c6e0b54dadef599400692273e5bd9b36564dc0ca90c85f3c0900e2b120de",
           "repositories": {
             "builder": {
@@ -170,7 +180,7 @@
           },
           "xtalMHz": 26
         },
-        "filesSha256": "4546386825180d0931fafc6fd654f12c212cbd4b436849d66dbbf3e41ff55fdf",
+        "filesSha256": "b52149538a13ddb7839f4cfd922ab301b3c9743d3fc5648ebb2c73cf3334fcaa",
         "fileCount": 1931,
         "configuration": {
           "xtalMHz": 26,
@@ -192,7 +202,7 @@
           "mbedtls_ssl_handshake_server_step",
           "mbedtls_ssl_handshake_client_step"
         ],
-        "linkMapSha256": "4b25ea09985bcb73b2ea518d6ae05b42a9c7eb99d87e9802a3b8ef7f931c1164"
+        "linkMapSha256": "cebcf376733e65e26102d34da102d34e1696382be4cfac042476c68f1f76b2e9"
       }
     },
     {
@@ -200,14 +210,14 @@
       "fqbn": "esp32:esp32:esp32c2:FlashMode=dio,FlashFreq=60,FlashSize=2M,PartitionScheme=minimal",
       "compiled": true,
       "summary": [
-        "Sketch uses 1304748 bytes (66%) of program storage space. Maximum is 1966080 bytes.",
+        "Sketch uses 1291372 bytes (65%) of program storage space. Maximum is 1966080 bytes.",
         "Global variables use 48244 bytes (14%) of dynamic memory, leaving 279436 bytes for local variables. Maximum is 327680 bytes."
       ],
       "sdkProvenance": {
         "recipe": {
           "format": "iah-c2-sdk-build/1",
           "recipeSha256": "05ad1d7a7f0c3adb6d0a302533f2a78a2ad99737fdf71e88be1f9a342dc4ea6a",
-          "bootstrapSha256": "8e8712c9dc7da3a3cda12cce5800ff623acb783be187615b8d0a751fbffd3822",
+          "bootstrapSha256": "e0e22f566bf4893f18db795ca05bac85e06d4e97c8b9737e4ed18fd6ddd8a9a4",
           "componentsLockSha256": "de86c6e0b54dadef599400692273e5bd9b36564dc0ca90c85f3c0900e2b120de",
           "repositories": {
             "builder": {
@@ -244,7 +254,7 @@
           },
           "xtalMHz": 40
         },
-        "filesSha256": "2972ee06bbf63fa686e4315fa9f1568dce850b00b2b77c1b9b5183a3da9a784b",
+        "filesSha256": "be568ea2c400aecf0b8bb193b64467390e31ed94229170209a7bf9666f10c29b",
         "fileCount": 1931,
         "configuration": {
           "xtalMHz": 40,
@@ -266,7 +276,7 @@
           "mbedtls_ssl_handshake_server_step",
           "mbedtls_ssl_handshake_client_step"
         ],
-        "linkMapSha256": "4bb58ae22ce5acc926c19ac2f9b6815da663e87682871a6f3f9e32b650acc0e6"
+        "linkMapSha256": "6bd944c6d26e1ad78af0d6848488988a81c2edff6d77557d6b5e03433b9216d8"
       }
     },
     {
@@ -274,7 +284,7 @@
       "fqbn": "esp32:esp32:esp32c3:CDCOnBoot=cdc,FlashMode=dio,FlashSize=4M,PartitionScheme=huge_app",
       "compiled": true,
       "summary": [
-        "Sketch uses 1570257 bytes (49%) of program storage space. Maximum is 3145728 bytes.",
+        "Sketch uses 1556843 bytes (49%) of program storage space. Maximum is 3145728 bytes.",
         "Global variables use 47560 bytes (14%) of dynamic memory, leaving 280120 bytes for local variables. Maximum is 327680 bytes."
       ],
       "rtcTlsLink": {
@@ -291,7 +301,7 @@
           "mbedtls_ssl_handshake_server_step",
           "mbedtls_ssl_handshake_client_step"
         ],
-        "linkMapSha256": "214a7d13303e2e2850fc086127add7cbeef6c30ec06fe06c8ad79ac9bae377dc"
+        "linkMapSha256": "e575e7739464a8d2003a545e00c9f668dc3648a5acb985198ac0122406a3d297"
       }
     },
     {
@@ -299,7 +309,7 @@
       "fqbn": "esp32:esp32:esp32s3:USBMode=hwcdc,CDCOnBoot=cdc,FlashMode=dio,FlashSize=4M,PartitionScheme=huge_app,PSRAM=disabled",
       "compiled": true,
       "summary": [
-        "Sketch uses 1412913 bytes (44%) of program storage space. Maximum is 3145728 bytes.",
+        "Sketch uses 1399485 bytes (44%) of program storage space. Maximum is 3145728 bytes.",
         "Global variables use 56112 bytes (17%) of dynamic memory, leaving 271568 bytes for local variables. Maximum is 327680 bytes."
       ],
       "rtcTlsLink": {
@@ -316,7 +326,7 @@
           "mbedtls_ssl_handshake_server_step",
           "mbedtls_ssl_handshake_client_step"
         ],
-        "linkMapSha256": "af65834051b9b2fa210128744fd67a9f5c9055494b0d069877f25e56cbcf635f"
+        "linkMapSha256": "0314330e103a09f981cb4dece8309f8259d6df7d29f3071cf913d607df09673b"
       }
     },
     {
@@ -324,7 +334,7 @@
       "fqbn": "esp32:esp32:esp32c5:CDCOnBoot=cdc,FlashMode=dio,FlashSize=4M,PartitionScheme=huge_app,PSRAM=disabled",
       "compiled": true,
       "summary": [
-        "Sketch uses 1780221 bytes (56%) of program storage space. Maximum is 3145728 bytes.",
+        "Sketch uses 1766791 bytes (56%) of program storage space. Maximum is 3145728 bytes.",
         "Global variables use 58616 bytes (17%) of dynamic memory, leaving 269064 bytes for local variables. Maximum is 327680 bytes."
       ],
       "rtcTlsLink": {
@@ -341,7 +351,7 @@
           "mbedtls_ssl_handshake_server_step",
           "mbedtls_ssl_handshake_client_step"
         ],
-        "linkMapSha256": "df0171340036dc4277f5c4d59523eca8acb08e8ed62be3079ca3bb5f6ff4995e"
+        "linkMapSha256": "0c443bbba43cf70f0af15c3543e241d6758c360a2d67b77d85d217ebf925a6cb"
       }
     },
     {
@@ -349,7 +359,7 @@
       "fqbn": "esp32:esp32:esp32c6:CDCOnBoot=cdc,FlashMode=dio,FlashSize=4M,PartitionScheme=huge_app",
       "compiled": true,
       "summary": [
-        "Sketch uses 1731610 bytes (55%) of program storage space. Maximum is 3145728 bytes.",
+        "Sketch uses 1718182 bytes (54%) of program storage space. Maximum is 3145728 bytes.",
         "Global variables use 52672 bytes (16%) of dynamic memory, leaving 275008 bytes for local variables. Maximum is 327680 bytes."
       ],
       "rtcTlsLink": {
@@ -366,7 +376,7 @@
           "mbedtls_ssl_handshake_server_step",
           "mbedtls_ssl_handshake_client_step"
         ],
-        "linkMapSha256": "0c8f362ec214fa3a3ff1d5db950634edbee5fd02bf7dada7305da841a28b37eb"
+        "linkMapSha256": "2ad27ff1b1f6c5f8eed4e76aa407630c5c467b3a8437902292b42be3dc147469"
       }
     },
     {
@@ -374,7 +384,7 @@
       "fqbn": "esp32:esp32:esp32:FlashMode=dio,FlashSize=4M,PartitionScheme=huge_app,PSRAM=disabled",
       "compiled": true,
       "summary": [
-        "Sketch uses 1492332 bytes (47%) of program storage space. Maximum is 3145728 bytes.",
+        "Sketch uses 1478960 bytes (47%) of program storage space. Maximum is 3145728 bytes.",
         "Global variables use 60132 bytes (18%) of dynamic memory, leaving 267548 bytes for local variables. Maximum is 327680 bytes."
       ],
       "rtcTlsLink": {
@@ -391,14 +401,8 @@
           "mbedtls_ssl_handshake_server_step",
           "mbedtls_ssl_handshake_client_step"
         ],
-        "linkMapSha256": "2ca189ac2dfdd02bec3bc621cbebb00e59c4906c8b4cf652d208bbe1fc411487"
+        "linkMapSha256": "9dc9d7997f9b1dde72f0120cd0b1b7eb448a065fe84fb45cb97e4ac86a7ed337"
       }
-    }
-  ],
-  "excluded": [
-    {
-      "chip": "esp32s2",
-      "reason": "No Bluetooth LE radio; cannot control an iPhone over BLE without extra hardware"
     }
   ]
 }

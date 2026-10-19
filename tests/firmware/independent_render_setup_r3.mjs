@@ -2,18 +2,18 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import assert from 'node:assert/strict';
 import {webcrypto} from 'node:crypto';
-const scripts=Object.fromEntries(['helper','setup'].map(name=>[name,fs.readFileSync(`${process.argv[2]}/${name}.html`,'utf8').match(/<script>([\s\S]*)<\/script>/)[1]]));
+const scripts=Object.fromEntries(['setup'].map(name=>[name,fs.readFileSync(`${process.argv[2]}/${name}.html`,'utf8').match(/<script>([\s\S]*)<\/script>/)[1]]));
 function environment(languages=['en'],hash=''){
  const nodes=new Map();
  const node=selector=>{if(!nodes.has(selector))nodes.set(selector,{hidden:true,disabled:false,textContent:'',querySelector:s=>node(selector+' '+s)});return nodes.get(selector);};
- const context={navigator:{languages},location:{hash,pathname:'/harness-link'},history:{replaceState(){}},window:{opener:{postMessage(){},focus(){}}},document:{documentElement:{},querySelector:node,addEventListener(){}},crypto:webcrypto,URL,URLSearchParams,TextEncoder,TextDecoder,Uint8Array,AbortController,setTimeout,clearTimeout,addEventListener(){},console};
+ const context={navigator:{languages},location:{search:hash,pathname:'/'},history:{replaceState(){}},window:{opener:{postMessage(){},focus(){}}},document:{documentElement:{},querySelector:node,addEventListener(){}},crypto:webcrypto,URL,URLSearchParams,TextEncoder,TextDecoder,Uint8Array,AbortController,setTimeout,clearTimeout,addEventListener(){},console};
  vm.createContext(context);return {context,node};
 }
 for(const [languages,expected] of [[['zh-TW'],'zh-Hant'],[['zh_HK'],'zh-Hant'],[['zh-CN'],'zh-Hans'],[['xx','de-AT'],'de'],[['xx'],'en'],[['fr-CA'],'fr']])for(const script of Object.values(scripts)){
  const {context}=environment(languages);vm.runInContext(script,context);assert.equal(context.document.documentElement.lang,expected);
 }
 for(const locale of ['en','zh-Hans','zh-Hant','ja','ru','de','fr','es']){
- const {context}=environment(['en'],`#nonce=${'a'.repeat(32)}&lang=${encodeURIComponent(locale)}`);vm.runInContext(scripts.helper,context);assert.equal(context.document.documentElement.lang,locale);
+ const {context}=environment(['en'],`?lang=${encodeURIComponent(locale)}`);vm.runInContext(scripts.setup,context);assert.equal(context.document.documentElement.lang,locale);
 }
 // Exercise production AP JS over a failed attempt followed by a fresh attempt.
 // Responses are deliberately inconsistent until all success gates are present.
@@ -34,6 +34,6 @@ Object.assign(context,{Date:{now:()=>now},btoa,FormData:class{*[Symbol.iterator]
 vm.runInContext(scripts.setup,context);
 await vm.runInContext('f.onsubmit({preventDefault(){}})',context);assert.equal(finish,0);assert.equal(node('#back').hidden,true);assert.equal(node('#f button').disabled,false);
 await vm.runInContext('f.onsubmit({preventDefault(){}})',context);assert.equal(finish,1);assert.equal(node('#back').hidden,false);
-const url=new URL(node('#back').href);assert.equal(url.origin,'https://igent.cc');assert.deepEqual(JSON.parse(Buffer.from(url.hash.split('=')[1],'base64url')),{v:1,url:'http://r3.local',id:'iah-r3',owner:'b'.repeat(64)});
+const url=new URL(node('#back').href);assert.equal(url.origin,'https://igent.cc');assert.deepEqual(JSON.parse(Buffer.from(url.hash.split('=')[1],'base64url')),{v:1,url:'http://r3.local',id:'iah-r3',pairingCodeRequired:false});
 assert.equal(calls.filter(c=>c.path==='/configure').length,2);
 console.log('R3: production rendered JS language aliases/fallback/8 forced locales and failed-then-successful AP retry with transient/inconsistent status responses passed');

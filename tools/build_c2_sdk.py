@@ -59,7 +59,7 @@ def gnu_tools(cache,env,jobs):
     prefix=cache/'gnu-prefix';binary=prefix/'bin';binary.mkdir(parents=True,exist_ok=True)
     make='/Library/Developer/CommandLineTools/usr/bin/make'
     for tool in recipe()['gnuTools']:
-        executable={'sed':'gsed','gawk':'gawk','coreutils':'grealpath'}[tool['name']]
+        executable={'sed':'gsed','gawk':'gawk'}[tool['name']]
         if (binary/executable).is_file():continue
         folder=cache/'gnu-tools';folder.mkdir(exist_ok=True);archive=folder/(tool['name']+'.tar.xz')
         if not archive.is_file():urllib.request.urlretrieve(tool['url'],archive)
@@ -70,10 +70,8 @@ def gnu_tools(cache,env,jobs):
         options=['--prefix='+str(prefix)]
         if tool['name']!='gawk':options+=['--program-prefix=g']
         if not (source/'Makefile').is_file():run(['./configure',*options],cwd=source,env=env)
-        target=['src/realpath'] if tool['name']=='coreutils' else []
-        run([make,'-j'+str(jobs),*target],cwd=source,env=env)
-        if target:shutil.copyfile(source/'src/realpath',binary/executable);(binary/executable).chmod(0o755)
-        else:run([make,'install'],cwd=source,env=env)
+        run([make,'-j'+str(jobs)],cwd=source,env=env)
+        run([make,'install'],cwd=source,env=env)
     # The builder uses only GNU realpath -m. Python's canonicalizer provides
     # the same missing-path/symlink behavior without installing global coreutils.
     canonical=binary/'grealpath'

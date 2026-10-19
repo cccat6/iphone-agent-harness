@@ -1,7 +1,5 @@
 #pragma once
 #include <cstdint>
-#include <cstring>
-#include <initializer_list>
 namespace iah {
 class SetupDeadline {
  uint64_t at_=0;
@@ -46,8 +44,4 @@ class WifiJoinState {
  Phase phase()const{return phase_;}
  const char* name()const{switch(phase_){case Phase::Joining:case Phase::Committing:return "connecting";case Phase::Connected:return "connected";case Phase::Failed:return "failed";default:return "idle";}}
 };
-inline bool certificateTimeValid(const char* from,const char* until,const char* now){
- for(const auto text:{from,until,now}){if(!text||std::strlen(text)!=14)return false;for(size_t i=0;i<14;i++)if(text[i]<'0'||text[i]>'9')return false;}
- return std::strcmp(from,until)<=0&&std::strcmp(from,now)<=0&&std::strcmp(now,until)<=0;
-}
 }

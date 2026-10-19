@@ -8,11 +8,6 @@ int main(){
  assert(d.finish(true,true,200));assert(d.due(true,2100));d.closed();assert(!d.due(true,9999));
  assert(d.finish(false,true,5000));d.opened();assert(!d.due(true,99999));
  assert(d.finish(true,true,100));d.opened();assert(!d.due(true,99999));assert(d.finish(true,true,10000));assert(!d.due(true,11999));assert(d.due(true,12000));
- assert(certificateTimeValid("20261017000000","20271018000000","20261018000000"));
- assert(!certificateTimeValid("20261020000000","20271021000000","20261018000000"));
- assert(!certificateTimeValid("20251017000000","20261017000000","20261018000000"));
- assert(certificateTimeValid("20261018000000","20261018000001","20261018000000"));assert(certificateTimeValid("20261018000000","20261018000001","20261018000001"));
- assert(!certificateTimeValid("bad","20261018000001","20261018000000"));
 
  SavedNetworkRetry retry;
  assert(!retry.due(true,false,0));assert(!retry.due(true,false,14999));assert(retry.due(true,false,15000));assert(!retry.due(true,false,15001));assert(retry.due(true,false,30000));assert(retry.due(true,false,45000));assert(!retry.due(true,false,100000));
@@ -32,5 +27,5 @@ int main(){
  // Failed saved-network boot and later disconnect reopen setup after a bounded wait.
  WifiJoinState recovery;assert(!recovery.recoveryDue(false,false,0));assert(!recovery.recoveryDue(false,false,29999));assert(recovery.recoveryDue(false,false,30000));assert(!recovery.recoveryDue(false,true,40000));assert(!recovery.recoveryDue(true,false,50000));assert(!recovery.recoveryDue(false,false,51000));assert(recovery.recoveryDue(false,false,81000));
  recovery.begin(82000,1);assert(!recovery.recoveryDue(false,false,120000));assert(recovery.poll(false,false,false,1,120000)==WifiJoinState::Decision::Fail);assert(recovery.recoveryDue(false,false,120001));
- std::puts("Setup deadlines, Wi-Fi candidate commit/rollback/retry/recovery and legacy certificate-time scenarios passed");
+ std::puts("Setup deadlines, Wi-Fi candidate commit/rollback/retry/recovery scenarios passed");
 }

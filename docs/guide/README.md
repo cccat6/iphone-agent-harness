@@ -46,7 +46,7 @@ Bluetooth lets the bridge operate your phone. The Harness connects to the bridge
 
 Open [igent.cc](https://igent.cc/) in Safari on your iPhone or iPad. It opens the Harness directly.
 
-When you ask it to operate the phone, allow screen sharing and keep the phone unlocked. You can then switch to another app. Stopping screen sharing pauses the task; tap **Continue** in Harness to share again and resume.
+When you ask it to operate the phone, allow screen sharing and keep the phone unlocked. You can then switch to another app. Stopping screen sharing pauses the task; tap **Share screen to continue** in Harness to share again and resume.
 
 <a id="models"></a>
 ## 6. Configure an API or ChatGPT account

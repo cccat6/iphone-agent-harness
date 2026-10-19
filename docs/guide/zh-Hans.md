@@ -46,7 +46,7 @@
 
 用 iPhone 或 iPad 的 Safari 打开 [igent.cc](https://igent.cc/)，即可进入 Harness。
 
-让它操作手机时，同意屏幕共享并保持解锁，随后可以切换到其他 App。停止共享会暂停任务；回到 Harness 点击 **继续**，重新共享后即可接着执行。
+让它操作手机时，同意屏幕共享并保持解锁，随后可以切换到其他 App。停止共享会暂停任务；回到 Harness 点击 **共享屏幕并继续**，重新共享后即可接着执行。
 
 <a id="models"></a>
 ## 6. 配置 API 或 ChatGPT 账号

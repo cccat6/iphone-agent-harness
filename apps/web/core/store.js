@@ -1,9 +1,18 @@
 import {validateMessageMetadata} from './message-metadata.js';
 import {createDeviceURL} from './device.js';
 import {imageData} from './attachments.js';
-const DB_NAME='iphone-automation-harness', VERSION=2;
+const DB_NAME='iphone-automation-harness', VERSION=3;
+const SESSION_LIST_INDEX='listOrder',SESSION_LIST_KEY='_listKey';
 const uid=()=>crypto.randomUUID();
 const clone=value=>structuredClone(value);
+// A small ordered key lets the list seek directly to its next page. Staged
+// imports have no key and stay invisible until their messages are committed.
+function sessionListKey(value){return [Number(Boolean(value.archived)),value.pinned?0:1,-(Number.isFinite(value.updatedAt)?value.updatedAt:0),value.id];}
+function storedSession(value){const record={...value};delete record[SESSION_LIST_KEY];if(!value.importing)record[SESSION_LIST_KEY]=sessionListKey(value);return record;}
+function publicSession(value){if(!value)return value;const {[SESSION_LIST_KEY]:key,...record}=value;return record;}
+function sessionSummary(value){const {id,title,mode,modelId,pinned,archived,createdAt,updatedAt}=value;return {id,title,mode,modelId,pinned,archived,createdAt,updatedAt};}
+function compareSessionKeys(a,b){for(let i=0;i<a.length;i++){if(a[i]<b[i])return -1;if(a[i]>b[i])return 1;}return 0;}
+function sessionListOptions({archived=false,search='',limit=100,before=null}={}){return {archived:Boolean(archived),search:String(search).toLowerCase(),limit:Number.isFinite(limit)?Math.max(1,Math.min(500,Math.floor(limit))):100,before:before?sessionListKey({...before,archived}):null};}
 function messageView(value,{includeDebug=false}={}){const {id,sessionId,seq,createdAt,role,text,frameRefs,status,internal,toolName,taskPlan,toolCalls}=value;return {id,sessionId,seq,createdAt,role,toolName,taskPlan,...(includeDebug&&toolCalls?.length?{toolCalls}:{}),text:String(text||'').slice(0,32768),textLength:String(text||'').length,textOffset:0,frameRefs:frameRefs?.length?frameRefs:Array.isArray(value.images)?value.images.map((_,index)=>`local-message:${id}:${index}`):undefined,status,internal};}
 const modes=new Set(['auto','chat','plan','task']);
 const secretKey=/^(apiKey|api_key|key|token|access_token|refresh_token|password|authorization)$/i;
@@ -34,7 +43,17 @@ export async function openStore({memory=false,name=DB_NAME}={}){
     opening=new Promise((resolve,reject)=>{
       let settled=false;
       const r=indexedDB.open(name,VERSION);
-      r.onupgradeneeded=()=>{for(const k of names)if(!r.result.objectStoreNames.contains(k))r.result.createObjectStore(k,{keyPath:'id'});for(const k of ['messages','events']){const s=r.transaction.objectStore(k);if(!s.indexNames.contains('sessionId'))s.createIndex('sessionId','sessionId');if(!s.indexNames.contains('sessionSeq'))s.createIndex('sessionSeq',['sessionId','seq'],{unique:true});}for(const k of ['frames','runs']){const s=r.transaction.objectStore(k);if(!s.indexNames.contains('sessionId'))s.createIndex('sessionId','sessionId');}};
+      r.onupgradeneeded=()=>{
+        for(const k of names)if(!r.result.objectStoreNames.contains(k))r.result.createObjectStore(k,{keyPath:'id'});
+        for(const k of ['messages','events']){const s=r.transaction.objectStore(k);if(!s.indexNames.contains('sessionId'))s.createIndex('sessionId','sessionId');if(!s.indexNames.contains('sessionSeq'))s.createIndex('sessionSeq',['sessionId','seq'],{unique:true});}
+        for(const k of ['frames','runs']){const s=r.transaction.objectStore(k);if(!s.indexNames.contains('sessionId'))s.createIndex('sessionId','sessionId');}
+        const sessions=r.transaction.objectStore('sessions');
+        if(!sessions.indexNames.contains(SESSION_LIST_INDEX)){
+          sessions.createIndex(SESSION_LIST_INDEX,SESSION_LIST_KEY);
+          const cursor=sessions.openCursor();
+          cursor.onsuccess=()=>{const row=cursor.result;if(!row)return;row.update(storedSession(row.value));row.continue();};
+        }
+      };
       r.onsuccess=()=>{
         const opened=r.result;
         if(settled||closed){opened.close();if(!settled){settled=true;reject(unavailable());}return;}
@@ -51,7 +70,7 @@ export async function openStore({memory=false,name=DB_NAME}={}){
   let ram=Object.fromEntries(names.map(k=>[k,new Map()])),queue=Promise.resolve();
   async function transaction(stores,mode,work,{signal}={}){
     const check=()=>{if(closed)throw unavailable();if(signal?.aborted)throw signal.reason||new DOMException('Operation cancelled','AbortError');};check();
-    if(memory){const run=async()=>{check();const before=mode==='readwrite'?clone(ram):null;const api=Object.fromEntries(stores.map(k=>[k,{get:async id=>clone(ram[k].get(id)),all:async()=>clone([...ram[k].values()]),scan:async visit=>{for(const row of ram[k].values())visit(row);},put:async v=>ram[k].set(v.id,clone(v)),delete:async id=>ram[k].delete(id),bySession:async id=>clone([...ram[k].values()].filter(v=>v.sessionId===id)),deleteSession:async id=>{for(const [key,value] of ram[k])if(value.sessionId===id)ram[k].delete(key);},page:async(id,o={})=>{let list=[...ram[k].values()].filter(v=>v.sessionId===id&&v.seq>(o.afterSeq||0)&&v.seq<(o.beforeSeq??Infinity)&&(o.includeInternal!==false||!v.internal)).sort((a,b)=>a.seq-b.seq);if(o.direction==='prev')list.reverse();return clone(list.slice(0,o.limit??Infinity).map(v=>o.viewOnly?messageView(v,{includeDebug:o.includeInternal===true}):v));}}]));try{const value=await work(api);check();return value;}catch(e){if(before)ram=before;throw e;}};const result=queue.then(run);queue=result.catch(()=>{});return result;}
+    if(memory){const run=async()=>{check();const before=mode==='readwrite'?clone(ram):null;const api=Object.fromEntries(stores.map(k=>[k,{get:async id=>clone(k==='sessions'?publicSession(ram[k].get(id)):ram[k].get(id)),all:async()=>clone([...ram[k].values()].map(v=>k==='sessions'?publicSession(v):v)),listPage:async o=>clone([...ram[k].values()].filter(v=>!v.importing&&Boolean(v.archived)===o.archived&&String(v.title||'').toLowerCase().includes(o.search)&&(!o.before||compareSessionKeys(sessionListKey(v),o.before)>0)).sort((a,b)=>compareSessionKeys(sessionListKey(a),sessionListKey(b))).slice(0,o.limit).map(sessionSummary)),put:async v=>ram[k].set(v.id,clone(k==='sessions'?storedSession(v):v)),delete:async id=>ram[k].delete(id),bySession:async id=>clone([...ram[k].values()].filter(v=>v.sessionId===id)),deleteSession:async id=>{for(const [key,value] of ram[k])if(value.sessionId===id)ram[k].delete(key);},page:async(id,o={})=>{let list=[...ram[k].values()].filter(v=>v.sessionId===id&&v.seq>(o.afterSeq||0)&&v.seq<(o.beforeSeq??Infinity)&&(o.includeInternal!==false||!v.internal)).sort((a,b)=>a.seq-b.seq);if(o.direction==='prev')list.reverse();return clone(list.slice(0,o.limit??Infinity).map(v=>o.viewOnly?messageView(v,{includeDebug:o.includeInternal===true}):v));}}]));try{const value=await work(api);check();return value;}catch(e){if(before)ram=before;throw e;}};const result=queue.then(run);queue=result.catch(()=>{});return result;}
     let t;
     for(let attempt=0;attempt<2;attempt++){
       const active=await connection();check();
@@ -66,11 +85,19 @@ export async function openStore({memory=false,name=DB_NAME}={}){
     const done=new Promise((resolve,reject)=>{t.oncomplete=resolve;t.onerror=()=>reject(t.error);t.onabort=()=>reject(t.error||new Error('本地写入被中止'));});
     const abortTransaction=()=>{try{t.abort();}catch{}};signal?.addEventListener('abort',abortTransaction,{once:true});if(signal?.aborted)abortTransaction();
     const req=r=>new Promise((resolve,reject)=>{r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});
-    const api=Object.fromEntries(stores.map(k=>{const s=t.objectStore(k);return [k,{get:id=>req(s.get(id)),all:()=>req(s.getAll()),scan:visit=>new Promise((resolve,reject)=>{const r=s.openCursor();r.onerror=()=>reject(r.error);r.onsuccess=()=>{const c=r.result;if(!c){resolve();return;}try{visit(c.value);}catch(error){reject(error);return;}c.continue();};}),put:v=>req(s.put(v)),delete:id=>req(s.delete(id)),bySession:id=>req(s.index('sessionId').getAll(id)),deleteSession:id=>new Promise((resolve,reject)=>{const r=s.index('sessionId').openKeyCursor(IDBKeyRange.only(id));r.onerror=()=>reject(r.error);r.onsuccess=()=>{const c=r.result;if(!c){resolve();return;}s.delete(c.primaryKey);c.continue();};}),page:(id,o={})=>new Promise((resolve,reject)=>{const lo=o.afterSeq||0,hi=o.beforeSeq??Number.MAX_SAFE_INTEGER;if(lo>=hi){resolve([]);return;}const range=IDBKeyRange.bound([id,lo],[id,hi],true,true),r=s.index('sessionSeq').openCursor(range,o.direction||'next'),out=[];r.onerror=()=>reject(r.error);r.onsuccess=()=>{const c=r.result;if(!c||out.length>=(o.limit??Infinity)){resolve(out);return;}if(o.includeInternal!==false||!c.value.internal)out.push(o.viewOnly?messageView(c.value,{includeDebug:o.includeInternal===true}):c.value);c.continue();};})}];}));
+    const api=Object.fromEntries(stores.map(k=>{const s=t.objectStore(k);return [k,{get:id=>req(s.get(id)).then(v=>k==='sessions'?publicSession(v):v),all:()=>req(s.getAll()).then(rows=>k==='sessions'?rows.map(publicSession):rows),listPage:o=>new Promise((resolve,reject)=>{
+      const bucket=Number(o.archived),lower=o.before||[bucket],upper=[bucket+1];
+      const r=s.index(SESSION_LIST_INDEX).openCursor(IDBKeyRange.bound(lower,upper,Boolean(o.before),true)),rows=[];
+      r.onerror=()=>reject(r.error);
+      r.onsuccess=()=>{const cursor=r.result;if(!cursor){resolve(rows);return;}const value=cursor.value;
+        if(String(value.title||'').toLowerCase().includes(o.search))rows.push(sessionSummary(value));
+        if(rows.length===o.limit){resolve(rows);return;}cursor.continue();
+      };
+    }),put:v=>req(s.put(k==='sessions'?storedSession(v):v)),delete:id=>req(s.delete(id)),bySession:id=>req(s.index('sessionId').getAll(id)),deleteSession:id=>new Promise((resolve,reject)=>{const r=s.index('sessionId').openKeyCursor(IDBKeyRange.only(id));r.onerror=()=>reject(r.error);r.onsuccess=()=>{const c=r.result;if(!c){resolve();return;}s.delete(c.primaryKey);c.continue();};}),page:(id,o={})=>new Promise((resolve,reject)=>{const lo=o.afterSeq||0,hi=o.beforeSeq??Number.MAX_SAFE_INTEGER;if(lo>=hi){resolve([]);return;}const range=IDBKeyRange.bound([id,lo],[id,hi],true,true),r=s.index('sessionSeq').openCursor(range,o.direction||'next'),out=[];r.onerror=()=>reject(r.error);r.onsuccess=()=>{const c=r.result;if(!c||out.length>=(o.limit??Infinity)){resolve(out);return;}if(o.includeInternal!==false||!c.value.internal)out.push(o.viewOnly?messageView(c.value,{includeDebug:o.includeInternal===true}):c.value);c.continue();};})}];}));
     try{check();const result=await work(api);check();await done;return result;}catch(e){try{t.abort();}catch{}await done.catch(()=>{});throw e;}finally{signal?.removeEventListener('abort',abortTransaction);}
   }
   const store={
-    async listSessions({archived=false,search='',limit=100,before=null}={}){return transaction(['sessions'],'readonly',async s=>{const rows=[],compare=(a,b)=>Number(b.pinned)-Number(a.pinned)||b.updatedAt-a.updatedAt||a.id.localeCompare(b.id),maximum=Math.max(1,Math.min(500,limit));await s.sessions.scan(v=>{if(v.importing||Boolean(v.archived)!==archived||!v.title.toLowerCase().includes(search.toLowerCase())||(before&&compare(v,before)<=0))return;const {id,title,mode,modelId,pinned,createdAt,updatedAt}=v;rows.push({id,title,mode,modelId,pinned,archived:v.archived,createdAt,updatedAt});rows.sort(compare);if(rows.length>maximum)rows.pop();});return rows;});},
+    listSessions:options=>transaction(['sessions'],'readonly',s=>s.sessions.listPage(sessionListOptions(options))),
     async createSession(input){const value=makeSession(input);await transaction(['sessions'],'readwrite',s=>s.sessions.put(value));return value;},
     async createImportSession(input){const value={...makeSession(input),titleState:'preserved',importing:true};await transaction(['sessions'],'readwrite',s=>s.sessions.put(value));return value;},
     async finishImportSession(id){return transaction(['sessions'],'readwrite',async s=>{const value=await s.sessions.get(id);if(!value?.importing)throw new Error('Session import not found');delete value.importing;await s.sessions.put(value);return value;});},

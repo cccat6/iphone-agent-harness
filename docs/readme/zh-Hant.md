@@ -43,10 +43,13 @@ flowchart LR
     Storage[("瀏覽器本機儲存<br/>會話 · 圖片 · 金鑰")]
     Apps -->|畫面共享| Harness
     Harness <--> Storage
+    Shortcut["Apple 捷徑<br/>iOS 剪貼簿"]
   end
   Harness <-->|上下文 / 回覆| AI["你選擇的 AI"]
   Harness <-->|WebRTC · 區域網路 Wi-Fi| Bridge["ESP32 橋"]
   Bridge -->|藍牙鍵盤 / 滑鼠| Apps
+  Bridge -->|本機 HTTP · 文字| Shortcut
+  Shortcut -->|拷貝完成| Harness
 ```
 
 [架構圖](../architecture/overview.md)
@@ -108,6 +111,14 @@ flowchart LR
     <td><img src="../../apps/web/media/skills-example.jpg" width="240" alt="技能"></td>
   </tr>
 </table>
+
+## 📋 長文字與多語言輸入
+
+橋透過藍牙鍵盤處理日常輸入與快捷鍵。長文字或多語言內容可使用 **iPhone Agent Clipboard**：由 Apple 捷徑拷貝，再由智慧體貼入目標欄位。
+
+瀏覽器透過區域網路 WebRTC 將文字分塊送至 ESP32；橋將這些區塊接續在同一個 HTTP 回應中交給捷徑，組成完整文字後放進 iPhone 剪貼簿。
+
+[設定剪貼簿拷貝](../guide/zh-Hant.md#clipboard)
 
 ## 🔒 資料由你掌握
 

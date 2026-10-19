@@ -43,10 +43,13 @@ flowchart LR
     Storage[("Lokaler Browserspeicher<br/>Gespräche · Bilder · Schlüssel")]
     Apps -->|Bildschirmfreigabe| Harness
     Harness <--> Storage
+    Shortcut["Apple Kurzbefehle<br/>iOS-Zwischenablage"]
   end
   Harness <-->|Kontext / Antworten| AI["Deine gewählte KI"]
   Harness <-->|WebRTC · lokales WLAN| Bridge["ESP32-Bridge"]
   Bridge -->|Bluetooth-Tastatur / Maus| Apps
+  Bridge -->|Lokales HTTP · Text| Shortcut
+  Shortcut -->|Kopieren bestätigt| Harness
 ```
 
 [Architektur](../architecture/overview.md)
@@ -108,6 +111,14 @@ Echte Harness-Oberflächen mit Beispieldaten.
     <td><img src="../../apps/web/media/skills-example.jpg" width="240" alt="Skills"></td>
   </tr>
 </table>
+
+## 📋 Lange Texte in vielen Sprachen
+
+Normale Texteingabe und Tastenkombinationen laufen über die Bluetooth-Tastatur der Bridge. Bei langen oder mehrsprachigen Texten kopiert **iPhone Agent Clipboard** den Inhalt mit Apple Kurzbefehle; anschließend fügt der Agent ihn ins gewünschte Feld ein.
+
+Der Browser sendet den Text in kleinen Teilen per lokalem WebRTC an den ESP32. Die Bridge leitet sie als eine HTTP-Antwort an den Kurzbefehl weiter, der den vollständigen Text in die iPhone-Zwischenablage kopiert.
+
+[Zwischenablage einrichten](../guide/de.md#clipboard)
 
 ## 🔒 Deine Daten bleiben bei dir
 

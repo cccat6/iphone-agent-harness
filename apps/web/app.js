@@ -1,3 +1,4 @@
+import {createSessionActions} from './ui/session-actions.js';
 import {mountSessionSwipe} from './ui/session-swipe.js';
 import {createViewNavigation} from './ui/navigation.js';
 import {reasoningOptions,normalizeReasoningEffort,modelReasoningMetadata} from './core/reasoning.js';
@@ -11,7 +12,7 @@ import { openStore } from './core/store.js';
 import { importSessionFile as restoreSessionFile, exportSessionFile } from './core/session-files.js';
 import { createHistoryWindow } from './core/history-window.js';
 import { createHistoryImages } from './ui/history-images.js';
-import { readImportFile, sessionBackupBlob, SESSION_BACKUP_BYTES, BACKUP_ERRORS } from './core/backup-files.js';
+import { readImportFile, BACKUP_ERRORS } from './core/backup-files.js';
 import { createHarness, chatExecutionContext } from './core/harness.js';
 import { setCredential, hasCredential, getCredential, saveProviderCredential, removeProviderCredential, restoreProviderCredentials, resolveProviderCredential, inspectProviderCredential } from './core/credentials.js';
 import { createDevicePanel } from './ui/device-panel.js';
@@ -29,7 +30,7 @@ import { mountSessionSearch } from './ui/session-search.js';
 import { mountViewport } from './ui/viewport.js';
 import { createMCPSettings } from './ui/mcp-settings.js';
 import { discoverModels, normalizeProviderEndpoint } from './core/providers.js';
-import { installBuiltinSkills, downloadSkill, loadCommunityCatalog, readCatalogSkill, installCatalogSkill, syncInstalledCommunitySkills, publicBuiltinSkills } from './core/skills.js';
+import { installBuiltinSkills, loadCommunityCatalog, readCatalogSkill, installCatalogSkill, syncInstalledCommunitySkills, publicBuiltinSkills } from './core/skills.js';
 import { openCreatorIdentity, importCreatorIdentity } from './community/identity.js';
 import { createAuthoredSkill, updateAuthoredSkill, isOwnedAuthored, importOwnSkillFile } from './community/authoring.js';
 import { CommunityClient } from './community/client.js';
@@ -55,8 +56,6 @@ setCodexTokenObserver(({id,event})=>{
   }).catch(error=>toast(()=>t('providerRefinement.credentialSaveFailed',{detail:localizeError(error)})));
 });
 let toastTimer,toastNode;
-const modeNames = {chat:'对话',plan:'计划',task:'任务'};
-const modeDescriptions={chat:'mode.chatDescription',plan:'mode.planDescription',task:'mode.taskDescription'};
 const modeLabel=()=>t('interaction.assistant');
 
 function hideToast(node){if(typeof node?.hidePopover==='function'&&node.matches(':popover-open'))node.hidePopover();if(node)node.hidden=true;}
@@ -93,9 +92,7 @@ function shortId() { return crypto.randomUUID ? crypto.randomUUID() : `id-${Date
 function download(value,name,type='application/json') { const blob=value instanceof Blob?value:new Blob([typeof value==='string'?value:JSON.stringify(value,null,2)],{type}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(url),1000); }
 function chooseFile(accept,callback,maxBytes) { const input=$('#file-input'); input.value=''; input.accept=accept; input.onchange=guard(async()=>{const file=input.files[0]; if(!file)return; await callback(await readImportFile(file,{maxBytes}),file.name);}); input.click(); }
 function safeURL(value) { const url=new URL(value,location.href); if(!['http:','https:'].includes(url.protocol))throw new Error('仅支持 HTTP 或 HTTPS 地址。'); if(url.username||url.password)throw new Error('请不要把凭据写入网址。'); return url.href; }
-function activeSkills() { return state.skills.filter(skill=>skill.enabled!==false); }
 function systemTextHTML(key,variables={}) {return `<span data-no-i18n data-i18n="${escapeHTML(key)}" data-i18n-vars="${escapeHTML(JSON.stringify(variables))}">${escapeHTML(t(key,variables))}</span>`;}
-function isBuiltinCatalog(url){try{return new URL(url,location.href).href===new URL('./skills/catalog.json',import.meta.url).href;}catch{return false;}}
 function skillTextHTML(skill,field,{trustedCatalog=false,catalog=false}={}){
   const metadata=skillMetadata(skill,{trustedCatalog,catalog}),value=field==='name'?metadata.name:metadata.description;
   const key=(field==='name'?metadata.nameKey:metadata.descriptionKey)||(!value&&field==='description'?'common.noDescription':null);
@@ -122,12 +119,34 @@ function renderSessions() {
   if($('#sessions-previous'))$('#sessions-previous').onclick=guard(()=>pageSessions(true));if($('#sessions-next'))$('#sessions-next').onclick=guard(()=>pageSessions(false));
   $$('[data-session]').forEach(button=>button.onclick=guard(()=>openSession(button.dataset.session)));state.sessionSwipe=mountSessionSwipe({root:$('#sessions'),onAction:sessionRowAction,onError:report});$$('[data-session-menu]').forEach(button=>button.onclick=()=>{const row=button.closest('[data-session-row]');state.sessionSwipe.open(row);});
 }
+function sessionActions(){
+  return state.sessionActions||(state.sessionActions=createSessionActions({
+    store:state.store,
+    isBusy:id=>state.current?.id===id&&(state.running||state.submitting),
+    confirmDelete:()=>confirm(t('confirm.deleteSession')),
+    copy:async id=>{await navigator.clipboard.writeText(id);toast('会话 ID 已复制。');},
+    exportSession:async id=>{download(await exportSessionFile(state.store,id),`session-${id}.json`);toast('会话已导出。');},
+    onDeleting:()=>renderRunControls(),
+    onMetadata:(id,patch,updated)=>{if(state.current?.id===id)Object.assign(state.current,patch,{updatedAt:updated.updatedAt});},
+    onDeleted:id=>{
+      state.drafts.delete(id);
+      if(state.current?.id!==id)return;
+      state.current=null;historyWindow().clear();state.messages=[];state.pending=null;state.lastError=null;state.capturePaused=false;state.hasOlder=false;state.hasNewer=false;
+      $('#message-input').value='';resizeInput();$('#session-menu').hidden=true;$('#session-title').textContent='iPhone Agent Harness';$('#session-subtitle').textContent='';renderMessages();
+      state.navigation?.go({screen:'list',sessionId:null,action:null},{replace:true});$('#app').classList.remove('in-conversation');
+    },
+    refresh:refreshSessions
+  }));
+}
+async function performSessionAction(action,session){
+  try{await sessionActions().perform(action,session);}
+  catch(error){if(error.code==='SESSION_BUSY')throw new Error(t('session.stopBeforeDelete'));throw error;}
+}
 async function sessionRowAction(action,id){
   const session=await state.store.getSession(id);if(!session)return;
   if(action==='rename'){showRenameDialog(session,{fromList:true});return;}
-  if(action==='delete'){if(!session.archived)return;if(state.current?.id===id&&(state.running||state.submitting))throw new Error(t('session.stopBeforeDelete'));if(!confirm(t('confirm.deleteSession')))return;await state.store.deleteSession(id);state.drafts.delete(id);if(state.current?.id===id){state.current=null;historyWindow().clear();state.messages=[];state.hasOlder=false;state.hasNewer=false;$('#session-menu').hidden=true;$('#session-title').textContent='iPhone Agent Harness';$('#session-subtitle').textContent='';renderMessages();}}
-  else if(action==='archive'||action==='restore'){const archived=action==='archive';await state.store.updateSession(id,{archived});if(state.current?.id===id)state.current.archived=archived;}
-  await refreshSessions();
+  if(action==='delete'&&!session.archived)return;
+  await performSessionAction(action,session);
 }
 function renderModelOptions() {
   const current=state.current?.modelId||state.settings.activeProviderId||'';
@@ -194,7 +213,7 @@ function renderMessages({scrollToEnd=true,forceFollow=false}={}) {
   if(scrollToEnd&&!state.hasNewer)follow.afterRender();renderLatestControl();
   state.historyImages=createHistoryImages({store:state.store,root:region,onImageReady:()=>{if(!state.hasNewer)follow.afterRender();}});state.historyImages.mount();renderRunControls();
 }
-function renderRunControls(){for(const action of $$('[data-execute-plan]'))action.disabled=state.running||state.submitting;const paused=Boolean(state.current?.promptState?.runResume||(!!state.current?.id&&state.capturePaused===state.current.id));const button=$('#resume-run');button.hidden=state.running||!paused;button.disabled=state.submitting;button.textContent=t(capture.active?'interaction.resume':'interaction.startSharing');$('#run-status').hidden=!state.running&&!paused;if(!state.running&&paused)$('#run-status').textContent=t('interaction.paused');updateModeDescription();}
+function renderRunControls(){const deleting=!!state.current&&!!state.sessionActions?.isDeleting(state.current.id);$('#send-message').disabled=state.submitting||deleting;for(const action of $$('[data-execute-plan]'))action.disabled=state.running||state.submitting||deleting;const paused=Boolean(state.current?.promptState?.runResume||(!!state.current?.id&&state.capturePaused===state.current.id));const button=$('#resume-run');button.hidden=state.running||!paused;button.disabled=state.submitting||deleting;button.textContent=t(capture.active?'interaction.resume':'interaction.startSharing');$('#run-status').hidden=!state.running&&!paused;if(!state.running&&paused)$('#run-status').textContent=t('interaction.paused');updateModeDescription();}
 function setRunning(running) { state.running=running;if($('#reasoning-select'))$('#reasoning-select').disabled=running||state.submitting; $('#send-message').hidden=running; $('#stop-run').hidden=!running; $('#model-select').disabled=running; if(!running)$('#run-status').textContent='';renderRunControls(); }
 function onHarnessEvent(event) {
   if(event.type==='session.title'){if(state.current?.id===event.sessionId){state.current.title=event.title;$('#session-title').textContent=event.title;}void refreshSessions().catch(report);return;}
@@ -205,7 +224,7 @@ function onHarnessEvent(event) {
   if(event.type==='error') { state.lastError=localizeError(event.message);renderMessages(); }
 }
 async function resumeRun(){
-  if(state.running||state.submitting||!state.current)return;
+  if(state.running||state.submitting||!state.current||state.sessionActions?.isDeleting(state.current.id))return;
   // Start capture directly from this trusted click before storage/network awaits.
   const sharing=capture.active?Promise.resolve():capture.start();
   state.submitting=true;let resolveCompletion;state.runCompletion=new Promise(resolve=>{resolveCompletion=resolve;});let generation=null;const sessionId=state.current.id;
@@ -214,7 +233,7 @@ async function resumeRun(){
   finally{try{if(generation===null||generation===state.runGeneration){const session=await state.store.getSession(sessionId);if((generation===null||generation===state.runGeneration)&&state.current?.id===sessionId){state.current=session;applyHistory(historyWindow().snapshot());renderMessages();}}}finally{if(generation===null||generation===state.runGeneration){state.abort=null;state.submitting=false;setRunning(false);}renderRunControls();renderReasoningOptions();resolveCompletion?.();}}
 }
 async function sendMessage(event,textOverride=null,modeOverride=null) {
-  event.preventDefault();if(!getBrowserCompatibility().supportedForHarness){renderPlatform();return;}const text=(textOverride===null?$('#message-input').value:textOverride).trim();if(!text||state.running||state.submitting)return;
+  event.preventDefault();if(!getBrowserCompatibility().supportedForHarness){renderPlatform();return;}const text=(textOverride===null?$('#message-input').value:textOverride).trim();if(!text||state.running||state.submitting||(state.current&&state.sessionActions?.isDeleting(state.current.id)))return;
   const sharing=capture.active||!deviceSessionAvailable()||!selectedProvider()?Promise.resolve():capture.start();
   state.submitting=true;let resolveCompletion;state.runCompletion=new Promise(resolve=>{resolveCompletion=resolve;});let generation=null,sessionId=null,controller=null;
   try{
@@ -260,12 +279,7 @@ async function showSessionMenu() {
   $('#action-content').innerHTML=`<h3 data-no-i18n data-i18n="session.actions">${t('session.actions')}</h3><button class="action-item" data-action="rename">重命名</button><button class="action-item" data-action="pin">${session.pinned?'取消置顶':'置顶会话'}</button><button class="action-item" data-action="copy">复制会话 ID</button><button class="action-item" data-action="export">导出会话</button><button class="action-item" data-action="archive">${session.archived?'取消归档':'归档会话'}</button><button class="action-item danger" data-action="delete">删除会话</button><button class="action-item" data-action="cancel">取消</button>`;
   $$('[data-action]').forEach(button=>button.onclick=guard(async()=>{ const action=button.dataset.action;closeNavigationDialog($('#action-dialog'));if(action!=='rename'&&state.navigation)await state.navigation.back({action:null});
     if(action==='rename'){showRenameDialog(session);return;}
-    if(action==='pin')await state.store.updateSession(session.id,{pinned:!session.pinned});
-    if(action==='archive')await state.store.updateSession(session.id,{archived:!session.archived});
-    if(action==='copy'){await navigator.clipboard.writeText(session.id);toast('会话 ID 已复制。');}
-    if(action==='export'){download(await exportSessionFile(state.store,session.id),`session-${session.id}.json`);toast('会话已导出。');}
-    if(action==='delete'){if(!confirm(t('confirm.deleteSession')))return;if(state.running)throw new Error('请先停止任务。');await state.store.deleteSession(session.id);state.drafts.delete(session.id);$('#message-input').value='';resizeInput();state.current=null;historyWindow().clear();state.messages=[];state.hasOlder=false;state.hasNewer=false;$('#session-menu').hidden=true;$('#session-title').textContent='iPhone Agent Harness';$('#session-subtitle').textContent='';renderMessages();}
-    await refreshSessions();if(state.current)await openSession(session.id);
+    await performSessionAction(action==='archive'&&session.archived?'restore':action,session);
   }));$('#action-dialog').showModal();
 }
 
@@ -529,7 +543,6 @@ const viewObserverOptions={subtree:true,childList:true,characterData:true,attrib
 function localizeView(root=document.body) {
   if(localizing)return;localizing=true;viewObserver.disconnect();
   try{
-  for(const option of root.querySelectorAll('#mode-select option'))if(['chat','plan','task'].includes(option.value)){option.dataset.i18n='mode.'+option.value;option.dataset.noI18n='';}
   for(const element of root.querySelectorAll('[data-i18n]')) {
     let variables={};try{variables=JSON.parse(element.dataset.i18nVars||'{}');}catch{}
     const value=t(element.dataset.i18n,variables);if(element.textContent!==value)element.textContent=value;

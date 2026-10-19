@@ -46,7 +46,7 @@ Die Bridge merkt sich das WLAN und verbindet sich beim Einschalten. Dieser Schri
 
 Öffne [igent.cc](https://igent.cc/) in Safari auf dem iPhone oder iPad. Du landest direkt im Harness.
 
-Wenn du eine Aufgabe ausführst, erlaube die Bildschirmfreigabe und lass das Telefon entsperrt. Danach kannst du zu einer anderen App wechseln. Beendest du die Freigabe, pausiert die Aufgabe. Mit **Weiter** im Harness teilst du den Bildschirm erneut und setzt sie fort.
+Wenn du eine Aufgabe ausführst, erlaube die Bildschirmfreigabe und lass das Telefon entsperrt. Danach kannst du zu einer anderen App wechseln. Beendest du die Freigabe, pausiert die Aufgabe. Mit **Bildschirm teilen und fortfahren** im Harness teilst du den Bildschirm erneut und setzt sie fort.
 
 <a id="models"></a>
 ## 6. API oder ChatGPT-Konto einrichten

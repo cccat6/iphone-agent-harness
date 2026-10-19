@@ -27,13 +27,13 @@ fi
 node --input-type=commonjs - "$render_path" <<'JS'
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict'),vm=require('node:vm');
 const locales=['en','zh-Hans','zh-Hant','ja','ru','de','fr','es'];
-for(const name of ['helper','setup']){
+for(const name of ['setup']){
  const html=fs.readFileSync(path.join(process.argv[2],name+'.html'),'utf8');if(process.env.HTML_RENDER_CAPTURE){fs.mkdirSync(process.env.HTML_RENDER_CAPTURE,{recursive:true});fs.writeFileSync(path.join(process.env.HTML_RENDER_CAPTURE,name+'.html'),html);}const script=html.match(/<script>([\s\S]*)<\/script>/)[1];new vm.Script(script);assert.ok(Buffer.byteLength(html)<10000,'local page must remain below 10 KB');
  for(const locale of locales){
   const fields=new Map();const element=selector=>{if(!fields.has(selector))fields.set(selector,{textContent:'',querySelector:sub=>element(selector+' '+sub)});return fields.get(selector);};
-  const context={navigator:{languages:[locale],language:locale},window:{opener:{postMessage(){},focus(){}}},location:{hash:'#nonce='+('c'.repeat(32)),pathname:'/harness-link'},history:{replaceState(){}},document:{documentElement:{},querySelector:element,addEventListener(){}},crypto:require('node:crypto').webcrypto,URL,URLSearchParams,TextEncoder,TextDecoder,Uint8Array,AbortController,addEventListener(){},setTimeout,clearTimeout,f:element('form'),back:element('#back'),out:element('#out')};
+  const context={navigator:{languages:[locale],language:locale},window:{opener:{postMessage(){},focus(){}}},location:{search:'',pathname:'/'},history:{replaceState(){}},document:{documentElement:{},querySelector:element,addEventListener(){}},crypto:require('node:crypto').webcrypto,URL,URLSearchParams,TextEncoder,TextDecoder,Uint8Array,AbortController,addEventListener(){},setTimeout,clearTimeout,f:element('form'),back:element('#back'),out:element('#out')};
   vm.createContext(context);vm.runInContext(script,context);assert.equal(context.document.documentElement.lang,locale);assert.equal(element('h1').textContent,vm.runInContext('pageMessages[language][0]',context));
-  const keys=vm.runInContext('Object.keys(pageMessages)',context);assert.deepEqual(Array.from(keys).sort(),locales.toSorted());assert.ok(vm.runInContext('Object.values(pageMessages).every(row=>row.length==='+ (name==='helper'?5:7) +'&&row.every(text=>typeof text===\'string\'&&text.length))',context));
+  const keys=vm.runInContext('Object.keys(pageMessages)',context);assert.deepEqual(Array.from(keys).sort(),locales.toSorted());assert.ok(vm.runInContext('Object.values(pageMessages).every(row=>row.length==='+ 7 +'&&row.every(text=>typeof text===\'string\'&&text.length))',context));
  }
  console.log(name+': actual rendered HTML script and eight localized DOMs pass, '+Buffer.byteLength(html)+' bytes');
 }

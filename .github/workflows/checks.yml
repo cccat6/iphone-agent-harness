@@ -51,7 +51,6 @@ jobs:
           python3 tools/verify_rtc_tls_link_test.py
           python3 tools/build_c2_sdk_test.py
           python3 tools/build_firmware_test.py
-          python3 tools/build_c2_sdk_test.py
           python3 tools/firmware_release_test.py
       - name: Reuse firmware for unchanged sources and build configuration
         id: firmware

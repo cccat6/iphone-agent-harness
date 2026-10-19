@@ -43,10 +43,13 @@ flowchart LR
     Storage[("Almacenamiento local del navegador<br/>Conversaciones · imágenes · claves")]
     Apps -->|Compartir pantalla| Harness
     Harness <--> Storage
+    Shortcut["Atajos de Apple<br/>Portapapeles de iOS"]
   end
   Harness <-->|Contexto / respuestas| AI["Tu IA elegida"]
   Harness <-->|WebRTC · Wi-Fi local| Bridge["Puente ESP32"]
   Bridge -->|Teclado / ratón Bluetooth| Apps
+  Bridge -->|HTTP local · texto| Shortcut
+  Shortcut -->|Copia confirmada| Harness
 ```
 
 [Arquitectura](../architecture/overview.md)
@@ -108,6 +111,14 @@ Pantallas reales de Harness con datos de ejemplo.
     <td><img src="../../apps/web/media/skills-example.jpg" width="240" alt="Habilidades"></td>
   </tr>
 </table>
+
+## 📋 Textos largos en varios idiomas
+
+La escritura habitual y los atajos de teclado usan el teclado Bluetooth del puente. Para textos largos o multilingües, **iPhone Agent Clipboard** copia el contenido con Atajos de Apple y el agente lo pega en el campo elegido.
+
+El navegador envía el texto al ESP32 en pequeños bloques por WebRTC local. El puente los transmite en una única respuesta HTTP al atajo, que coloca el texto completo en el portapapeles del iPhone.
+
+[Configurar el portapapeles](../guide/es.md#clipboard)
 
 ## 🔒 Tus datos se quedan contigo
 
