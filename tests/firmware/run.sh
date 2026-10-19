@@ -35,6 +35,8 @@ compile_test "$project_root/tests/firmware/core_external_test.cpp"
 
 compile_test "$project_root/tests/firmware/setup_state_test.cpp"
 "$binary_path"
+compile_test "$project_root/tests/firmware/mdns_lifecycle_test.cpp"
+"$binary_path"
 
 python3 "$project_root/tests/firmware/ble_router_test.py"
 
@@ -53,3 +55,9 @@ compile_test "$project_root/tests/firmware/firmware_identity_test.cpp" -I "$json
 "$binary_path"
 compile_test "$project_root/tests/firmware/firmware_identity_test.cpp" -I "$json_include" '-DIAH_BUILD_ID=0123456789abcdef' '-DEXPECTED_IAH_BUILD_ID="0123456789abcdef"'
 "$binary_path"
+
+compile_test "$project_root/tests/firmware/rtc_peer_ownership_test.cpp"
+"$binary_path"
+
+ARDUINOJSON_INCLUDE="$json_include" python3 "$project_root/tests/firmware/rtc_challenge_isolation_test.py"
+python3 "$project_root/tests/firmware/rtc_peer_service_test.py"

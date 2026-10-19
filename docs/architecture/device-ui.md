@@ -2,7 +2,7 @@
 
 The device panel separates imported bridge information, live bridge connection, usable Bluetooth target and screen sharing. First obtain information from the desktop USB link or device manager, return to Harness and connect. After import, control runs from the Harness page.
 
-A connected selected phone is ready after current firmware binds it. The eight-digit input test is optional: its readonly collector accepts trusted foreground digit events and rejects pasted or synthetic input. Enable AssistiveTouch using the phone tutorial.
+A connected selected phone is ready after current firmware binds it. The eight-digit input test is optional: its readonly collector accepts trusted foreground digit events and rejects pasted or synthetic input. Enable AssistiveTouch using the phone tutorial. The third step is Connection test. For two phones on the same bridge, test each phone to confirm that its Harness page controls that phone.
 
 New-session creation requires a live usable target. Existing conversations remain readable offline. Input commands require a connected target. Closing or losing RTC clears live readiness. Screen sharing has its own user authorization and live status.
 

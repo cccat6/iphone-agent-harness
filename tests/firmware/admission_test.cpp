@@ -1,7 +1,29 @@
 #include "../../firmware/IPhoneAutomationHarness/src/Admission.h"
 #include <cassert>
 #include <iostream>
+#include <map>
 using namespace iah;
+struct BindingSink:Sink {
+ size_t sent=0,releases=0;
+ bool submit(uint16_t,const Event&)override{sent++;return true;}
+ bool release(uint16_t,const Input&)override{releases++;return true;}
+};
+struct BindingFixture {
+ BindingSink sink;Core core{"board","boot",sink};Admission auth;
+ std::map<std::string,Grant> saved;size_t writes=0;bool durable=true;
+ BindingFixture(){
+  for(const auto& suffix:{std::string("a"),std::string("b")}){
+   assert(core.registerBond("phone-"+suffix,"bond-"+suffix)==Code::Accepted);
+   assert(core.connect("bond-"+suffix,suffix=="a"?11:22,true,true,true)==Code::Accepted);
+   assert(core.bindClient("owner-"+suffix,"phone-"+suffix)==Code::Accepted);
+   assert(auth.install("owner-"+suffix,std::string(64,suffix[0]),"https://igent.cc","phone-"+suffix));
+   saved["owner-"+suffix]=*auth.client("owner-"+suffix);
+  }
+ }
+ Code bind(const std::string& owner,const std::string& target,uint64_t now=100){
+  return auth.associate(core,owner,target,now,[&](const Grant& updated){writes++;if(!durable)return false;saved[updated.clientId]=updated;return true;});
+ }
+};
 int main(){size_t cases=0;
  {Admission a;assert(a.install("client",std::string(64,'a'),"https://igent.cc"));assert(a.authenticate(std::string(64,'a'),"https://igent.cc"));assert(!a.authenticate(std::string(64,'b'),"https://igent.cc"));assert(!a.authenticate(std::string(64,'a'),"https://evil.example"));cases++;}
  {Admission a;a.install("client",std::string(64,'a'),"https://igent.cc");assert(a.begin("client","phone-a","challenge-a","12345678",100));assert(!a.confirm("client","phone-a","challenge-a","12345678",110));a.typed();assert(!a.confirm("client","phone-b","challenge-a","12345678",120));assert(!a.confirm("client","phone-a","different","12345678",120));assert(a.confirm("client","phone-a","challenge-a","12345678",120));assert(a.client("client")->targetId=="phone-a");assert(!a.confirm("client","phone-a","challenge-a","12345678",121));cases++;}
@@ -32,8 +54,20 @@ int main(){size_t cases=0;
  {Admission a;for(size_t i=0;i<MaxClients;i++)assert(a.install("client-"+std::to_string(i),std::string(64,'a'+i),"https://igent.cc"));const auto before=a.grants();size_t writes=0;assert(a.enroll("new-browser",std::string(64,'z'),"https://igent.cc",100,[](const Grant&){return false;},[&](size_t slot,const Grant& grant){writes++;assert(slot==0&&grant.clientId=="new-browser");return false;})==Admission::Enrollment::PersistenceFailed);assert(writes==1&&!a.client("new-browser"));for(size_t i=0;i<MaxClients;i++){assert(a.grants()[i].clientId==before[i].clientId);assert(a.grants()[i].tokenHash==before[i].tokenHash);}cases++;}
  // Existing bound browsers renew their own slot and preserve phone ownership.
  {Admission a;assert(a.install("owner",std::string(64,'a'),"https://igent.cc","phone-a"));size_t written=MaxClients;assert(a.enroll("owner",std::string(64,'b'),"https://igent.cc",100,[](const Grant&){return true;},[&](size_t slot,const Grant& grant){written=slot;assert(grant.targetId=="phone-a");return true;})==Admission::Enrollment::Accepted);assert(written==0&&a.client("owner")->targetId=="phone-a");assert(!a.authenticate(std::string(64,'a'),"https://igent.cc"));assert(a.authenticate(std::string(64,'b'),"https://igent.cc"));cases++;}
- // An explicit target association is independent of physical input verification.
- {Admission a;assert(a.install("direct",std::string(64,'a'),"https://igent.cc"));assert(!a.bind("missing","phone-a",100));assert(!a.bind("direct","invalid target",100));assert(a.bind("direct","phone-a",100));assert(a.client("direct")->targetId=="phone-a");assert(a.bind("direct","phone-a",101));assert(!a.bind("direct","phone-b",102));assert(a.begin("direct","phone-a","test","12345678",200));assert(!a.bind("direct","phone-a",201));a.typed();assert(a.confirm("direct","phone-a","test","12345678",202));cases++;}
+ // A chosen target changes the browser mapping without replacing its credential.
+ {BindingFixture f;auto other=f.saved.at("owner-b");assert(f.bind("owner-a","phone-b")==Code::Accepted);assert(f.auth.client("owner-a")->targetId=="phone-b");assert(f.saved.at("owner-a").targetId=="phone-b");assert(f.auth.authenticate(std::string(64,'a'),"https://igent.cc")->clientId=="owner-a");assert(f.auth.client("owner-b")->targetId==other.targetId);assert(f.saved.at("owner-b").tokenHash==other.tokenHash);assert(f.core.lease("phone-a","owner-a","old-route",1000,101)==Code::Unauthorized);assert(f.core.lease("phone-b","owner-a","new-route",1000,101)==Code::Accepted);assert(f.sink.sent==0&&f.sink.releases==2);cases++;}
+ // Failed persistence changes neither live registry nor its saved mapping.
+ {BindingFixture f;f.durable=false;assert(f.bind("owner-a","phone-b")==Code::PersistenceFailed);assert(f.auth.client("owner-a")->targetId=="phone-a");assert(f.saved.at("owner-a").targetId=="phone-a");assert(f.core.lease("phone-b","owner-a","wrong-route",1000,101)==Code::Unauthorized);assert(f.core.lease("phone-a","owner-a","retained-route",1000,101)==Code::Accepted);assert(f.auth.authenticate(std::string(64,'a'),"https://igent.cc"));assert(f.sink.sent==0);cases++;}
+ // Both the old writer and another browser's live target lease block the change.
+ {BindingFixture f;assert(f.core.lease("phone-a","owner-a","old-lease",1000,10)==Code::Accepted);assert(f.bind("owner-a","phone-b")==Code::Busy);assert(f.writes==0&&f.auth.client("owner-a")->targetId=="phone-a");cases++;}
+ {BindingFixture f;assert(f.core.lease("phone-b","owner-b","other-lease",1000,10)==Code::Accepted);assert(f.bind("owner-a","phone-b")==Code::Busy);assert(f.writes==0&&f.auth.client("owner-a")->targetId=="phone-a");assert(f.core.target("phone-b")->lease.clientId=="owner-b");cases++;}
+ {BindingFixture f;assert(f.auth.begin("owner-a","phone-a","input-test","12345678",10));assert(f.bind("owner-a","phone-b")==Code::Busy);assert(f.writes==0);cases++;}
+ {BindingFixture f;f.core.target("phone-a")->input.buttons=1;assert(f.bind("owner-a","phone-b")==Code::Busy);assert(f.writes==0);cases++;}
+ {BindingFixture f;f.core.target("phone-b")->running=true;assert(f.bind("owner-a","phone-b")==Code::Busy);assert(f.writes==0);cases++;}
+ {BindingFixture f;f.core.target("phone-b")->releasePending=true;assert(f.bind("owner-a","phone-b")==Code::NotReady);assert(f.writes==0);cases++;}
+ {BindingFixture f;assert(f.bind("missing","phone-a")==Code::Invalid);assert(f.bind("owner-a","invalid target")==Code::Invalid);assert(f.bind("owner-a","phone-c")==Code::NotReady);assert(f.writes==0);assert(f.bind("owner-a","phone-a")==Code::Duplicate);assert(f.auth.client("owner-a")->targetId=="phone-a");cases++;}
+ {BindingFixture f;assert(f.auth.install("new-browser",std::string(64,'c'),"https://igent.cc"));assert(f.bind("new-browser","phone-a")==Code::Accepted);assert(f.core.lease("phone-a","new-browser","new-browser-lease",1000,101)==Code::Accepted);assert(f.auth.client("owner-a")->targetId=="phone-a");cases++;}
+ {BindingFixture f;f.core.disconnect(11,10);assert(f.bind("owner-a","phone-b")==Code::Accepted);assert(f.auth.client("owner-a")->targetId=="phone-b");assert(f.core.lease("phone-a","owner-a","offline-old-route",1000,101)==Code::Unauthorized);cases++;}
  {Admission a;assert(a.install("owner",std::string(64,'a'),"https://igent.cc"));assert(a.install("other",std::string(64,'b'),"https://igent.cc"));assert(a.begin("owner","phone-a","test","12345678",100));assert(!a.cancelChallenge("other","phone-a",101));assert(!a.cancelChallenge("owner","phone-b",101));assert(a.ownsChallenge("owner","phone-a",101));assert(a.cancelChallenge("owner","phone-a",102));assert(!a.active(102));assert(a.cancelChallenge("owner","phone-a",103));cases++;}
  std::cout<<cases<<" admission scenarios passed\n";
 }

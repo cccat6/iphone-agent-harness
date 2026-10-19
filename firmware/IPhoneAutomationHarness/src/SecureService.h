@@ -24,6 +24,7 @@
 #include "ClipboardMailbox.h"
 #include "ClipboardWire.h"
 #include "RtcIdentity.h"
+#include "RtcPeerOwnership.h"
 #include "StrictJson.h"
 namespace iah {
 class CoreLock {SemaphoreHandle_t mutex_;public:explicit CoreLock(SemaphoreHandle_t m):mutex_(m){xSemaphoreTake(m,portMAX_DELAY);}~CoreLock(){xSemaphoreGive(mutex_);}};
@@ -35,12 +36,13 @@ class SecureService {
  uint64_t challengeNext_=0;size_t challengeEvent_=0;uint16_t challengeHandle_=InvalidHandle;
  struct Request {
   httpd_req_t* http=nullptr; httpd_method_t method=HTTP_GET; String uri,body,authorization,requestOrigin,trustedPeerIp;
-  size_t content_len=0; bool rtc=false; int responseStatus=500; String responseBody;
+  size_t content_len=0; size_t rtcPeer=2; bool rtc=false; int responseStatus=500; String responseBody;
   explicit Request(httpd_req_t* source):http(source),method(static_cast<httpd_method_t>(source->method)),uri(source->uri),content_len(source->content_len){}
   Request()=default;
  };
- ClipboardMailbox clipboard_;String clipboardRequest_,clipboardClient_,clipboardTarget_,clipboardToken_,clipboardSource_;std::array<std::string,MaxClients> rtcClients_{};bool rtcChallenge_=false;
- void rememberRtcClient(const std::string& id){for(auto& value:rtcClients_)if(value==id)return;for(auto& value:rtcClients_)if(value.empty()){value=id;return;}}
+ ClipboardMailbox clipboard_;String clipboardRequest_,clipboardClient_,clipboardTarget_,clipboardToken_,clipboardSource_;RtcPeerOwnership<2,MaxClients,MaxTargets> rtcOwners_;int rtcChallengePeer_=-1,clipboardPeer_=-1;
+ void rememberRtcClient(size_t peer,const std::string& id){rtcOwners_.rememberClient(peer,id);}
+
  static uint64_t now(){return esp_timer_get_time()/1000;}
  static String httpHeader(httpd_req_t* r,const char* key){size_t size=httpd_req_get_hdr_value_len(r,key);if(!size||size>512)return "";std::vector<char> data(size+1);if(httpd_req_get_hdr_value_str(r,key,data.data(),data.size())!=ESP_OK)return "";return data.data();}
  static String header(Request* r,const char* key){if(r->http)return httpHeader(r->http,key);if(strcmp(key,"Origin")==0)return r->requestOrigin;if(strcmp(key,"Authorization")==0)return r->authorization;return "";}
@@ -68,17 +70,17 @@ class SecureService {
  }
  bool saveGrant(const Grant& grant){size_t i=MaxClients;for(size_t n=0;n<MaxClients;n++)if(auth_.grants()[n].active&&auth_.grants()[n].clientId==grant.clientId){i=n;break;}if(i==MaxClients)for(size_t n=0;n<MaxClients;n++)if(!auth_.grants()[n].active){i=n;break;}return i<MaxClients&&saveGrantAt(i,grant);}
  bool protectedEnrollmentClient(const Grant& grant){
-  for(const auto& id:rtcClients_)if(!id.empty()&&id==grant.clientId)return true;
+  if(rtcOwners_.hasClient(grant.clientId))return true;
   if(!clipboardClient_.isEmpty()&&grant.clientId==clipboardClient_.c_str())return true;
   for(const auto& target:core_.targets())if(target.lease.clientId==grant.clientId&&(target.lease.expiresAt>now()||target.running))return true;
   return false;
  }
  void addSettings(JsonDocument& d){addIdentity(d);d["hostname"]=bridgeSettings_.hostname;d["newURL"]="http://"+String(bridgeSettings_.hostname.c_str())+".local";d["harnessURL"]=origin_+"/";addRtc(d);}
- void addRtc(JsonDocument& d){auto rtc=d["rtc"].to<JsonObject>();if(WiFi.status()==WL_CONNECTED)rtc["ip"]=WiFi.localIP().toString();rtc["port"]=18948;rtc["fingerprint"]=RtcIdentity::fingerprint;}
- void addIdentity(JsonDocument& d){d["boardId"]=board_;d["bootId"]=boot_;firmware::addIdentity(d);}
+ void addRtc(JsonDocument& d){auto rtc=d["rtc"].to<JsonObject>();if(WiFi.status()==WL_CONNECTED)rtc["ip"]=WiFi.localIP().toString();rtc["port"]=18948;auto ports=rtc["ports"].to<JsonArray>();ports.add(18948);ports.add(18949);rtc["fingerprint"]=RtcIdentity::fingerprint;}
+ void addIdentity(JsonDocument& d){d["boardId"]=board_;d["bootId"]=boot_;firmware::addIdentity(d);d["targetBinding"]="explicit-rebind-v1";}
  void addTargets(JsonDocument& d){auto list=d["targets"].to<JsonArray>();for(const auto& t:core_.targets())if(!t.id.empty()){auto row=list.add<JsonObject>();row["targetId"]=t.id;row["connected"]=t.connHandle!=InvalidHandle;row["encrypted"]=t.encrypted;row["hidSubscribed"]=t.subscribed;row["inputReleased"]=!t.releasePending;bool challenge=auth_.typing(now())&&auth_.target()==t.id;row["inputState"]=(!t.releasePending&&!t.running&&!challenge)?"released":"unknown";row["running"]=t.running||challenge;}}
  void receipt(JsonDocument& d,const Result& result){addIdentity(d);d["targetId"]=result.targetId;d["clientId"]=result.clientId;d["segmentId"]=result.segmentId;d["planId"]=result.planId;d["payloadHash"]=result.payloadHash;d["status"]=statusName(result.status);d["releaseSubmitted"]=result.releaseSubmitted;d["acceptedAtDeviceMs"]=result.acceptedAt;d["startedAtDeviceMs"]=result.startedAt;d["endedAtDeviceMs"]=result.endedAt;d["submitted"]=result.submitted;d["maxLatenessMs"]=result.maxLatenessMs;}
- void clearClipboard(){clipboard_.clear();clipboardRequest_="";clipboardClient_="";clipboardTarget_="";clipboardToken_="";clipboardSource_="";}
+ void clearClipboard(){clipboard_.clear();clipboardRequest_="";clipboardClient_="";clipboardTarget_="";clipboardToken_="";clipboardSource_="";clipboardPeer_=-1;}
  static String peerIp(Request* r){if(r->rtc)return r->trustedPeerIp;if(!r->http)return "";sockaddr_in address{};socklen_t length=sizeof(address);if(getpeername(httpd_req_to_sockfd(r->http),reinterpret_cast<sockaddr*>(&address),&length)!=0||address.sin_family!=AF_INET)return "";return inet_ntoa(address.sin_addr);}
  static String jobToken(const String& uri){int at=uri.indexOf('?');if(at<0||uri.substring(at,at+7)!="?token=")return "";String token=uri.substring(at+7);if(token.length()!=64)return "";for(char c:token)if(!((c>='0'&&c<='9')||(c>='a'&&c<='f')))return "";return token;}
  void clipboardView(JsonDocument& d,const ClipboardMailbox::View& view){addIdentity(d);d["requestId"]=view.requestId;d["clientId"]=view.clientId;d["sessionId"]=view.sessionId;d["targetId"]=view.targetId;d["status"]=ClipboardMailbox::stateName(view.state);d["expiresAtDeviceMs"]=view.expiresAtDeviceMs;d["copiedAtDeviceMs"]=view.copiedAtDeviceMs;d["totalBytes"]=view.totalBytes;d["nextOffset"]=view.nextOffset;d["chunkBytes"]=ClipboardMailbox::ChunkBytes;d["chunkPending"]=view.chunkPending;}
@@ -123,7 +125,7 @@ class SecureService {
  struct Decision {int status;String error;};
  template<class Action> esp_err_t lockedReply(Request* request,Action action){
   JsonDocument doc;Decision decision;
-  {CoreLock lock(mutex_);decision=action(doc);}
+  {CoreLock lock(mutex_);expireChallenge();decision=action(doc);}
   // No Core mutex is held during serialization or socket writes.
   return decision.error.length()?error(request,decision.status,decision.error.c_str()):send(request,decision.status,doc);
  }
@@ -171,7 +173,7 @@ class SecureService {
   if(r->method==HTTP_GET&&parts[1]=="capabilities"){
    JsonDocument d;addIdentity(d);d["protocolVersion"]=1;d["executionEnabled"]=!maintenance_;d["pairingAvailable"]=true;
    d["maxTargets"]=MaxTargets;d["maxClients"]=MaxClients;d["maxEvents"]=WireMaxEvents;d["reportIntervalMs"]=40;d["pointerSettleMs"]=20;d["maxRequestBytes"]=WireMaxRequestBytes;d["maxSegmentMs"]=MaxSegmentMs;
-   d["maxHoldMs"]=MaxHoldMs;d["maxLeaseMs"]=MaxLeaseMs;d["captureOnDevice"]=false;d["maxConcurrentRequests"]=1;addRtc(d);d["clipboardChunkBytes"]=ClipboardMailbox::ChunkBytes;d["clipboardStreaming"]=true;
+   d["maxHoldMs"]=MaxHoldMs;d["maxLeaseMs"]=MaxLeaseMs;d["captureOnDevice"]=false;d["maxConcurrentRequests"]=2;d["maxRtcPeers"]=2;addRtc(d);d["clipboardChunkBytes"]=ClipboardMailbox::ChunkBytes;d["clipboardStreaming"]=true;
    d["freeHeapBytes"]=ESP.getFreeHeap();d["minFreeHeapBytes"]=ESP.getMinFreeHeap();d["transport"]="webrtc-direct";
    auto operations=d["operations"].to<JsonArray>();for(auto op:{"tap","drag","swipe","pointer_sequence","key","home","wait","capture","observe"})operations.add(op);
    return send(r,200,d);
@@ -188,17 +190,17 @@ class SecureService {
    if(!validId(client.c_str()))return error(r,400,"invalid_client_id");
    String token=randomHex(32),hash=sha256Hex(token);
    return lockedReply(r,[&](JsonDocument& d)->Decision{
-    if(maintenance_||core_.busy()||auth_.active(now()))return {409,"board_busy"};
+    if(maintenance_||auth_.active(now()))return {409,"board_busy"};
     auto enrolled=auth_.enroll(client.c_str(),hash.c_str(),origin_.c_str(),now(),[this](const Grant& grant){return protectedEnrollmentClient(grant);},[this](size_t slot,const Grant& grant){return saveGrantAt(slot,grant);});
     if(enrolled==Admission::Enrollment::Capacity)return {409,"client_capacity"};
     if(enrolled==Admission::Enrollment::PersistenceFailed)return {503,"credential_persistence_failed"};
     if(enrolled!=Admission::Enrollment::Accepted)return {409,"board_busy"};
-    if(r->rtc)rememberRtcClient(client.c_str());
+    if(r->rtc)rememberRtcClient(r->rtcPeer,client.c_str());
     addIdentity(d);d["clientId"]=client;d["token"]=token;d["hostname"]=host_+".local";d["publicKeyFingerprint"]=identityFingerprint_;return {200,""};
    });
   }
   Grant grant;bool authenticated=false;
-  {CoreLock lock(mutex_);auto current=authenticate(r);if(current){grant=*current;authenticated=true;if(r->rtc)rememberRtcClient(grant.clientId);}}
+  {CoreLock lock(mutex_);auto current=authenticate(r);if(current){grant=*current;authenticated=true;if(r->rtc)rememberRtcClient(r->rtcPeer,grant.clientId);}}
   if(!authenticated)return error(r,401,"invalid_client_credential");
   if(parts.size()==2&&parts[1]=="settings"){
    if(r->method==HTTP_GET)return lockedReply(r,[&](JsonDocument& d)->Decision{addSettings(d);return {200,""};});
@@ -225,14 +227,17 @@ class SecureService {
    return lockedReply(r,[&](JsonDocument& d)->Decision{
     auto t=core_.target(target.c_str());
     if(maintenance_||!t||t->connHandle==InvalidHandle||!t->encrypted||!t->subscribed||t->releasePending)return {409,"target_not_ready"};
-    // Never change association while any execution, challenge or live lease owns input.
-    if(core_.busy()||auth_.active(now()))return {409,"target_busy"};
-    for(const auto& peer:core_.targets())if(peer.lease.expiresAt>now())return {409,"target_busy"};
-    Admission candidate=auth_;if(!candidate.bind(grant.clientId,target.c_str(),now()))return {409,"binding_conflict"};
-    auto accepted=core_.bindClient(grant.clientId,target.c_str());
+    if(grant.targetId!=target.c_str()&&clipboardClient_==grant.clientId.c_str()){
+     ClipboardMailbox::View transfer;
+     if(clipboard_.status(clipboardRequest_.c_str(),grant.clientId,clipboardTarget_.c_str(),now(),transfer)==ClipboardMailbox::Result::Ok&&
+        (transfer.state==ClipboardMailbox::State::Pending||transfer.state==ClipboardMailbox::State::Streaming||transfer.state==ClipboardMailbox::State::Delivered))return {409,"target_busy"};
+    }
+    auto accepted=auth_.associate(core_,grant.clientId,target.c_str(),now(),[&](const Grant& updated){return saveGrant(updated);});
+    if(accepted==Code::Busy)return {409,"target_busy"};
+    if(accepted==Code::NotReady)return {409,"target_not_ready"};
+    if(accepted==Code::PersistenceFailed)return {503,"binding_persistence_failed"};
     if(accepted!=Code::Accepted&&accepted!=Code::Duplicate)return {409,"binding_conflict"};
-    if(!saveGrant(*candidate.client(grant.clientId))){if(accepted==Code::Accepted)core_.forgetClient(grant.clientId,now());return {503,"binding_persistence_failed"};}
-    auth_=std::move(candidate);addIdentity(d);d["clientId"]=grant.clientId;d["targetId"]=target;d["bindingVerified"]=true;d["inputTestVerified"]=false;return {200,""};
+    addIdentity(d);d["clientId"]=grant.clientId;d["targetId"]=target;d["bindingVerified"]=true;d["inputTestVerified"]=false;return {200,""};
    });
   }
   if(parts.size()==5&&parts[3]=="challenge"&&r->method==HTTP_POST){
@@ -242,7 +247,7 @@ class SecureService {
      if(body.size()!=0)return {400,"invalid_challenge_request"};
      if(auth_.active(now())&&!auth_.ownsChallenge(grant.clientId,target.c_str(),now()))return {403,"wrong_target_or_client"};
      if(auth_.ownsChallenge(grant.clientId,target.c_str(),now()))releaseChallenge();
-     auth_.cancelChallenge(grant.clientId,target.c_str(),now());rtcChallenge_=false;addIdentity(d);d["clientId"]=grant.clientId;d["targetId"]=target;d["status"]="cancelled";return {200,""};
+     auth_.cancelChallenge(grant.clientId,target.c_str(),now());rtcChallengePeer_=-1;challengeHandle_=InvalidHandle;addIdentity(d);d["clientId"]=grant.clientId;d["targetId"]=target;d["status"]="cancelled";return {200,""};
     }
     auto t=core_.target(target.c_str());
     if(maintenance_||!t||t->connHandle==InvalidHandle||!t->encrypted||!t->subscribed||t->releasePending)return {409,"target_not_ready"};
@@ -250,7 +255,7 @@ class SecureService {
      if(body.size()!=0||core_.busy()||t->lease.expiresAt>now())return {409,"target_busy"};
      String nonce;for(int i=0;i<8;i++)nonce+=char('0'+esp_random()%10);String challenge="challenge-"+randomHex(16);
      if(!auth_.begin(grant.clientId,target.c_str(),challenge.c_str(),nonce.c_str(),now()))return {429,"challenge_busy_or_rate_limited"};
-     challengeEvent_=0;challengeNext_=now()+200;challengeHandle_=t->connHandle;rtcChallenge_=r->rtc;
+     challengeEvent_=0;challengeNext_=now()+200;challengeHandle_=t->connHandle;rtcChallengePeer_=r->rtc?int(r->rtcPeer):-1;
      addIdentity(d);d["targetId"]=target;d["challengeId"]=challenge;d["length"]=8;d["status"]="typing";
      d["expiresInMs"]=30000;d["expiresAtDeviceMs"]=auth_.expiresAt();return {202,""};
     }
@@ -263,7 +268,7 @@ class SecureService {
     auto accepted=core_.bindClient(grant.clientId,target.c_str());
     if(accepted!=Code::Accepted&&accepted!=Code::Duplicate)return {409,"binding_conflict"};
     if(!saveGrant(*candidate.client(grant.clientId))){if(accepted==Code::Accepted)core_.forgetClient(grant.clientId,now());return {503,"binding_persistence_failed"};}
-    auth_=std::move(candidate);rtcChallenge_=false;addIdentity(d);d["clientId"]=grant.clientId;d["targetId"]=target;d["bindingVerified"]=true;return {200,""};
+    auth_=std::move(candidate);rtcChallengePeer_=-1;challengeHandle_=InvalidHandle;addIdentity(d);d["clientId"]=grant.clientId;d["targetId"]=target;d["bindingVerified"]=true;return {200,""};
    });
   }
   if(grant.targetId!=target.c_str())return error(r,403,"wrong_target");
@@ -273,7 +278,7 @@ class SecureService {
     String token=randomHex(32);
     return lockedReply(r,[&](JsonDocument& d)->Decision{auto t=core_.target(target.c_str());if(maintenance_||!t||t->connHandle==InvalidHandle||!t->encrypted||!t->subscribed||t->releasePending)return {409,"target_not_ready"};
      auto result=clipboard_.put(std::string(body["requestId"]|""),grant.clientId,std::string(body["sessionId"]|""),target.c_str(),body["totalBytes"].as<uint64_t>(),token.c_str(),now(),body["ttlMs"].as<uint32_t>());if(result!=ClipboardMailbox::Result::Ok)return {clipboardStatus(result),"clipboard_stage_rejected"};
-     clipboardRequest_=body["requestId"].as<String>();clipboardClient_=grant.clientId.c_str();clipboardTarget_=target;clipboardToken_=token;clipboardSource_=peerIp(r);ClipboardMailbox::View view;clipboard_.status(clipboardRequest_.c_str(),grant.clientId,target.c_str(),now(),view);clipboardView(d,view);d["jobToken"]=token;return {200,""};
+     clipboardRequest_=body["requestId"].as<String>();clipboardClient_=grant.clientId.c_str();clipboardTarget_=target;clipboardToken_=token;clipboardSource_=peerIp(r);clipboardPeer_=r->rtc?int(r->rtcPeer):-1;ClipboardMailbox::View view;clipboard_.status(clipboardRequest_.c_str(),grant.clientId,target.c_str(),now(),view);clipboardView(d,view);d["jobToken"]=token;return {200,""};
     });
    }
    if(parts.size()==6&&parts[5]=="chunks"&&r->method==HTTP_POST){
@@ -292,7 +297,7 @@ class SecureService {
     std::string lease=body["leaseId"].as<const char*>();
     if(parts[4]=="renew"&&(t->lease.id!=lease||t->lease.clientId!=grant.clientId||t->lease.expiresAt<=now()))return {409,"lease_expired"};
     if(parts[4]!="renew"&&parts[4]!="claim")return {404,"not_found"};
-    if(core_.lease(target.c_str(),grant.clientId,lease,body["ttlMs"].as<int>(),now())!=Code::Accepted)return {409,"lease_conflict"};
+    if(core_.lease(target.c_str(),grant.clientId,lease,body["ttlMs"].as<int>(),now())!=Code::Accepted)return {409,"lease_conflict"};rtcOwners_.claim(r->rtc?r->rtcPeer:2,target.c_str(),lease);
     addIdentity(d);d["targetId"]=target;d["clientId"]=grant.clientId;d["leaseId"]=lease;d["expiresAtDeviceMs"]=t->lease.expiresAt;d["inputState"]=t->running?"unknown":"released";return {200,""};
    });
   }
@@ -322,7 +327,9 @@ class SecureService {
   }
   return error(r,404,"not_found");
  }
- void releaseChallenge(){auto target=core_.target(auth_.target());if(target&&target->connHandle==challengeHandle_&&challengeHandle_!=InvalidHandle)target->releasePending=!sink_.release(challengeHandle_,target->input);}
+ void releaseChallenge(){auto target=core_.target(auth_.target());if(target&&target->connHandle==challengeHandle_&&challengeHandle_!=InvalidHandle&&!target->running&&target->lease.expiresAt<=now())target->releasePending=!sink_.release(challengeHandle_,target->input);}
+ void invalidateChallenge(){auth_.invalidate();rtcChallengePeer_=-1;challengeHandle_=InvalidHandle;challengeNext_=0;challengeEvent_=0;}
+ void expireChallenge(){if(auth_.expiresAt()&&now()>=auth_.expiresAt()){releaseChallenge();invalidateChallenge();}}
  bool hasNetworkAddress()const{auto ip=WiFi.localIP();return WiFi.status()==WL_CONNECTED&&ip[0]>0&&ip[0]<224&&ip[0]!=127;}
  void restorePreviousNetwork(){
   JsonDocument previous;String ssid,password;
@@ -362,10 +369,10 @@ class SecureService {
   JsonDocument network;network["ssid"]=ssid;network["password"]=wifiPassword;network["origin"]=origin;String stored;serializeJson(network,stored);previousNetwork_=prefs_.getString("network","");candidateNetwork_=stored;candidateSsid_=ssid;candidatePassword_=wifiPassword;candidateOrigin_=origin;startCandidate_=true;wifiJoin_.begin(now(),wifiEpoch_.load());return true;
  }
  public:
- String dispatchRtc(String encoded,const String& peerIp=""){
-  JsonDocument envelope;Request request;request.rtc=true;request.requestOrigin=origin_;request.trustedPeerIp=peerIp;
+ String dispatchRtc(String encoded,const String& peerIp="",size_t peer=0){
+  JsonDocument envelope;Request request;request.rtc=true;request.rtcPeer=peer;request.requestOrigin=origin_;request.trustedPeerIp=peerIp;
   auto failed=[&](const char* message){JsonDocument value;value["status"]=400;String body;JsonDocument e;e["error"]=message;serializeJson(e,body);value["body"]=body;String result;serializeJson(value,result);return result;};
-  if(encoded.length()>12288||!strictJsonObject(envelope,encoded.c_str(),encoded.length(),5)||!fields(envelope.as<JsonObjectConst>(),{"method","path","headers","body"})||!plainJsonString(envelope["method"])||!plainJsonString(envelope["path"])||!plainJsonString(envelope["body"])||!envelope["headers"].is<JsonObject>())return failed("invalid_rpc");
+  if(peer>=2||encoded.length()>12288||!strictJsonObject(envelope,encoded.c_str(),encoded.length(),5)||!fields(envelope.as<JsonObjectConst>(),{"method","path","headers","body"})||!plainJsonString(envelope["method"])||!plainJsonString(envelope["path"])||!plainJsonString(envelope["body"])||!envelope["headers"].is<JsonObject>())return failed("invalid_rpc");
   String method=envelope["method"]|"";request.uri=envelope["path"]|"";
   if((method!="GET"&&method!="POST")||!request.uri.startsWith("/v1/")||request.uri.indexOf('?')>=0||request.uri.indexOf('#')>=0||request.uri.indexOf("..")>=0)return failed("invalid_rpc_route");
   request.method=method=="GET"?HTTP_GET:HTTP_POST;request.body=envelope["body"]|"";request.content_len=request.body.length();
@@ -374,16 +381,27 @@ class SecureService {
   envelope.clear();encoded=static_cast<const char*>(nullptr); // nullptr releases the pinned Arduino String allocation.
   handle(&request);request.body=static_cast<const char*>(nullptr);JsonDocument response;response["status"]=request.responseStatus;response["body"]=request.responseBody;String result;serializeJson(response,result);return result;
  }
- void rtcDisconnected(){CoreLock lock(mutex_);if(rtcChallenge_){releaseChallenge();auth_.invalidate();rtcChallenge_=false;}for(const auto& target:core_.targets()){bool owned=false;for(const auto& client:rtcClients_)if(!client.empty()&&target.lease.clientId==client)owned=true;if(owned){auto client=target.lease.clientId;core_.cancel(target.id,client,now());}}bool ownsClipboard=false;for(const auto& client:rtcClients_)if(!client.empty()&&clipboardClient_==client.c_str())ownsClipboard=true;for(auto& client:rtcClients_)client.clear();if(ownsClipboard)clearClipboard();}
- bool rtcCanReplace(){CoreLock lock(mutex_);return !core_.busy()&&!auth_.active(now())&&!maintenance_;}
+ void rtcDisconnected(size_t peer=0){
+  if(peer>=2)return;CoreLock lock(mutex_);
+  if(rtcChallengePeer_==int(peer)){releaseChallenge();invalidateChallenge();}
+  for(const auto& target:core_.targets())if(rtcOwners_.owns(peer,target.id,target.lease.id)){auto client=target.lease.clientId;core_.cancel(target.id,client,now());}
+  if(clipboardPeer_==int(peer))clearClipboard();rtcOwners_.clear(peer);
+ }
+ bool rtcCanReplace(size_t peer=0){
+  if(peer>=2)return false;CoreLock lock(mutex_);if(maintenance_)return false;
+  if(rtcChallengePeer_==int(peer)&&auth_.active(now()))return false;
+  for(const auto& target:core_.targets())if(rtcOwners_.owns(peer,target.id,target.lease.id)&&(target.running||target.lease.expiresAt>now()))return false;
+  return true;
+ }
  // Caller holds Core's mutex and has durably removed this target's bond map.
  // Preserve owner/client credentials; only the phone proof is revoked.
  bool inputBusy()const{return auth_.typing(now());}
  void forgetTarget(const std::string& target){
+  rtcOwners_.forgetTarget(target);
   if(clipboardTarget_==target.c_str())clearClipboard();
   std::array<bool,MaxClients> changed{};size_t i=0;
   for(const auto& grant:auth_.grants())changed[i++]=grant.active&&grant.targetId==target;
-  if(auth_.target()==target)challengeHandle_=InvalidHandle;auth_.forgetTarget(target);
+  if(auth_.target()==target){challengeHandle_=InvalidHandle;rtcChallengePeer_=-1;}auth_.forgetTarget(target);
   i=0;for(const auto& grant:auth_.grants())if(changed[i++])saveGrant(grant);
   // A failed grant write cannot resurrect proof after reboot: begin() rejects
   // any target missing from the durable bond map, which was removed first.
@@ -417,7 +435,7 @@ class SecureService {
   recoverySetup_=false;
   setupDeadline_.opened();maintenance_=true;
   if(http_){
-   {CoreLock lock(mutex_);for(const auto& t:core_.targets())if(!t.lease.clientId.empty())core_.cancel(t.id,t.lease.clientId,now());releaseChallenge();auth_.invalidate();}
+   {CoreLock lock(mutex_);for(const auto& t:core_.targets())if(!t.lease.clientId.empty())core_.cancel(t.id,t.lease.clientId,now());releaseChallenge();invalidateChallenge();}
    httpd_stop(http_);http_=nullptr;
   }
   WiFi.mode(WIFI_AP_STA);apActive_=WiFi.softAP(("iPhone-Harness-"+board_.substring(4)).c_str(),apPassword_.c_str(),1,false,1);if(apActive_)ap_.begin();
@@ -436,13 +454,13 @@ class SecureService {
    httpd_config_t cfg=HTTPD_DEFAULT_CONFIG();cfg.server_port=80;cfg.max_open_sockets=2;cfg.lru_purge_enable=true;cfg.max_uri_handlers=1;cfg.max_resp_headers=12;cfg.uri_match_fn=httpd_uri_match_wildcard;cfg.recv_wait_timeout=2;cfg.send_wait_timeout=2;cfg.stack_size=6144;cfg.task_priority=1;
    if(httpd_start(&http_,&cfg)==ESP_OK){httpd_uri_t routeConfig{};routeConfig.uri="/*";routeConfig.method=(httpd_method_t)HTTP_ANY;routeConfig.handler=route;routeConfig.user_ctx=this;if(httpd_register_uri_handler(http_,&routeConfig)!=ESP_OK){httpd_stop(http_);http_=nullptr;Serial.println("{\"event\":\"http_route_registration_failed\"}");return;}maintenance_=false;if(apActive_){WiFi.softAPdisconnect(true);apActive_=false;}Serial.println("{\"event\":\"http_ready\",\"privateCredentialsLogged\":false}");}else http_=nullptr;
   }
-  CoreLock lock(mutex_);clipboard_.tick(now());if(auth_.expiresAt()&&now()>=auth_.expiresAt()){releaseChallenge();auth_.invalidate();}
+  CoreLock lock(mutex_);clipboard_.tick(now());if(auth_.expiresAt()&&now()>=auth_.expiresAt()){releaseChallenge();invalidateChallenge();}
   if(auth_.typing(now())){
-   auto t=core_.target(auth_.target());if(!t||t->connHandle!=challengeHandle_||!t->encrypted||!t->subscribed){releaseChallenge();auth_.invalidate();return;}
-   if(now()<challengeNext_)return;if(now()>challengeNext_+100){releaseChallenge();auth_.invalidate();return;}
+   auto t=core_.target(auth_.target());if(!t||t->connHandle!=challengeHandle_||!t->encrypted||!t->subscribed){releaseChallenge();invalidateChallenge();return;}
+   if(now()<challengeNext_)return;if(now()>challengeNext_+100){releaseChallenge();invalidateChallenge();return;}
    Event e;e.kind=Kind::Keyboard;if(challengeEvent_%2==0){char digit=auth_.digit(challengeEvent_/2);e.count=1;e.usages[0]=digit=='0'?39:29+(digit-'0');}
-   if(!sink_.submit(challengeHandle_,e)){releaseChallenge();auth_.invalidate();return;}challengeEvent_++;challengeNext_=now()+30;
-   if(challengeEvent_>=16){bool released=sink_.release(challengeHandle_,t->input);t->releasePending=!released;if(released)auth_.typed();else auth_.invalidate();}
+   if(!sink_.submit(challengeHandle_,e)){releaseChallenge();invalidateChallenge();return;}challengeEvent_++;challengeNext_=now()+30;
+   if(challengeEvent_>=16){bool released=sink_.release(challengeHandle_,t->input);t->releasePending=!released;if(released)auth_.typed();else invalidateChallenge();}
   }
  }
 };

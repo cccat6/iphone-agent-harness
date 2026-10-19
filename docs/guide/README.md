@@ -74,6 +74,8 @@ Your login details and API keys are saved in this browser. Requests go directly 
 3. Click **Connect ESP32 bridge**. Select your paired phone if asked. Next time, the saved connection is ready to use.
 4. To check typing, click **Start input test** and stay on that page. The bridge types eight digits and Harness checks them automatically. You can skip this test.
 
+One bridge supports two independent Harness connections. When using two phones, select the matching phone on each page and run the optional input test on each to confirm the pairing.
+
 If the phone is not shown as ready, check its Bluetooth connection, wait a moment, then click **Refresh**.
 
 Try “Open Clock and set an alarm for 7:00.” Allow screen sharing when prompted. By default, the agent returns to this conversation after finishing; change that in **Settings → Task completion → Return to Harness**.

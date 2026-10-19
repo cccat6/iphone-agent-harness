@@ -74,6 +74,8 @@ Las credenciales y claves se guardan en este navegador. Las peticiones van direc
 3. Pulsa **Conectar puente ESP32** y selecciona el teléfono emparejado si se solicita. La próxima vez puedes usar la conexión guardada.
 4. Para comprobar la escritura, pulsa **Iniciar prueba de entrada** y quédate en la página. El puente escribe ocho dígitos y Harness los comprueba. Puedes saltarte esta prueba.
 
+Un puente admite dos conexiones independientes de Harness. Si usas dos teléfonos, selecciona el correspondiente en cada página y realiza la prueba de entrada opcional en cada uno para confirmar la vinculación.
+
 Si el teléfono no está listo, comprueba Bluetooth, espera un momento y pulsa **Actualizar**.
 
 Prueba «Abre Reloj y pon una alarma a las 7:00». Permite compartir pantalla. Al terminar, el agente vuelve a la conversación; puedes cambiarlo en **Ajustes → Finalización de tarea → Volver a Harness**.

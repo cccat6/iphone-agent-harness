@@ -112,6 +112,8 @@ Actual Harness screens with sample content; the conversation below is an example
   </tr>
 </table>
 
+One bridge supports two independent Harness connections. When using two phones, select the matching phone on each page and run the optional input test on each to confirm the pairing.
+
 ## 📋 Long text, in any language
 
 The bridge handles everyday typing and shortcuts as a Bluetooth keyboard. For long or multilingual text, **iPhone Agent Clipboard** uses Apple Shortcuts to copy the text, then the agent pastes it into the chosen field.

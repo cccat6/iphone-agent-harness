@@ -6,8 +6,9 @@ export function validateRTCConfiguration(value,{fallbackHost=''}={}){
  const host=String(value?.ip||value?.host||fallbackHost).toLowerCase();
  if(!isLocalDeviceHost(host)||!(/^(?:\d{1,3}\.){3}\d{1,3}$/.test(host)||/^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?\.local$/.test(host)))throw error('DEVICE_RTC_CONFIG_INVALID');
  const port=value?.port;if(!Number.isInteger(port)||port<1||port>65535)throw error('DEVICE_RTC_CONFIG_INVALID');
+ const ports=value?.ports;if(ports!==undefined&&(!Array.isArray(ports)||ports.length<1||ports.length>2||ports.some(p=>!Number.isInteger(p)||p<1||p>65535)||new Set(ports).size!==ports.length||!ports.includes(port)))throw error('DEVICE_RTC_CONFIG_INVALID');
  const raw=String(value?.fingerprint||'');if(!/^(?:[a-f\d]{64}|(?:[a-f\d]{2}:){31}[a-f\d]{2})$/i.test(raw))throw error('DEVICE_RTC_CONFIG_INVALID');
- return {...(/^(?:\d{1,3}\.){3}\d{1,3}$/.test(host)?{ip:host}:{host}),port,fingerprint:raw.replaceAll(':','').toUpperCase().match(/../g).join(':')};
+ return {...(/^(?:\d{1,3}\.){3}\d{1,3}$/.test(host)?{ip:host}:{host}),port,...(ports?{ports:[...ports]}:{}),fingerprint:raw.replaceAll(':','').toUpperCase().match(/../g).join(':')};
 }
 export function deviceRTCAnswer(localSDP,configuration){
  const rtc=validateRTCConfiguration(configuration),host=rtc.ip||rtc.host,lines=String(localSDP).split(/\r?\n/),media=lines.filter(line=>line.startsWith('m='));
@@ -33,7 +34,7 @@ function decodeFrame(raw){
  if(frame?.v!==1||frame.type!=='res'||!UUID.test(frame.id||'')||!Number.isInteger(frame.n)||frame.n<1||frame.n>2147483647||!Number.isInteger(frame.seq)||frame.seq<0||frame.seq>=MAX_RESPONSE/CHUNK||typeof frame.end!=='boolean'||typeof frame.data!=='string'||!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(frame.data))throw error('DEVICE_RTC_PROTOCOL_ERROR');
  const binary=atob(frame.data);if(binary.length<1||binary.length>CHUNK)throw error('DEVICE_RTC_PROTOCOL_ERROR');return {...frame,bytes:Uint8Array.from(binary,char=>char.charCodeAt(0))};
 }
-export class DeviceRTCTransport{
+class SinglePortDeviceRTCTransport{
  constructor({baseUrl,rtc=null,defaults=null,bootstrapFetch=globalThis.fetch,Peer=globalThis.RTCPeerConnection,onDisconnect=()=>{},onProgress=()=>{},connectTimeoutMs=30000,timeoutMs=8000}={}){
   this.baseUrl=createDeviceURL(baseUrl);this.requestedRTC=rtc;this.defaults=defaults;this.bootstrapFetch=bootstrapFetch;this.Peer=Peer;this.onDisconnect=onDisconnect;this.onProgress=onProgress;this.connectTimeoutMs=Math.min(30000,connectTimeoutMs);this.timeoutMs=timeoutMs;this.closed=false;this.ready=false;this.queue=[];this.active=null;this.requestNumber=0;this.fetch=this.fetch.bind(this);
  }
@@ -98,5 +99,61 @@ export class DeviceRTCTransport{
  close(reason=error('DEVICE_RTC_CLOSED')){
   if(this.closed)return;const wasReady=this.ready;this.closed=true;this.ready=false;clearTimeout(this.openTimer);clearTimeout(this.disconnectTimer);this.controller?.abort();this.openSignal?.removeEventListener('abort',this.openAbort);
   const pending=[...(this.active?[this.active]:[]),...this.queue];this.active=null;this.queue=[];for(const entry of pending){clearTimeout(entry.timer);entry.signal?.removeEventListener('abort',entry.abort);entry.reject(reason);}try{this.channel?.close();}catch{}try{this.pc?.close();}catch{}this.rejectOpen?.(reason);if(wasReady)this.onDisconnect(reason);
+ }
+}
+
+// Probe each advertised control slot independently. Only the first open data
+// channel is exposed to callers; losing probes never send application requests.
+export class DeviceRTCTransport{
+ constructor(options={}){
+  this.options=options;this.baseUrl=createDeviceURL(options.baseUrl);this.requestedRTC=options.rtc||null;this.defaults=options.defaults||null;this.bootstrapFetch=options.bootstrapFetch||globalThis.fetch;
+  this.connectTimeoutMs=Math.max(1,Math.min(30000,options.connectTimeoutMs??30000));this.hedgeDelayMs=Math.max(0,options.hedgeDelayMs??1500);
+  this.closed=false;this.ready=false;this.attempts=[];this.winner=null;this.fetch=this.fetch.bind(this);
+ }
+ get pc(){return (this.winner||this.attempts.at(-1)?.transport)?.pc;}
+ get channel(){return this.winner?.channel;}
+ get requestNumber(){return this.winner?.requestNumber||0;}
+ exportConfiguration(){return this.rtc?structuredClone(this.rtc):null;}
+ configuration(signal){return SinglePortDeviceRTCTransport.prototype.configuration.call(this,signal);}
+ open({signal}={}){
+  if(this.opening)return this.opening;if(this.closed)return Promise.reject(error('DEVICE_RTC_CLOSED'));
+  this.opening=new Promise((resolve,reject)=>{this.resolveOpen=resolve;this.rejectOpen=reject;});this.controller=new AbortController();this.signal=signal;this.abort=()=>this.close(error('DEVICE_REQUEST_CANCELLED'));signal?.addEventListener('abort',this.abort,{once:true});
+  if(signal?.aborted){this.abort();return this.opening;}
+  this.deadline=Date.now()+this.connectTimeoutMs;this.timer=setTimeout(()=>this.close(error('DEVICE_RTC_CONNECT_TIMEOUT')),this.connectTimeoutMs);
+  (async()=>{
+   try{this.options.onProgress?.({phase:'configuration',ice:'new',connection:'new',dtls:'new',channel:'connecting'});}catch{}
+   this.rtc=await this.configuration(this.controller.signal);if(this.closed)return;
+   // Existing saved links used the standard first slot before ports was advertised.
+   if(!this.rtc.ports&&this.rtc.port===18948)this.rtc={...this.rtc,ports:[18948,18949]};
+   this.ports=this.rtc.ports?[this.rtc.port,...this.rtc.ports.filter(p=>p!==this.rtc.port)]:[this.rtc.port];
+   this.startAttempt();if(this.ports.length>1&&!this.closed&&!this.ready)this.hedge=setTimeout(()=>this.startAttempt(),this.hedgeDelayMs);
+  })().catch(cause=>this.close(cause?.code?cause:error('DEVICE_RTC_CONNECT_FAILED')));
+  return this.opening;
+ }
+ startAttempt(){
+  if(this.closed||this.ready||this.attempts.length>=this.ports.length)return;
+  const port=this.ports[this.attempts.length],record={failed:false,transport:null};
+  const configuration={...this.rtc,port};delete configuration.ports;
+  const transport=new SinglePortDeviceRTCTransport({...this.options,baseUrl:this.baseUrl,rtc:configuration,connectTimeoutMs:Math.max(1,this.deadline-Date.now()),onProgress:progress=>{
+   if(!this.closed&&(!this.winner||this.winner===transport)&&progress.phase!=='ready')try{this.options.onProgress?.({...progress,port});}catch{}
+  },onDisconnect:reason=>{if(this.winner===transport)this.close(reason);}});
+  record.transport=transport;this.attempts.push(record);
+  transport.open({signal:this.controller.signal}).then(()=>{
+   if(this.closed||this.winner){transport.close();return;}
+   this.winner=transport;this.ready=true;clearTimeout(this.timer);clearTimeout(this.hedge);this.signal?.removeEventListener('abort',this.abort);
+   for(const other of this.attempts)if(other.transport!==transport)other.transport.close();
+   try{this.options.onProgress?.({phase:'ready',ice:transport.pc?.iceConnectionState,connection:transport.pc?.connectionState,dtls:transport.pc?.sctp?.transport?.state,channel:'open',port});}catch{}
+   this.resolveOpen(this);
+  },reason=>{
+   record.failed=true;if(this.closed||this.ready)return;
+   if(this.attempts.length<this.ports.length){clearTimeout(this.hedge);this.startAttempt();}
+   else if(this.attempts.every(attempt=>attempt.failed))this.close(reason);
+  });
+ }
+ fetch(url,options={}){return this.ready&&!this.closed?this.winner.fetch(url,options):Promise.reject(error('DEVICE_RTC_CLOSED'));}
+ close(reason=error('DEVICE_RTC_CLOSED')){
+  if(this.closed)return;const wasReady=this.ready;this.closed=true;this.ready=false;clearTimeout(this.timer);clearTimeout(this.hedge);this.signal?.removeEventListener('abort',this.abort);this.controller?.abort();
+  for(const attempt of this.attempts)attempt.transport.close(reason);this.rejectOpen?.(reason);
+  if(wasReady)try{this.options.onDisconnect?.(reason);}catch{}
  }
 }

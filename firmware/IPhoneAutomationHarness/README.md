@@ -1,6 +1,6 @@
 # iPhone Agent Harness — Arduino firmware
 
-The ESP32 receives commands from Harness over local Wi-Fi and sends Bluetooth keyboard and pointer input to the phone. Version **0.5.0-rtc-direct** uses WebRTC for commands and HTTP for Wi-Fi setup, settings and clipboard Shortcuts.
+The ESP32 receives commands from Harness over local Wi-Fi and sends Bluetooth keyboard and pointer input to the phone. Version **0.5.1-rtc-direct** uses WebRTC for commands and HTTP for Wi-Fi setup, settings and clipboard Shortcuts.
 
 ## Hardware and build
 
@@ -33,7 +33,7 @@ The local settings page is `http://igent.local/settings`. Use it to change Wi-Fi
 
 ## RTC transport and identity
 
-`src/RtcBridge.h` owns UDP 18948, ICE-lite, DTLS and the bounded SCTP/RPC adapter. It connects one ordered, negotiated data channel, ID 0. `RtcSctp.h` implements receive reordering, duplicate suppression, SACKs, finite retransmission, cookie/tag/checksum checks and heartbeat/closing. `RtcRpc.h` assembles 256-byte chunks into bounded requests and replies; monotonic request numbers prevent same-connection replay before application dispatch.
+`src/RtcBridge.h` provides two independent control slots on UDP 18948 and 18949, each with ICE-lite, DTLS and its own SCTP/RPC state. Each connection uses one ordered, negotiated data channel, ID 0. `RtcSctp.h` implements receive reordering, duplicate suppression, SACKs, finite retransmission, cookie/tag/checksum checks and heartbeat/closing. `RtcRpc.h` assembles 256-byte chunks into bounded requests and replies; monotonic request numbers prevent same-connection replay before application dispatch.
 
 `RtcIdentity.h` and `apps/web/firmware/rtc-defaults.json` contain the shared DTLS certificate and fingerprint. Board ID, boot ID, browser token and target lease identify the device and current control session.
 
@@ -67,7 +67,7 @@ For `setup-config`, supply exactly `op`, `ssid`, `password`, `origin` and a curr
 
 ## Scheduling and resources
 
-The product supports two BLE connections/bonds, eight registered network clients and one writer lease per phone. The current RTC adapter has one active peer and one active RPC. The active connection keeps its control lease until release or disconnection. An additional phone can replace an offline saved pairing; connected phones remain paired.
+The product supports two BLE connections/bonds, eight registered network clients and one writer lease per phone. The RTC adapter supports two independent peers, each with one active RPC. Each phone has a separate writer lease, released when its task ends or the connection is lost. An additional phone can replace an offline saved pairing; connected phones remain paired.
 
 The RTC task runs on core 0 at priority 1 with an 8 KiB stack. HTTP management and the Arduino loop each use a 6 KiB stack and remain separate. Network receive, JSON and hashing stay outside the short Core mutex. NimBLE jobs validate the stable phone identity and connection generation immediately before notification; callbacks publish state through a queue.
 

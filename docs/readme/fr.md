@@ -112,6 +112,8 @@ Véritables écrans de Harness avec des données de démonstration.
   </tr>
 </table>
 
+Un pont prend en charge deux connexions Harness indépendantes. Avec deux téléphones, sélectionnez celui qui correspond à chaque page et faites le test de saisie facultatif sur chacun pour confirmer l’association.
+
 ## 📋 Des textes longs, dans plusieurs langues
 
 La saisie courante et les raccourcis clavier passent par le clavier Bluetooth du pont. Pour les textes longs ou multilingues, **iPhone Agent Clipboard** copie le contenu avec Raccourcis d’Apple, puis l’agent le colle dans le champ choisi.

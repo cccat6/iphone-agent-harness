@@ -132,5 +132,16 @@ int main(){
    assert(rpc.tick(f.s,uint32_t(started+30000)));
    assert(!rpc.tick(f.s,uint32_t(started+30001))&&calls==0);
   }}
+ // Two live peers can reuse request numbers independently; resetting one leaves the other live.
+ {Fixture first,second;first.init();second.init();Rpc a,b;unsigned calledA=0,calledB=0;
+  a.dispatch([&](const std::string&){++calledA;return std::string("{\"status\":200,\"body\":\"first\"}");});
+  b.dispatch([&](const std::string&){++calledB;return std::string("{\"status\":200,\"body\":\"second\"}");});
+  const auto same=frames(request(),1)[0];assert(feedRpc(a,same));assert(feedRpc(b,same));assert(calledA==1&&calledB==1);
+  assert(a.tick(first.s,20)&&b.tick(second.s,20));assert(first.s.pending()&&second.s.pending());
+  first.feed(ack(500),21);assert(!first.s.pending()&&second.s.pending());
+  a.reset();first.s.reset(22,888,600,first.cookie);assert(second.s.established()&&b.completed()==1);
+  second.feed(ack(500),23);assert(feedRpc(b,frames(request(),2)[0]));assert(calledB==2&&calledA==1);
+  assert(feedRpc(a,same));assert(calledA==2&&b.completed()==2);
+ }
  std::cout<<"RTC protocol: loss/reorder/duplicate/CRC/vtag/cookie/heartbeat/close/monotonic RPC/clock rollover cases passed\n";
 }

@@ -12,9 +12,9 @@ export const DEVICE_MESSAGES = {
     "fingerprintHelp": "Paste the 64 hexadecimal characters from your trusted setup source, not a value first advertised by this network address.",
     "pair": "Connect ESP32 bridge",
     "pairing": "Registering this browser…",
-    "paired": "Bridge connected. Pair your phone over Bluetooth to test input.",
+    "paired": "Bridge connected. Connect to iPhone Agent Bridge in your phone’s Bluetooth settings.",
     "notPaired": "Website not connected to ESP32 bridge.",
-    "bindTitle": "Optional input test",
+    "bindTitle": "3 · Connection test",
     "target": "iPhone connected to the bridge",
     "refresh": "Refresh device state",
     "noTargets": "No iPhone input connection is ready. In Settings → Bluetooth, connect to iPhone Agent Bridge, then refresh.",
@@ -45,7 +45,7 @@ export const DEVICE_MESSAGES = {
     "targetLabelShort": "Phone",
     "busy": "Stop the current task before changing the device or binding.",
     "invalidAddress": "Enter the bridge address, such as http://igent.local.",
-    "settingsRequired": "Complete the connection test first.",
+    "settingsRequired": "Connect the bridge and select a ready phone first.",
     "nonceIncomplete": "Keep the verification field focused and wait for exactly eight trusted digits.",
     "operationFailed": "Could not connect. Check that your phone and bridge are on the same Wi-Fi. {detail}",
     "usbTitle": "Device setup",
@@ -99,7 +99,8 @@ export const DEVICE_MESSAGES = {
     "inputTestOptional": "Input test is optional. You can start a task now.",
     "phoneSelect": "Choose the phone to control.",
     "legacyInputTest": "This bridge has older firmware. Update it to skip testing, or complete an input test to use it now.",
-    "advanced": "Connection details"
+    "advanced": "Connection details",
+    "inputTestHelp": "The input test is optional. If several phones are connected to this bridge, test on each phone to confirm that its Harness page controls that phone."
   },
   "zh-Hans": {
     "title": "ESP32 桥",
@@ -113,9 +114,9 @@ export const DEVICE_MESSAGES = {
     "fingerprintHelp": "粘贴可信设置来源中的 64 位十六进制指纹，不直接相信当前网络地址首次返回的自报值。",
     "pair": "连接 ESP32 桥",
     "pairing": "正在登记此浏览器…",
-    "paired": "桥已连接。请在手机蓝牙设置中配对后测试输入。",
+    "paired": "桥已连接。请在手机蓝牙设置中连接 iPhone Agent Bridge。",
     "notPaired": "网页尚未连接 ESP32 桥。",
-    "bindTitle": "3 · 连接测试（可跳过）",
+    "bindTitle": "3 · 连接测试",
     "target": "连接桥的 iPhone",
     "refresh": "刷新",
     "noTargets": "iPhone 输入连接尚未就绪。请在“设置 → 蓝牙”中连接 iPhone Agent Bridge，然后刷新。",
@@ -146,7 +147,7 @@ export const DEVICE_MESSAGES = {
     "targetLabelShort": "手机",
     "busy": "请先停止当前任务，再更改设备或绑定。",
     "invalidAddress": "请输入桥地址，例如 http://igent.local。",
-    "settingsRequired": "请先完成连接测试。",
+    "settingsRequired": "请先连接桥并选择已就绪的手机。",
     "nonceIncomplete": "请保持验证输入框聚焦，等待完整的 8 位可信数字。",
     "operationFailed": "连接失败，请确认手机和桥连接了同一个 Wi-Fi。{detail}",
     "usbTitle": "设备设置",
@@ -200,7 +201,8 @@ export const DEVICE_MESSAGES = {
     "inputTestOptional": "连接测试可跳过，现在即可开始任务。",
     "phoneSelect": "请选择要控制的手机。",
     "legacyInputTest": "桥固件较旧，更新后可跳过测试；也可先完成一次输入测试使用。",
-    "advanced": "连接详情"
+    "advanced": "连接详情",
+    "inputTestHelp": "连接测试可跳过。多台手机连接同一个 ESP32 桥时，建议分别测试，确认每台手机的网页都绑定了对应的手机。"
   },
   "zh-Hant": {
     "title": "ESP32 橋接器",
@@ -214,9 +216,9 @@ export const DEVICE_MESSAGES = {
     "fingerprintHelp": "貼上可信設定來源的 64 位十六進位指紋，不直接相信此網路網址首次自報的數值。",
     "pair": "連接 ESP32 橋接器",
     "pairing": "正在登記此瀏覽器…",
-    "paired": "橋接器已連線。請在手機藍牙設定中配對後測試輸入。",
+    "paired": "橋已連線。請在手機藍牙設定中連接 iPhone Agent Bridge。",
     "notPaired": "網頁尚未連接 ESP32 橋接器。",
-    "bindTitle": "3 · 連線測試（可略過）",
+    "bindTitle": "3 · 連線測試",
     "target": "連接橋接器的 iPhone",
     "refresh": "重新整理裝置狀態",
     "noTargets": "iPhone 輸入連線尚未就緒。請在「設定 → 藍牙」中連接 iPhone Agent Bridge，再重新整理。",
@@ -247,7 +249,7 @@ export const DEVICE_MESSAGES = {
     "targetLabelShort": "手機目標",
     "busy": "請先停止目前任務，再變更裝置或綁定。",
     "invalidAddress": "請輸入橋接器位址，例如 http://igent.local。",
-    "settingsRequired": "請先完成連線測試。",
+    "settingsRequired": "請先連接橋並選擇已就緒的手機。",
     "nonceIncomplete": "請保持驗證輸入欄聚焦，等待完整的 8 位可信數字。",
     "operationFailed": "連線失敗，請確認手機與橋接器連上同一個 Wi-Fi。{detail}",
     "usbTitle": "裝置設定",
@@ -301,7 +303,8 @@ export const DEVICE_MESSAGES = {
     "inputTestOptional": "連線測試可略過，現在即可開始任務。",
     "phoneSelect": "請選擇要控制的手機。",
     "legacyInputTest": "橋接器韌體較舊，更新後可略過測試；也可先完成一次輸入測試後使用。",
-    "advanced": "連接詳細資訊"
+    "advanced": "連接詳細資訊",
+    "inputTestHelp": "連線測試可略過。多部手機連接同一個 ESP32 橋接器時，建議分別測試，確認每部手機的網頁都綁定了對應的手機。"
   },
   "ja": {
     "title": "ESP32 ブリッジ",
@@ -315,9 +318,9 @@ export const DEVICE_MESSAGES = {
     "fingerprintHelp": "信頼できる設定元の64桁を貼り付けてください。接続先が初めて返した値だけを信用しないでください。",
     "pair": "ESP32 ブリッジに接続",
     "pairing": "このブラウザを登録中…",
-    "paired": "ブリッジに接続しました。スマートフォンの Bluetooth 設定でペアリングして入力をテストしてください。",
+    "paired": "ブリッジに接続しました。電話のBluetooth設定でiPhone Agent Bridgeに接続してください。",
     "notPaired": "Web ページと ESP32 ブリッジは未接続です。",
-    "bindTitle": "3 · 入力テスト（任意）",
+    "bindTitle": "3 · 接続テスト",
     "target": "ブリッジに接続する iPhone",
     "refresh": "デバイス状態を更新",
     "noTargets": "iPhone の入力接続はまだ準備できていません。「設定 → Bluetooth」で iPhone Agent Bridge に接続し、一覧を更新してください。",
@@ -348,7 +351,7 @@ export const DEVICE_MESSAGES = {
     "targetLabelShort": "端末の対象",
     "busy": "現在のタスクを停止してからデバイスや連携を変更してください。",
     "invalidAddress": "http://igent.local などのブリッジのアドレスを入力してください。",
-    "settingsRequired": "先に接続テストを行ってください。",
+    "settingsRequired": "先にブリッジを接続し、準備できた電話を選んでください。",
     "nonceIncomplete": "確認欄にフォーカスしたまま、8桁すべてを待ってください。",
     "operationFailed": "接続できませんでした。iPhone とブリッジが同じ Wi-Fi に接続されているか確認してください。{detail}",
     "usbTitle": "デバイスの設定",
@@ -402,7 +405,8 @@ export const DEVICE_MESSAGES = {
     "inputTestOptional": "入力テストは省略できます。タスクを開始できます。",
     "phoneSelect": "操作する端末を選択してください。",
     "legacyInputTest": "ブリッジのファームウェアが古いバージョンです。更新するとテストを省略できます。今すぐ使うには入力テストを完了してください。",
-    "advanced": "接続の詳細"
+    "advanced": "接続の詳細",
+    "inputTestHelp": "入力テストは任意です。複数の電話を同じブリッジにつなぐ場合は、それぞれでテストし、このHarness画面がその電話を操作することを確認してください。"
   },
   "ru": {
     "title": "Мост ESP32",
@@ -416,9 +420,9 @@ export const DEVICE_MESSAGES = {
     "fingerprintHelp": "Вставьте 64 шестнадцатеричных символа из доверенного источника, а не первое значение сетевого ответа.",
     "pair": "Подключить мост ESP32",
     "pairing": "Регистрация этого браузера…",
-    "paired": "Мост подключён. Выполните сопряжение в настройках Bluetooth телефона и проверьте ввод.",
+    "paired": "Мост подключён. Подключитесь к iPhone Agent Bridge в настройках Bluetooth телефона.",
     "notPaired": "Сайт не подключён к мосту ESP32.",
-    "bindTitle": "3 · Проверка ввода (необязательно)",
+    "bindTitle": "3 · Проверка подключения",
     "target": "iPhone, подключённый к мосту",
     "refresh": "Обновить состояние",
     "noTargets": "Соединение для ввода на iPhone ещё не готово. Подключитесь к iPhone Agent Bridge в настройках Bluetooth и обновите статус.",
@@ -449,7 +453,7 @@ export const DEVICE_MESSAGES = {
     "targetLabelShort": "Целевой телефон",
     "busy": "Остановите задачу перед сменой устройства или привязки.",
     "invalidAddress": "Введите адрес моста, например http://igent.local.",
-    "settingsRequired": "Сначала выполните проверку подключения.",
+    "settingsRequired": "Сначала подключите мост и выберите готовый телефон.",
     "nonceIncomplete": "Оставьте фокус в поле и дождитесь всех восьми доверенных цифр.",
     "operationFailed": "Не удалось подключиться. Проверьте, что телефон и мост находятся в одной сети Wi-Fi. {detail}",
     "usbTitle": "Настройка устройства",
@@ -503,7 +507,8 @@ export const DEVICE_MESSAGES = {
     "inputTestOptional": "Проверку можно пропустить и начать задачу.",
     "phoneSelect": "Выберите телефон для управления.",
     "legacyInputTest": "На мосте установлена старая прошивка. Обновите её, чтобы пропускать проверку, или выполните проверку ввода и начните работу сейчас.",
-    "advanced": "Сведения о подключении"
+    "advanced": "Сведения о подключении",
+    "inputTestHelp": "Проверка ввода необязательна. Если к мосту подключено несколько телефонов, выполните её на каждом, чтобы убедиться: открытая страница Harness управляет именно этим телефоном."
   },
   "de": {
     "title": "ESP32-Bridge",
@@ -517,9 +522,9 @@ export const DEVICE_MESSAGES = {
     "fingerprintHelp": "64 Hex-Zeichen aus vertrauenswürdiger Quelle einfügen, nicht nur den selbst gemeldeten Netzwerk-Wert übernehmen.",
     "pair": "ESP32-Bridge verbinden",
     "pairing": "Dieser Browser wird registriert…",
-    "paired": "Bridge verbunden. Kopple das Telefon in den Bluetooth-Einstellungen und teste die Eingabe.",
+    "paired": "Bridge verbunden. Verbinde dich in den Bluetooth-Einstellungen des Telefons mit iPhone Agent Bridge.",
     "notPaired": "Website nicht mit ESP32-Bridge verbunden.",
-    "bindTitle": "3 · Eingabetest (optional)",
+    "bindTitle": "3 · Verbindung testen",
     "target": "Mit der Bridge verbundenes iPhone",
     "refresh": "Gerätestatus aktualisieren",
     "noTargets": "Die Eingabeverbindung zum iPhone ist noch nicht bereit. Verbinde unter Einstellungen → Bluetooth mit iPhone Agent Bridge und aktualisiere den Status.",
@@ -550,7 +555,7 @@ export const DEVICE_MESSAGES = {
     "targetLabelShort": "iPhone-Ziel",
     "busy": "Aktuelle Aufgabe vor Geräte- oder Bindungswechsel stoppen.",
     "invalidAddress": "Gib die Bridge-Adresse ein, zum Beispiel http://igent.local.",
-    "settingsRequired": "Führe zuerst den Verbindungstest durch.",
+    "settingsRequired": "Verbinde zuerst die Bridge und wähle ein bereites Telefon.",
     "nonceIncomplete": "Fokus im Prüffeld lassen und auf genau acht Ziffern warten.",
     "operationFailed": "Verbindung fehlgeschlagen. Prüfe, ob Telefon und Brücke im selben WLAN sind. {detail}",
     "usbTitle": "Gerät einrichten",
@@ -604,7 +609,8 @@ export const DEVICE_MESSAGES = {
     "inputTestOptional": "Der Eingabetest ist optional. Du kannst jetzt eine Aufgabe starten.",
     "phoneSelect": "Wähle das zu steuernde Telefon.",
     "legacyInputTest": "Die Bridge verwendet ältere Firmware. Nach einem Update kannst du den Test überspringen. Mit einem Eingabetest kannst du sie schon jetzt nutzen.",
-    "advanced": "Verbindungsdetails"
+    "advanced": "Verbindungsdetails",
+    "inputTestHelp": "Der Eingabetest ist optional. Sind mehrere Telefone mit der Bridge verbunden, teste auf jedem, ob die jeweilige Harness-Seite dieses Telefon steuert."
   },
   "fr": {
     "title": "Pont ESP32",
@@ -618,9 +624,9 @@ export const DEVICE_MESSAGES = {
     "fingerprintHelp": "Collez les 64 caractères d’une source fiable, pas seulement la valeur annoncée par l’adresse réseau.",
     "pair": "Connecter le pont ESP32",
     "pairing": "Enregistrement de ce navigateur…",
-    "paired": "Pont connecté. Jumelez le téléphone dans les réglages Bluetooth, puis testez la saisie.",
+    "paired": "Pont connecté. Connectez-vous à iPhone Agent Bridge dans les réglages Bluetooth du téléphone.",
     "notPaired": "Site non connecté au pont ESP32.",
-    "bindTitle": "3 · Test de saisie (facultatif)",
+    "bindTitle": "3 · Test de connexion",
     "target": "iPhone connecté au pont",
     "refresh": "Actualiser l’état",
     "noTargets": "La connexion de saisie de l’iPhone n’est pas prête. Connectez-vous à iPhone Agent Bridge dans Réglages → Bluetooth, puis actualisez.",
@@ -651,7 +657,7 @@ export const DEVICE_MESSAGES = {
     "targetLabelShort": "Téléphone cible",
     "busy": "Arrêtez la tâche avant de modifier l’appareil ou l’association.",
     "invalidAddress": "Saisissez l’adresse du pont, par exemple http://igent.local.",
-    "settingsRequired": "Effectuez d’abord le test de connexion.",
+    "settingsRequired": "Connectez d’abord le pont et sélectionnez un téléphone prêt.",
     "nonceIncomplete": "Gardez le champ actif et attendez exactement huit chiffres fiables.",
     "operationFailed": "Connexion impossible. Vérifiez que le téléphone et le pont utilisent le même Wi-Fi. {detail}",
     "usbTitle": "Configurer l’appareil",
@@ -705,7 +711,8 @@ export const DEVICE_MESSAGES = {
     "inputTestOptional": "Vous pouvez ignorer le test et démarrer une tâche.",
     "phoneSelect": "Choisissez le téléphone à contrôler.",
     "legacyInputTest": "Le micrologiciel du pont est ancien. Mettez-le à jour pour ignorer le test, ou effectuez un test de saisie pour utiliser le pont maintenant.",
-    "advanced": "Détails de la connexion"
+    "advanced": "Détails de la connexion",
+    "inputTestHelp": "Le test de saisie est facultatif. Si plusieurs téléphones utilisent ce pont, testez chacun pour vérifier que sa page Harness commande bien ce téléphone."
   },
   "es": {
     "title": "Puente ESP32",
@@ -719,9 +726,9 @@ export const DEVICE_MESSAGES = {
     "fingerprintHelp": "Pega los 64 caracteres de una fuente fiable, no solo el valor anunciado por la dirección de red.",
     "pair": "Conectar puente ESP32",
     "pairing": "Registrando este navegador…",
-    "paired": "Puente conectado. Enlaza el teléfono en los ajustes Bluetooth y prueba la entrada.",
+    "paired": "Puente conectado. Conecta con iPhone Agent Bridge en los ajustes Bluetooth del teléfono.",
     "notPaired": "Sitio sin conexión al puente ESP32.",
-    "bindTitle": "3 · Prueba de entrada (opcional)",
+    "bindTitle": "3 · Prueba de conexión",
     "target": "iPhone conectado al puente",
     "refresh": "Actualizar estado",
     "noTargets": "La conexión de entrada del iPhone aún no está lista. Conéctate a iPhone Agent Bridge en Ajustes → Bluetooth y actualiza el estado.",
@@ -752,7 +759,7 @@ export const DEVICE_MESSAGES = {
     "targetLabelShort": "Teléfono de destino",
     "busy": "Detén la tarea antes de cambiar de dispositivo o vinculación.",
     "invalidAddress": "Introduce la dirección del puente, por ejemplo http://igent.local.",
-    "settingsRequired": "Primero completa la prueba de conexión.",
+    "settingsRequired": "Conecta primero el puente y selecciona un teléfono listo.",
     "nonceIncomplete": "Mantén el foco y espera exactamente ocho dígitos fiables.",
     "operationFailed": "No se pudo conectar. Comprueba que el teléfono y el puente estén en la misma red Wi-Fi. {detail}",
     "usbTitle": "Configurar dispositivo",
@@ -806,6 +813,7 @@ export const DEVICE_MESSAGES = {
     "inputTestOptional": "Puedes omitir la prueba e iniciar una tarea.",
     "phoneSelect": "Elige el teléfono que quieres controlar.",
     "legacyInputTest": "El puente tiene firmware antiguo. Actualízalo para omitir la prueba o completa una prueba de entrada para usarlo ahora.",
-    "advanced": "Detalles de conexión"
+    "advanced": "Detalles de conexión",
+    "inputTestHelp": "La prueba de entrada es opcional. Si conectas varios teléfonos al puente, hazla en cada uno para confirmar que su página de Harness controla ese teléfono."
   }
 };

@@ -112,6 +112,8 @@ Pantallas reales de Harness con datos de ejemplo.
   </tr>
 </table>
 
+Un puente admite dos conexiones independientes de Harness. Si usas dos teléfonos, selecciona el correspondiente en cada página y realiza la prueba de entrada opcional en cada uno para confirmar la vinculación.
+
 ## 📋 Textos largos en varios idiomas
 
 La escritura habitual y los atajos de teclado usan el teclado Bluetooth del puente. Para textos largos o multilingües, **iPhone Agent Clipboard** copia el contenido con Atajos de Apple y el agente lo pega en el campo elegido.

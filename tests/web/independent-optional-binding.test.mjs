@@ -13,7 +13,7 @@ async function fixture(t,{bound=null,targets=['phone-a']}={}){
  const state={targets:targets.map(targetId=>({targetId,connected:true,encrypted:true,hidSubscribed:true})),start:null};
  const client={baseUrl:new URL('http://igent.local'),paired:false,identityVerified:false,bindingVerified:!!bound,targetId:bound,boardId:'board-a',bootId:'boot-a',clientId:'client-a',
   async pair(){this.paired=this.identityVerified=true;},async identity(){},async getBinding(){return {targetId:this.targetId,bindingVerified:this.bindingVerified,targets:state.targets};},
-  async bindTarget(target){calls.push('bind:'+target);this.targetId=target;this.bindingVerified=true;},
+  async bindTarget(target){calls.push('bind:'+target);if(state.bindError)throw state.bindError;this.targetId=target;this.bindingVerified=true;},
   async startChallenge(){calls.push('start');return state.start?await state.start:{challengeId:'challenge-a'};},
   async cancelChallenge(target){calls.push('cancel:'+target);return {status:'cancelled'};},
   async confirmChallenge(target,{observedNonce}){calls.push('confirm:'+target+':'+observedNonce);return {bindingVerified:true};},
@@ -63,4 +63,11 @@ test('independent optional binding: RTC allows only the exact POST association r
  assert.equal(allowedRTCRequest('POST','/v1/targets/phone-a/bind'),true);
  assert.equal(allowedRTCRequest('POST','/v1/targets/phone-a/challenge/cancel'),true);
  for(const [method,path] of [['GET','/v1/targets/phone-a/bind'],['POST','/v1/targets/phone-a/bind/extra'],['POST','/v1/targets/../bind'],['POST','/v1/targets/phone-a/bind?x=1']])assert.equal(allowedRTCRequest(method,path),false);
+});
+
+test('explicit dropdown change moves the selected phone; a failed change returns selection to the actual binding',async t=>{
+ const f=await fixture(t,{bound:'phone-a',targets:['phone-a','phone-b']});
+ f.field('[data-target]').value='phone-b';await f.field('[data-target]').onchange();assert.equal(f.panel.getState().targetId,'phone-b');assert.equal(f.field('[data-target]').value,'phone-b');
+ f.state.bindError=Object.assign(new Error('DEVICE_TARGET_BUSY'),{code:'DEVICE_TARGET_BUSY',status:409,serverCode:'target_busy'});f.field('[data-target]').value='phone-a';await f.field('[data-target]').onchange();
+ assert.equal(f.panel.getState().ready,true);assert.equal(f.panel.getState().targetId,'phone-b');assert.equal(f.field('[data-target]').value,'phone-b');assert.deepEqual(f.calls,['bind:phone-b','bind:phone-a']);
 });

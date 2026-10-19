@@ -74,6 +74,8 @@ Anmeldedaten und Schlüssel bleiben in diesem Browser. Anfragen gehen direkt an 
 3. Klicke auf **ESP32-Bridge verbinden** und wähle bei Bedarf dein gekoppeltes Telefon. Beim nächsten Mal nutzt du die gespeicherte Verbindung.
 4. Zum Prüfen klicke auf **Eingabetest starten** und bleibe auf der Seite. Die Bridge tippt acht Ziffern; Harness prüft sie automatisch. Den Test kannst du überspringen.
 
+Eine Bridge unterstützt zwei unabhängige Harness-Verbindungen. Wähle bei zwei Telefonen auf jeder Seite das zugehörige Telefon und prüfe die Zuordnung jeweils mit dem optionalen Eingabetest.
+
 Ist das Telefon noch nicht bereit, prüfe Bluetooth, warte kurz und klicke auf **Aktualisieren**.
 
 Probiere „Öffne die Uhr und stelle einen Wecker auf 7:00“. Erlaube die Bildschirmfreigabe. Nach Abschluss kehrt der Agent zum Gespräch zurück. Ändern kannst du das unter **Einstellungen → Aufgabenabschluss → Zu Harness zurückkehren**.

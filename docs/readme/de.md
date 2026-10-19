@@ -112,6 +112,8 @@ Echte Harness-Oberflächen mit Beispieldaten.
   </tr>
 </table>
 
+Eine Bridge unterstützt zwei unabhängige Harness-Verbindungen. Wähle bei zwei Telefonen auf jeder Seite das zugehörige Telefon und prüfe die Zuordnung jeweils mit dem optionalen Eingabetest.
+
 ## 📋 Lange Texte in vielen Sprachen
 
 Normale Texteingabe und Tastenkombinationen laufen über die Bluetooth-Tastatur der Bridge. Bei langen oder mehrsprachigen Texten kopiert **iPhone Agent Clipboard** den Inhalt mit Apple Kurzbefehle; anschließend fügt der Agent ihn ins gewünschte Feld ein.

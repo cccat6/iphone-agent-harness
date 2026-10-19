@@ -19,6 +19,7 @@ source=r'''
 #include <string>
 #include <vector>
 #include "ADMISSION_HEADER"
+#include "OWNERS_HEADER"
 using namespace iah;
 struct String:std::string{using std::string::string;String(const std::string& s):std::string(s){}String(size_t n):std::string(std::to_string(n)){}bool isEmpty()const{return empty();}};
 struct Cut{};
@@ -37,7 +38,7 @@ struct NimBLEDeviceCallbacks{virtual int onStoreStatus(ble_store_status_event*,v
 struct SinkMock:Sink{bool submit(uint16_t,const Event&)override{return true;}bool release(uint16_t,const Input&)override{return true;}}sink;
 Core* core=nullptr;
 struct SecureService{
- Admission auth_;Core& core_;uint16_t challengeHandle_=7;bool failSave=false;std::map<std::string,Grant> saved;
+ RtcPeerOwnership<2,MaxClients,MaxTargets> rtcOwners_;int rtcChallengePeer_=-1;Admission auth_;Core& core_;uint16_t challengeHandle_=7;bool failSave=false;std::map<std::string,Grant> saved;
  String clipboardTarget_;bool clipboardCleared=false;void clearClipboard(){clipboardTarget_.clear();clipboardCleared=true;}
  explicit SecureService(Core& c):core_(c){}
  static uint64_t now(){return 2;}
@@ -69,7 +70,7 @@ int main(){
  {Fixture f;f.s.clipboardTarget_="old-a";bonds.erase(bonds.begin()+1);retireMissingBonds();assert(!f.s.clipboardCleared&&f.s.clipboardTarget_=="old-a");}
  std::puts("13 production bond lifecycle scenarios passed, including active-peer protection, storage failures and reboot revocation");
 }
-'''.replace('ADMISSION_HEADER',str(ROOT/'firmware/IPhoneAutomationHarness/src/Admission.h')).replace('REVOKE',revoke).replace('SANITIZE',san).replace('CALLBACKS',callbacks).replace('RETIRE',retire).replace('BOOT',boot)
+'''.replace('ADMISSION_HEADER',str(ROOT/'firmware/IPhoneAutomationHarness/src/Admission.h')).replace('OWNERS_HEADER',str(ROOT/'firmware/IPhoneAutomationHarness/src/RtcPeerOwnership.h')).replace('REVOKE',revoke).replace('SANITIZE',san).replace('CALLBACKS',callbacks).replace('RETIRE',retire).replace('BOOT',boot)
 with tempfile.TemporaryDirectory(prefix='iah-bond-lifecycle-') as temp:
  path=Path(temp);cpp=path/'test.cpp';binary=path/'test';cpp.write_text(source)
  compiler=os.environ.get('CXX');flags=[]

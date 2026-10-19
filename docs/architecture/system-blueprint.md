@@ -16,4 +16,4 @@ The browser maintains conversation history and sends selected context to the cho
 
 Questions, plans and execution share one conversation. Screen-sharing loss pauses work; Stop ends the run. After verifying the result, the agent returns to Harness by default. The user can change that preference in task-completion settings.
 
-The bridge stores up to eight browser clients and two BLE bonds, with one active WebRTC control peer.
+The bridge stores up to eight browser clients and two BLE bonds, with two independent WebRTC control connections and one active writer per phone.

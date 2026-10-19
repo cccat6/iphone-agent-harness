@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <string>
 #include <algorithm>
+#include <utility>
 
 namespace iah {
 #ifndef IAH_MAX_EVENTS
@@ -39,7 +40,7 @@ struct Input {
   std::array<uint8_t,6> usages{};
   bool held()const{return buttons||modifiers||count||consumer;}
 };
-enum class Code {Accepted,Duplicate,Conflict,ReplayUnknown,Invalid,Unauthorized,Busy,Expired,StaleBoot,NotReady,Missing};
+enum class Code {Accepted,Duplicate,Conflict,ReplayUnknown,Invalid,Unauthorized,Busy,Expired,StaleBoot,NotReady,Missing,PersistenceFailed};
 enum class Status {Running,Completed,Cancelled,Disconnected,LeaseExpired,TimedOut,TransportFailed,TimingMiss};
 inline const char* statusName(Status s){switch(s){
  case Status::Running:return "running"; case Status::Completed:return "hid_submitted";
@@ -148,6 +149,23 @@ class Core {
   if(auto c=client(id))return c->targetId==targetId?Code::Duplicate:Code::Conflict;
   for(auto& c:clients_)if(!c.active){c={id,targetId,true};return Code::Accepted;}
   return Code::Busy;
+ }
+ // Explicit user-selected association. The caller holds the Core mutex while
+ // persisting the corresponding grant. Idle historical registrations remain;
+ // an active writer on either phone always blocks reassignment.
+ template<class Persist> Code rebindClient(const std::string& id,const std::string& targetId,uint64_t now,Persist persist){
+  if(!validId(id)||!validId(targetId))return Code::Invalid;
+  auto destination=target(targetId);if(!destination||!ready(*destination))return Code::NotReady;
+  auto slot=client(id);auto previous=slot?target(slot->targetId):nullptr;
+  auto occupied=[now](const Target* t){return t&&(t->running||t->lease.expiresAt>now||(t->connHandle!=InvalidHandle&&(t->releasePending||t->input.held())));};
+  if(occupied(destination)||occupied(previous))return Code::Busy;
+  bool duplicate=slot&&slot->targetId==targetId;
+  if(!slot)for(auto& entry:clients_)if(!entry.active){slot=&entry;break;}
+  if(!slot)return Code::Busy;
+  Client replacement{id,targetId,true};
+  if(!persist())return Code::PersistenceFailed;
+  *slot=std::move(replacement);
+  return duplicate?Code::Duplicate:Code::Accepted;
  }
  void forgetClient(const std::string& id,uint64_t now){auto c=client(id);if(!c)return;for(auto& t:targets_)if(t.lease.clientId==id){if(t.running)finish(t,Status::Cancelled,now);t.lease=Lease{};}*c=Client{};}
  Code connect(const std::string& identity,uint16_t handle,bool encrypted,bool bonded,bool subscribed,uint32_t epoch=0){

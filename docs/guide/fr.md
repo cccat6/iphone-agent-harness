@@ -74,6 +74,8 @@ Identifiants et clés restent dans ce navigateur. Les requêtes vont directement
 3. Cliquez sur **Connecter le pont ESP32** et choisissez le téléphone associé si nécessaire. La connexion sera mémorisée pour la prochaine fois.
 4. Pour vérifier la saisie, cliquez sur **Démarrer le test de saisie** et restez sur cette page. Le pont tape huit chiffres, vérifiés automatiquement. Vous pouvez passer ce test.
 
+Un pont prend en charge deux connexions Harness indépendantes. Avec deux téléphones, sélectionnez celui qui correspond à chaque page et faites le test de saisie facultatif sur chacun pour confirmer l’association.
+
 Si le téléphone n’est pas prêt, vérifiez le Bluetooth, patientez puis cliquez sur **Actualiser**.
 
 Essayez « Ouvre Horloge et règle une alarme à 7 h ». Autorisez le partage d’écran. L’agent revient ensuite à la conversation ; modifiez ce comportement dans **Réglages → Fin de tâche → Revenir à Harness**.

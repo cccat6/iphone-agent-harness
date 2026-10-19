@@ -6,6 +6,7 @@
 #include <functional>
 #include <lwip/sockets.h>
 #include <fcntl.h>
+#include <cerrno>
 #include <mbedtls/ssl.h>
 #include <mbedtls/ssl_cookie.h>
 #include <mbedtls/ctr_drbg.h>
@@ -25,10 +26,11 @@ class RtcBridge {
   using Dispatch=std::function<String(String)>;
   using Disconnect=std::function<void()>;
   using CanReplace=std::function<bool()>;
-  RtcBridge()=default;
+  explicit RtcBridge(uint16_t localPort=RtcIdentity::port):localPort_(localPort){}
   RtcBridge(const RtcBridge&)=delete;RtcBridge& operator=(const RtcBridge&)=delete;
   static const char* fingerprint(){return RtcIdentity::fingerprint;}
   static uint16_t port(){return RtcIdentity::port;}
+  uint16_t listeningPort()const{return localPort_;}
   bool ready()const{return ready_.load();}
   int lastError()const{return lastError_.load();}
   bool dtlsConnected()const{return dtlsReady_.load();}
@@ -42,9 +44,9 @@ class RtcBridge {
   bool begin(Dispatch dispatch,Disconnect disconnected,CanReplace canReplace={}){
    if(ready_)return true;if(WiFi.status()!=WL_CONNECTED)return false;
    dispatch_=dispatch;disconnected_=disconnected;canReplace_=canReplace;
-   udp_=socket(AF_INET,SOCK_DGRAM,IPPROTO_UDP);if(udp_<0)return false;
-   sockaddr_in local{};local.sin_family=AF_INET;local.sin_port=htons(port());local.sin_addr.s_addr=INADDR_ANY;
-   if(bind(udp_,reinterpret_cast<sockaddr*>(&local),sizeof(local))<0||fcntl(udp_,F_SETFL,O_NONBLOCK)<0){close(udp_);udp_=-1;return false;}
+   udp_=socket(AF_INET,SOCK_DGRAM,IPPROTO_UDP);if(udp_<0){lastError_=-errno;return false;}
+   sockaddr_in local{};local.sin_family=AF_INET;local.sin_port=htons(localPort_);local.sin_addr.s_addr=INADDR_ANY;
+   if(bind(udp_,reinterpret_cast<sockaddr*>(&local),sizeof(local))<0||fcntl(udp_,F_SETFL,O_NONBLOCK)<0){lastError_=-errno;close(udp_);udp_=-1;return false;}
    mbedtls_ssl_init(&ssl_);mbedtls_ssl_config_init(&conf_);mbedtls_ssl_cookie_init(&cookie_);mbedtls_entropy_init(&entropy_);mbedtls_ctr_drbg_init(&rng_);mbedtls_x509_crt_init(&cert_);mbedtls_pk_init(&key_);initialized_=true;
    const unsigned char personalization[]="iah-direct-v2";
    int r=mbedtls_ctr_drbg_seed(&rng_,mbedtls_entropy_func,&entropy_,personalization,sizeof(personalization)-1);
@@ -54,7 +56,7 @@ class RtcBridge {
    if(r){lastError_=r;stop();return false;}
    mbedtls_ssl_conf_rng(&conf_,mbedtls_ctr_drbg_random,&rng_);mbedtls_ssl_conf_authmode(&conf_,MBEDTLS_SSL_VERIFY_NONE);
    mbedtls_ssl_conf_min_tls_version(&conf_,MBEDTLS_SSL_VERSION_TLS1_2);mbedtls_ssl_conf_max_tls_version(&conf_,MBEDTLS_SSL_VERSION_TLS1_2);
-   if(mbedtls_ssl_conf_own_cert(&conf_,&cert_,&key_)||mbedtls_ssl_cookie_setup(&cookie_,mbedtls_ctr_drbg_random,&rng_)){stop();return false;}
+   if((r=mbedtls_ssl_conf_own_cert(&conf_,&cert_,&key_))||(r=mbedtls_ssl_cookie_setup(&cookie_,mbedtls_ctr_drbg_random,&rng_))){lastError_=r;stop();return false;}
    mbedtls_ssl_conf_dtls_cookies(&conf_,mbedtls_ssl_cookie_write,mbedtls_ssl_cookie_check,&cookie_);mbedtls_ssl_conf_handshake_timeout(&conf_,1000,8000);
    if((r=mbedtls_ssl_setup(&ssl_,&conf_))){lastError_=r;stop();return false;}tlsConfigured_=true;
    mbedtls_ssl_set_bio(&ssl_,this,sendUdp,receiveUdp,nullptr);mbedtls_ssl_set_timer_cb(&ssl_,this,setTimer,getTimer);mbedtls_ssl_set_mtu(&ssl_,1200);
@@ -131,6 +133,7 @@ class RtcBridge {
    peer_=selected;std::memcpy(password_,password,sizeof(password_));peerKnown_=true;lastPeerActivity_=handshakeStarted_=millis();
    if(mbedtls_ssl_set_client_transport_id(&ssl_,reinterpret_cast<const uint8_t*>(&peer_),sizeof(peer_)))clearPeer();
   }
+  const uint16_t localPort_;
   Dispatch dispatch_;Disconnect disconnected_;CanReplace canReplace_;std::atomic<bool>ready_{false},connected_{false};std::atomic<bool>dtlsReady_{false};bool initialized_=false,tlsConfigured_=false,peerKnown_=false,replacementPending_=false,closePending_=false;
   std::atomic<int>lastError_{0},lastChunk_{-1},lastAbort_{0};std::atomic<unsigned>completedRequests_{0},maxSctpBytes_{0},dataFlagsSeen_{0};int udp_=-1;sockaddr_in peer_{},nextPeer_{};char password_[257]{},nextPassword_[257]{};uint32_t lastPeerActivity_=0,handshakeStarted_=0,dtlsStarted_=0,timerStart_=0,timerIntermediate_=0,timerFinal_=0;
   mbedtls_ssl_context ssl_{};mbedtls_ssl_config conf_{};mbedtls_ssl_cookie_ctx cookie_{};mbedtls_entropy_context entropy_{};mbedtls_ctr_drbg_context rng_{};mbedtls_x509_crt cert_{};mbedtls_pk_context key_{};

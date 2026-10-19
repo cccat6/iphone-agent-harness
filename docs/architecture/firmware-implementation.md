@@ -10,4 +10,4 @@ BLE callbacks publish snapshots. Directed input checks the phone identity and co
 
 Clipboard text streams through a temporary bounded buffer. Screenshots, model credentials and conversation history stay in the browser.
 
-Configured capacity is two BLE connection/bond slots, eight saved browser clients and one active WebRTC peer. One RPC runs at a time.
+Configured capacity is two BLE connection/bond slots, eight saved browser clients and two independent WebRTC peers. One RPC runs at a time on each connection; each phone has one active writer.

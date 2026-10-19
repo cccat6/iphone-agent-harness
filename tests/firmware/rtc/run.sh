@@ -21,3 +21,5 @@ else
  c++ "$@" -I "$rtc_json" "$rtc_root/tests/firmware/rtc/protocol_test.cpp" -o "$rtc_binary"
 fi
 "$rtc_binary"
+
+python3 "$rtc_root/tests/firmware/rtc/bridge_slots_test.py"

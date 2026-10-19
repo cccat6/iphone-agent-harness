@@ -59,6 +59,6 @@ Input receipts record submitted commands. The runtime checks their effect with f
 
 Our hosting service supplies pages, firmware and public skill packages. Private sessions, images and credentials stay in the browser. Selected task context goes directly to the configured model or MCP service; phone commands travel over the local network.
 
-The bridge currently has one active WebRTC control peer. Other phones can read setup information independently; one phone controls the bridge at a time.
+The bridge supports two independent WebRTC control connections. Each browser selects its phone, and each phone has one active writer at a time. With two phones connected, run the optional input test on each to confirm that its Harness page controls the intended phone.
 
 [Transport](lan-connection.md) · [Actions](actions.md) · [Runtime](runtime.md) · [Models](auth-and-backends.md) · [Skills](skills.md) · [Website deployment](deployment.md)

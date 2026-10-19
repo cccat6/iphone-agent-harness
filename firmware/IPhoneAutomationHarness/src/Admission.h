@@ -39,10 +39,15 @@ class Admission {
   if(challengeTarget_==target)invalidate();
   for(auto& g:grants_)if(g.active&&g.targetId==target){g.targetId.clear();g.lastChallengeAt=0;}
  }
- // Direct association does not claim that a physical keyboard test passed.
- bool bind(const std::string& id,const std::string& target,uint64_t now){
-  auto g=client(id);if(!g||!validId(target)||active(now)||(!g->targetId.empty()&&g->targetId!=target))return false;
-  g->targetId=target;return true;
+ // Commit the durable grant before exposing its new target in either registry.
+ // Persistence failure leaves both live mappings and the credential unchanged.
+ template<class Persist> Code associate(Core& core,const std::string& id,const std::string& target,uint64_t now,Persist persist){
+  auto g=client(id);if(!g||!validId(target))return Code::Invalid;
+  if(active(now))return Code::Busy;
+  Admission candidate=*this;candidate.client(id)->targetId=target;
+  auto accepted=core.rebindClient(id,target,now,[&]{return persist(*candidate.client(id));});
+  if(accepted==Code::Accepted||accepted==Code::Duplicate)*this=std::move(candidate);
+  return accepted;
  }
  bool begin(const std::string& id,const std::string& target,const std::string& challenge,const std::string& digits,uint64_t now){
   auto g=client(id);if(!g||!validId(target)||!validId(challenge)||digits.size()!=8)return false;

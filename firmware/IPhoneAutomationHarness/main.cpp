@@ -1,10 +1,13 @@
 #include <Arduino.h>
 #include <cstring>
+#include <new>
 #include <ArduinoJson.h>
 #include <Preferences.h>
 #include <WiFi.h>
 #include <WebServer.h>
 #include <ESPmDNS.h>
+#include <esp_netif.h>
+#include <mdns.h>
 #include <NimBLEDevice.h>
 #include <NimBLEHIDDevice.h>
 #include "nimble/nimble/host/services/gap/include/services/gap/ble_svc_gap.h"
@@ -26,6 +29,7 @@
 #include "src/SecureService.h"
 #include "src/RtcBridge.h"
 #include "src/FirmwareVersion.h"
+#include "src/MdnsLifecycle.h"
 
 SET_LOOP_TASK_STACK_SIZE(6144);
 static_assert(CONFIG_BT_NIMBLE_MAX_CONNECTIONS==2&&CONFIG_BT_NIMBLE_MAX_BONDS==2,"Arduino build_opt.h must configure the actual NimBLE host");
@@ -134,18 +138,41 @@ Preferences preferences;
 Core* core=nullptr;
 SemaphoreHandle_t coreMutex=nullptr;
 iah::SecureService* secureService=nullptr;
-iah::RtcBridge* rtcBridge=nullptr;TaskHandle_t rtcTaskHandle=nullptr;
+constexpr size_t RtcPeerSlots=2;
+iah::RtcBridge* rtcBridges[RtcPeerSlots]{};TaskHandle_t rtcTaskHandle=nullptr;
 void rtcTask(void*){
- bool initialized=false;
+ bool initialized[RtcPeerSlots]{};uint64_t retryAt[RtcPeerSlots]{};
  for(;;){
-  bool network=WiFi.status()==WL_CONNECTED&&secureService->networkReady();
-  if(initialized&&!network){rtcBridge->stop();initialized=false;}
-  if(!initialized&&network){initialized=rtcBridge->begin([](String request){return secureService->dispatchRtc(std::move(request),rtcBridge->peerAddress());},[]{secureService->rtcDisconnected();},[]{return secureService->rtcCanReplace();});if(!initialized)vTaskDelay(pdMS_TO_TICKS(2000));}
-  if(initialized)rtcBridge->loop();vTaskDelay(1);
+  const bool network=WiFi.status()==WL_CONNECTED&&secureService->networkReady();
+  const uint64_t now=esp_timer_get_time()/1000;
+  for(size_t slot=0;slot<RtcPeerSlots;slot++){
+   auto* bridge=rtcBridges[slot];if(!bridge)continue;
+   if(!network){if(initialized[slot])bridge->stop();initialized[slot]=false;retryAt[slot]=0;continue;}
+   if(!initialized[slot]&&now>=retryAt[slot]){
+    initialized[slot]=bridge->begin([slot,bridge](String request){return secureService->dispatchRtc(std::move(request),bridge->peerAddress(),slot);},[slot]{secureService->rtcDisconnected(slot);},[slot]{return secureService->rtcCanReplace(slot);});
+    if(!initialized[slot])retryAt[slot]=static_cast<uint64_t>(esp_timer_get_time())/1000+2000;
+   }
+   if(initialized[slot])bridge->loop();
+  }
+  vTaskDelay(1);
  }
 }
+void rtcDiagnostic(JsonDocument& out){
+ unsigned readyCount=0,connectedCount=0,dtlsCount=0,totalRequests=0,maxBytes=0,flags=0;
+ auto peers=out["rtcPeers"].to<JsonArray>();
+ for(size_t slot=0;slot<RtcPeerSlots;slot++){
+  auto row=peers.add<JsonObject>();auto* bridge=rtcBridges[slot];row["slot"]=slot;row["port"]=RtcBridge::port()+slot;row["allocated"]=bridge!=nullptr;
+  if(!bridge)continue;
+  const bool ready=bridge->ready(),connected=bridge->connected(),dtls=bridge->dtlsConnected();
+  readyCount+=ready;connectedCount+=connected;dtlsCount+=dtls;
+  row["ready"]=ready;row["connected"]=connected;row["dtlsConnected"]=dtls;row["lastError"]=bridge->lastError();row["lastChunk"]=bridge->lastSctpChunk();row["abortCause"]=bridge->lastAbortCause();row["completedRequests"]=bridge->completedRequests();row["maxSctpBytes"]=bridge->maxSctpBytes();row["dataFlagsSeen"]=bridge->dataFlagsSeen();
+  totalRequests+=bridge->completedRequests();maxBytes=std::max(maxBytes,bridge->maxSctpBytes());flags|=bridge->dataFlagsSeen();
+ }
+ out["rtcReady"]=readyCount>0;out["rtcReadyCount"]=readyCount;out["rtcConnected"]=connectedCount>0;out["rtcConnectedCount"]=connectedCount;out["rtcDtlsConnected"]=dtlsCount>0;out["rtcDtlsConnectedCount"]=dtlsCount;
+ auto* first=rtcBridges[0];out["rtcLastError"]=first?first->lastError():0;out["rtcLastChunk"]=first?first->lastSctpChunk():-1;out["rtcAbortCause"]=first?first->lastAbortCause():0;out["rtcCompletedRequests"]=totalRequests;out["rtcMaxSctpBytes"]=maxBytes;out["rtcDataFlagsSeen"]=flags;out["rtcStackHighWaterBytes"]=rtcTaskHandle?uxTaskGetStackHighWaterMark(rtcTaskHandle):0;
+}
 String boardId,bootId,hostname;
-bool mdnsStarted=false,httpStarted=false;
+MdnsLifecycle mdnsLifecycle;esp_err_t mdnsLastError=ESP_OK;
 uint64_t nowMs(){return static_cast<uint64_t>(esp_timer_get_time())/1000;}
 
 // NimBLE callbacks run outside loop(). They publish small fixed snapshots;
@@ -287,6 +314,33 @@ void wifiEvent(arduino_event_id_t event,arduino_event_info_t info){
  if(event==ARDUINO_EVENT_WIFI_STA_CONNECTED)wifiConnections.fetch_add(1);
  if(event==ARDUINO_EVENT_WIFI_STA_GOT_IP)wifiGotIps.fetch_add(1);
 }
+esp_err_t startMdns(){
+ if(!MDNS.begin(hostname.c_str()))return ESP_FAIL;
+ mdns_txt_item_t text[]={{"transport","webrtc-direct"},{"boardId",boardId.c_str()},{"protocolVersion","1"}};
+ esp_err_t error=mdns_service_add(nullptr,"_http","_tcp",80,nullptr,0);
+ if(error==ESP_OK)error=mdns_service_add(nullptr,"_iah","_tcp",80,text,3);
+ if(error==ESP_OK)error=mdns_service_add(nullptr,"_iah-rtc","_udp",18948,nullptr,0);
+ return error;
+}
+void updateMdns(){
+ const bool connected=WiFi.status()==WL_CONNECTED;const IPAddress ip=connected?WiFi.localIP():IPAddress();
+ const bool valid=connected&&ip[0]>0&&ip[0]<224&&ip[0]!=127;
+ const uint64_t now=esp_timer_get_time()/1000;
+ const auto action=mdnsLifecycle.poll({valid,valid?uint32_t(ip):0,wifiDisconnects.load(),wifiGotIps.load()},now);
+ if(action==MdnsLifecycle::Action::Stop){MDNS.end();return;}
+ if(action==MdnsLifecycle::Action::Start||action==MdnsLifecycle::Action::Restart){
+  if(action==MdnsLifecycle::Action::Restart)MDNS.end();
+  mdnsLastError=startMdns();if(mdnsLastError!=ESP_OK)MDNS.end();
+  mdnsLifecycle.started(mdnsLastError==ESP_OK,esp_timer_get_time()/1000);return;
+ }
+ if(action==MdnsLifecycle::Action::Announce){
+  auto* netif=esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+  mdnsLastError=netif?mdns_netif_action(netif,MDNS_EVENT_ANNOUNCE_IP4):ESP_ERR_INVALID_STATE;
+  const bool lost=mdnsLastError==ESP_ERR_INVALID_STATE;
+  if(lost)MDNS.end();
+  mdnsLifecycle.announced(mdnsLastError==ESP_OK,esp_timer_get_time()/1000,lost);
+ }
+}
 void savedNetwork(String& ssid,String& password){
  ssid=preferences.getString("ssid",IAH_WIFI_SSID);password=preferences.getString("password",IAH_WIFI_PASSWORD);
  JsonDocument network;if(!deserializeJson(network,preferences.getString("network",""))){ssid=network["ssid"]|"";password=network["password"]|"";}
@@ -316,7 +370,7 @@ void bleDiagnostic(){
  Serial.print("IAH_BLE ");serializeJson(out,Serial);Serial.println();
 }
 void wifiDiagnostic(){
- String ssid,password;savedNetwork(ssid,password);JsonDocument out;out["format"]="iah-wifi-diagnostic/1";out["wifiConfigured"]=!ssid.isEmpty();out["wifiConnected"]=WiFi.status()==WL_CONNECTED;out["wifiStatus"]=(int)WiFi.status();out["wifiMode"]=(int)WiFi.getMode();out["configuredSsidBytes"]=ssid.length();out["configuredPasswordBytes"]=password.length();out["attemptedSsidMatchesStored"]=WiFi.SSID()==ssid;out["lastDisconnectReason"]=wifiLastReason.load();out["disconnectCount"]=wifiDisconnects.load();out["connectionCount"]=wifiConnections.load();out["gotIpCount"]=wifiGotIps.load();out["lastEvent"]=wifiLastEvent.load();out["lastEventAtMs"]=wifiLastEventMs.load();out["txPowerQuarterDbm"]=(int)WiFi.getTxPower();out["savedTxPowerQuarterDbm"]=preferences.getInt("rfPower",-1);out["freeHeap"]=ESP.getFreeHeap();out["largestFreeBlock"]=heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT);out["loopStackHighWaterBytes"]=uxTaskGetStackHighWaterMark(nullptr);out["nimbleHostMaxConnections"]=CONFIG_BT_NIMBLE_MAX_CONNECTIONS;out["nimbleHostMaxBonds"]=CONFIG_BT_NIMBLE_MAX_BONDS;out["coreMaxEvents"]=MaxEvents;out["replayTombstoneBytes"]=SeenBytes;out["replayStorage"]="rtc";out["nimblePreferredMtu"]=CONFIG_BT_NIMBLE_ATT_PREFERRED_MTU;out["nimbleMsys1Blocks"]=CONFIG_BT_NIMBLE_MSYS_1_BLOCK_COUNT;out["nimbleMsys2Blocks"]=CONFIG_BT_NIMBLE_MSYS_2_BLOCK_COUNT;out["maxRequestBytes"]=WireMaxRequestBytes;out["httpReady"]=secureService->networkReady();out["rtcReady"]=rtcBridge&&rtcBridge->ready();out["rtcConnected"]=rtcBridge&&rtcBridge->connected();out["rtcDtlsConnected"]=rtcBridge&&rtcBridge->dtlsConnected();out["rtcLastError"]=rtcBridge?rtcBridge->lastError():0;out["rtcLastChunk"]=rtcBridge?rtcBridge->lastSctpChunk():-1;out["rtcAbortCause"]=rtcBridge?rtcBridge->lastAbortCause():0;out["rtcCompletedRequests"]=rtcBridge?rtcBridge->completedRequests():0;out["rtcMaxSctpBytes"]=rtcBridge?rtcBridge->maxSctpBytes():0;out["rtcDataFlagsSeen"]=rtcBridge?rtcBridge->dataFlagsSeen():0;out["rtcStackHighWaterBytes"]=rtcTaskHandle?uxTaskGetStackHighWaterMark(rtcTaskHandle):0;if(WiFi.status()==WL_CONNECTED){out["rssi"]=WiFi.RSSI();out["localIp"]=WiFi.localIP().toString();}Serial.print("IAH_WIFI ");serializeJson(out,Serial);Serial.println();
+ String ssid,password;savedNetwork(ssid,password);JsonDocument out;out["format"]="iah-wifi-diagnostic/1";out["wifiConfigured"]=!ssid.isEmpty();out["wifiConnected"]=WiFi.status()==WL_CONNECTED;out["wifiStatus"]=(int)WiFi.status();out["wifiMode"]=(int)WiFi.getMode();out["configuredSsidBytes"]=ssid.length();out["configuredPasswordBytes"]=password.length();out["attemptedSsidMatchesStored"]=WiFi.SSID()==ssid;out["lastDisconnectReason"]=wifiLastReason.load();out["disconnectCount"]=wifiDisconnects.load();out["connectionCount"]=wifiConnections.load();out["gotIpCount"]=wifiGotIps.load();out["lastEvent"]=wifiLastEvent.load();out["lastEventAtMs"]=wifiLastEventMs.load();out["txPowerQuarterDbm"]=(int)WiFi.getTxPower();out["savedTxPowerQuarterDbm"]=preferences.getInt("rfPower",-1);out["freeHeap"]=ESP.getFreeHeap();out["largestFreeBlock"]=heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT);out["loopStackHighWaterBytes"]=uxTaskGetStackHighWaterMark(nullptr);out["nimbleHostMaxConnections"]=CONFIG_BT_NIMBLE_MAX_CONNECTIONS;out["nimbleHostMaxBonds"]=CONFIG_BT_NIMBLE_MAX_BONDS;out["coreMaxEvents"]=MaxEvents;out["replayTombstoneBytes"]=SeenBytes;out["replayStorage"]="rtc";out["nimblePreferredMtu"]=CONFIG_BT_NIMBLE_ATT_PREFERRED_MTU;out["nimbleMsys1Blocks"]=CONFIG_BT_NIMBLE_MSYS_1_BLOCK_COUNT;out["nimbleMsys2Blocks"]=CONFIG_BT_NIMBLE_MSYS_2_BLOCK_COUNT;out["maxRequestBytes"]=WireMaxRequestBytes;out["httpReady"]=secureService->networkReady();out["mdnsReady"]=mdnsLifecycle.active();out["mdnsStarts"]=mdnsLifecycle.starts();out["mdnsAnnouncements"]=mdnsLifecycle.announcements();out["mdnsConsecutiveFailures"]=mdnsLifecycle.consecutiveFailures();out["mdnsLastError"]=mdnsLastError;out["mdnsLastAnnouncedAtMs"]=mdnsLifecycle.lastAnnouncedAt();out["mdnsNextAtMs"]=mdnsLifecycle.nextAt();rtcDiagnostic(out);if(WiFi.status()==WL_CONNECTED){out["rssi"]=WiFi.RSSI();out["localIp"]=WiFi.localIP().toString();}Serial.print("IAH_WIFI ");serializeJson(out,Serial);Serial.println();
 }
 bool radioMaintenanceAllowed(){CoreLock lock(coreMutex);return !core->busy()&&!secureService->networkReady();}
 void wifiPower(JsonDocument& d){
@@ -361,15 +415,13 @@ void setup(){
  if(ssid.length()){WiFi.mode(WIFI_STA);WiFi.setAutoReconnect(true);applySavedPower();WiFi.begin(ssid.c_str(),password.c_str());}
  startBle();sink.beginRouting();
  secureService=new SecureService(*core,sink,preferences,coreMutex,boardId,bootId,hostname,wifiGotIps);secureService->begin(ssid.isEmpty());
- rtcBridge=new iah::RtcBridge();if(xTaskCreatePinnedToCore(rtcTask,"iah-rtc",8192,nullptr,1,&rtcTaskHandle,0)!=pdPASS)Serial.println("{\"event\":\"rtc_task_failed\"}");
+ for(size_t slot=0;slot<RtcPeerSlots;slot++){rtcBridges[slot]=new(std::nothrow) iah::RtcBridge(iah::RtcBridge::port()+slot);if(!rtcBridges[slot])Serial.printf("{\"event\":\"rtc_peer_allocation_failed\",\"slot\":%u}\n",unsigned(slot));}
+ if(xTaskCreatePinnedToCore(rtcTask,"iah-rtc",8192,nullptr,1,&rtcTaskHandle,0)!=pdPASS)Serial.println("{\"event\":\"rtc_task_failed\"}");
 JsonDocument boot;iah::firmware::addIdentity(boot);serializeJson(boot,Serial);Serial.println();
 }
 void loop(){
  syncPeers();{CoreLock lock(coreMutex);core->tick(nowMs());}configureSerial();secureService->loop();
- if(WiFi.status()==WL_CONNECTED){
-  if(!mdnsStarted){mdnsStarted=MDNS.begin(hostname.c_str());if(mdnsStarted){MDNS.addService("iah","tcp",80);MDNS.addServiceTxt("iah","tcp","transport","webrtc-direct");MDNS.addService("iah-rtc","udp",18948);MDNS.addServiceTxt("iah","tcp","boardId",boardId.c_str());MDNS.addServiceTxt("iah","tcp","protocolVersion","1");}}
-
- }
+ updateMdns();
  // HTTP receives and parses on its own task; only admission/result access takes
  // the same mutex as loop-owned tick and per-target HID challenge scheduling.
  delay(1);
