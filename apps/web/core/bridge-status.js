@@ -5,13 +5,14 @@ export function bridgeStatus(context={}) {
     bridgeConnection:state(context.bridgeConnection,context.identityVerified===true?'connected':'unknown'),
     bluetoothConnection:state(context.bluetoothConnection),
     inputVerified:typeof context.inputVerified==='boolean'?context.inputVerified:context.bindingVerified===true,
+    ...(typeof context.targetBound==='boolean'?{targetBound:context.targetBound}:{}),
   };
 }
 export function phoneInputError(context={}) {
   const status=bridgeStatus(context);
   if(status.bridgeConnection!=='connected')return Object.assign(new Error('DEVICE_BRIDGE_UNAVAILABLE'),{code:'DEVICE_BRIDGE_UNAVAILABLE',retryable:false,reason:'bridge_unavailable'});
   if(status.bluetoothConnection==='disconnected')return Object.assign(new Error('DEVICE_BLUETOOTH_UNAVAILABLE'),{code:'DEVICE_BLUETOOTH_UNAVAILABLE',retryable:false,reason:'bluetooth_disconnected'});
-  if(!status.inputVerified)return Object.assign(new Error('DEVICE_INPUT_UNVERIFIED'),{code:'DEVICE_INPUT_UNVERIFIED',retryable:false,reason:'input_unverified'});
+  if(!(status.targetBound===true||(status.targetBound===undefined&&status.inputVerified)))return Object.assign(new Error('DEVICE_INPUT_UNVERIFIED'),{code:'DEVICE_INPUT_UNVERIFIED',retryable:false,reason:'input_unverified'});
   return null;
 }
 export function assertBridgePresent(context={}) {

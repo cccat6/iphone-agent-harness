@@ -39,12 +39,19 @@ class Admission {
   if(challengeTarget_==target)invalidate();
   for(auto& g:grants_)if(g.active&&g.targetId==target){g.targetId.clear();g.lastChallengeAt=0;}
  }
+ // Direct association does not claim that a physical keyboard test passed.
+ bool bind(const std::string& id,const std::string& target,uint64_t now){
+  auto g=client(id);if(!g||!validId(target)||active(now)||(!g->targetId.empty()&&g->targetId!=target))return false;
+  g->targetId=target;return true;
+ }
  bool begin(const std::string& id,const std::string& target,const std::string& challenge,const std::string& digits,uint64_t now){
   auto g=client(id);if(!g||!validId(target)||!validId(challenge)||digits.size()!=8)return false;
   for(char c:digits)if(c<'0'||c>'9')return false;
   if((challengeUntil_>now)||(g->lastChallengeAt&&now-g->lastChallengeAt<30000)||(!g->targetId.empty()&&g->targetId!=target))return false;
   g->lastChallengeAt=now?now:1;challengeId_=challenge;challengeClient_=id;challengeTarget_=target;nonce_=digits;challengeUntil_=now+30000;attempts_=0;typing_=true;return true;
  }
+ bool ownsChallenge(const std::string& id,const std::string& target,uint64_t now)const{return active(now)&&challengeClient_==id&&challengeTarget_==target;}
+ bool cancelChallenge(const std::string& id,const std::string& target,uint64_t now){if(!active(now))return true;if(!ownsChallenge(id,target,now))return false;invalidate();return true;}
  bool active(uint64_t now)const{return challengeUntil_>now;}
  bool typing(uint64_t now)const{return typing_&&active(now);}
  const std::string& target()const{return challengeTarget_;}

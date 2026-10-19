@@ -6,48 +6,48 @@ import {openStore} from '../../apps/web/core/store.js';
 
 // Handler-level simulation. Native trusted keyboard input and physical Bluetooth
 // still require the phone; these tests exercise state, persistence and sequencing.
-test('connection test gates readiness, saves locally and reconnects without another code',async t=>{
- const prior=Object.getOwnPropertyDescriptor(globalThis,'document'),fields=new Map(),published=[],calls=[];let markup='',bridgeDisconnect,offline=false,networkError=false,reads=0;const documentListeners=new Map(),dialogListeners=new Map();t.mock.timers.enable({apis:['setTimeout']});
- const field=selector=>{if(!fields.has(selector)){const listeners={};fields.set(selector,{value:'',checked:false,dataset:{},listeners,classList:{toggle(){}},addEventListener(n,fn){listeners[n]=fn;},replaceChildren(){},append(){},focus(){document.activeElement=this;}});}return fields.get(selector);};
- const root={isConnected:true,querySelector:field,querySelectorAll:()=>[],closest:selector=>selector==='dialog'?{addEventListener:(name,fn)=>dialogListeners.set(name,fn),removeEventListener:(name)=>dialogListeners.delete(name)}:null},holder={querySelector:()=>root,contains:e=>e===root};
- Object.defineProperty(globalThis,'document',{configurable:true,value:{documentElement:{},visibilityState:'visible',addEventListener:(name,fn)=>documentListeners.set(name,fn),removeEventListener:(name)=>documentListeners.delete(name),querySelector:()=>({}),createElement:()=>({}),head:{append(){}}}});t.after(()=>prior?Object.defineProperty(globalThis,'document',prior):delete globalThis.document);
+test('optional test auto-confirms native input; association remains usable without testing',async t=>{
+ const prior=Object.getOwnPropertyDescriptor(globalThis,'document'),fields=new Map(),calls=[],documentListeners=new Map();let markup='',offline=false,networkError=false,reads=0,bridgeDisconnect,challengeReply,bindFailure=null;
+ t.mock.timers.enable({apis:['setTimeout']});
+ const field=selector=>{if(!fields.has(selector))fields.set(selector,{value:'',checked:false,dataset:{},listeners:{},classList:{toggle(){}},addEventListener(n,fn){this.listeners[n]=fn;},replaceChildren(){},append(){},focus(){document.activeElement=this;}});return fields.get(selector);};
+ const root={isConnected:true,querySelector:field,querySelectorAll:()=>[],closest:()=>null},holder={querySelector:()=>root,contains:e=>e===root};
+ Object.defineProperty(globalThis,'document',{configurable:true,value:{activeElement:null,visibilityState:'visible',documentElement:{},addEventListener:(n,fn)=>documentListeners.set(n,fn),removeEventListener(){},querySelector:()=>({}),createElement:()=>({}),head:{append(){}}}});t.after(()=>prior?Object.defineProperty(globalThis,'document',prior):delete globalThis.document);
  const store=await openStore({memory:true}),endpoint='http://test-bridge.local',fp='b'.repeat(64),capture={active:false,start(){this.active=true;return Promise.resolve();},stop(){this.active=false;}};
  class Client{
   constructor(){this.baseUrl=new URL(endpoint);this.paired=false;this.identityVerified=false;this.bindingVerified=false;this.boardId='board';this.bootId='boot';this.clientId='client';this.targetId=null;}
-  async pair({clientId,setupPassword}){assert.equal(setupPassword,'');calls.push('pair');this.clientId=clientId;this.paired=this.identityVerified=true;}
+  async pair({clientId}){calls.push('pair');this.clientId=clientId;this.paired=this.identityVerified=true;}
   restoreCredentials(record){calls.push('restore');this.clientId=record.clientId;this.paired=true;}
-  async pinIdentity(){this.identityVerified=true;}
-  async identity(){return this.status();}
-  async getBinding(){reads++;if(networkError)throw Error('offline fixture');return {targets:[{targetId:'phone',connected:!offline,encrypted:true,hidSubscribed:true}]};}
-  async startChallenge(){return {challengeId:'test'};}
-  async confirmChallenge(targetId,{observedNonce}){assert.equal(observedNonce,'12345678');this.targetId=targetId;this.bindingVerified=true;return {bindingVerified:true};}
-  exportCredentials(){return {format:'iah-device-credential/1',baseUrl:endpoint,clientId:this.clientId,token:'saved-local-token',expectedFingerprint:fp};}
-  status(){return {boardId:this.boardId,targetId:this.targetId,publicKeyFingerprint:fp};}
-  clearCredentials(){this.paired=false;this.identityVerified=false;}
+  async pinIdentity(){this.identityVerified=true;} async identity(){return this.status();}
+  async getBinding(){reads++;if(networkError)throw Error('offline fixture');return {targetId:this.targetId,bindingVerified:this.bindingVerified,targets:[{targetId:'phone',connected:!offline,encrypted:true,hidSubscribed:true}]};}
+  async bindTarget(target){calls.push('bind');if(bindFailure)throw bindFailure;this.targetId=target;this.bindingVerified=true;}
+  async startChallenge(){calls.push('challenge');return challengeReply?await challengeReply:{challengeId:'test'};}
+  async confirmChallenge(targetId,{observedNonce}){assert.equal(observedNonce,'12345678');calls.push('confirm');this.targetId=targetId;this.bindingVerified=true;return {bindingVerified:true};}
+  exportCredentials(){return {format:'fixture',baseUrl:endpoint,clientId:this.clientId,token:'saved-local-token',expectedFingerprint:fp};}
+  status(){return {boardId:this.boardId,targetId:this.targetId,publicKeyFingerprint:fp};} clearCredentials(){this.paired=false;this.identityVerified=false;}
  }
  await store.saveSettings({deviceEndpoint:endpoint,deviceRTC:{ip:'192.168.0.125',port:18948,fingerprint:'ab'.repeat(32)}});
- const options={store,capture,clientFactory:()=>new Client(),bridgeFactory:({onDisconnect})=>{bridgeDisconnect=onDisconnect;return {open:()=>Promise.resolve(),close(){onDisconnect();}};},openPanel(a,b,html){markup=html;},getPanelRoot:()=>holder,onDeviceChange:(client,state)=>published.push({client,state})};
- let panel=createDevicePanel(options);t.after(()=>panel.destroy());await panel.open();assert.deepEqual(calls,[]);assert.equal(panel.getState().status,'disconnected');
- assert.equal(field('[data-target]').disabled,true);assert.equal(field('[data-refresh]').disabled,true);assert.equal(field('[data-test-controls]').hidden,true);assert.equal(markup.includes('data-connect-shortcut'),false);
- assert.equal(field('[data-info-step]').hidden,false);assert.equal(field('[data-pair]').disabled,false);assert.deepEqual(calls,[]);
- assert.equal(/data-device-text="(?:pairTitle|bindTitle|settingsTitle)"/.test(markup),true);assert.ok(markup.includes('data-device-text="wifiOptional"'));
- for(const removed of ['data-keyboard','data-assistive','data-direct','data-vault-password','data-owner-password'])assert.equal(markup.includes(removed),false);
- field('[data-address]').value=endpoint;await field('[data-pair]').onclick();
- assert.equal(panel.getState().status,'needs-input-test');assert.equal(field('[data-refresh]').disabled,false);assert.equal(field('[data-target]').disabled,false);assert.equal(field('[data-test-controls]').hidden,false);assert.equal(panel.getState().bluetoothConnected,true);assert.equal(panel.getDevice(),null);assert.equal((await store.getLocalCredential('device:'+endpoint)).token,'saved-local-token');assert.equal(JSON.stringify(await store.getSettings()).includes('saved-local-token'),false);
- await field('[data-start-sharing]').onclick();assert.equal(capture.active,false);
- const verify=async()=>{await field('[data-start-challenge]').onclick();const nonce=field('[data-nonce]');for(const digit of '12345678')nonce.listeners.keydown({isTrusted:true,key:digit,code:'Digit'+digit,currentTarget:nonce,preventDefault(){}});await field('[data-confirm-challenge]').onclick();};
- await verify();assert.equal(panel.getState().status,'ready');assert.ok(panel.getDevice());
- await field('[data-start-sharing]').onclick();assert.equal(panel.getState().status,'sharing');field('[data-stop-sharing]').onclick();assert.equal(panel.getState().status,'ready');
- const readsBefore=reads;assert.equal(await panel.ensureReady(),true);assert.ok(reads>readsBefore);
- offline=true;assert.equal(await panel.ensureReady(),false);assert.equal(panel.getState().ready,false);assert.equal(panel.getState().bluetoothConnected,false);offline=false;await field('[data-refresh]').onclick();assert.equal(panel.getState().ready,false);await verify();
- networkError=true;await field('[data-refresh]').onclick();assert.equal(panel.getState().ready,false);assert.equal(panel.getState().connected,false);assert.equal(field('[data-refresh]').disabled,true);assert.equal(field('[data-target]').disabled,true);assert.equal(field('[data-test-controls]').hidden,true);assert.equal(markup.includes('data-connect-shortcut'),false);networkError=false;await field('[data-refresh]').onclick();await verify();
- // Monitoring pauses during native challenge entry and does not clear its digits.
- await field('[data-start-challenge]').onclick();const liveNonce=field('[data-nonce]');liveNonce.listeners.keydown({isTrusted:true,key:'1',code:'Digit1',currentTarget:liveNonce,preventDefault(){}});const readsDuring=reads;t.mock.timers.tick(5000);for(let i=0;i<12;i++)await Promise.resolve();assert.equal(liveNonce.value,'●');assert.equal(reads,readsDuring);for(const digit of '2345678')liveNonce.listeners.keydown({isTrusted:true,key:digit,code:'Digit'+digit,currentTarget:liveNonce,preventDefault(){}});await field('[data-confirm-challenge]').onclick();
- // Close only the panel; background status updates still change the home badge.
- panel.dispose();offline=true;t.mock.timers.tick(5000);for(let i=0;i<16;i++)await Promise.resolve();assert.equal(panel.getState().ready,false);assert.equal(published.at(-1).state.bluetoothConnected,false);
- offline=false;documentListeners.get('visibilitychange')();for(let i=0;i<16;i++)await Promise.resolve();assert.equal(panel.getState().ready,false);assert.equal(panel.getState().bluetoothConnected,true);
- bridgeDisconnect();assert.equal(panel.getState().ready,false);assert.equal(published.at(-1).state.status,'disconnected');
- panel.destroy();panel=createDevicePanel(options);await panel.open();field('[data-address]').value=endpoint;assert.ok(markup.includes('data-configuration'));await field('[data-pair]').onclick();assert.deepEqual(calls,['pair','restore']);assert.equal(panel.getState().status,'needs-input-test');assert.equal(panel.getDevice(),null);
+ const options={store,capture,clientFactory:()=>new Client(),bridgeFactory:({onDisconnect})=>{bridgeDisconnect=onDisconnect;return {open:()=>Promise.resolve(),close(){onDisconnect();}};},openPanel(a,b,html){markup=html;},getPanelRoot:()=>holder};
+ const panel=createDevicePanel(options);t.after(()=>panel.destroy());await panel.open();assert.deepEqual(calls,[]);assert.equal(field('[data-test-controls]').hidden,true);assert.equal(markup.includes('data-confirm-challenge'),false);
+ field('[data-address]').value=endpoint;await field('[data-pair]').onclick();assert.equal(panel.getState().ready,true);assert.equal(panel.getState().targetBound,true);assert.equal(panel.getState().inputVerified,false);assert.ok(panel.getDevice());assert.deepEqual(calls,['pair','bind']);
+ await field('[data-start-sharing]').onclick();assert.equal(capture.active,true);field('[data-stop-sharing]').onclick();assert.equal(capture.active,false);
+ const settle=async()=>{for(let i=0;i<24;i++)await Promise.resolve();};
+ const digits=(trusted=true)=>{const input=field('[data-nonce]');for(const digit of '12345678'){const event={isTrusted:trusted,key:digit,code:'Digit'+digit,currentTarget:input,preventDefault(){}};input.listeners.keydown(event);input.listeners.keyup(event);}};
+ let done=field('[data-start-challenge]').onclick();await settle();digits(false);assert.equal(calls.includes('confirm'),false);digits();await done;assert.equal(panel.getState().inputVerified,true);assert.equal(calls.filter(x=>x==='confirm').length,1);
+ // A refresh is an explicit request to test; digits may arrive before start's HTTP reply.
+ let release;challengeReply=new Promise(resolve=>release=resolve);done=field('[data-refresh]').onclick();await settle();digits();assert.equal(calls.filter(x=>x==='confirm').length,1);release({challengeId:'slow-start'});await done;challengeReply=null;assert.equal(calls.filter(x=>x==='confirm').length,2);
+ done=field('[data-start-challenge]').onclick();await settle();field('[data-nonce]').listeners.blur();await done;assert.equal(panel.getState().ready,true);assert.equal(panel.getState().inputVerified,false);assert.equal(calls.filter(x=>x==='confirm').length,2);
+ done=field('[data-start-challenge]').onclick();await settle();document.visibilityState='hidden';documentListeners.get('visibilitychange')();await done;document.visibilityState='visible';assert.equal(panel.getState().inputVerified,false);
+ const tests=calls.filter(x=>x==='challenge').length;panel.dispose();t.mock.timers.tick(5000);await settle();assert.equal(calls.filter(x=>x==='challenge').length,tests,'background monitor never types');
+ offline=true;await panel.ensureReady();assert.equal(panel.getState().ready,false);offline=false;await panel.open();assert.equal(await panel.ensureReady(),false);documentListeners.get('visibilitychange')();await settle();assert.equal(panel.getState().ready,true);assert.equal(panel.getState().inputVerified,false);assert.equal(calls.filter(x=>x==='challenge').length,tests);
+ networkError=true;assert.equal(await panel.ensureReady(),false);assert.equal(panel.getState().connected,false);networkError=false;bridgeDisconnect();assert.equal(panel.getState().ready,false);assert.ok(reads>0);
+ // Only a known legacy 404 may retain the connection without an association.
+ for(const [code,status] of [['DEVICE_ACCESS_DENIED',403],['DEVICE_TARGET_BUSY',409],['DEVICE_TIMEOUT',undefined]]){
+  bindFailure=Object.assign(Error('fixture association failure'),{code,status});await field('[data-pair]').onclick();assert.equal(panel.getState().connected,false);assert.equal(panel.getState().legacyInputTestRequired,false);assert.equal(field('[data-test-controls]').hidden,true);
+ }
+ bindFailure=Object.assign(Error('legacy endpoint missing'),{code:'DEVICE_HTTP_ERROR',status:404});const beforeLegacy=calls.filter(x=>x==='challenge').length;
+ await field('[data-pair]').onclick();assert.equal(panel.getState().connected,true);assert.equal(panel.getState().bluetoothConnected,true);assert.equal(panel.getState().ready,false);assert.equal(panel.getState().targetBound,false);assert.equal(panel.getState().inputVerified,false);assert.equal(panel.getState().legacyInputTestRequired,true);assert.equal(field('[data-test-controls]').hidden,false);assert.equal(field('[data-start-challenge]').disabled,false);assert.equal(calls.filter(x=>x==='challenge').length,beforeLegacy,'legacy connect never injects input');
+ done=field('[data-refresh]').onclick();await settle();digits();await done;assert.equal(panel.getState().ready,true);assert.equal(panel.getState().targetBound,true);assert.equal(panel.getState().inputVerified,true);assert.equal(await panel.ensureReady(),true);assert.equal(panel.getState().legacyInputTestRequired,false);
+
 });
 
 test('daily bridge uses default address and legacy protected firmware requires update',async t=>{

@@ -1,6 +1,7 @@
 import {REASONING_MESSAGES} from './reasoning.js';
 import {INTERACTION_MESSAGES} from './interaction-refinement.js';
 import {PROVIDER_REFINEMENT_MESSAGES} from './provider-refinement.js';
+import {CREDENTIAL_STATE_MESSAGES} from './credential-state.js';
 // Eight locale tables for product text; user content and protocol identifiers stay unchanged.
 export const messages = {
   "en": {
@@ -5401,3 +5402,4 @@ for(const [locale,table] of Object.entries(PROVIDER_REFINEMENT_MESSAGES))Object.
 for(const [locale,table] of Object.entries(INTERACTION_MESSAGES))Object.assign(messages[locale],table);
 
 for(const [locale,table] of Object.entries(REASONING_MESSAGES))Object.assign(messages[locale],table);
+for(const [locale,table] of Object.entries(CREDENTIAL_STATE_MESSAGES))Object.assign(messages[locale],table);

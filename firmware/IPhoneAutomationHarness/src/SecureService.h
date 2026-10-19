@@ -219,9 +219,30 @@ class SecureService {
   }
   if(parts.size()<4||parts[1]!="targets"||!validId(parts[2].c_str()))return error(r,404,"not_found");
   String target=parts[2];
+  if(parts.size()==4&&parts[3]=="bind"&&r->method==HTTP_POST){
+   JsonDocument body;if(!read(r,body)||body.size()!=0)return error(r,400,"invalid_binding_request");
+   return lockedReply(r,[&](JsonDocument& d)->Decision{
+    auto t=core_.target(target.c_str());
+    if(maintenance_||!t||t->connHandle==InvalidHandle||!t->encrypted||!t->subscribed||t->releasePending)return {409,"target_not_ready"};
+    // Never change association while any execution, challenge or live lease owns input.
+    if(core_.busy()||auth_.active(now()))return {409,"target_busy"};
+    for(const auto& peer:core_.targets())if(peer.lease.expiresAt>now())return {409,"target_busy"};
+    Admission candidate=auth_;if(!candidate.bind(grant.clientId,target.c_str(),now()))return {409,"binding_conflict"};
+    auto accepted=core_.bindClient(grant.clientId,target.c_str());
+    if(accepted!=Code::Accepted&&accepted!=Code::Duplicate)return {409,"binding_conflict"};
+    if(!saveGrant(*candidate.client(grant.clientId))){if(accepted==Code::Accepted)core_.forgetClient(grant.clientId,now());return {503,"binding_persistence_failed"};}
+    auth_=std::move(candidate);addIdentity(d);d["clientId"]=grant.clientId;d["targetId"]=target;d["bindingVerified"]=true;d["inputTestVerified"]=false;return {200,""};
+   });
+  }
   if(parts.size()==5&&parts[3]=="challenge"&&r->method==HTTP_POST){
    JsonDocument body;if(!read(r,body))return error(r,400,"invalid_challenge_request");
    return lockedReply(r,[&](JsonDocument& d)->Decision{
+    if(parts[4]=="cancel"){
+     if(body.size()!=0)return {400,"invalid_challenge_request"};
+     if(auth_.active(now())&&!auth_.ownsChallenge(grant.clientId,target.c_str(),now()))return {403,"wrong_target_or_client"};
+     if(auth_.ownsChallenge(grant.clientId,target.c_str(),now()))releaseChallenge();
+     auth_.cancelChallenge(grant.clientId,target.c_str(),now());rtcChallenge_=false;addIdentity(d);d["clientId"]=grant.clientId;d["targetId"]=target;d["status"]="cancelled";return {200,""};
+    }
     auto t=core_.target(target.c_str());
     if(maintenance_||!t||t->connHandle==InvalidHandle||!t->encrypted||!t->subscribed||t->releasePending)return {409,"target_not_ready"};
     if(parts[4]=="start"){

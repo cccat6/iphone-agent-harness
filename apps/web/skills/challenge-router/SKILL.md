@@ -1,7 +1,7 @@
 ---
 name: challenge-router
 description: Classify a visible verification challenge and route bounded visual interaction through existing phone Skills without claiming untested solver support.
-version: 0.2.0
+version: 0.2.2
 ---
 
 # challenge-router
@@ -25,7 +25,7 @@ Use when a visible verification widget interrupts the user's phone task. This pa
 3. Without a specialized family Skill, general visual interaction is possible only where the challenge is legible and the existing runtime/active mode permits it. Route to the base Skills below, or return `unsupported` / `insufficient_evidence` when the available evidence or input cannot express the requested task.
 4. Propose one bounded attempt based on the current challenge. A layout refresh invalidates old targets. Use the same target-authenticated plan executor and release/receipt rules as other phone operations. Do not add external solving services, network fetches, executable recipes or hidden browser automation through this Skill.
 5. After the interaction or explicit submit, obtain a fresh accepted-state image. A clicked box, completed drag, spinner, disappearance or receipt alone may not prove success; look for the widget's acceptance signal and resumed destination flow.
-6. On a changed challenge, classify again within the overall attempt budget. On a required user-only input or unavailable input family, report the exact prerequisite instead of manufacturing a solved result.
+6. On a changed challenge, classify again using the actual current evidence. On a required user-only input or unavailable input family, report the exact prerequisite instead of manufacturing a solved result.
 
 ## Routing table
 
@@ -54,4 +54,4 @@ Return `solved`, `failed`, `changed`, `insufficient_evidence`, `unsupported` or 
 
 ## Budget and failure handling
 
-Default to 2 attempts / 45 seconds for a visible challenge, within stricter task budgets. Do not repeatedly submit guesses or keep refreshing challenges. Stop on lockout/rate-limit messages, target changes, ambiguous delivery, unsupported gestures or missing consent. Family-specific helpers can be added as independent versioned knowledge packages later, but they must declare actual verification evidence and cannot expand runtime permissions.
+Use a short reviewed attempt at a time, respecting any explicit user limit; there is no default whole-task time/attempt count. Do not repeatedly submit guesses or keep refreshing challenges. Stop on lockout/rate-limit messages, target changes, ambiguous delivery, unsupported gestures or missing consent. Family-specific helpers can be added as independent versioned knowledge packages later, but they must declare actual verification evidence and cannot expand runtime permissions.

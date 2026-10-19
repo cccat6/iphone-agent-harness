@@ -20,9 +20,9 @@ function controlsContext(){
 test('a paused send finishes with an enabled Continue button',async()=>{
  const {state,$,context}=controlsContext();context.capture.active=true;
  Object.assign(context,{
-  getBrowserCompatibility:()=>({supportedForHarness:true}),deviceSessionAvailable:()=>true,selectedProvider:()=>({id:'p'}),
+  conversationFollow:()=>({follow(){}}),getBrowserCompatibility:()=>({supportedForHarness:true}),deviceSessionAvailable:()=>true,selectedProvider:()=>({id:'p'}),
   AbortController,report:error=>{throw error;},resizeInput(){},refreshSessions:async()=>{},
-  historyWindow:()=>({load:async()=>({messages:[]})}),applyHistory(){},
+  historyWindow:()=>({load:async()=>({messages:[],hasOlder:false,hasNewer:false,busy:false}),snapshot:()=>({messages:[],hasOlder:false,hasNewer:false,busy:false})}),applyHistory(){},
   renderMessages:()=>context.renderRunControls(),setRunning:value=>{state.running=value;context.renderRunControls();},
  });
  state.devicePanel={ensureReady:async()=>true};
@@ -30,6 +30,7 @@ test('a paused send finishes with an enabled Continue button',async()=>{
  state.store={updateSession:async()=>{},getSession:async()=>saved};
  state.harness={run:async()=>{state.capturePaused=true;return {status:'paused'};}};
  $('#message-input').value='Set my alarm.';
+ vm.runInContext(section('function selectionParts(', '\nfunction profileModels('),context);
  vm.runInContext(section('async function sendMessage(', '\nfunction renderClipboard('),context);
  await context.sendMessage({preventDefault(){}});
  assert.equal(state.submitting,false);
@@ -85,7 +86,7 @@ test('stream growth follows the bottom until the user scrolls up, then resumes a
  const follow=createConversationFollow({region,requestFrame:fn=>{queue.push(fn);return queue.length;}});
  follow.beforeRender();region.scrollHeight=1300;follow.afterRender();queue.shift()();assert.equal(region.scrollTop,1300);
  region.scrollTop=500;events.wheel({type:'wheel',deltaY:-200});follow.beforeRender();region.scrollHeight=1500;follow.afterRender();assert.equal(queue.length,0);
- region.scrollTop=1000;events.scroll();assert.equal(follow.following,true);queue.shift()();assert.equal(region.scrollTop,1500);follow.destroy();
+ region.scrollTop=1000;events.scroll();assert.equal(follow.following,false);events.wheel({type:'wheel',deltaY:200});events.scroll();assert.equal(follow.following,true);queue.shift()();assert.equal(region.scrollTop,1500);follow.destroy();
 });
 
 test('two growing renders before the next animation frame still follow the latest message',()=>{

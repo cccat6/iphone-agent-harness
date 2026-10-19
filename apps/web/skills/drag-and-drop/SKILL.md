@@ -1,7 +1,7 @@
 ---
 name: drag-and-drop
 description: Move one phone UI item with a complete bounded press–move–release trajectory, distinct from inertial scrolling.
-version: 0.3.0
+version: 0.3.1
 ---
 
 # drag-and-drop
@@ -47,4 +47,4 @@ The object, slider value or order visibly changes to the expected destination af
 
 ## Budget and recovery
 
-Default to one attempt and one reviewed correction, at most 2 drags / 20 seconds. Abort remaining dependent steps on loss of target, orientation change, lease failure or unknown delivery. Use `recovery` to confirm release and current state before a retry. Do not turn a failed drag into a series of uncontrolled long presses.
+Load `gesture-correction`, compare pickup/movement/drop evidence, and refine path/duration/hold in short reviewed batches. No fixed whole-task correction count applies; continue while new evidence supports progress. Abort remaining dependent steps on loss of target, orientation change, lease failure or unknown delivery. Use `recovery` to confirm release and current state before a retry. Do not turn a failed drag into a series of uncontrolled long presses.

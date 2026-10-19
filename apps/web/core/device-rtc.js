@@ -19,7 +19,7 @@ export function deviceRTCAnswer(localSDP,configuration){
 export function allowedRTCRequest(method,path){
  const target='[A-Za-z0-9][A-Za-z0-9._:-]{0,79}';
  if(method==='GET')return /^\/v1\/(identity|capabilities|clock|binding)$/.test(path)||new RegExp(`^/v1/targets/${target}/(results|clipboard)/${target}$`).test(path);
- if(method==='POST')return path==='/v1/pair'||new RegExp(`^/v1/targets/${target}/(segments|release|cancel|clipboard|clipboard/${target}/(cancel|chunks)|challenge/(start|confirm)|leases/(claim|renew))$`).test(path);
+ if(method==='POST')return path==='/v1/pair'||new RegExp(`^/v1/targets/${target}/(bind|segments|release|cancel|clipboard|clipboard/${target}/(cancel|chunks)|challenge/(start|confirm|cancel)|leases/(claim|renew))$`).test(path);
  return false;
 }
 function base64(bytes){let binary='';for(const value of bytes)binary+=String.fromCharCode(value);return btoa(binary);}

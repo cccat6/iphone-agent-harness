@@ -1,6 +1,6 @@
 # Harness runtime implementation
 
-The Web runtime uses a fixed tool set, not an executable plugin registry. Skill packages contain Markdown/JSON guidance. Local authoring is available in chat, plan and task modes; phone observation is absent in chat, and phone input requires a verified target, binding, lease, released input state and an injected execution transport. The product UI does not manufacture those prerequisites from a saved URL.
+The Web runtime uses a fixed tool set, not an executable plugin registry. Skill packages contain Markdown/JSON guidance. Local authoring is available in chat, plan and task modes; phone observation is absent in chat, and phone input requires a live selected target, binding, lease, released input state and an injected execution transport. The product UI does not manufacture those prerequisites from a saved URL.
 
 ```mermaid
 flowchart TD
@@ -31,7 +31,7 @@ The runtime reserves its local run lock before the first storage await and claim
 
 A phone plan is validated in full before the first submitted segment. The executor rechecks the trusted state at asynchronous boundaries, including target, boot, lease and orientation. It accepts synchronous or asynchronous `getState()`. Each gesture is a complete timed input segment: release does not wait for a model call or JPEG encoding. A screenshot barrier waits for a confirmed release; a review screenshot ends the plan. During-motion observations sample alongside a complete motion segment without promising exact synchronization.
 
-Only real frame IDs observed in the current run can substantiate a completed phone task. A HID receipt means submitted input and release; it does not establish the visible app outcome. Budget exhaustion, missing input, failure, cancellation and unknown delivery have distinct states. The authenticated product transport is implemented; injected mock executors are not evidence of a working physical network control path.
+Only real frame IDs observed in the current run can substantiate a completed phone task. A HID receipt means submitted input and release; it does not establish the visible app outcome. No whole-task step, tool-call or duration limit is applied by default; explicit caller limits can still produce budget exhaustion. Per-plan execution/TTL and input safety bounds remain. Gesture mismatches prompt fresh observation and component-specific correction rather than a fixed two-attempt cutoff. Evidence-backed `phone_remember_interaction` notes are scoped to this session, target and orientation. Missing input, failure, cancellation and unknown delivery retain distinct states. The authenticated product transport is implemented; injected mock executors are not evidence of a working physical network control path.
 
 ## Accounts, protocol state and context cache
 

@@ -1,7 +1,7 @@
 ---
 name: list-scroll
 description: Scroll phone content with bounded single-pointer swipes and verify direction, progress, settling and end-of-list conditions.
-version: 0.3.0
+version: 0.3.1
 ---
 
 # list-scroll
@@ -47,4 +47,4 @@ The expected item becomes visible, or a stable content anchor measurably moves i
 
 ## Budget and recovery
 
-Default to 4 swipes / 30 seconds per search region, with one direction/region correction. On no progress, re-observe and try one smaller path in a confirmed content region. Then return `no_progress` or load `recovery`. Do not endlessly swipe or use wheel/Fn as an unverified fallback. A loop that keeps moving while waiting for the model is not permitted.
+Use short reviewed batches, not a whole-task swipe/time budget. Load `gesture-correction`; compare anchor travel and reduce distance/release velocity after overshoot, switching to a held `drag` near the target. Record measured response with `phone_remember_interaction`. Continue while new evidence supports progress; on repeated identical failure change region/input method or explain the real blocker. Do not endlessly swipe or use wheel/Fn as an unverified fallback. A loop that keeps moving while waiting for the model is not permitted.

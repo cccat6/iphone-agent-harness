@@ -11,6 +11,27 @@ export function clearCredentials() { values.clear(); }
 // Browser-local records are separate from settings and all session exports.
 const localId = id => 'provider:' + id;
 const credentialError = code => Object.assign(new Error(code), {code});
+const apiSecret = record => record?.kind === 'api' && typeof record.apiKey === 'string' && record.apiKey.trim() ? record.apiKey : '';
+// A configured profile is not proof that a credential was ever persisted. Older
+// versions kept keys only in page memory unless the owner enabled encryption.
+// Inspect only this profile's record: accountId belongs to subscription metadata
+// and must never be used to borrow another API profile's key.
+export async function inspectProviderCredential(store, profile, {settings, accountReady = false} = {}) {
+  if (!profile?.id) return {status:'missing',ready:false,messageKey:'providerCredential.missing'};
+  let record;
+  try { record = await store.getLocalCredential(localId(profile.id)); }
+  catch { return {status:'unavailable',ready:false,messageKey:'providerCredential.unavailable'}; }
+  const codex = profile.protocol === 'codex';
+  const persisted = codex ? record?.kind === 'codex' && typeof record.tokens?.access_token === 'string' && Boolean(record.tokens.access_token.trim()) : Boolean(apiSecret(record));
+  if (persisted) return {status:'saved',ready:true,messageKey:'providerCredential.saved'};
+  if (codex ? accountReady : hasCredential(profile.id)) return {status:'temporary',ready:true,messageKey:'providerCredential.temporary'};
+  let saved = settings;
+  try { if (!saved) saved = await store.getSettings(); }
+  catch { return {status:'unavailable',ready:false,messageKey:'providerCredential.unavailable'}; }
+  return saved?.credentialVault?.[profile.id]
+    ? {status:'locked',ready:false,messageKey:'providerCredential.locked'}
+    : {status:'missing',ready:false,messageKey:'providerCredential.missing'};
+}
 // API profiles own their key by profile ID. accountId is subscription metadata
 // and can be left over when a profile previously used another sign-in method.
 export async function resolveProviderCredential(store, profile, {settings, requireCredential} = {}) {
@@ -19,8 +40,8 @@ export async function resolveProviderCredential(store, profile, {settings, requi
   let secret = getCredential(profile.id);
   if (!secret && typeof store?.getLocalCredential === 'function') {
     const record = await store.getLocalCredential(localId(profile.id));
-    if (record?.kind === 'api' && typeof record.apiKey === 'string' && record.apiKey.trim()) {
-      secret = record.apiKey;
+    if (apiSecret(record)) {
+      secret = apiSecret(record);
       setCredential(profile.id, secret);
     }
   }
@@ -46,7 +67,7 @@ export async function restoreProviderCredentials(store, profiles, {registerAccou
     try {
       const record = await store.getLocalCredential(localId(profile.id));
       if (profile.protocol === 'codex' && record?.kind === 'codex') registerAccount(profile.id, record.tokens);
-      else if (profile.protocol !== 'codex' && record?.kind === 'api') setCredential(profile.id, record.apiKey || '');
+      else if (profile.protocol !== 'codex' && apiSecret(record)) setCredential(profile.id, apiSecret(record));
     } catch (error) { onError(error, profile); }
   }
 }

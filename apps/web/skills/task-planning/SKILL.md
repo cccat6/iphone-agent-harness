@@ -1,7 +1,7 @@
 ---
 name: task-planning
 description: Convert a phone goal into mode-aware bounded action batches with evidence checkpoints, budgets and explicit stopping conditions.
-version: 0.2.0
+version: 0.2.2
 ---
 
 # task-planning
@@ -26,7 +26,7 @@ Turn a user goal into a phone task, choose between discussion, planning and exec
 4. Separate predictable steps from decisions. Batch a tap, short wait and labelled capture in one call. `capture.review:false` retains evidence while continuing already predictable actions. Use `review:true` before any next step that depends on what the screenshot reveals; it ends the current decision batch.
 5. Build a complete v1 plan with real `sessionId`, `boardId`, `targetId`, `basedOnFrameId`, `orientationEpoch`, a fresh `planId`, TTL and execution budget. Validate all steps before submitting. Input segments remain independently bounded, with every input released.
 6. After each batch, reconcile the result: accepted, executed/submitted, cancelled, unknown, and visually verified are different states. Update progress using observed facts and choose the next bounded batch only when needed.
-7. Stop when the visible goal is met, the user stops, the budget is reached, or progress cannot be established. Report completed and remaining work without fabricating actions.
+7. Stop when the visible goal is met, the user stops, an explicitly configured user limit is reached, or progress cannot be established. Report completed and remaining work without fabricating actions.
 
 ## Parameter example
 
@@ -48,4 +48,4 @@ Tie each completed subgoal to its tool result and fresh screen evidence. The fin
 
 ## Budget and recovery
 
-Default proposal: 12 model/tool iterations for one turn, no more than 30 steps / 15 seconds per browser plan, with stricter negotiated device limits. Long goals use multiple reviewed batches, not an unbounded firmware queue. Respect the runtime's actual budget rather than promising those defaults. Do not resume stale submitted actions after reload; load `recovery` and reconcile first. Ask for user input only when a required ambiguity, consent or unavailable capability cannot be resolved autonomously.
+There is no default whole-task model/tool iteration or time limit. Each browser plan remains limited to 30 steps / 15 seconds and the actual negotiated device limits. Long goals use multiple reviewed batches, not an unbounded firmware queue. Respect those per-plan/device limits and any explicitly configured task limit; continue across new reviewed batches until the goal is verified or a real stop condition occurs. Do not resume stale submitted actions after reload; load `recovery` and reconcile first. Ask for user input only when a required ambiguity, consent or unavailable capability cannot be resolved autonomously.

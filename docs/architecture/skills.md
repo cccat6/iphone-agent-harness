@@ -75,6 +75,8 @@ Skill 可以提出一次多个确定操作和中途取图，但不能在图片�
 
 ## 7. 十个基础 Skill 与验收范围
 
-`screen-observation`、`temporal-observation`、`task-planning`、`phone-navigation`、`text-entry`、`list-scroll`、`drag-and-drop`、`recovery`、`challenge-router`、`skill-authoring` 均有完整正文与哈希清单。它们分别覆盖观察、时序、规划、导航、输入、滚动、拖放、恢复、挑战路由和原创 Skill 制作。
+`screen-observation`、`temporal-observation`、`task-planning`、`phone-navigation`、`text-entry`、`list-scroll`、`drag-and-drop`、`recovery`、`challenge-router`、`skill-authoring`、`clock-and-time`、`gesture-correction` 共12项，均有完整正文与哈希清单。覆盖观察、时序、规划、导航、输入、滚动、拖放、恢复、挑战路由、原创 Skill 制作、时钟／精确值输入和手势修正。
+
+`gesture-correction` 根据实际点偏、滚动过冲、选择器反应调整距离／速度／终点保持，不推测全局坐标补偿。`phone_remember_interaction` 只接受当前run、目标和方向的真实帧证据，按控件替换简短经验。`clock-and-time` 与修正指导都优先探测控件是否支持直接数字编辑，再考虑小幅转轮拖动；保存前核对准确值。没有固定两次修正就放弃的规则，重复无变化或真实外部阻碍才请求具体帮助。
 
 包完整性、按需加载、作者限制、合成设备／实际模型工具循环已有自动与独立测试；不等于每个 Skill 已在新固件和所有原生 App 上通过。`challenge-router` 是有界路由方法，没有已验证的通用 CAPTCHA 求解器。逐内容与手机验收见[完整清单](../acceptance/zh-Hans.md)。

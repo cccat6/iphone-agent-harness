@@ -8,15 +8,15 @@ The user imports bridge information once from the desktop USB setup link or by o
 
 **Connect ESP32 bridge** establishes WebRTC Direct from the existing Harness page. The UI checks the actual board response before publishing the client. It does not open or retain a helper tab. Local HTTP remains available for provisioning, device management and Shortcuts.
 
-Connection codes are absent from the UI, USB display and new links. Shared transport certificate configuration is supplied by the project; the user does not install a CA or manage a certificate for each board. The shared fingerprint does not replace board identity, browser token enrollment or the phone input test.
+Connection codes are absent from the UI, USB display and new links. Shared transport certificate configuration is supplied by the project; the user does not install a CA or manage a certificate for each board. The shared fingerprint does not replace board identity, browser token enrollment or target binding.
 
-Before the website has queried the bridge, it describes the bridge as disconnected without inventing a phone Bluetooth status. Once connected, it shows the returned target list. **Connection test** starts an eight-digit HID input test; it is not called “connect this phone.” AssistiveTouch belongs to the phone tutorial. Full Keyboard Access is neither required nor prohibited.
+Before the website has queried the bridge, it describes the bridge as disconnected without inventing a phone Bluetooth status. Once connected, it shows the returned target list. The optional **Connection test** starts an eight-digit HID input test; it is not called “connect this phone.” AssistiveTouch belongs to the phone tutorial. Full Keyboard Access is neither required nor prohibited.
 
-## Input proof and control state
+## Target readiness and optional input test
 
 The readonly test field is focused synchronously before the start request. It collects trusted foreground digit key events only, including digits arriving before the request response. Synthetic events, pasted digits, modifiers and repeats do not establish proof. The collector expires after 30 seconds and stops when the panel or target changes. Successful confirmation is tied to the current board, boot, browser and target.
 
-The session list and conversation header show the bridge state. New-session creation requires the current device connection and input test. Existing conversations remain available offline; model context identifies an absent bridge and phone input fails with a specific unavailable reason. A lost connection clears readiness and input proof instead of leaving a stale connected badge.
+The session list and conversation header show the bridge state. New-session creation requires a current connected, usable, bound target (`targetBound`); a successful input test is not mandatory on current firmware. The optional test records additional page-local evidence only. Older firmware that lacks target binding (404) keeps its legacy-test/update guidance; this fallback is not a fabricated pass. Existing conversations remain available offline; model context identifies an absent bridge and phone input fails with a specific unavailable reason. A lost connection clears readiness and optional input proof instead of leaving a stale connected badge.
 
 The Task owns its writer lease. The optional control check claims and releases a temporary lease; it does not grant permanent control. Closing or losing the RTC connection cancels that connection's work and invalidates its browser-side readiness. Unknown command delivery is reconciled by receipt ID, never automatically replayed.
 

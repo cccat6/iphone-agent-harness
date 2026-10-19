@@ -34,7 +34,9 @@ function frames(value,label) {
 }
 function stepShape(step,ids=new Set()) {
   if(!plain(step)||!OPS.has(step.op))fail('Unknown phone operation');
-  shape(step,FIELDS[step.op],step.op);
+  const optionalSettle=MUTATIONS.has(step.op)&&step.op!=='observe';
+  const keys=FIELDS[step.op];shape(step,optionalSettle&&Object.hasOwn(step,'settleMs')?[...keys,'settleMs']:keys,step.op);
+  if(Object.hasOwn(step,'settleMs')&&(!optionalSettle||!integer(step.settleMs,0,3000)))fail('Invalid post-action settleMs');
   if(!validId(step.id)||ids.has(step.id))fail(`${step.op}: missing or duplicate step ID`);
   ids.add(step.id);
   if(step.op==='tap'){point(step.point,'tap.point');if(!integer(step.holdMs,40,1200))fail('Invalid tap hold');}
@@ -104,6 +106,8 @@ function checkGestureLimits(events,durationMs,caps={}){
  if(heldAt!==null)fail('Compiled input must end released');
 }
 
+export function actionSettleMs(step){return step.settleMs??({tap:250,key:150,home:450,drag:350,swipe:700,pointer_sequence:350}[step.op]||0);}
+
 /** Complete preflight. No adapter calls, timers, hashing or input is performed. */
 export function validatePlan(plan,context) {
   const errors=[];let budgetMs=0,frameCount=0;
@@ -125,7 +129,7 @@ export function validatePlan(plan,context) {
       if(MUTATIONS.has(step.op)){
         const compiled=compileGesture(step.op==='observe'?step.motion:step,context);
         checkRequestBytes(gestureEnvelope(plan,context,index,compiled),context.capabilities);
-        budgetMs+=step.op==='observe'?Math.max(compiled.durationMs,step.frames.timeoutMs):compiled.durationMs;
+        budgetMs+=step.op==='observe'?Math.max(compiled.durationMs,step.frames.timeoutMs)+actionSettleMs(step.motion):compiled.durationMs+actionSettleMs(step);
       }else budgetMs+=step.op==='wait'?step.durationMs:step.frames.timeoutMs;
     }
     if(frameCount>24)fail('Plan exceeds 24 frames');
@@ -333,8 +337,8 @@ export async function executePhonePlan(input,{device,capture,context,signal,onEv
         // Start the sampler without awaiting its first frame. Motion down/move/up
         // is submitted as one segment and never waits for screenshot encoding.
         const sampled=collectFrames(step),motion=runGesture(step.motion,stepIndex);
-        await Promise.all([sampled,motion]);await check();result.steps.push({id:step.id,status:'hid_submitted',detail:'Motion submitted; observation frames carry actual times, not promised alignment.'});
-      }else{await runGesture(step,stepIndex);await check();result.steps.push({id:step.id,status:'hid_submitted',detail:'Device confirmed HID submission and release; visible outcome not evaluated.'});}
+        await Promise.all([sampled,motion]);await wait(actionSettleMs(step.motion));await check();result.steps.push({id:step.id,status:'hid_submitted',detail:'Motion submitted; observation frames carry actual times, not promised alignment.'});
+      }else{await runGesture(step,stepIndex);const settleMs=actionSettleMs(step);if(settleMs){emit(onEvent,{type:'step',phase:'settling',stepId:step.id,settleMs});await wait(settleMs);}await check();result.steps.push({id:step.id,status:'hid_submitted',detail:'Device confirmed HID submission and release; visible outcome not evaluated.'});}
       emit(onEvent,{type:'step',phase:'completed',stepId:step.id});
     }
   }catch(e){

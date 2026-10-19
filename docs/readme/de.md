@@ -10,13 +10,16 @@ Bedienungsanleitung: [English](../acceptance/README.md) · [简体中文](../acc
 
 Die Website ist unter [igent.cc](https://igent.cc) erreichbar. Harness verbindet sich auf derselben Seite über **WebRTC Direct** mit der ESP32-Bridge im lokalen Netzwerk. Ein zusätzlicher Verbindungs-Tab, ein Verbindungscode oder eine Zertifikatsinstallation sind nicht nötig. Importieren Sie die Verbindungsdaten einmal über den USB-Einrichtungslink oder die Geräteeinstellungen; danach verbinden Sie sich direkt in Harness. Die gemeinsame Nutzung von RTC und Bluetooth in der Produktfirmware wird derzeit am Gerät geprüft. Siehe [Verbindungsanleitung und Ergebnisse](../architecture/secure-lan.md).
 
+
+Mit aktueller Firmware genügt die Auswahl des verbundenen, bereiten Telefons; der Test mit acht Ziffern ist optional. Wischen bietet Umbenennen/Archivieren, im Archiv Umbenennen/Wiederherstellen/Löschen. Neue Antworten bewahren die Leseposition älterer Nachrichten; „Neueste“ führt zurück. Für die gesamte Aufgabe gilt standardmäßig kein Zeit- oder Schrittlimit; jeder Aktionsplan behält Sicherheitsgrenzen. Skills für Gestenkorrektur und Uhrzeit helfen bei beobachteten Korrekturen, beim Warten auf Stillstand und bei direkter Zahleneingabe, wenn möglich.
+
 ## Funktionen
 
 - **Sitzungen:** lokale Nachrichten und Bilder, Suche, Umbenennen, Anheften, Archivieren sowie Dateiimport und -export. Besprechen, Planen und Ausführen erfolgen in einem Chat. Eine Bitte um einen Plan startet keine Aktionen. Aus der ersten Anfrage wird automatisch ein Titel erstellt; manuelle Namen und importierte Titel bleiben erhalten.
 - **Konten oder API:** mehrere Verbindungen, OpenAI- und Anthropic-kompatible Endpunkte sowie Modellabfrage und -wechsel. Anmeldung und Adapter für ChatGPT-Abonnements sind implementiert; die tatsächliche Anmeldung in Safari wird noch geprüft. Unterstützte Modelle bieten eine Auswahl der Denkintensität (Reasoning Effort), die pro Konto und Modell gespeichert wird.
 - **Kontext:** automatische Modellzusammenfassungen ab einer einstellbaren Schwelle von standardmäßig **750.000 Token**. Der vollständige Verlauf bleibt auf dem Gerät.
 - **Bilder:** JPEG-Komprimierung in drei Qualitätsstufen bei unveränderten Originalabmessungen.
-- **Skills:** zehn integrierte Skills, eigene bearbeitbare Skills, Community-Downloads und Veröffentlichung. Die offizielle Community-Adresse ist voreingestellt. Das Harness hilft im Chat beim Erstellen und Überarbeiten eigener Skills.
+- **Skills:** zwölf integrierte Skills, eigene bearbeitbare Skills, Community-Downloads und Veröffentlichung. Die offizielle Community-Adresse ist voreingestellt. Das Harness hilft im Chat beim Erstellen und Überarbeiten eigener Skills.
 - **MCP:** mehrere Streamable-HTTP-Server hinzufügen, Werkzeuge einzeln auswählen und freigegebene Werkzeuge bei der Ausführung verwenden.
 
 Sitzungen bleiben im Browser; ausgewählte Nachrichten und Bilder werden an den gewählten Modelldienst gesendet. API-Schlüssel und Zugangsdaten werden in diesem Browser getrennt von Chats und Exporten gespeichert. Ein Entsperrpasswort ist nicht nötig. Beim Löschen der Websitedaten werden auch diese Zugangsdaten entfernt.

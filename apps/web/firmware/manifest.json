@@ -35,8 +35,8 @@
         {
           "path": "esp32c3/application.bin",
           "offset": 65536,
-          "sha256": "445c8929a94d1905d95787648e8948ad0bd1fa363969ad938aeba2c0502e09c4",
-          "size": 1567072
+          "sha256": "e77b201b3dd2ed6014b1206957ade1380f8e7ea5ad4b2ecd901c44fd914412df",
+          "size": 1569472
         }
       ]
     },
@@ -69,8 +69,8 @@
         {
           "path": "esp32s3/application.bin",
           "offset": 65536,
-          "sha256": "2fc57b5cbf466ba40bfc4336e5447077c9b16de3a7675094c035f1b51faf5284",
-          "size": 1409552
+          "sha256": "bc26fbeeb361b581b5f076f5e01571b7ddf17e5c68bbd362b25689d779ae4872",
+          "size": 1411936
         }
       ]
     },
@@ -103,8 +103,8 @@
         {
           "path": "esp32c6/application.bin",
           "offset": 65536,
-          "sha256": "be7271a8bc3eec6de06cc658e0f564131c0684017d7667840b9f28176429a2dd",
-          "size": 1728368
+          "sha256": "5de66bda9149cbdc6eb9306c3550b3efa798fd71349f57bf468a9e3524213b53",
+          "size": 1730784
         }
       ]
     },
@@ -137,8 +137,8 @@
         {
           "path": "esp32/application.bin",
           "offset": 65536,
-          "sha256": "3ff9d188dc7fa15088b236639dbf92da6996e29d36d5b66eda472ee6d50ff562",
-          "size": 1489040
+          "sha256": "95a9246b491f256e5337b04aaebe2047c9333ddb578f627bdd2a92485422e533",
+          "size": 1491392
         }
       ]
     }

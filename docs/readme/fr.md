@@ -10,13 +10,16 @@ Guide d’utilisation : [English](../acceptance/README.md) · [简体中文](../
 
 Le site est disponible sur [igent.cc](https://igent.cc). Harness se connecte au pont ESP32 du réseau local par **WebRTC Direct**, depuis la même page. Aucun onglet de connexion supplémentaire, code de connexion ou certificat à installer. Importez les paramètres une fois depuis le lien de configuration USB ou la page de réglages de l’appareil, puis connectez-vous dans Harness. Le firmware intégrant RTC et Bluetooth est en cours de validation sur matériel. Voir le [guide de connexion et les résultats](../architecture/secure-lan.md).
 
+
+Avec le firmware actuel, sélectionnez le téléphone connecté et prêt ; le test de huit chiffres est facultatif. Balayer une conversation permet de la renommer/archiver, ou de la renommer/restaurer/supprimer dans les archives. Les nouvelles réponses préservent la lecture des anciens messages ; « Derniers » ramène aux plus récents. Aucune limite globale de durée ou d’étapes ne s’applique par défaut, mais chaque plan conserve ses limites de sécurité. Les compétences de correction des gestes et d’horloge guident les ajustements observés, l’attente de stabilisation et la saisie numérique directe lorsqu’elle est disponible.
+
 ## Fonctionnalités
 
 - **Conversations :** messages et images locaux, recherche, renommage, épinglage, archivage et import/export de fichiers. Discussion, planification et exécution se font dans la même conversation. Demander un plan ne lance aucune action. Un titre est généré automatiquement à partir de la première demande ; les titres saisis manuellement ou importés sont conservés.
 - **Comptes ou API :** plusieurs connexions, points de terminaison compatibles OpenAI et Anthropic, chargement et sélection des modèles. L’adaptateur et l’interface de connexion à l’abonnement ChatGPT sont implémentés ; la connexion réelle dans Safari reste à vérifier. Les modèles compatibles proposent un réglage de l’effort de raisonnement, mémorisé pour chaque compte et modèle.
 - **Contexte :** résumés automatiques par le modèle à partir d’un seuil réglable de **750 000 tokens** par défaut. L’historique complet reste sur l’appareil.
 - **Images :** compression JPEG à trois niveaux de qualité, en conservant les dimensions d’origine.
-- **Compétences :** dix compétences intégrées, création et modification de vos compétences, téléchargements et publication dans la communauté. L’adresse officielle est préconfigurée. Le Harness peut vous aider à rédiger et améliorer vos compétences en conversation.
+- **Compétences :** douze compétences intégrées, création et modification de vos compétences, téléchargements et publication dans la communauté. L’adresse officielle est préconfigurée. Le Harness peut vous aider à rédiger et améliorer vos compétences en conversation.
 - **MCP :** ajout de plusieurs serveurs Streamable HTTP, sélection indépendante de leurs outils et utilisation des outils autorisés lors de l’exécution.
 
 Les conversations restent dans le navigateur ; les messages et images sélectionnés sont envoyés au service de modèle choisi. Les clés API et identifiants sont enregistrés dans ce navigateur, séparément des conversations et des exports. Aucun mot de passe de déverrouillage n’est requis. Effacer les données du site supprime aussi ces identifiants.

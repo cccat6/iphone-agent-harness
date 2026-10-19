@@ -1,4 +1,14 @@
 const rows={
+ 'session.archive':['Archive','归档','封存','アーカイブ','Архивировать','Archivieren','Archiver','Archivar'],
+ 'session.unarchive':['Unarchive','取消归档','取消封存','アーカイブ解除','Разархивировать','Aus Archiv holen','Désarchiver','Desarchivar'],
+ 'session.delete':['Delete','删除','刪除','削除','Удалить','Löschen','Supprimer','Eliminar'],
+ 'session.stopBeforeDelete':['Stop this task before deleting its conversation.','请先停止此会话中的任务，再删除会话。','請先停止此會話中的任務，再刪除會話。','この会話のタスクを停止してから削除してください。','Остановите задачу перед удалением беседы.','Beende die Aufgabe, bevor du die Unterhaltung löschst.','Arrêtez la tâche avant de supprimer la conversation.','Detén la tarea antes de eliminar la conversación.'],
+
+ 'device.state.phone':['Bluetooth phone not connected','手机蓝牙未连接','手機藍牙未連線','Bluetooth端末が未接続','Телефон Bluetooth не подключён','Bluetooth-Telefon nicht verbunden','Téléphone Bluetooth non connecté','Teléfono Bluetooth no conectado'],
+ 'device.state.target':['Select the phone to control','选择要操作的手机','選擇要操作的手機','操作する端末を選択','Выберите телефон для управления','Telefon zur Steuerung auswählen','Sélectionner le téléphone à contrôler','Selecciona el teléfono que controlar'],
+ 'interaction.correctionSaved':['Interaction adjustment saved','已记录操作修正','已記錄操作修正','操作の調整を記録しました','Корректировка сохранена','Anpassung gespeichert','Ajustement enregistré','Ajuste guardado'],
+
+ 'interaction.latest':['Jump to latest','回到最新','回到最新','最新のメッセージへ','К последним сообщениям','Zur neuesten Nachricht','Aller au plus récent','Ir al más reciente'],
  'interaction.ready':['Ready','已完成','已完成','完了','Готово','Erledigt','Terminé','Completado'],
  'interaction.assistant':['Assistant','助手','助理','アシスタント','Ассистент','Assistent','Assistant','Asistente'],
  'interaction.localSession':['Saved in this browser','保存在此浏览器','儲存在此瀏覽器','このブラウザに保存','Сохранено в этом браузере','In diesem Browser gespeichert','Enregistré dans ce navigateur','Guardado en este navegador'],

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "screen-observation",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Read fresh phone screenshots, locate controls in full-display coordinates and distinguish screen evidence from device receipts.",
   "entry": "SKILL.md",
   "protocolVersion": 1,
@@ -14,8 +14,8 @@
   "files": [
     {
       "path": "SKILL.md",
-      "sha256": "9eba372ca371940b19b8847652b9df489e57ef6e662b5aee641ede5711fb64d7",
-      "bytes": 5404
+      "sha256": "eb460752b0dea2737343341773d81853334f98a3908978a05e3f4f6a58de624a",
+      "bytes": 5516
     }
   ]
 }

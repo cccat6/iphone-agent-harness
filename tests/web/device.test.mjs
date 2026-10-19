@@ -77,3 +77,43 @@ test('DeviceClient independently rejects an oversized authenticated segment with
 
 test('direct submission refreshes expired legacy capabilities before applying the new request ceiling',async()=>{const {client,f}=await bound();const lease=await client.claimLease({writerId:'direct-memory'});await client.capabilities();f.advance(1000);f.handler=({path})=>path==='/v1/capabilities'?Response.json(memoryCaps(8192)):null;const ctx={boardId:client.boardId,bootId:client.bootId,clientId:client.clientId,targetId:client.targetId,leaseId:lease.leaseId},wire=await segment(ctx);wire.events=compileGesture(memorySwipe,{capabilities:memoryCaps(8192)}).events;wire.payloadHash=[...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(canonicalSegmentJson(wire))))].map(v=>v.toString(16).padStart(2,'0')).join('');await assert.rejects(client.submitSegment(wire),code('DEVICE_REQUEST_TOO_LARGE'));assert.equal(f.calls.filter(c=>c.path==='/v1/capabilities').length,2);assert.equal(f.calls.filter(c=>c.path.endsWith('/segments')).length,0);assert.equal(client.status().inputState,'released');});
 test('unqueried or failed capability discovery cannot use legacy fallback; successful legacy report can',async()=>{const {client,f}=await bound();const lease=await client.claimLease({writerId:'direct-legacy'}),ctx={boardId:client.boardId,bootId:client.bootId,clientId:client.clientId,targetId:client.targetId,leaseId:lease.leaseId},wire=await segment(ctx);wire.events=compileGesture(memorySwipe,{capabilities:memoryCaps(8192)}).events;wire.payloadHash=[...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(canonicalSegmentJson(wire))))].map(v=>v.toString(16).padStart(2,'0')).join('');f.handler=({path})=>{if(path==='/v1/capabilities')throw new Error('synthetic unavailable capabilities');return null;};await assert.rejects(client.submitSegment(wire),code('DEVICE_TLS_OR_NETWORK_ERROR'));assert.equal(f.calls.filter(c=>c.path.endsWith('/segments')).length,0);assert.equal(client.status().inputState,'released');f.handler=null;assert.equal((await client.submitSegment(wire)).status,'hid_submitted');assert.equal(f.calls.filter(c=>c.path==='/v1/capabilities').length,2);assert.equal(f.calls.filter(c=>c.path.endsWith('/segments')).length,1);});
+
+test('explicit association enables a connected target without physical input, and never switches a bound phone',async()=>{
+ const {client,f}=await paired();let associated=false;f.handler=({path,body})=>{
+  if(path==='/v1/binding')return Response.json({boardId:'board-a',bootId:'boot-a',clientId:'client-a',targetId:associated?'phone-a':null,bindingVerified:associated,targets:[{targetId:'phone-a',connected:true,encrypted:true,hidSubscribed:true,inputState:'released',running:false}]});
+  if(path.endsWith('/bind')){assert.deepEqual(body,{});associated=true;return Response.json({boardId:'board-a',bootId:'boot-a',clientId:'client-a',targetId:'phone-a',bindingVerified:true,inputTestVerified:false});}
+ };
+ assert.equal((await client.bindTarget('phone-a')).bindingVerified,true);assert.equal(client.targetId,'phone-a');assert.equal(client.status().inputState,'released');assert.equal(f.calls.some(c=>c.path.includes('/challenge/')),false);
+ await client.bindTarget('phone-a');assert.equal(f.calls.filter(c=>c.path.endsWith('/bind')).length,1);
+ await assert.rejects(client.bindTarget('other-phone'),code('DEVICE_TARGET_NOT_READY'));
+ const lease=await client.claimLease({writerId:'binding-run'});assert.ok(lease.leaseId);await assert.rejects(client.bindTarget('phone-a'),code('DEVICE_WRITER_BUSY'));
+});
+
+test('long tasks evict only terminal receipts and retain replay detection',async()=>{
+ const {client,f}=await bound();const ctx=await client.getExecutionContext({writerId:'long-task',allowClaim:true});
+ for(let i=0;i<620;i++)await client.submitSegment(await segment(ctx,'long-segment-'+i));
+ assert.equal(f.calls.filter(c=>c.path.endsWith('/segments')).length,620);
+ await assert.rejects(client.submitSegment(await segment(ctx,'long-segment-0')),code('DEVICE_SEGMENT_ALREADY_SUBMITTED'));
+});
+
+test('challenge cancellation uses own authenticated endpoint and fences a delayed start response',async()=>{
+ const {client,f}=await paired();let started,reply;const ready=new Promise(resolve=>started=resolve),pending=new Promise(resolve=>reply=resolve);
+ f.handler=async({path,body,options})=>{
+  if(path.endsWith('/challenge/start')){started();return await pending;}
+  if(path.endsWith('/challenge/cancel')){assert.deepEqual(body,{});assert.equal(options.headers.Authorization,'Bearer '+TOKEN);return Response.json({boardId:'board-a',bootId:'boot-a',clientId:'client-a',targetId:'phone-a',status:'cancelled'});}
+ };
+ const task=client.startChallenge('phone-a');await ready;await client.cancelChallenge('phone-a');reply(Response.json({challengeId:'late',targetId:'phone-a',length:8,expiresInMs:30000,status:'typing'},{status:202}));await assert.rejects(task,code('DEVICE_REQUEST_CANCELLED'));
+ assert.equal(f.calls.filter(c=>c.path.endsWith('/challenge/cancel')).length,2);await assert.rejects(client.confirmChallenge('phone-a',{challengeId:'late',observedNonce:'12345678'}),code('DEVICE_CHALLENGE_INVALID'));
+});
+
+test('receipt eviction never discards unresolved submissions to make room',async()=>{
+ const {client,f}=await bound(),ctx=await client.getExecutionContext({writerId:'unresolved-task',allowClaim:true}),receipts=new Map();
+ f.handler=({path,body})=>{
+  if(path.endsWith('/segments')){const value={boardId:'board-a',bootId:'boot-a',clientId:'client-a',targetId:'phone-a',segmentId:body.segmentId,planId:body.planId,payloadHash:body.payloadHash,status:'running',releaseSubmitted:false};receipts.set(body.segmentId,value);return Response.json(value,{status:202});}
+  if(path.includes('/results/'))return Response.json({...receipts.get(path.split('/').at(-1)),status:'hid_submitted',releaseSubmitted:true});
+ };
+ for(let i=0;i<512;i++)await client.submitSegment(await segment(ctx,'pending-'+i));
+ await assert.rejects(client.submitSegment(await segment(ctx,'pending-overflow')),code('DEVICE_SEGMENT_LIMIT'));assert.equal(f.calls.filter(c=>c.path.endsWith('/segments')).length,512);
+ await client.getResult({...ctx,segmentId:'pending-0'});await client.submitSegment(await segment(ctx,'pending-after-reconcile'));assert.equal(f.calls.filter(c=>c.path.endsWith('/segments')).length,513);
+ await assert.rejects(client.submitSegment(await segment(ctx,'pending-0')),code('DEVICE_SEGMENT_ALREADY_SUBMITTED'));
+});

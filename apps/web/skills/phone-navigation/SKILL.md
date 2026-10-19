@@ -1,7 +1,7 @@
 ---
 name: phone-navigation
 description: Navigate iPhone and iPad across apps using fresh full-display evidence, bounded taps and validated Home input.
-version: 0.3.0
+version: 0.3.1
 ---
 
 # phone-navigation
@@ -47,4 +47,4 @@ A fresh image shows the expected app identity, title, selected tab or destinatio
 
 ## Budget and recovery
 
-Default to one navigation transition per review boundary, no more than 4 transitions or 30 seconds before reassessing the route. One re-observation and one adjusted tap are sufficient for the same target. Stop on target changes, permission loss, unknown delivery or repeated unchanged UI; load `recovery` instead of replaying the navigation chain. This is an implementation recipe, not proof of compatibility with every app.
+Use one uncertain navigation transition per review boundary, then reassess the actual destination. Load `gesture-correction` after misses and adjust from fresh frames; no fixed transition/correction count limits the overall task. Stop on target changes, permission loss, unknown delivery or repeated unchanged UI; load `recovery` instead of replaying the navigation chain. This is an implementation recipe, not proof of compatibility with every app.

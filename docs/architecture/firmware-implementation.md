@@ -36,7 +36,7 @@ These are fixed source modules, not a runtime plugin/driver registry. LLM, Skill
 - Stable public boardId is an eFuse-derived label, not a password. BootId changes each boot.
 - Persisted targetId maps to the BLE stack-resolved identity address **and address type**, never a rotating over-the-air private address.
 - Temporary connHandle selects every HID notification. Connection-handle reuse is checked against the currently resolved identity.
-- Each browser has a separate authenticated client grant. Code-free enrollment issues a per-browser token; target proof additionally requires receiving a nonce through the intended phone's actual keyboard input.
+- Each browser has a separate authenticated client grant. Code-free enrollment issues a per-browser token. Current firmware supports explicit binding of a connected, encrypted, HID-subscribed target; this is sufficient for target readiness. The nonce keyboard test is optional additional observed-input evidence.
 - Each target has an independent input state, encrypted/subscription state, lease, active segment and result receipts. Another target's release or Home is never broadcast.
 - An active lease can be renewed only by its same client and same lease ID. Another run under the same client cannot replace it. Cancellation/expiry fences retired IDs within the boot.
 
@@ -79,7 +79,7 @@ All Core admission/result/cancel/tick access is serialized. `lockedReply` comput
 ## Validation
 
 - **16 Core scenario groups**: targeted notifications, concurrent independent targets, same-time move/up, complete released sequences, usage/coordinate/time limits, duplicate/conflicting IDs, cache eviction, stale boot, ownership contention, cancellation, transport failure, disconnect reset, deadlines, 64-bit time and retired-lease fencing.
-- **7 Admission scenario groups**: token/origin rejection, typed proof required, wrong client/target/challenge rejection, three-attempt lockout, expiry, cooldown, immutable target binding, credential rotation and bounded capacity.
+- **7 Admission scenario groups**: token/origin rejection, legacy typed-proof boundaries, wrong client/target/challenge rejection, three-attempt lockout, expiry, cooldown, immutable target binding, credential rotation and bounded capacity.
 - `tests/firmware/run.sh` passes 79 scenario groups across Core 512/256/128, Admission, external replay storage, setup deadlines/certificate time, and 12 actual production BLE router interleavings. The router cases permanently cover handle/epoch reuse, queued timeout and committed-pointer release positions.
 - Six canonical-streaming scenarios run against the real pinned ArduinoJson headers; six build-tool tests cover artifacts and provenance.
 - `--verify-only` checks all released profile binaries, offsets, partition bounds and the complete current source allowlist; the build report identifies the exact compiled revision.
@@ -101,3 +101,7 @@ C3/S3/C6 use MSYS pools 8/8. The classic ESP32 SDK omits the second pool size, s
 The project builds the complete matching Mbed TLS TLS source family in `src/RtcTls`, with 2048-byte record content limits. The paired record buffers shrink from 16,717 to 2,381 bytes each, a calculated reduction of 28,672 bytes; public context layouts and SDK crypto/X.509 remain unchanged. The build link guard rejects SDK TLS object mixing. This allocation evidence is separate from full device acceptance.
 
 Clipboard transfer uses one local HTTP response stream and a single 1 KiB bridge slot. The browser supplies subsequent chunks as the consumer drains them; clipboard text has no 8 KiB total limit. The 8192-byte segment limit above applies to control segments. The [Mac HTTP stream check](../research/shortcuts-stream-http-mac-20261019.json) verified 112,000 bytes exactly; it did not write the system clipboard or establish iPhone acceptance.
+
+## Current compiled candidate — 2026-10-19
+
+ESP32, ESP32-C3, ESP32-S3 and ESP32-C6 compiled with source SHA-256 `d6d8f75211fd14b8aa57d3f5ebf0f32d7fa425fe4f588df263a4eeb62a4b244a`; artifact details are in the [build report](../../apps/web/firmware/build-report.json). The authorized USB device is absent, so this candidate has not been physically flashed or accepted. Earlier phone or transport results do not establish acceptance of this binary.

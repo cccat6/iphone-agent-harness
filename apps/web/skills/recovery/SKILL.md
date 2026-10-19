@@ -1,7 +1,7 @@
 ---
 name: recovery
 description: Recover from phone input, capture, network or model interruption without duplicating uncertain actions or inventing success.
-version: 0.3.0
+version: 0.3.1
 ---
 
 # recovery
@@ -50,4 +50,4 @@ Recovery has restored a verified target, known input state and fresh frame, or h
 
 ## Budget and failure handling
 
-Default to one receipt reconciliation and up to two fresh observations / 20 seconds, subject to runtime timeouts. Do not loop forever waiting for the same unavailable service. If the target changed, identity conflicts, cancellation is unconfirmed or the required user action is unavailable, return blocked/unknown with the next concrete prerequisite. Keep credentials and private screenshots out of shared Skill packages.
+Reconcile receipts and obtain fresh observations in bounded individual calls. Continue evidence-grounded recovery while progress is possible; there is no fixed whole-task recovery-attempt count. Do not loop forever waiting for the same unavailable service. If the target changed, identity conflicts, cancellation is unconfirmed or the required user action is unavailable, return blocked/unknown with the next concrete prerequisite. Keep credentials and private screenshots out of shared Skill packages.

@@ -109,3 +109,8 @@ test('clipboard cancellation immediately before compiled submission fails withou
  const result=await executePhonePlan(p,{context,device:{submitSegment:async()=>{inputs++;},getResult:async()=>{polls++;},release:async()=>{}}});
  assert.equal(result.code,'CLIPBOARD_COPY_REQUIRED');assert.equal(result.status,'failed');assert.equal(inputs,0);assert.equal(polls,0);
 });
+
+test('explicit target association permits control without claiming optional input proof',()=>{
+ const context={...trusted,inputVerified:false,targetBound:true};assert.equal(phoneInputError(context),null);assert.equal(bridgeStatus(context).inputVerified,false);assert.equal(bridgeStatus(context).targetBound,true);
+ assert.equal(phoneInputError({...context,targetBound:false}).code,'DEVICE_INPUT_UNVERIFIED');assert.equal(phoneInputError({...context,bridgeConnection:'disconnected'}).code,'DEVICE_BRIDGE_UNAVAILABLE');assert.equal(phoneInputError({...context,bluetoothConnection:'disconnected'}).code,'DEVICE_BLUETOOTH_UNAVAILABLE');
+});

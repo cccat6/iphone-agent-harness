@@ -1,7 +1,7 @@
 ---
 name: temporal-observation
 description: Collect and interpret bounded ordered phone frames during or after an action, preserving actual timing and missing-frame uncertainty.
-version: 0.2.0
+version: 0.2.2
 ---
 
 # temporal-observation
@@ -46,4 +46,4 @@ Return the actual ordered frame references and a statement supported by their ti
 
 ## Budget and recovery
 
-Start with 3–5 frames; hard design caps are 8 per group and 24 per plan, subject to lower runtime limits. One repeated observation window is enough before reporting insufficient evidence. A short recorded buffer is only an option if the runtime exposes a validated extraction path; do not invent a video tool, assume MP4 chunks are independently decodable, or retain unlimited recordings.
+Start with 3–5 frames; hard design caps are 8 per group and 24 per plan, subject to lower runtime limits. If the control is still animating, adapt the wait and observe a later small group. Continue only while later frames resolve a concrete ambiguity; report genuinely unavailable evidence rather than inventing stability. A short recorded buffer is only an option if the runtime exposes a validated extraction path; do not invent a video tool, assume MP4 chunks are independently decodable, or retain unlimited recordings.

@@ -8,9 +8,9 @@
 
 The adapter creates a peer with no ICE servers, keeps the browser-generated local offer unchanged, constructs the Direct v2 remote answer and opens negotiated ordered data channel 0. No persistent helper tab, external signaling service, TURN server or cloud command relay is part of this flow. HTTP remains available for local setup, management and Shortcuts.
 
-The shared RTC certificate is communication configuration distributed with the firmware and website. It does not identify an individual board. Device identity checks still compare `boardId`, `bootId` and saved metadata; browser enrollment returns a separate token, and the phone input test verifies the actual input target. The compatibility `publicKeyFingerprint` identity label is distinct from the DTLS certificate fingerprint in `rtc.fingerprint`.
+The shared RTC certificate is communication configuration distributed with the firmware and website. It does not identify an individual board. Device identity checks still compare `boardId`, `bootId` and saved metadata; browser enrollment returns a separate token, and current firmware binds the selected ready target. An optional phone input test can additionally verify actual typed input. The compatibility `publicKeyFingerprint` identity label is distinct from the DTLS certificate fingerprint in `rtc.fingerprint`.
 
-Pairing does not use a connection code. Ordinary settings retain the address and identity metadata; the separate browser-local credential record retains its token without asking for another password. Restoring that record does not restore fresh phone input proof.
+Pairing does not use a connection code. Ordinary settings retain the address and identity metadata; the separate browser-local credential record retains its token without asking for another password. Restoring that record does not restore live readiness: the client must check the current target and connection. Fresh digit proof is optional on current firmware.
 
 ## Transport contract
 
@@ -26,7 +26,9 @@ One RPC is active at a time; up to eight browser requests may wait. Frames conta
 
 A queued request cancelled before sending is removed without consuming `n`. Cancelling or timing out an active request closes the peer and rejects the remaining queue. Mutations are not replayed after cancellation, disconnection or reconnection. The request-number and framing implementation is shared with the [firmware contract](secure-lan.md#transport-and-rpc).
 
-## Input proof
+## Target binding and optional input proof
+
+Current firmware accepts explicit binding of a connected, encrypted, HID-subscribed target and reports `bindingVerified`; the UI treats that usable bound target as `targetBound` and ready. The optional digit test is extra observed-input evidence. A 404 from an older binding endpoint retains optional legacy-test/update guidance and does not fabricate a binding.
 
 Authenticated calls carry a Bearer token and request ID. `getBinding()` returns the current targets. `startChallenge(targetId)` requires connected, encrypted, subscribed Bluetooth input and returns only the challenge ID, length and expiry. The UI focuses its trusted-key collector before requesting the test, because HID digits may arrive before the response.
 
@@ -73,7 +75,7 @@ Receipts must match board, boot, target, browser, segment and known payload/plan
 
 A confirmed release requires released status, lease invalidation and successful release submission. Failed cleanup leaves input unknown. A boot change clears leases and image-dependent execution baselines. Stopping or replacing screen sharing invalidates in-flight capture results and aborts non-Chat runs before a late model response can use an old image.
 
-Bridge state is included in model context. Existing conversations can continue when the bridge is absent, but phone-input tools fail with that explicit reason. The Chat runtime does not claim a writer or access phone tools. New-session UI entry still checks the required connection and input test.
+Bridge state is included in model context. Existing conversations can continue when the bridge is absent, but phone-input tools fail with that explicit reason. The Chat runtime does not claim a writer or access phone tools. New-session UI entry checks the live connected, bound, usable target; the digit test is optional on current firmware. Unbound older firmware retains legacy-test/update guidance rather than silently gaining readiness.
 
 Metadata caching is bounded between its normal 750 ms floor and 5 seconds, adapting to observed request latency. Explicit binding/capability responses take effect immediately; caching does not replace board-side admission or prove released input.
 

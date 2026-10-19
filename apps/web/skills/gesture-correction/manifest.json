@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "gesture-correction",
+  "version": "0.1.0",
+  "description": "Learn from observed pointer misses, scrolling overshoot and picker response, then refine gestures or use direct entry.",
+  "entry": "SKILL.md",
+  "protocolVersion": 1,
+  "requiredCapabilities": [
+    "capture.frames",
+    "model.images",
+    "harness.skills"
+  ],
+  "families": [],
+  "files": [
+    {
+      "path": "SKILL.md",
+      "sha256": "91e8b55c42247cdb3cc5978040dc33cf0276a13994ba19fbb823adfd6c6c616b",
+      "bytes": 4669
+    }
+  ]
+}

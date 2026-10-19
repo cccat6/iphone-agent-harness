@@ -1,7 +1,7 @@
 ---
 name: screen-observation
 description: Read fresh phone screenshots, locate controls in full-display coordinates and distinguish screen evidence from device receipts.
-version: 0.3.0
+version: 0.3.1
 ---
 
 # screen-observation
@@ -52,4 +52,4 @@ The observation includes a real frame reference and explicit visible facts. A ve
 
 ## Budget and recovery
 
-Start with one frame. Request a second only for a concrete ambiguity. Default to 3 observation attempts / 20 seconds before reporting capture failure or asking the user to restore sharing. Do not infer a frozen capture solely from identical image hashes: the UI may be static. Do not keep collecting screenshots indefinitely, and do not persist unrelated private screen content in Skill files.
+Start with one frame. Request a second only for a concrete ambiguity. Each observation request is bounded individually. Adapt later-frame timing to actual animation and media metadata; ask for restoration when sharing is actually unavailable, not merely because a fixed observation count was reached. Do not infer a frozen capture solely from identical image hashes: the UI may be static. Do not keep collecting screenshots indefinitely, and do not persist unrelated private screen content in Skill files.

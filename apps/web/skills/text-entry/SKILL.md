@@ -1,7 +1,7 @@
 ---
 name: text-entry
 description: Enter and verify text through supported HID keys or user-confirmed clipboard preparation, respecting Safari foreground requirements and target focus.
-version: 0.5.0
+version: 0.5.1
 ---
 
 # text-entry
@@ -61,4 +61,4 @@ A fresh screenshot shows the intended visible text in the intended field. For ma
 
 ## Budget and recovery
 
-Default to chunks of at most 12 key actions and 2 verification/correction attempts per field; respect stricter runtime plan limits. Stop if focus or layout is uncertain, the page changes or the delivery result is unknown. Do not replay text after a timeout; read the current field first. Keep user credentials out of Skill content, logs and shared examples.
+Use short reviewed chunks within the runtime per-plan limits. Continue evidence-grounded field corrections while progress is possible; no fixed per-field attempt count ends the task. Stop if focus or layout is uncertain, the page changes or the delivery result is unknown. Do not replay text after a timeout; read the current field first. Keep user credentials out of Skill content, logs and shared examples.

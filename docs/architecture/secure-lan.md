@@ -18,12 +18,12 @@ sequenceDiagram
   W->>E: Start selected-phone connection test
   E->>P: Type eight digits through HID
   P->>W: Trusted key events
-  W->>E: Confirm input proof and claim writer lease
+  W->>E: Bind selected ready target and claim writer lease
   W->>E: Submit bounded operation segments
   E-->>W: Execution receipts
 ```
 
-`RtcIdentity.h` provides the same long-lived ECDSA transport certificate for all boards, matching `/firmware/rtc-defaults.json`. This is the project's shared communication configuration, not a per-board CA or user credential. The user maintains neither certificates nor connection codes. Authorization remains separate: board/boot identity, per-browser token, phone input proof, writer lease and segment identity must agree.
+`RtcIdentity.h` provides the same long-lived ECDSA transport certificate for all boards, matching `/firmware/rtc-defaults.json`. This is the project's shared communication configuration, not a per-board CA or user credential. The user maintains neither certificates nor connection codes. Authorization remains separate: board/boot identity, per-browser token, selected target binding, writer lease and segment identity must agree.
 
 The default management address is `http://igent.local/settings`. USB setup output and the local manager's same-tab return link carry `rtc:{ip,port,fingerprint}` with the actual LAN IP. New links omit owner credentials. Legacy connection-code fields are ignored; saved bridge settings contain the hostname.
 
@@ -49,7 +49,7 @@ An active cancellation, timeout or broken connection rejects pending browser req
 
 Public identity/capability/clock reads and code-free client enrollment retain their existing semantics. Authenticated `/v1` operations use the same route handler for RTC and HTTP, including Bearer tokens and request IDs. The RTC task supplies the selected socket peer IP; a client frame cannot replace that address.
 
-Phone binding uses an eight-digit HID challenge whose value is not included in the start response. The browser installs the trusted-key listener before starting the request and confirms only observed digits. Proof is scoped to the exact board, boot, browser and target. A pairing record alone does not authorize phone input.
+Current firmware binds the selected usable Bluetooth target without a mandatory digit challenge. The optional eight-digit HID test does not include its value in the start response. The browser installs the trusted-key listener before starting the request and confirms only observed digits. Proof is scoped to the exact board, boot, browser and target. A pairing record alone does not authorize phone input: current target binding, readiness and lease checks remain required. Older unbound firmware keeps legacy-test/update guidance when the binding operation is unavailable (404).
 
 A writer can renew its own unexpired lease while a segment is running. A replacement lease cannot resume an old segment. Execution receipts identify the board, boot, target, browser, lease, segment and payload hash. They record HID submission and release, not the visible app outcome; screenshots remain browser-side barriers. Unknown delivery is queried by its existing segment ID.
 
