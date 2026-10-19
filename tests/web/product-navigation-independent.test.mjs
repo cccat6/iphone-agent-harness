@@ -28,9 +28,16 @@ test('the actual completion setting is enabled by default and persists opt-out w
  context.settings=await store.getSettings();vm.runInContext(source.slice(start,end),context);assert.doesNotMatch(html,/type="checkbox" checked/);await checkbox.onchange({target:{checked:true}});assert.equal((await store.getSettings()).returnToHarness,true);store.close();
 });
 
-test('the homepage has a localized five-step guide and truthful demo placeholder in all eight languages',()=>{
+test('the homepage has a localized five-step guide in all eight languages',()=>{
  const start=source.indexOf('function homeGuideHTML('),end=source.indexOf('\n',start);assert.ok(start>=0&&end>start);
  const context=vm.createContext({t,getLocale,routeHref:route=>route==='harness'?'/':'/'+route,URL,SITE_CONFIG:{repository:'https://github.com/cccat6/iphone-agent-harness'}});
  vm.runInContext(source.slice(start,end).replaceAll('import.meta.url',JSON.stringify('https://igent.cc/app.js')),context);
- try{for(const {code}of SUPPORTED_LOCALES){setLocale(code);const mobile=context.homeGuideHTML(true),desktop=context.homeGuideHTML(false);assert.equal((mobile.match(/<li>/g)||[]).length,5);assert.ok(!mobile.includes('guide.'));assert.ok(mobile.includes(t('guide.demoPending')));assert.match(mobile,/href="\/"/);assert.match(desktop,/href="\/flash"/);assert.ok(mobile.includes('demo-placeholder.svg'));assert.ok(!mobile.includes('<video'));assert.ok(mobile.includes('shortcuts/clipboard.html'));}}finally{setLocale('auto');}
+ try{for(const {code}of SUPPORTED_LOCALES){setLocale(code);const mobile=context.homeGuideHTML(true),desktop=context.homeGuideHTML(false);assert.equal((mobile.match(/<li>/g)||[]).length,5);assert.ok(!mobile.includes('guide.'));assert.match(mobile,/href="\/"/);assert.match(desktop,/href="\/flash"/);assert.ok(!mobile.includes('demo-placeholder.svg'));assert.ok(mobile.includes('shortcuts/clipboard.html'));}}finally{setLocale('auto');}
+});
+
+
+test('homepage recording plays only on request and example galleries are localized and expandable',()=>{
+ const start=source.indexOf('function homeShowcaseHTML('),end=source.indexOf('\n',start);assert.ok(start>=0&&end>start);
+ const context=vm.createContext({t,URL});vm.runInContext(source.slice(start,end).replaceAll('import.meta.url',JSON.stringify('https://igent.cc/app.js')),context);
+ try{for(const {code}of SUPPORTED_LOCALES){setLocale(code);const html=context.homeShowcaseHTML();assert.ok(!html.includes('showcase.'));assert.match(html,/<video controls playsinline preload="none"/);assert.ok(!html.includes('autoplay'));assert.match(html,/poster="https:\/\/igent.cc\/media\/alarm-demo-poster.jpg"/);assert.match(html,/src="https:\/\/igent.cc\/media\/alarm-demo.mp4" type="video\/mp4"/);assert.ok(html.includes(t('showcase.galleryDescription')));assert.equal((html.match(/class="showcase-image-link"/g)||[]).length,3);for(const name of ['sessions','conversation','skills']){assert.ok(html.includes(`href="https://igent.cc/media/${name}-example.jpg"`));assert.ok(html.includes(`alt="${t('showcase.'+name+'Alt')}"`));}assert.ok(!html.includes('demo-placeholder'));}}finally{setLocale('auto');}
 });

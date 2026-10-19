@@ -1,16 +1,19 @@
-# System and ownership
+# Source layout and responsibilities
 
-[Overview](overview.md) · [Phone guide](../acceptance/README.md)
+[Architecture](overview.md) · [Setup guide](../guide/README.md)
 
-| Owner | Responsibilities | Data boundary |
+| Component | Location | Responsibility |
 |---|---|---|
-| Browser | Conversation, prompts, model/tool loop, capture, local skills | Private data stays in browser except selected content sent to configured services |
-| ESP32 | Wi-Fi setup, target binding, writer lease, timed Bluetooth reports | No model credentials, screenshots or authoritative conversation history |
-| AI provider | Configured inference API | Receives selected messages/images |
-| Optional community API | Signed public skill packages and immutable revisions | Receives only explicitly published packages |
+| Browser | `apps/web/` | Conversation, model loop, capture, local storage and skills |
+| Firmware | `firmware/IPhoneAutomationHarness/` | Wi-Fi setup, WebRTC, Bluetooth input and clipboard transfer |
+| Prompts | `prompts/` | System instructions, intent handling and context summaries |
+| Built-in skills | `apps/web/skills/` | Versioned operation procedures |
+| Public skill API | `apps/web/api/` | Signed public packages and revisions |
+| Build and release tools | `tools/` | Website builds, firmware compilation and release reuse |
+| Tests | `tests/` | Runtime, protocol, UI and build checks |
 
-Bridge identity, boot, browser client, selected Bluetooth target and writer lease are separate. A saved address does not prove a live target. Current firmware can bind a connected, encrypted, HID-subscribed target; the digit input test is optional extra observation. Unknown delivery must be reconciled by existing receipts and current screen state rather than replayed.
+The browser maintains conversation history and sends selected context to the chosen model. The ESP32 executes input batches for the selected phone. Board identity, boot, browser client, target and writer lease identify each active control operation.
 
-The user has one conversation entry. Capability questions can be answered, plan requests produce a reviewable plan, explicit action requests can execute when prerequisites are ready. Loss of screen sharing pauses work; user Stop ends it. Completion requires observed result evidence. The default task-completion preference returns to Harness only after verification; users can disable return.
+Questions, plans and execution share one conversation. Screen-sharing loss pauses work; Stop ends the run. After verifying the result, the agent returns to Harness by default. The user can change that preference in task-completion settings.
 
-Multiple saved browser clients do not imply concurrent RTC peers. The latest multi-client enrollment/import repair is prepared in source and still needs flashing and physical validation. Two bonded phone slots likewise do not establish simultaneous phone throughput or isolation without device testing.
+The bridge stores up to eight browser clients and two BLE bonds, with one active WebRTC control peer.

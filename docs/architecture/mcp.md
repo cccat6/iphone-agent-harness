@@ -1,41 +1,45 @@
-# Optional MCP tool bridge
+# MCP tool bridge
 
-The browser connects to explicitly configured Streamable HTTP servers. This is a fixed bridge, not a plugin loader: the model sees only `mcp_list_tools` and, in Task mode, `mcp_call`. Server tool names are data passed to that bridge. The model cannot configure servers, change credentials, select tools, or grant itself permission.
+The browser connects to configured Streamable HTTP servers. The runtime exposes `mcp_list_tools` and `mcp_call`; server tool names and arguments pass through these fixed tools. Users manage connections and permissions in [MCP settings](mcp-ui.md).
 
-## Page-local authorization
+## Connection lifecycle
 
-`createMCPAccess({fetchImpl?, timeoutMs?})` exposes these trusted UI methods:
+`createMCPAccess({fetchImpl?, timeoutMs?})` provides:
 
 | Method | Effect |
 |---|---|
-| `configure({id,name,url,token})` | Validate/store an endpoint in memory; no request; disabled with no grants. |
-| `connect(id,{signal})` | Initialize and discover the actual tool catalog; still disabled with no grants. |
-| `getSnapshot()` | Return local UI server/catalog/status metadata, never a separate bearer-token field or client object. The editable `url` deliberately retains query authentication in page memory; do not pass snapshots to the model. |
-| `setAllowedTools(id,names)` | Replace the selection with names from the discovered catalog. |
-| `setEnabled(id,enabled)` | Require a connected server and a nonempty selection before enabling. |
-| `disconnect(id)` | Revoke, abort in-flight work, clear the credential and remove the entry. |
+| `configure({id,name,url,token})` | Register an endpoint |
+| `connect(id,{signal})` | Initialize and discover its tool catalog |
+| `getSnapshot()` | Read UI connection and catalog state |
+| `setAllowedTools(id,names)` | Select tools from the catalog |
+| `setEnabled(id,enabled)` | Enable a connected server with selected tools |
+| `disconnect(id)` | Abort calls and remove the active entry |
 
-Every configuration, selection, or enablement change advances an authorization generation and aborts work using the previous generation. URL and credential edits revoke immediately. The UI saves tokens, full endpoints, selected tools and enabled state in independent local-credential database records. Startup restores each connection and intersects saved tool names with the newly discovered catalog. The ordinary settings record holds public server metadata only; session exports and model context exclude credentials. Explicit disconnect retains the saved record but disables automatic reconnection; removing a server deletes it. Closing the settings panel does not revoke the current page's explicit selection.
+The UI persists configuration in separate local credential records. On startup it reconnects enabled servers and matches saved selections against the current catalog. Disconnect keeps the saved record with reconnection disabled; Remove deletes it.
 
-`listForModel({serverId?,offset?,limit?,signal?})` returns only enabled, selected tools and their bounded schemas, with `total` and `nextOffset`. Tool descriptions and schemas are untrusted remote data. An annotation such as `readOnlyHint` is not evidence sufficient to allow Chat or Plan execution.
+`listForModel({serverId?,offset?,limit?,signal?})` pages through enabled tools. `call({serverId,name,arguments},{mode,signal})` checks execution mode, current selection and arguments before dispatch. Changes to configuration or selection advance an authorization generation and cancel calls from the previous generation.
 
-`call({serverId,name,arguments},{mode,signal})` validates Task mode, current selection and arguments before its sole dispatch. It yields a microtask and rechecks permission immediately before sending, then verifies the generation again before accepting the result. Local argument validation has a 10,000-visit budget and a depth limit of 32. It checks a structural JSON Schema subset, including types, required/properties, bounded arrays/strings/numbers, enum/const, local references and combinators. It deliberately never executes remote regular expressions. It is not a complete JSON Schema implementation: the server must validate its full input schema, including patterns and other unsupported keywords. No executable packages or schema-provided code are loaded.
+## Calls and results
 
-## Unknown outcomes and cancellation
+Argument validation covers types, required properties, arrays, strings, numbers, enum/const, local references and combinators. It uses a depth limit of 32 and a 10,000-visit budget. The server validates the complete input schema.
 
-A pre-dispatch permission or argument error has not sent a tool call. Once dispatched, any timeout, cancellation, permission change, transport/protocol failure, `isError` response, oversized nontext result or response exceeding the transport limit becomes `MCP_CALL_UNCERTAIN` with `unknown: true`. A tool may already have changed external state even when no successful response is available.
+Calls have a default 30-second deadline, configurable between 100 and 60,000 ms. Calls are dispatched once. Interruptions after dispatch produce `MCP_CALL_UNCERTAIN`; dependent actions pause while the result is reconciled.
 
-The Harness durably records that unknown result, stops remaining calls in the dependent batch and does not ask the model for a retry. A user must reconcile external state before a fresh attempt. A normal HTTP/MCP return proves only what the remote result says; it does not independently verify the external side effect.
+Successful text results can be shortened for model context, with truncation metadata recording omitted bytes and blocks. Credentials configured for the server are masked in model-facing descriptions and results. Credential records are excluded from session exports.
 
-Calls have a default 30-second deadline, clamped to 100–60,000 ms for configured clients. Abort signals reach fetch and stream reads. The bridge never retries `tools/call`. Stream readers are cancelled and released, and timers are cleared on completion or failure.
+## Limits
 
-## Resource and transport limits
+| Item | Limit |
+|---|---|
+| Configured servers | 8 |
+| Discovered tools per server | 500 |
+| Selected tools per server | 100 |
+| Discovery | 20 pages / 1 MB |
+| Individual schema | 16 KB |
+| Tool arguments / model-facing result | 64 KB each |
+| Model catalog page | 50 entries / 64 KB |
+| HTTP JSON / pending SSE event | 2 MB |
 
-- At most 8 configured servers, 500 discovered tools per server and 100 selected tools per server.
-- Discovery has at most 20 pages and a 1 MB catalog; each schema is at most 16 KB.
-- Tool arguments and model-facing result projections are each at most 64 KB. A completely received, successful result with only text content may be projected to an ordered text prefix rather than classified as unknown: `truncated`, `originalBytes`, `originalBlocks`, `omittedBlocks`, `truncatedBlock` and a notice make incompleteness explicit. Oversized structuredContent is represented by an explicit `structuredContentOmitted` byte count/reason; omitted result or content metadata is marked too. No follow-up tool request is sent automatically. Nontext results that cannot fit remain unknown. Model catalog pages have at most 50 entries and 64 KB.
-- HTTP JSON responses are capped at 2 MB. SSE pending event text is capped at 2 MB of UTF-8 (and 2 million characters), and UTF-8 is validated.
-- HTTPS is required except explicitly configured loopback development addresses. Credentials in URL userinfo and URL fragments are rejected. Redirects are rejected, browser cookies omitted, and the request referrer suppressed.
-- Initialize/initialized, supported protocol versions, session headers, JSON/SSE responses, paginated tools/list and tools/call are implemented. OAuth, stdio subprocesses, server-initiated requests/sampling, legacy dual-endpoint SSE and stream resumption are absent.
+Endpoints use HTTPS and browser CORS; explicitly configured loopback development endpoints may use HTTP. Requests omit browser cookies and referrers and reject redirects.
 
-Servers still need browser CORS support, accessible addresses and valid TLS. This does not establish that a particular remote server works in Safari. Before exposing remote descriptions/schemas and tool results to the model or durable conversation, the bridge masks its known configured secrets: the bearer token, complete normalized endpoint URL, recognized credential query values (token/API key/auth/secret/password/signature/credential/JWT and common variants), and their URI/component/form/raw query encoding forms. The editable snapshot URL remains unmodified for trusted local UI only. Noncredential values such as `api-version=1` are not collected as secrets. Tool names, local server IDs and schema property/reference identities that contain a known secret are rejected rather than silently renamed, so selection and dispatch use the same protocol identity. Configured server labels are masked in model-facing catalogs. This is known-configuration masking, not arbitrary DLP: it does not identify unrelated secrets, all possible credential parameter names, encodings such as base64, or arbitrary remote sensitive data. Such content remains untrusted.
+The client supports initialization, session headers, JSON/SSE responses, paginated `tools/list` and `tools/call`. The transport is Streamable HTTP. Stdio, server-initiated sampling, OAuth discovery and stream resumption are outside this interface.

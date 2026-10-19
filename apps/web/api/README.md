@@ -1,9 +1,13 @@
-# Optional Skill community API
+# Skill community API
 
-Part of the Web product. The official deployment is `https://igent.cc/api/skills`, using the root Worker and D1 configuration in the repository root. The static frontend also works locally without this API.
+The community at `https://igent.cc/skills` uses `/api/skills` to list, publish and update skills. The API runs in the root Cloudflare Worker with D1 storage; its routes and tables are defined here.
 
-Set your own Worker name, D1 database ID and exact static-site origins in the repository-root `wrangler.jsonc`; apply `schema.sql` to that database before deployment. The example contains placeholders and no credentials. The operator must configure their own rate limits and moderation policy before a public launch.
+A published skill contains its content, version and author signature. The server checks the signature and saves the new version. Conversations and model credentials stay in the browser.
 
-The module exports a standard Worker fetch handler. It stores only explicitly published signed Skill packages and version metadata. It has no session, model-key, screen-capture or device-control endpoint. See [`docs/architecture/skill-community.md`](../../../docs/architecture/skill-community.md) for signature and ownership rules.
+See [skill publishing](../../../docs/architecture/skill-community.md) for the request format and ownership rules.
 
-Offline verification: `node --test tests/web/community.test.mjs`. This uses actual SQLite SQL and WebCrypto; it does not deploy the Worker or emulate all Cloudflare behavior.
+Run the API tests with:
+
+```sh
+node --test tests/web/community.test.mjs
+```

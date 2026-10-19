@@ -2,9 +2,9 @@
 
 [English](README.md) · [简体中文](zh-Hans.md) · [繁體中文](zh-Hant.md) · [日本語](ja.md) · [Русский](ru.md) · [Deutsch](de.md) · [Français](fr.md) · **Español** · [Proyecto](../../README.md) · [Abrir Harness](https://igent.cc/) · [Arquitectura](../architecture/overview.md)
 
-Necesitas un iPhone o iPad con iOS/iPadOS 27 o posterior, una placa ESP32 compatible, alimentación USB, Wi-Fi local y una cuenta de IA o API compatible. Usa Chrome o Edge en ordenador para instalar firmware. El instalador precompilado no requiere Arduino, Xcode, cuenta de desarrollador ni compilador local.
+Necesitas un iPhone o iPad con iOS/iPadOS 27+, una placa ESP32, alimentación USB, Wi-Fi y una cuenta de IA o clave API. Instala el firmware con Chrome o Edge en un ordenador.
 
-El teléfono y el puente usan la misma red Wi-Fi habitual. El puente no se enchufa al teléfono: tras configurarlo puede quedar alimentado en un lugar al alcance de Bluetooth. Haz la configuración inicial de Wi-Fi en el ordenador para que el teléfono nunca tenga que unirse al punto de acceso de la placa.
+El teléfono y el puente usan la misma red Wi-Fi. Después de configurarlo, deja el puente alimentado dentro del alcance de Bluetooth.
 
 ## Contenido
 
@@ -13,112 +13,106 @@ El teléfono y el puente usan la misma red Wi-Fi habitual. El puente no se enchu
 <a id="accessibility"></a>
 ## 1. Activa AssistiveTouch
 
-En el teléfono abre **Ajustes → Accesibilidad → Tocar → AssistiveTouch** y actívalo. Esta función convierte la entrada de puntero Bluetooth del puente en interacción con las apps. El acceso total por teclado puede mantener su estado actual; no es necesario para Inicio ni para controlar el puntero.
+En el iPhone, abre **Ajustes → Accesibilidad → Tocar → AssistiveTouch** y actívalo. Así, el puente puede tocar y arrastrar elementos con el puntero.
 
 <a id="flash"></a>
 ## 2. Instala el firmware ESP32 desde el navegador
 
-1. En el ordenador abre [Instalar firmware](https://igent.cc/flash) en Chrome o Edge.
-2. Elige el perfil del chip impreso en la placa. El instalador muestra las variantes ya compiladas. ESP32-C2 necesita al menos **2 MB de flash**; los demás chips de la tabla, **4 MB**. No hacen falta PSRAM, pantalla ni sensores externos.
-3. Conecta la placa al ordenador con cable USB **de datos**. Pulsa «Elegir dispositivo USB e instalar» y selecciona esa placa en el selector de puerto serie del navegador.
-4. Espera a que terminen instalación y verificación. Si no entra automáticamente en modo descarga, mantén BOOT al conectar o reiniciar, suéltalo y vuelve a intentar.
-5. Pulsa «Leer información del dispositivo» y elige la misma placa. La página muestra nombre/contraseña del Wi-Fi de configuración y un enlace para el teléfono. Conserva esos datos para los pasos siguientes.
+1. Abre el [instalador web](https://igent.cc/flash) en Chrome o Edge en un ordenador.
+2. Selecciona el chip indicado en la placa. C2 necesita al menos **2 MB de flash**; los demás chips de la lista, al menos **4 MB de flash SPI estándar**.
+3. Conecta la placa con un cable USB de datos. Pulsa **Elegir dispositivo USB e instalar**, selecciona la placa y espera a que termine.
+4. Pulsa **Leer información del dispositivo**, elige la misma placa y guarda los datos de Wi-Fi y el enlace de conexión para el teléfono.
 
-El USB sirve para instalar, leer ajustes y dar energía. Durante el uso del teléfono basta un adaptador u otra fuente USB; no hay cable entre teléfono y placa.
-
-La única opción **ESP32-C2** del instalador selecciona automáticamente la imagen para cristal de 26 o 40 MHz. La imagen de 2 MB tiene una sola partición de aplicación, sin OTA. C2 usa **USB–UART** (a menudo integrado en la placa), no USB CDC nativo. **ESP32-C5** usa un perfil de flash a 80 MHz y USB CDC nativo.
+Si no empieza, mantén BOOT pulsado al volver a conectar el USB, suéltalo y reintenta. La versión C2 de 26 o 40 MHz se elige automáticamente. Después, alimenta la placa para manejar el teléfono de forma inalámbrica.
 
 <a id="wifi"></a>
 ## 3. Conecta el puente al Wi-Fi habitual
 
-En una placa nueva, hazlo una sola vez:
+1. En el ordenador, conéctate al Wi-Fi `iPhone-Harness-…` del instalador con la contraseña mostrada.
+2. Abre `http://192.168.4.1` e introduce el nombre y la contraseña de tu Wi-Fi habitual. Una red de 2,4 GHz funciona con todos los chips compatibles.
+3. Cuando el puente se conecte, devuelve el ordenador al Wi-Fi habitual. El teléfono debe estar en esa misma red.
 
-1. En el **ordenador**, únete temporalmente al Wi-Fi de configuración `iPhone-Harness-…` mostrado por el instalador, con su contraseña indicada.
-2. Abre `http://192.168.4.1` e introduce nombre y contraseña de tu Wi-Fi habitual. Una red de 2,4 GHz funciona con todas las variantes compatibles.
-3. Espera la confirmación de conexión y devuelve el ordenador a esa red habitual.
-4. Mantén el teléfono en la misma red local. No necesita el punto de acceso de la placa ni usar datos móviles para acceder al modelo.
-
-El puente guarda estos datos localmente y se reconecta al encenderse. Si ya estaba configurado, omite este paso. `http://igent.local/settings` permite usar los ajustes de dispositivo disponibles, incluido su nombre local.
+El puente recuerda la red y se reconecta al encenderse. Solo hace falta configurarlo al empezar o al cambiar de red. Después puedes modificar los ajustes en `http://igent.local/settings`.
 
 <a id="bluetooth"></a>
 ## 4. Empareja el puente de entrada Bluetooth
 
-En el teléfono abre **Ajustes → Bluetooth** y empareja **iPhone Agent Bridge**. Mantén AssistiveTouch activado. El Bluetooth del sistema entrega entradas a iOS; la red entre navegador y puente entrega órdenes del agente a la placa. Son conexiones distintas.
+En el teléfono, abre **Ajustes → Bluetooth** y empareja **iPhone Agent Bridge**. Mantén AssistiveTouch activado.
 
-Si una actualización de firmware cambia los informes HID, elimina el registro anterior en Bluetooth y vuelve a emparejar. Recargar la página o cambiar de modelo normalmente no lo requiere.
+Bluetooth permite que el puente maneje el teléfono. La conexión Wi-Fi entre Harness y el puente se configura en el paso 7.
 
 <a id="open-harness"></a>
 ## 5. Abre Web Harness
 
-Abre [igent.cc](https://igent.cc/) en Safari del teléfono. Los iPhone/iPad compatibles entran en Harness; el ordenador muestra inicio, comunidad e instalador. No hace falta app iOS complementaria, perfil de certificado, extensión Safari ni modo desarrollador.
+Abre [igent.cc](https://igent.cc/) en Safari en tu iPhone o iPad para entrar directamente en Harness.
 
-Al iniciar una operación, Safari solicita compartir pantalla. Acéptalo y mantén el teléfono desbloqueado mientras trabaja. Es la solicitud normal de iOS; no necesitas indicadores experimentales de red ni otros métodos de autorización. Terminar la pantalla compartida pausa la tarea. «Continuar» vuelve a solicitarla si hace falta.
+Cuando pidas una acción, permite compartir pantalla y mantén el teléfono desbloqueado. Después puedes cambiar de app. Al dejar de compartir, la tarea se pausa. Pulsa **Continuar** en Harness para compartir de nuevo y reanudarla.
 
 <a id="models"></a>
 ## 6. Configura una API o cuenta ChatGPT
 
-Abre **Ajustes → Cuentas o API → Añadir**. Puedes conservar varias conexiones y cambiar entre sus modelos desde el selector de la conversación.
+Abre **Ajustes → Cuentas o API → Añadir**. Puedes guardar varias conexiones y cambiar de modelo en la conversación.
 
-### Endpoint y clave API
+**Con una clave API**
 
-1. Elige API **compatible con OpenAI** o **Anthropic**.
-2. Introduce endpoint del proveedor, clave y nombre de conexión. Sigue la indicación del formulario: raíz del servicio o base `/v1`; el adaptador también normaliza URLs completas de operaciones compatibles.
-3. Pulsa «Obtener modelos». Selecciona uno predeterminado o escribe su ID. Todos los modelos encontrados siguen disponibles en la conversación.
-4. Guarda. Para tareas del teléfono usa un modelo con comprensión de imágenes y llamadas a herramientas. Ajusta el esfuerzo de razonamiento cuando el modelo lo admita.
+1. Elige **Compatible con OpenAI** o **Compatible con Anthropic**, según tu proveedor.
+2. Introduce un nombre, el endpoint de la API y la clave. Por ejemplo, `https://api.example.com/v1`. También sirve una dirección completa con `/chat/completions` o `/messages` para el tipo de API elegido.
+3. Pulsa **Obtener modelos**, elige el predeterminado o escribe su nombre. Los demás también estarán disponibles en las conversaciones.
+4. Guarda. Para manejar el teléfono, elige un modelo que acepte imágenes y llamadas a herramientas. Si ofrece esfuerzo de razonamiento, puedes ajustarlo en el selector.
 
-Las claves se guardan en este navegador. La petición va directamente al proveedor, sin pasar por el host del sitio. El proveedor debe permitir peticiones de navegador desde el sitio que usas.
+**Con una cuenta ChatGPT**
 
-### Cuenta con suscripción ChatGPT
+Activa el acceso por código de dispositivo en los ajustes de seguridad de ChatGPT. Elige ChatGPT/Codex en Harness, inicia sesión e introduce el código en la página oficial indicada. Vuelve a Harness para terminar, obtener modelos y guardar. En una cuenta de organización, el administrador puede tener que activar esta opción. [Instrucciones de OpenAI](https://learn.chatgpt.com/docs/auth#preferred-device-code-authentication-beta).
 
-Primero activa el acceso con código de dispositivo en los ajustes de seguridad de ChatGPT; un espacio gestionado puede necesitar que lo habilite el administrador. En Harness elige ChatGPT/Codex e inicia el acceso. Abre la página oficial de verificación que muestra el formulario, escribe el código y completa allí la autenticación. Regresa a Harness, pulsa el botón de finalización, carga modelos y guarda. Las credenciales permanecen locales y el adaptador las renueva. Es una conexión por suscripción, no una clave API OpenAI ordinaria; el servicio oficial debe ser accesible desde el navegador. Consulta las [instrucciones OpenAI de autenticación por código](https://learn.chatgpt.com/docs/auth#preferred-device-code-authentication-beta).
+Las credenciales y claves se guardan en este navegador. Las peticiones van directamente al proveedor, cuya API debe aceptar el acceso desde el navegador.
 
 <a id="bridge"></a>
 ## 7. Conecta el puente y prueba la entrada si quieres
 
-1. Abre «Dispositivos» desde la lista o el estado del puente en una conversación.
-2. Si aún no hay información guardada, pulsa «Obtener información del puente», abre su página local y usa el enlace de retorno. Importa dirección y datos públicos de WebRTC. El enlace del teléfono del instalador aporta lo mismo.
-3. Pulsa «Conectar puente ESP32» y selecciona el teléfono emparejado y listo si es necesario. Con los datos guardados, la próxima vez empiezas directamente por Conectar sin repetir Wi-Fi.
-4. Para comprobar el teclado nativo, pulsa una vez «Iniciar prueba de entrada» y conserva página y campo en primer plano. La placa escribe ocho dígitos que el navegador confirma automáticamente. Es opcional en el firmware actual.
+1. Abre **Dispositivos** desde la lista de conversaciones o toca el estado del puente dentro de una conversación.
+2. La primera vez, pulsa **Obtener información del puente**. En su página, usa el enlace de vuelta a Harness. También sirve el enlace para el teléfono del instalador.
+3. Pulsa **Conectar puente ESP32** y selecciona el teléfono emparejado si se solicita. La próxima vez puedes usar la conexión guardada.
+4. Para comprobar la escritura, pulsa **Iniciar prueba de entrada** y quédate en la página. El puente escribe ocho dígitos y Harness los comprueba. Puedes saltarte esta prueba.
 
-«Actualizar» solo lee el estado. Puente conectado, Bluetooth del teléfono conectado y entrada lista son estados diferentes. Si está inicializándose, espera un momento y actualiza. Una prueba rechazada explícitamente por límite de frecuencia muestra cuenta atrás y puede reintentarse una vez; no se reenvía a ciegas una entrada de resultado físico desconocido. Los errores muestran estado y motivo.
+Si el teléfono no está listo, comprueba Bluetooth, espera un momento y pulsa **Actualizar**.
 
-Prueba algo breve como «Abre Reloj y crea una alarma a las 7:00». Acepta compartir y pasa a la app objetivo. El agente observa, actúa y verifica, y vuelve por defecto a esta conversación. Desactiva **Ajustes → Finalización de tarea → Volver a Harness** para dejar abierta la app objetivo.
+Prueba «Abre Reloj y pon una alarma a las 7:00». Permite compartir pantalla. Al terminar, el agente vuelve a la conversación; puedes cambiarlo en **Ajustes → Finalización de tarea → Volver a Harness**.
 
 <a id="clipboard"></a>
 ## 8. Configura la copia con Atajos
 
-1. En el teléfono abre el [tutorial del portapapeles](https://igent.cc/shortcuts/clipboard.html) y descarga el atajo firmado.
-2. Añádelo en Atajos de Apple con el nombre exacto **iPhone Agent Clipboard**.
-3. Conecta el puente. Cuando el agente prepare texto, pulsa «Copiar con Atajos». Si iOS pide que el atajo acceda a la URL local del puente, permite el acceso: es el permiso propio del atajo.
-4. Regresa después de copiar. Harness espera el recibo y comprueba app y campo de destino antes de pegar.
+1. Abre la [guía del portapapeles](https://igent.cc/shortcuts/clipboard.html) en el teléfono e instala el atajo.
+2. Conserva el nombre **iPhone Agent Clipboard**.
+3. Conecta el puente en Harness. Cuando el texto esté listo, elige **Copiar con Atajos**. Permite el acceso al puente si iOS lo solicita.
+4. Vuelve a Harness tras copiar para pegar en el campo deseado.
 
-El navegador entrega el texto por partes al puente y este lo devuelve al atajo en una respuesta HTTP local. No tiene que guardar el texto completo. Sin trabajo pendiente, el atajo no devuelve texto y deja intacto el portapapeles. También está disponible «Copiar y continuar» en primer plano, sin atajo.
+Sirve para textos largos y varios idiomas. Con Harness en pantalla, también puedes usar **Copiar y continuar**.
 
 <a id="install-skills"></a>
 ## 9. Instala una habilidad de la comunidad
 
-En el teléfono abre **Ajustes → Habilidades → Comunidad**, o la [comunidad web](https://igent.cc/skills). Lee las instrucciones y pulsa «Añadir localmente». Las integradas aparecen junto a las publicaciones y ya están disponibles localmente. Puedes activar o desactivar cada habilidad instalada.
+Abre **Ajustes → Habilidades → Comunidad** o la [comunidad](https://igent.cc/skills). Lee la descripción y elige **Añadir en local**. Puedes activar o desactivar cada habilidad en tu lista.
 
-Recargar actualiza las integradas y busca versiones nuevas de instalaciones comunitarias sin modificar. Conserva activación y cambios locales. Una tarea activa mantiene las versiones con que empezó; las actualizaciones sirven para las siguientes. Las descargas siguen siendo de solo lectura y conservan el autor original.
+Las integradas ya están instaladas. Al recargar la página se buscan actualizaciones y se conservan tus preferencias. Las versiones nuevas se usan a partir de la siguiente tarea.
 
 <a id="authoring"></a>
 ## 10. Crea y mejora tu propia habilidad
 
-En ordenador abre [Habilidades](https://igent.cc/skills) y elige «Crear tu habilidad» bajo «Crear y publicar». En teléfono usa **Ajustes → Habilidades → Crear**. Introduce nombre, slug en minúsculas, descripción breve e instrucciones Markdown, y guarda el borrador local.
+En el ordenador, abre [Habilidades](https://igent.cc/skills) y elige **Crear tu propia habilidad**. En el teléfono: **Ajustes → Habilidades → Crear**. Introduce un nombre, un identificador breve en minúsculas, una descripción y las instrucciones; después guarda.
 
-También puedes pedir a Harness que cree o mejore tu habilidad. Describe objetivo, condiciones de uso, controles, qué muestra una captura de éxito y cómo ajustar tras un fallo. Las descargas e integradas permanecen de solo lectura.
+También puedes pedir a Harness que escriba o mejore tu habilidad. Explica cuándo usarla, qué pasos seguir y cómo comprobar el resultado. Para adaptar una habilidad comunitaria, crea la tuya y conserva la original de su autor.
 
-La propiedad es una identidad de firma generada por el navegador, disponible en ordenador e iOS, no un UID iOS. Antes de cambiar de navegador o dispositivo, exporta el archivo de habilidad y una copia cifrada de «Identidad del creador». Restaura la identidad e importa tu archivo para seguir editando como el mismo autor.
+Antes de cambiar de navegador, exporta tus habilidades y guarda una copia de tu **Identidad de autor**. Importa ambas en el nuevo navegador para seguir publicando con el mismo autor.
 
 <a id="publish"></a>
 ## 11. Comparte una habilidad
 
-En la comunidad elige «Publicar» en tu borrador; en teléfono abre su panel de compartir y «Publicar en comunidad». Revisa y confirma. La identidad local firma el paquete público. Editar y publicar otra vez crea la siguiente versión; otros usuarios la reciben al actualizar sus copias instaladas.
+Abre una habilidad tuya y elige **Publicar** en la web o **Publicar en la comunidad** en el teléfono. Revisa el contenido y confirma. Vuelve a publicarla después de editarla para actualizarla.
 
-Usa [Issues](https://github.com/cccat6/iphone-agent-harness/issues) para errores y sugerencias, y [PR](https://github.com/cccat6/iphone-agent-harness/pulls) para código, documentación y traducciones. Comparte habilidades personalizadas mediante la comunidad web, no como PR de código.
+Otros usuarios podrán añadirla desde el catálogo. Para errores e ideas, [abre un Issue](https://github.com/cccat6/iphone-agent-harness/issues); para mejoras de código o documentación, [envía un pull request](https://github.com/cccat6/iphone-agent-harness/pulls).
 
-## Conversaciones y alojamiento propio
+## Gestiona tus conversaciones
 
-El título de lista alterna conversaciones y archivo. Deslizar permite Renombrar/Archivar, o Renombrar/Restaurar/Eliminar en archivo. Los mensajes antiguos cargan al subir; las respuestas conservan la lectura. «Últimos» vuelve a la salida actual.
+Toca el título de la lista para cambiar entre **Conversaciones** y **Archivadas**. Desliza para renombrar o archivar; en el archivo puedes restaurar o eliminar. Desplázate arriba para leer el historial y pulsa **Últimos** para volver a la respuesta más reciente.
 
-Conversaciones, imágenes guardadas y credenciales permanecen en este navegador. Exporta desde el menú e importa en Ajustes; las exportaciones excluyen credenciales. El host sirve páginas y habilidades públicas; datos elegidos para modelos/MCP van directamente a esos servicios. También puedes [alojar Web Harness por tu cuenta](../architecture/deployment.md).
+Exporta una conversación desde su menú e importa el archivo en Ajustes. Incluye mensajes e imágenes. Las cuentas y claves se guardan por separado en el navegador.

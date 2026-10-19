@@ -1,16 +1,13 @@
-# Validation and acceptance
+# Development checks
 
-Maintainers run the repository checks; users need not rebuild software or inspect logs to try the phone workflow. Start with the [English phone guide](../acceptance/README.md) or [简体中文手机指南](../acceptance/zh-Hans.md).
+Install Node.js 22.13 or later, then run:
 
-Keep these evidence levels separate:
+```sh
+npm ci
+npm test
+npm run build
+```
 
-- Automated/host tests validate finite protocols, state and error paths.
-- Native desktop checks validate the tested browser interactions.
-- Firmware compilation and artifact verification establish a reproducible binary, not radio behavior.
-- Physical acceptance observes the actual phone screen, release state, timing and recovery.
+Firmware checks and pinned build dependencies are documented in the [Arduino guide](../../firmware/IPhoneAutomationHarness/README.md). The [manual release workflow](manual-release.md) runs the repository checks, verifies firmware provenance and compares deployed files with the selected build.
 
-Important phone checks are fresh cross-app capture, correct selected target, tap/key/drag/swipe outcomes, exact picker values, cancellation without stuck input, lost-sharing pause, reconnect, clipboard confirmation and completion verification. Test additional phones/iPads separately. A HID submission receipt does not prove visible success.
-
-Hardware features remain experimental. Latest multi-client enrollment/import changes are prepared in source but require flashing and physical validation. Background survival, combined BLE/RTC memory, multi-phone isolation and Safari subscription authorization cannot be inferred from desktop or mock tests. Avoid indefinite background or simultaneous-peer claims.
-
-For local checks, use the commands in the [project README](../../README.md), [Arduino guide](../../firmware/IPhoneAutomationHarness/README.md) and [manual release guide](manual-release.md). Do not publish credentials or personal screens in issue reports; provide versions, redacted symptoms and reproduction steps.
+For a phone workflow, use the [setup guide](../guide/README.md). Check a complete task from screen sharing through phone input to the visible result. Also check Stop, sharing pause/resume, reconnect and clipboard text. Record the board, firmware, iOS and browser versions with a reproducible issue.

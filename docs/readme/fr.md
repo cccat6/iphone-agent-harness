@@ -1,99 +1,124 @@
-# iPhone Agent Harness
+<h1 align="center">iPhone Agent Harness</h1>
 
-[English](../../README.md) · [简体中文](zh-Hans.md) · [繁體中文](zh-Hant.md) · [日本語](ja.md) · [Русский](ru.md) · [Deutsch](de.md) · **Français** · [Español](es.md)
+<p align="center"><strong>Confiez les commandes de votre iPhone à une IA.</strong></p>
 
-**Un assistant IA pour iPhone avec un navigateur et un ESP32-C3 autour de 2 dollars US.**
+<p align="center">
+  <a href="../../README.md">English</a> · <a href="zh-Hans.md">简体中文</a> · <a href="zh-Hant.md">繁體中文</a> · <a href="ja.md">日本語</a> · <a href="ru.md">Русский</a> · <a href="de.md">Deutsch</a> · <strong>Français</strong> · <a href="es.md">Español</a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/cccat6/iphone-agent-harness/actions/workflows/checks.yml"><img src="https://github.com/cccat6/iphone-agent-harness/actions/workflows/checks.yml/badge.svg" alt="CI"></a>
+  <a href="../../LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="MIT License"></a>
+  <img src="https://img.shields.io/badge/iOS%20%2F%20iPadOS-27%2B-111827" alt="iOS / iPadOS 27+">
+  <img src="https://img.shields.io/badge/ESP32-C2%20%C2%B7%20C3%20%C2%B7%20C5%20%C2%B7%20C6%20%C2%B7%20S3%20%C2%B7%20Classic-0e7490" alt="ESP32 C2, C3, C5, C6, S3, Classic">
+</p>
+
+<p align="center">
+  <a href="https://igent.cc/">📱 Harness</a> ·
+  <a href="https://igent.cc/flash">⚡ Installateur web</a> ·
+  <a href="../guide/fr.md">📖 Guide complet</a> ·
+  <a href="https://igent.cc/skills">🧩 Compétences</a> ·
+  <a href="../architecture/overview.md">🗺️ Architecture</a>
+</p>
 
 Demandez à l’iPhone de lire un écran, saisir du texte, ajuster un contrôle ou suivre un court parcours entre applications. Un petit ESP32 alimenté fournit les entrées Bluetooth ; Safari gère la conversation et la capture.
 
-[Harness](https://igent.cc/) · [Installateur web](https://igent.cc/flash) · [Guide complet](../guide/fr.md) · [Compétences](https://igent.cc/skills) · [Architecture](../architecture/overview.md)
+- **Installer dans le navigateur.** Choisissez votre ESP32 et installez son firmware avec Chrome ou Edge sur ordinateur.
+- **Le téléphone reste sans fil.** Laissez le pont alimenté sur une étagère à portée Bluetooth.
+- **Votre Wi-Fi habituel.** Connectez téléphone et pont au même réseau domestique ou professionnel et démarrez une tâche dans Safari.
 
-- **Flasher dans le navigateur.** Les images prêtes s’installent avec Chrome/Edge sur ordinateur, sans compilateur, Arduino ni construction d’application.
+https://github.com/user-attachments/assets/d72669a6-e150-40d7-ba2f-1d9586d9c2ea
 
-- **Le téléphone reste sans fil.** Une fois configuré, le pont peut rester alimenté sur une étagère à portée Bluetooth/Wi-Fi. Pas de câble USB au téléphone.
+Un agent règle une alarme sur un véritable iPhone.
 
-- **Garder le réseau habituel.** Téléphone et pont partagent le LAN Wi-Fi ; le point d’accès ESP sert seulement à la configuration initiale. Sans application native, certificat, onglet auxiliaire ou relais LAN séparé. Confirmez la demande habituelle lorsque vous partagez l’écran.
-
-![Illustration provisoire : navigateur, pont ESP32 et téléphone. Une vidéo/GIF de démonstration arrive prochainement.](../../apps/web/media/demo-placeholder.svg)
-
-Vidéo / GIF de démonstration à venir.
-
-## Fonctionnement
+## ⚙️ Fonctionnement
 
 Safari envoie l’écran et le contexte choisi à l’IA. Harness vérifie le plan, le transmet localement par WebRTC à l’ESP32, puis le pont utilise souris/clavier Bluetooth. Une nouvelle observation vérifie le résultat.
 
-![Architecture : navigateur, IA choisie, ESP32 local et téléphone](../media/architecture.fr.svg)
+```mermaid
+flowchart LR
+  subgraph Phone["iPhone / iPad"]
+    Harness["Safari · Harness"]
+    Apps["Apps iPhone / iPad"]
+    Storage[("Stockage local du navigateur<br/>Conversations · images · clés")]
+    Apps -->|Partage d’écran| Harness
+    Harness <--> Storage
+  end
+  Harness <-->|Contexte / réponses| AI["Votre IA"]
+  Harness <-->|WebRTC · Wi-Fi local| Bridge["Pont ESP32"]
+  Bridge -->|Clavier / souris Bluetooth| Apps
+```
 
 [Architecture](../architecture/overview.md)
 
-## Choisir une carte
+## 🔌 Choisir une carte
 
-Une carte ESP32-C3 simple à environ **2 dollars US** est un exemple de budget, pas un devis ni une garantie. Vendeur, transport et modèle influencent le prix. Choisissez la vraie puce et un câble USB de données.
+Une simple ESP32-C3 coûte environ **2 dollars US**. Choisissez la puce dans l’[installateur web](https://igent.cc/flash), puis branchez la carte à l’ordinateur avec un câble USB de données.
 
-| Puce | Firmware | Remarque |
-|---|---|---|
-| ESP32-C2 | Image précompilée | 2 Mo minimum ; 26/40 MHz auto ; USB–UART ; application unique sans OTA |
-| ESP32-C3 | Image précompilée | 4 Mo de flash ; installation web |
-| ESP32-C5 | Image précompilée | 4 Mo de flash ; profil 80 MHz ; USB CDC natif |
-| ESP32-C6 | Image précompilée | 4 Mo de flash ; installation web |
-| ESP32-S3 | Image précompilée | 4 Mo de flash ; installation web |
-| ESP32 (classic) | Image précompilée | 4 Mo de flash ; installation web |
+| Puce | Modèles compatibles |
+|---|---|
+| ESP32-C2 | 2 Mo minimum · quartz 26/40 MHz détecté automatiquement |
+| ESP32-C3 | Tous les modèles* |
+| ESP32-C5 | Tous les modèles* |
+| ESP32-C6 | Tous les modèles* |
+| ESP32-S3 | Tous les modèles* |
+| ESP32 (classic) | Tous les modèles* |
 
-## Installer et essayer
+*Les images actuelles pour C3, C5, C6, S3 et ESP32 classique utilisent une mémoire flash SPI standard d’au moins 4 Mo.
+
+## 🚀 Installer et essayer
 
 Le guide complet décrit les onze étapes :
 
-1. **[Accessibilité](../guide/fr.md#accessibility).** Activer AssistiveTouch ; accès complet au clavier facultatif.
+1. **[Accessibilité](../guide/fr.md#accessibility)**
 
-2. **[Flasher](../guide/fr.md#flash).** Choisir puce et image dans l’installateur sur ordinateur.
+2. **[Flasher](../guide/fr.md#flash)**
 
-3. **[Wi-Fi](../guide/fr.md#wifi).** Enregistrer le réseau 2,4 GHz habituel et y reconnecter le téléphone.
+3. **[Wi-Fi](../guide/fr.md#wifi)**
 
-4. **[Bluetooth](../guide/fr.md#bluetooth).** Associer iPhone Agent Bridge dans iOS.
+4. **[Bluetooth](../guide/fr.md#bluetooth)**
 
-5. **[Ouvrir Harness](../guide/fr.md#open-harness).** Safari iOS/iPadOS 27+, téléphone déverrouillé.
+5. **[Ouvrir Harness](../guide/fr.md#open-harness)**
 
-6. **[Configurer l’IA](../guide/fr.md#models).** API OpenAI/Anthropic compatible ou connexion ChatGPT ; charger les modèles.
+6. **[Configurer l’IA](../guide/fr.md#models)**
 
-7. **[Connecter/tester le pont](../guide/fr.md#bridge).** Importer le lien, choisir le téléphone prêt ; test de chiffres facultatif.
+7. **[Connecter/tester le pont](../guide/fr.md#bridge)**
 
-8. **[Raccourci presse-papiers](../guide/fr.md#clipboard).** Ajouter iPhone Agent Clipboard et attendre la confirmation de copie.
+8. **[Raccourci presse-papiers](../guide/fr.md#clipboard)**
 
-9. **[Compétence communautaire](../guide/fr.md#install-skills).** Installer le paquet voulu depuis le catalogue.
+9. **[Compétence communautaire](../guide/fr.md#install-skills)**
 
-10. **[Créer une compétence](../guide/fr.md#authoring).** Éditer sur ordinateur/téléphone ; identité cryptographique du navigateur.
+10. **[Créer une compétence](../guide/fr.md#authoring)**
 
-11. **[Publier](../guide/fr.md#publish).** Envoyer explicitement un paquet public et sauvegarder son identité.
+11. **[Publier](../guide/fr.md#publish)**
 
-## Des conversations qui gardent votre place
+## 💬 Conversations, plans et compétences
 
-Questions, plans vérifiables et actions partagent la même conversation. Le titre de liste ouvre les archives ; balayer permet renommer/archiver ou restaurer/supprimer. Les réponses préservent la lecture ; « Derniers » ramène aux récents. L’export inclut les images. L’IA vérifie avant de finir et revient normalement dans Harness, désactivable dans Fin de tâche.
+Posez une question, préparez un plan ou confiez une tâche à l’agent dans la même conversation. Renommez, archivez, recherchez et exportez vos conversations. Consultez l’historique pendant une tâche et revenez à la dernière réponse quand vous le souhaitez.
 
-12 compétences intégrées couvrent observation, planification, saisie, reprise, horloge et correction des gestes. Intégrées/téléchargées en lecture seule, actualisées sans perdre l’activation. Vos créations sont modifiables et liées à l’identité du navigateur, pas à un UID iOS. MCP facultatif utilise des outils choisis sur des serveurs Streamable HTTP compatibles CORS.
+Les compétences aident l’agent dans les tâches courantes et améliorent ses gestes et sa saisie. Ajoutez-en depuis la communauté ou demandez à Harness de vous aider à créer les vôtres. Les réglages permettent aussi de connecter des outils MCP.
 
-## Vos données et votre hébergement
+Véritables écrans de Harness avec des données de démonstration.
 
-Conversations, clés, jetons et images sont enregistrés dans le navigateur. Notre hôte ne reçoit ni conversations, ni captures, ni clés de modèle : il sert les pages statiques et compétences publiques ; les contenus choisis vont directement au modèle, les appels MCP autorisés au serveur configuré. Publier envoie seulement le paquet choisi. Exportez conversations et identité d’auteur séparément avant nettoyage ou changement de navigateur.
+<table>
+  <tr><th>Vos conversations</th><th>Exemple de conversation</th><th>Compétences</th></tr>
+  <tr>
+    <td><img src="../../apps/web/media/sessions-example.jpg" width="240" alt="Vos conversations"></td>
+    <td><img src="../../apps/web/media/conversation-example.jpg" width="240" alt="Exemple de conversation"></td>
+    <td><img src="../../apps/web/media/skills-example.jpg" width="240" alt="Compétences"></td>
+  </tr>
+</table>
 
-Le matériel reste expérimental : gestes, arrière-plan, Raccourcis et plusieurs téléphones demandent une vérification réelle. Safari peut suspendre les tâches ; un seul pair WebRTC est actif. Vérifiez la compatibilité de l’abonnement ChatGPT dans Safari. Arrêt reste disponible et chaque plan garde ses limites.
+## 🔒 Vos données restent chez vous
 
-## Développer et contribuer
+Conversations, captures, comptes et clés API sont enregistrés dans votre navigateur. Les messages et images choisis vont directement à votre fournisseur d’IA ; les requêtes MCP aux serveurs configurés. Le site fournit l’application et les compétences que vous choisissez de partager publiquement.
 
-Auto-hébergez le site, choisissez vos modèles et éventuellement l’API de compétences. Issues et PR sont bienvenus. Partagez les compétences réutilisables via la communauté du site.
+## 🤝 Contribuer
 
-Pour développer localement, utiliser Node.js 22.13 ou ultérieur.
-
-```sh
-npm ci
-npm test
-npm run build
-npm run preview
-```
-
-[Arduino](../../firmware/IPhoneAutomationHarness/README.md) · [Auto-hébergement](../architecture/deployment.md) · [Publications manuelles](../architecture/manual-release.md)
+Vos idées et signalements sont les bienvenus dans les [Issues](https://github.com/cccat6/iphone-agent-harness/issues), tout comme vos améliorations par [pull request](https://github.com/cccat6/iphone-agent-harness/pulls). Partagez vos propres compétences dans la [communauté](https://igent.cc/skills).
 
 [MIT License](../../LICENSE) · [Third-party notices](../../THIRD_PARTY_NOTICES.md)
 
-## Remerciements
+## 💛 Remerciements
 
-Merci à [onehumanbeing/esp32-iphone-agent](https://github.com/onehumanbeing/esp32-iphone-agent) pour l’inspiration. Ce projet suit sa propre architecture de navigateur, capture et pont Bluetooth.
+Merci à [onehumanbeing/esp32-iphone-agent](https://github.com/onehumanbeing/esp32-iphone-agent) pour l’inspiration.

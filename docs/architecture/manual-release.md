@@ -2,26 +2,26 @@
 
 [简体中文](manual-release.zh-Hans.md)
 
-GitHub Actions runs **only when the owner requests it**. Ordinary pushes, pull requests, tags and Release publication do not start it. The workflow is [Manual release](https://github.com/cccat6/iphone-agent-harness/actions/workflows/checks.yml), implemented in [checks.yml](../../.github/workflows/checks.yml). Choose `main` and use **Run workflow** only when a release is wanted; an assistant must wait for an explicit request before dispatching it. The selected commit is fixed for the whole run. A push during a run does not silently change its tested/deployed source. Production runs are serialized.
+The [Manual release workflow](https://github.com/cccat6/iphone-agent-harness/actions/workflows/checks.yml) runs through **Run workflow** on `main`. The workflow uses only the manual `workflow_dispatch` trigger. Each run uses its selected commit, and production runs are serialized.
 
-## What one requested run does
+## Release sequence
 
-1. Check that the deployment credential exists, install the locked Node dependencies, and run Web, contract, firmware host and release-tool tests.
-2. Compute a firmware input fingerprint from all allowlisted Arduino source files, the compiler recipe, pinned dependencies, Arduino CLI version and all declared board profiles. Web, README and private local configuration edits do not change it.
-3. Reuse a complete, matching published firmware Release if available. Otherwise reuse the verified checked-in binaries if their sealed build inputs match. Only if neither exists, install the pinned toolchain and compile **ESP32, ESP32-C3, ESP32-S3 and ESP32-C6**, each for 4 MB flash. Source or build-configuration changes invalidate reuse. A missing/expired Actions cache does not cause recompilation because no Actions cache is used for binary reuse.
-4. Verify source records, dependencies, profiles, USB settings, partition layout, offsets, sizes and SHA-256 hashes. The full declared profile set is mandatory. A corrupt/incomplete published Release fails explicitly instead of triggering a wasteful silent rebuild.
-5. Build the website **after** selecting the firmware. The selected binaries live at `apps/web/firmware/<profile>/*.bin`, so the clean Web build includes exactly those files and their manifest for online flashing.
-6. Create or reuse `firmware-<full-input-SHA256>` in GitHub Releases. A new Release is staged as a draft until its files are uploaded. Published firmware Releases are never overwritten by this workflow; incomplete drafts can be retried. If the draft already has its complete archive and checksum file, the workflow verifies and reuses it to repair missing loose assets without recompilation. Each Release has **16 individual `.bin` files**, the flashing manifest, build report, build-input record, a complete `.tar.gz` package and `SHA256SUMS`. The archive includes licenses. This is a workflow immutability policy, not protection against a repository owner manually editing assets.
-7. Apply the idempotent community schema bootstrap, then deploy Worker `igent-web` and the clean static website to `igent.cc`, including all selected firmware files. The database command uses `CREATE ... IF NOT EXISTS`; it does not wipe community records. Future non-additive database changes need their own migration design.
-8. Read back every deployed file and compare it with the exact clean build. The check includes all 16 firmware binaries. Save fresh deployment and firmware evidence as Actions artifacts; old checked-in reports are not uploaded as a substitute for a new check.
+1. Install the locked dependencies and run Web, protocol, firmware and build-tool checks.
+2. Calculate a firmware input fingerprint from the Arduino source, compiler recipe, pinned dependencies and board profiles.
+3. Reuse matching published or checked-in firmware. When those inputs change, compile all seven profiles: C2 at 26 MHz and 40 MHz, C3, C5, C6, S3 and classic ESP32. C2 uses a 2 MB layout; the others use 4 MB.
+4. Verify source provenance, dependencies, flash offsets, partition bounds, sizes and SHA-256 hashes.
+5. Build the website with the selected firmware and flashing manifest.
+6. Publish `firmware-<full-input-SHA256>`. A release contains 28 binary parts, manifest, build report, build-input record, a complete archive and `SHA256SUMS`. Draft uploads can resume; matching published releases are reused.
+7. Apply the community database schema and deploy the Worker and website to `igent.cc`.
+8. Read back deployed files and compare their hashes with the build. Save the verification reports as Actions artifacts.
 
-A Web-only release still builds and deploys the current website, but does **not** recompile unchanged firmware or create a duplicate firmware Release. If a deployment fails after Release publication, the next explicitly requested run reuses that firmware Release. The run never opens a serial port, flashes a physical board or verifies phone behavior.
+Web-only changes rebuild the website and reuse the existing firmware. A retry after a deployment failure also reuses an already published matching firmware release.
 
 ## Deployment credential
 
-The repository secret **`CLOUDFLARE_API_TOKEN`** is required. The existing account ID, Worker name, custom domain and D1 binding are already in [wrangler.jsonc](../../wrangler.jsonc); these are not secrets. Use a dedicated token scoped to the configured account and the `igent.cc` zone, with Workers Scripts edit, Workers Routes edit, Zone read and D1 edit permissions needed by the commands. Do not grant access to unrelated accounts/zones, put the token in Git or paste it into a conversation. Enter it directly in [repository Actions secrets](https://github.com/cccat6/iphone-agent-harness/settings/secrets/actions).
+Set `CLOUDFLARE_API_TOKEN` in [repository Actions secrets](https://github.com/cccat6/iphone-agent-harness/settings/secrets/actions). Use the configured account and `igent.cc` zone, with Workers Scripts edit, Workers Routes edit, Zone read and D1 edit permissions. Account, Worker, domain and database settings are in [wrangler.jsonc](../../wrangler.jsonc).
 
-## Maintainer tools
+## Maintainer commands
 
 ```sh
 python3 tools/firmware_release.py plan --offline
@@ -31,6 +31,6 @@ npm run build
 npx wrangler deploy --dry-run
 ```
 
-`plan` also supports authenticated Release lookup using `GH_TOKEN` and `GITHUB_REPOSITORY`; `--offline` never contacts GitHub. `seal` records the current build inputs **only after** the existing source/profile/dependency/artifact checks pass. Use it after a successful real compilation of all declared profiles, not to relabel old binaries after a source/recipe change.
+`plan` can look up releases with `GH_TOKEN` and `GITHUB_REPOSITORY`; `--offline` uses local artifacts. After compiling all declared profiles, `seal` verifies the artifacts and records their build inputs.
 
-Official references: [GitHub manual workflows](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow), [Cloudflare GitHub Actions deployment](https://developers.cloudflare.com/workers/ci-cd/external-cicd/github-actions/).
+[Website deployment](deployment.md) · [Arduino guide](../../firmware/IPhoneAutomationHarness/README.md)

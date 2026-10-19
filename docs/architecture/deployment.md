@@ -1,21 +1,23 @@
-# Hosting and deployment
+# Official website deployment
 
-The official site is [igent.cc](https://igent.cc). Self-hosting uses the clean `build/site` output under HTTPS. Private conversations, images and credentials remain browser-local; selected context goes directly to configured model services.
+The official site is [igent.cc](https://igent.cc). Worker `igent-web` serves the static website and the public skill API. The D1 binding and routes are defined in [wrangler.jsonc](../../wrangler.jsonc).
 
-## Self-hosted page routing
+## Routes
 
-Return `index.html` only for the document routes `/`, `/main`, `/skills` and `/flash`, or their equivalents under a chosen base path. Missing scripts/assets must remain true 404s. `/api/skills` is JSON, not a user page. The included Worker and local preview implement these rules; another host needs equivalent routing.
+| Route | Content |
+|---|---|
+| `/` | Harness on iPhone/iPad; homepage on desktop |
+| `/main` | Homepage and setup links |
+| `/skills` | Skill community |
+| `/flash` | Browser firmware installer |
+| `/api/skills` | Public skill packages and publication API |
 
-Phone/tablet entry opens Harness, while desktop entry opens the homepage. Phone screen sharing needs HTTPS. Local bridge setup uses its separate HTTP manager; normal control uses WebRTC Direct. Model/MCP endpoints require browser CORS and reachable HTTPS.
+Document routes return `index.html`. Missing assets return 404. `build/site` contains the complete website, firmware manifest and precompiled binary parts.
 
-## Optional public skill API
+## Publishing a release
 
-Static hosting alone does not accept publication writes. Configure the included Worker/D1 API or another compatible service, or leave community publishing disabled. The official client base is `https://igent.cc/api`; signatures use the exact site origin as audience. Allow only configured browser origins. The API stores explicit public packages, signatures and revisions, not conversations, model credentials or screenshots.
+Use the [manual release workflow](manual-release.md). It checks the source, selects matching firmware, builds the site, applies the community schema, deploys the Worker and verifies served files against the build.
 
-Browser data belongs to its origin: moving hosts requires explicit export/import, including a separate encrypted creator-identity backup for authorship. Never embed API keys, local configuration or private user data in a static build.
+The workflow reads `CLOUDFLARE_API_TOKEN` from repository secrets. Ordinary pushes and pull requests leave the deployed site unchanged. Production deployments run one at a time.
 
-## Releases
-
-Normal pushes do not start GitHub Actions. An explicitly requested [manual release](manual-release.md) validates source, reuses or builds all declared firmware profiles, publishes release assets, includes the same binaries in the site, deploys and verifies served files. Configure required deployment credentials before dispatch. A deployment success is not physical-phone acceptance.
-
-For a self-hosted installation, open that host’s `/flash` page when reading the board over USB. Its phone connection link uses the same HTTPS origin, so the phone opens your own Harness with the board’s public connection information. Browser-local data remains separated by origin.
+The public skill API stores published packages, signatures and revisions. Conversations, screen images and model credentials remain in the user's browser; selected task context goes directly to the configured model service.

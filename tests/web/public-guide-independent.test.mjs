@@ -13,9 +13,14 @@ test('all eight full guides expose all eleven stable sections in setup order',as
   assert.equal((text.match(/^## \d+\./gm)||[]).length,11,path+' must retain eleven procedural sections');assert.match(text,/https:\/\/igent\.cc\/flash/);assert.match(text,/https:\/\/igent\.cc\/shortcuts\/clipboard\.html/);
  }
 });
-test('all eight README entry points resolve every full-guide section and the architecture illustration',async()=>{
+test('all eight README entry points retain setup links, an editable architecture and playable demonstration',async()=>{
  for(const path of readmes){const text=await readFile(resolve(root,path),'utf8'),links=[...text.matchAll(/\[[^\]]*\]\(([^)]+)\)/g)].map(match=>match[1]);
   for(const anchor of anchors){const target=links.find(href=>href.endsWith('#'+anchor));assert.ok(target,path+': missing '+anchor+' entry');const guide=await readFile(resolve(root,dirname(path),target.split('#')[0]),'utf8');assert.ok(guide.includes('<a id="'+anchor+'"></a>'),path+': broken '+anchor+' target');}
-  const locale=path==='README.md'?'':path.split('/').at(-1).replace('.md',''),architecture=links.find(href=>href.endsWith('/media/architecture'+(locale?'.'+locale:'')+'.svg'));assert.ok(architecture,path+': architecture image is missing');assert.match(await readFile(resolve(root,dirname(path),architecture),'utf8'),/<svg\b/);
+  const diagram=text.match(/```mermaid\n([\s\S]*?)\n```/);assert.ok(diagram,path+': Mermaid architecture is missing');
+  for(const component of ['Harness','Apps','Storage','AI','Bridge'])assert.ok(diagram[1].includes(component),path+': architecture missing '+component);
+  assert.match(text,/^https:\/\/github\.com\/user-attachments\/assets\/[a-f0-9-]+$/m,path+': native video attachment is missing');
+  const images=[...text.matchAll(/<img src="([^"]+-example\.jpg)"/g)].map(match=>match[1]);assert.equal(images.length,3,path+': screenshot gallery is incomplete');
+  for(const image of images){const bytes=await readFile(resolve(root,dirname(path),image));assert.equal(bytes.readUInt16BE(0),0xffd8,path+': screenshot is not JPEG');}
+
  }
 });

@@ -4,6 +4,6 @@ The UI and repository README are available in English, 简体中文, 繁體中�
 
 UI-owned buttons, guidance, asynchronous errors and empty states follow the selected locale. User messages, titles, skill content, account names, model IDs and protocol identifiers remain unchanged. Package IDs stay stable across translations.
 
-Translation key/placeholder checks are automated, but key parity does not prove visual layout or translation quality on every screen. Check mobile keyboard, dialogs and dynamic states when changing copy.
+Automated checks verify translation keys and interpolation values. Review mobile layouts, dialogs and dynamic states when changing copy.
 
-GitHub has one repository description; it does not automatically localize that field. README navigation is separate from the site's language selection.
+GitHub uses one repository description shared across languages. README navigation is separate from the site's language selection.

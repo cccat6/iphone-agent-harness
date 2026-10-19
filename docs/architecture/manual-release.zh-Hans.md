@@ -2,24 +2,24 @@
 
 [English](manual-release.md)
 
-GitHub Actions **仅在你要求时运行**。普通推送、PR、标签和 Release 发布都不会触发。入口为 [Manual release](https://github.com/cccat6/iphone-agent-harness/actions/workflows/checks.yml)，配置见 [checks.yml](../../.github/workflows/checks.yml)。需要发布时选 `main`，点击 **Run workflow**；助手必须收到明确要求后才可触发。一次运行固定使用启动时选定的提交，中途推送不会悄悄替换已经测试的源码。生产发布串行执行。
+在 [Manual release](https://github.com/cccat6/iphone-agent-harness/actions/workflows/checks.yml) 中选择 `main`，点击 **Run workflow** 运行。工作流仅使用手动 `workflow_dispatch` 触发器。每次使用启动时选定的提交，生产发布串行执行。
 
-## 一次手动运行会做什么
+## 发布流程
 
-1. 检查部署凭据，安装锁定的 Node 依赖，运行 Web、协议、固件主机和发布工具检查。
-2. 对 Arduino 的全部白名单源码、编译脚本、固定依赖、Arduino CLI 版本和全部声明的开发板配置计算指纹。只改网页、README 或本地私有配置，不改变这个指纹。
-3. 优先从对应 GitHub Release 复用完整固件；没有时，使用仓库中输入指纹匹配、校验通过的现有固件。两者都没有才安装工具链并编译 注册的全部 4 MB 固件版本。源码或编译配置变化会使复用失效。固件复用不依赖 Actions 缓存，所以缓存过期不会迫使它重新编译。
-4. 检查源码记录、依赖版本、全部声明配置、USB 设置、分区、地址、大小及 SHA-256。已发布 Release 损坏或不完整时明确失败，不悄悄重新编译。
-5. **先选定固件，再构建网站**。固件放在 `apps/web/firmware/<profile>/*.bin`，网站构建会把同一批二进制及刷写清单带上，供在线烧录。
-6. 创建或复用 `firmware-<完整输入SHA256>` Release。新 Release 先以草稿上传，全部完成后才发布；本流程不覆盖已发布 Release，失败的未完成草稿可以重试；草稿中只要已有完整归档和校验表，校验通过后即可恢复缺失的单独资产，无需重新编译。每批包含 **16 个可单独下载的 `.bin` 文件**、刷写清单、编译报告、输入记录、完整 `.tar.gz` 包和 `SHA256SUMS`；归档包含许可证。这里的“不覆盖”是流程约束，不能阻止仓库所有者手工修改资产。
-7. 执行社区数据库的幂等建表操作，再将 Worker `igent-web`、静态网页和所有选定固件一起部署到 `igent.cc`。当前数据库命令只有 `CREATE ... IF NOT EXISTS`，不会清空社区记录；未来非新增型结构改动需要另外设计迁移。
-8. 逐文件读取线上内容，与本次干净构建比较哈希，包含全部 16 个烧录二进制。把新生成的部署与固件证据保存为 Actions 产物，不拿旧报告冒充本轮结果。
+1. 安装锁定依赖，运行网页、协议、固件和构建工具检查。
+2. 根据 Arduino 源码、编译脚本、固定依赖和开发板配置计算固件输入指纹。
+3. 复用匹配的已发布固件或仓库内固件。输入变化时，编译全部七个版本：C2 的 26 MHz 和 40 MHz 版本，以及 C3、C5、C6、S3 和经典 ESP32。C2 使用 2 MB 分区，其他版本使用 4 MB 分区。
+4. 校验源码来源、依赖、烧录地址、分区范围、大小及 SHA-256。
+5. 构建网站，包含所选固件和烧录清单。
+6. 发布 `firmware-<完整输入SHA256>`。每个 Release 包含 28 个二进制分区文件、烧录清单、编译报告、输入记录、完整归档和 `SHA256SUMS`。草稿上传可续传，已发布且匹配的版本直接复用。
+7. 更新社区数据库结构，将 Worker 和网站部署到 `igent.cc`。
+8. 读取线上文件，与构建文件逐一比较哈希，将校验报告保存为 Actions 产物。
 
-只改网页时仍会构建、部署最新网页，但**不会重编译未变化的固件，也不会重复创建固件 Release**。如果 Release 发布后网站部署失败，下次经你要求重试时会复用该 Release。流程不会打开串口、刷写实体开发板，也不代替手机真机验收。
+只修改网页时，重新构建网站并复用现有固件。网站部署失败后再次运行，也会复用已经发布且匹配的固件。
 
-## 还需配置一次的部署凭据
+## 部署凭据
 
-仓库需要 Secret：**`CLOUDFLARE_API_TOKEN`**。账号 ID、Worker、域名及 D1 绑定已放在 [wrangler.jsonc](../../wrangler.jsonc)，这些不是密钥。请用专用 Token，只授权当前账号和 `igent.cc` 区域，包含这些命令所需的 Workers Scripts 编辑、Workers Routes 编辑、Zone 读取、D1 编辑权限；不要授权无关账号／域名。直接填入 [GitHub Actions Secrets](https://github.com/cccat6/iphone-agent-harness/settings/secrets/actions)，不要提交到 Git 或粘贴进聊天。
+在 [GitHub Actions Secrets](https://github.com/cccat6/iphone-agent-harness/settings/secrets/actions) 设置 `CLOUDFLARE_API_TOKEN`。令牌使用当前账号和 `igent.cc` 区域，具有 Workers Scripts 编辑、Workers Routes 编辑、Zone 读取及 D1 编辑权限。账号、Worker、域名和数据库配置见 [wrangler.jsonc](../../wrangler.jsonc)。
 
 ## 维护命令
 
@@ -31,6 +31,6 @@ npm run build
 npx wrangler deploy --dry-run
 ```
 
-`plan` 可通过 `GH_TOKEN` 和 `GITHUB_REPOSITORY` 查询 Release；`--offline` 不访问 GitHub。`seal` 只在现有源码、配置、依赖和二进制检查通过后记录输入：应在真实完成四平台编译后使用，不能用它把旧二进制重新标为新源码。
+`plan` 可使用 `GH_TOKEN` 和 `GITHUB_REPOSITORY` 查询 Release；`--offline` 使用本地产物。完成全部声明版本的编译后，运行 `seal` 校验并记录构建输入。
 
-官方参考：[GitHub 手动运行](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow)、[Cloudflare Actions 部署](https://developers.cloudflare.com/workers/ci-cd/external-cicd/github-actions/)。
+[网站部署](deployment.md) · [Arduino 说明](../../firmware/IPhoneAutomationHarness/README.md)

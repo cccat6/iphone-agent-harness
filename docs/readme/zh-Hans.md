@@ -1,99 +1,124 @@
-# iPhone Agent Harness
+<h1 align="center">iPhone Agent Harness</h1>
 
-[English](../../README.md) · **简体中文** · [繁體中文](zh-Hant.md) · [日本語](ja.md) · [Русский](ru.md) · [Deutsch](de.md) · [Français](fr.md) · [Español](es.md)
+<p align="center"><strong>让智能体自动操作你的 iPhone。</strong></p>
 
-**用浏览器和约 2 美元的 ESP32-C3，给 iPhone 一个 AI 助手。**
+<p align="center">
+  <a href="../../README.md">English</a> · <strong>简体中文</strong> · <a href="zh-Hant.md">繁體中文</a> · <a href="ja.md">日本語</a> · <a href="ru.md">Русский</a> · <a href="de.md">Deutsch</a> · <a href="fr.md">Français</a> · <a href="es.md">Español</a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/cccat6/iphone-agent-harness/actions/workflows/checks.yml"><img src="https://github.com/cccat6/iphone-agent-harness/actions/workflows/checks.yml/badge.svg" alt="CI"></a>
+  <a href="../../LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="MIT License"></a>
+  <img src="https://img.shields.io/badge/iOS%20%2F%20iPadOS-27%2B-111827" alt="iOS / iPadOS 27+">
+  <img src="https://img.shields.io/badge/ESP32-C2%20%C2%B7%20C3%20%C2%B7%20C5%20%C2%B7%20C6%20%C2%B7%20S3%20%C2%B7%20Classic-0e7490" alt="ESP32 C2, C3, C5, C6, S3, Classic">
+</p>
+
+<p align="center">
+  <a href="https://igent.cc/">📱 打开 Harness</a> ·
+  <a href="https://igent.cc/flash">⚡ 浏览器烧录</a> ·
+  <a href="../guide/zh-Hans.md">📖 完整教程</a> ·
+  <a href="https://igent.cc/skills">🧩 技能社区</a> ·
+  <a href="../architecture/overview.md">🗺️ 架构图</a>
+</p>
 
 用自然语言让 iPhone 完成一件事：读屏、输入文字、调整控件，或跨 App 执行一段流程。小巧的 ESP32 通电后提供蓝牙输入，Safari 负责对话、取屏与 AI 调度。
 
-[打开 Harness](https://igent.cc/) · [浏览器烧录](https://igent.cc/flash) · [完整教程](../guide/zh-Hans.md) · [技能社区](https://igent.cc/skills) · [架构图](../architecture/overview.md)
+- **浏览器直接烧录。** 在电脑 Chrome 或 Edge 中选择 ESP32 型号，安装对应固件。
+- **手机保持无线。** 给桥通电，放在房间角落或架子上，保持在手机的蓝牙范围内。
+- **使用日常 Wi-Fi。** 手机与桥连接家里或办公室的同一网络，打开 Safari 就能开始任务。
 
-- **浏览器直接烧录。** 电脑 Chrome 或 Edge 使用预编译固件，不需要安装编译器、Arduino 环境或构建手机 App。
+https://github.com/user-attachments/assets/d72669a6-e150-40d7-ba2f-1d9586d9c2ea
 
-- **手机保持无线。** 配好后让桥在房间角落或架子上持续供电，只要在蓝牙／Wi-Fi 范围内即可，无需 USB 连着手机。
+智能体在真实 iPhone 上设置闹钟。
 
-- **使用原来的网络。** 手机和桥连接同一局域网 Wi-Fi，ESP 热点只用于首次配网。无需原生 App、证书安装、辅助标签页或另建局域网中继服务；开始共享时正常确认屏幕共享提示即可。
-
-![演示占位图：浏览器、ESP32 桥和手机。操作视频／GIF 即将补充。](../../apps/web/media/demo-placeholder.svg)
-
-操作视频／GIF 待补充。
-
-## 它如何工作
+## ⚙️ 工作原理
 
 Safari 读取手机画面，将选中的上下文发给你选择的 AI。Harness 检查动作计划，通过局域网 WebRTC 直接交给 ESP32，再由蓝牙键鼠操作手机；新的画面观察确认结果。
 
-![架构：浏览器、所选 AI、本地 ESP32 与手机](../media/architecture.zh-Hans.svg)
+```mermaid
+flowchart LR
+  subgraph Phone["iPhone / iPad"]
+    Harness["Safari · Harness"]
+    Apps["iPhone / iPad 应用"]
+    Storage[("浏览器本地存储<br/>会话 · 图片 · 密钥")]
+    Apps -->|屏幕共享| Harness
+    Harness <--> Storage
+  end
+  Harness <-->|上下文 / 回复| AI["你选择的 AI"]
+  Harness <-->|WebRTC · 局域网 Wi-Fi| Bridge["ESP32 桥"]
+  Bridge -->|蓝牙键盘 / 鼠标| Apps
+```
 
 [架构图](../architecture/overview.md)
 
-## 选择开发板
+## 🔌 选择开发板
 
-基础 ESP32-C3 开发板可把约 **2 美元**作为入门成本示例，实际价格取决于商家、运费和板型。按安装器显示的实际芯片选固件，准备可传数据的 USB 线。
+约 **2 美元**的基础 ESP32-C3 开发板即可入门。在[网页烧录器](https://igent.cc/flash)选择芯片，用 USB 数据线连上电脑即可烧录。
 
-| 芯片 | 固件状态 | 说明 |
-|---|---|---|
-| ESP32-C2 | 提供预编译下载 | 最低 2 MB；26/40 MHz 自动选择；USB 转串口；单应用、无 OTA |
-| ESP32-C3 | 提供预编译下载 | 4 MB 闪存；浏览器安装 |
-| ESP32-C5 | 提供预编译下载 | 4 MB 闪存；80 MHz 闪存配置；原生 USB CDC |
-| ESP32-C6 | 提供预编译下载 | 4 MB 闪存；浏览器安装 |
-| ESP32-S3 | 提供预编译下载 | 4 MB 闪存；浏览器安装 |
-| ESP32 (classic) | 提供预编译下载 | 4 MB 闪存；浏览器安装 |
+| 芯片 | 支持型号 |
+|---|---|
+| ESP32-C2 | 最低 2 MB · 自动识别 26/40 MHz 晶振 |
+| ESP32-C3 | 全部型号* |
+| ESP32-C5 | 全部型号* |
+| ESP32-C6 | 全部型号* |
+| ESP32-S3 | 全部型号* |
+| ESP32 (classic) | 全部型号* |
 
-## 安装并开始使用
+*C3、C5、C6、S3 和经典 ESP32 的当前固件适用于容量至少 4 MB 的标准 SPI 闪存。
+
+## 🚀 安装并开始使用
 
 完整教程覆盖全部步骤，下列链接直接跳到对应章节：
 
-1. **[开启辅助功能](../guide/zh-Hans.md#accessibility)。** 开启辅助触控，全键盘控制可保持原设置。
+1. **[开启辅助功能](../guide/zh-Hans.md#accessibility)**
 
-2. **[烧录固件](../guide/zh-Hans.md#flash)。** 电脑打开安装器，选择芯片并安装对应镜像。
+2. **[烧录固件](../guide/zh-Hans.md#flash)**
 
-3. **[连接 Wi-Fi](../guide/zh-Hans.md#wifi)。** 首次保存常用 2.4 GHz 网络，手机回到同一局域网。
+3. **[连接 Wi-Fi](../guide/zh-Hans.md#wifi)**
 
-4. **[蓝牙配对](../guide/zh-Hans.md#bluetooth)。** 在 iOS 设置中配对 iPhone Agent Bridge。
+4. **[蓝牙配对](../guide/zh-Hans.md#bluetooth)**
 
-5. **[打开 Harness](../guide/zh-Hans.md#open-harness)。** 使用 iOS/iPadOS 27+ Safari，任务期间保持解锁。
+5. **[打开 Harness](../guide/zh-Hans.md#open-harness)**
 
-6. **[配置 AI](../guide/zh-Hans.md#models)。** 保存 OpenAI／Anthropic 兼容端点与密钥，或按界面登录 ChatGPT，获取并选择模型。
+6. **[配置 AI](../guide/zh-Hans.md#models)**
 
-7. **[连接并测试桥](../guide/zh-Hans.md#bridge)。** 导入连接链接，连接桥并选择就绪手机，数字输入测试可选。
+7. **[连接并测试桥](../guide/zh-Hans.md#bridge)**
 
-8. **[安装剪贴板快捷指令](../guide/zh-Hans.md#clipboard)。** 添加 iPhone Agent Clipboard 处理长文本／多语言，复制确认后再粘贴。
+8. **[安装剪贴板快捷指令](../guide/zh-Hans.md#clipboard)**
 
-9. **[安装社区技能](../guide/zh-Hans.md#install-skills)。** 浏览公开目录，把需要的技能添加到本浏览器。
+9. **[安装社区技能](../guide/zh-Hans.md#install-skills)**
 
-10. **[创作自己的技能](../guide/zh-Hans.md#authoring)。** 电脑或手机编写／修改指导内容，归属使用浏览器签名身份。
+10. **[创作自己的技能](../guide/zh-Hans.md#authoring)**
 
-11. **[发布技能](../guide/zh-Hans.md#publish)。** 明确发布愿意公开的包，并备份创作者身份。
+11. **[发布技能](../guide/zh-Hans.md#publish)**
 
-## 会话跟得上任务，也留得住阅读位置
+## 💬 会话、计划与技能
 
-提问、可检查的计划和操作放在同一会话。列表标题可切换会话／归档，左滑改名／归档或恢复／删除。阅读旧消息时新回复不拉走位置，点“回到最新”才回到最新内容。导入导出包含图片。AI 完成前核对结果，默认随后回到 Harness，可在“设置 → 任务完成后”关闭返回。
+在同一会话里提问、讨论计划或交给智能体执行任务。会话支持重命名、归档、搜索和导出文件。任务运行时也可以翻看历史，再随时回到最新回复。
 
-12 个内置技能涵盖观察、规划、输入、恢复、时钟控件和手势修正。内置及下载技能只读，刷新时检查更新并保留开关。自有技能可编辑，发布身份属于浏览器，不是 iOS UID。可选 MCP 可连接支持浏览器 CORS 的 Streamable HTTP 服务器，使用你选定的工具。
+技能帮助智能体完成常见手机任务，改进点按、输入和滑动。可以从社区添加技能，也可以让 Harness 帮你编写自己的技能。设置里还可以连接 MCP 工具。
 
-## 数据在自己手里，也能自己托管
+以下为 Harness 的真实界面，使用示例数据展示。
 
-会话、密钥、登录信息和截图保存在你的浏览器。我们的主机不接收你的会话、截图或模型密钥，只提供静态网页和公开技能包；选中的消息／图片直接发送给所选模型服务，已授权 MCP 请求发往所配置服务器。发布只上传明确选择的技能包。清数据或换浏览器前，导出重要会话并单独备份创作者身份。
+<table>
+  <tr><th>会话列表</th><th>示例对话</th><th>技能</th></tr>
+  <tr>
+    <td><img src="../../apps/web/media/sessions-example.jpg" width="240" alt="会话列表"></td>
+    <td><img src="../../apps/web/media/conversation-example.jpg" width="240" alt="示例对话"></td>
+    <td><img src="../../apps/web/media/skills-example.jpg" width="240" alt="技能"></td>
+  </tr>
+</table>
 
-硬件能力仍属实验阶段，手势、后台取屏、快捷指令及多手机需在目标设备检查。Safari 可能暂停后台工作；桥当前仅一个活动 WebRTC 连接，ChatGPT 订阅登录须实际核对 Safari 兼容性。可随时停止，每个动作计划保留安全限制。
+## 🔒 数据由你掌握
 
-## 开发、自托管与贡献
+会话、截图、账号信息和 API 密钥保存在你的浏览器中。选中的消息和图片直接发送给你选择的 AI 服务商，MCP 请求发送给你配置的服务器。网站提供网页，以及你选择公开分享的技能。
 
-可自行托管网页，配置自己的模型服务，按需部署公开技能 API。欢迎 Issues 和 PR；可复用技能请通过网站社区分享。
+## 🤝 参与贡献
 
-本地开发需要 Node.js 22.13 或以上。
-
-```sh
-npm ci
-npm test
-npm run build
-npm run preview
-```
-
-[Arduino 说明](../../firmware/IPhoneAutomationHarness/README.md) · [自托管](../architecture/deployment.md) · [手动发布](../architecture/manual-release.zh-Hans.md)
+欢迎[提交 Issue](https://github.com/cccat6/iphone-agent-harness/issues)反馈问题与建议，也欢迎[提交 PR](https://github.com/cccat6/iphone-agent-harness/pulls)改进项目。自制技能请在[技能社区](https://igent.cc/skills)分享。
 
 [MIT License](../../LICENSE) · [Third-party notices](../../THIRD_PARTY_NOTICES.md)
 
-## 致谢
+## 💛 致谢
 
-感谢 [onehumanbeing/esp32-iphone-agent](https://github.com/onehumanbeing/esp32-iphone-agent) 带来的启发。本项目采用独立的浏览器、取屏与蓝牙桥接设计。
+感谢 [onehumanbeing/esp32-iphone-agent](https://github.com/onehumanbeing/esp32-iphone-agent) 带来的启发。

@@ -4,7 +4,7 @@
 
 ![Architecture: browser-local reasoning and storage, direct model requests, local Wi-Fi control, Bluetooth input](../media/architecture.svg)
 
-The phone runs the Harness in Safari. The ESP32 is a small input bridge on the same local Wi-Fi network, powered independently near the phone. It receives timed command batches over WebRTC Direct and sends Bluetooth HID keyboard and pointer input to iOS. Screen capture stays on the phone; video is not streamed through the board or our hosting service.
+The phone runs the Harness in Safari. The ESP32 is a small input bridge on the same local Wi-Fi network, powered independently near the phone. It receives timed command batches over WebRTC Direct and sends Bluetooth HID keyboard and pointer input to iOS. Screen capture and frame processing stay on the phone.
 
 ```mermaid
 flowchart LR
@@ -31,7 +31,7 @@ flowchart LR
 |---|---|
 | `apps/web/` | Safari interface, model adapters, session storage, context compaction, skills, capture and execution loop; desktop skill publishing and browser firmware installation |
 | `firmware/IPhoneAutomationHarness/` | Wi-Fi setup, device identity, local WebRTC transport, Bluetooth HID, precise timing, receipts and clipboard transfer |
-| `prompts/` and `apps/web/skills/` | Fixed runtime instructions and versioned built-in procedures; skill text is not executable plugin code |
+| `prompts/` and `apps/web/skills/` | Fixed runtime instructions and versioned built-in procedures |
 | Optional public skill API | Stores deliberately published packages, signatures and revisions |
 
 ## A task, end to end
@@ -43,7 +43,7 @@ flowchart LR
 5. The Harness checks fresh screenshots, adjusts the next action or input method, and continues until the goal is verified.
 6. By default the agent returns to the current Harness conversation and confirms it is visible before ending. The user can disable this in task-completion settings.
 
-A receipt proves input submission, not that an app accepted the intended action. Interrupted or uncertain inputs are reconciled from device state and fresh observations rather than blindly replayed. Stopping screen sharing pauses the task, and the user decides when to continue.
+Input receipts record submitted commands. The runtime checks their effect with fresh observations and reconciles interrupted inputs before continuing. Stopping screen sharing pauses the task, and the user decides when to continue.
 
 ## Where data goes
 
@@ -57,8 +57,8 @@ A receipt proves input submission, not that an app accepted the intended action.
 | Published skill package, public author key and signature | Public skill community, only when the user chooses Publish |
 | Website assets and precompiled firmware | The chosen page host; self-hosting is supported |
 
-Our hosting service does not receive or store private Harness sessions, screen images, API keys or phone commands. Using an external model or MCP service sends the selected task data to that service. This is the same data flow on the official site and a self-hosted page.
+Our hosting service supplies pages, firmware and public skill packages. Private sessions, images and credentials stay in the browser. Selected task context goes directly to the configured model or MCP service; phone commands travel over the local network.
 
-The bridge currently has one active WebRTC control peer. Other phones can read setup information independently; saved browser clients and Bluetooth pairings do not imply simultaneous independent agent control.
+The bridge currently has one active WebRTC control peer. Other phones can read setup information independently; one phone controls the bridge at a time.
 
-[Transport](lan-connection.md) · [Actions](actions.md) · [Runtime](runtime.md) · [Models](auth-and-backends.md) · [Skills](skills.md) · [Self-hosting](deployment.md)
+[Transport](lan-connection.md) · [Actions](actions.md) · [Runtime](runtime.md) · [Models](auth-and-backends.md) · [Skills](skills.md) · [Website deployment](deployment.md)

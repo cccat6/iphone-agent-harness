@@ -2,9 +2,9 @@
 
 **English** · [简体中文](zh-Hans.md) · [繁體中文](zh-Hant.md) · [日本語](ja.md) · [Русский](ru.md) · [Deutsch](de.md) · [Français](fr.md) · [Español](es.md) · [Project](../../README.md) · [Open Harness](https://igent.cc/) · [Architecture](../architecture/overview.md)
 
-You need an iPhone or iPad running iOS/iPadOS 27 or later, a supported ESP32 board, USB power, local Wi-Fi and a compatible AI account or API. Use a desktop Chrome or Edge browser for firmware installation. You do not need Arduino, Xcode, a developer account, or a local compiler for the prebuilt installer.
+You need an iPhone or iPad with iOS/iPadOS 27+, an ESP32 board, USB power, Wi-Fi and an AI account or API key. Install the firmware using Chrome or Edge on a computer.
 
-The phone and bridge use the same normal Wi-Fi network. The bridge does not plug into the phone: after setup it can stay powered in a convenient place within Bluetooth range. Use a computer for the one-time Wi-Fi provisioning below so the phone never needs to join the bridge's setup hotspot.
+The phone and bridge use the same Wi-Fi. After setup, leave the bridge powered within Bluetooth range of your phone.
 
 ## Contents
 
@@ -13,112 +13,106 @@ The phone and bridge use the same normal Wi-Fi network. The bridge does not plug
 <a id="accessibility"></a>
 ## 1. Enable AssistiveTouch
 
-On the phone, open **Settings → Accessibility → Touch → AssistiveTouch** and turn it on. The bridge uses this system feature to turn Bluetooth pointer input into app interactions. You can leave Full Keyboard Access at your existing setting; it is not required for the bridge's Home action or pointer control.
+On your phone, open **Settings → Accessibility → Touch → AssistiveTouch** and turn it on. This lets the ESP32 use a pointer to tap and drag.
 
 <a id="flash"></a>
 ## 2. Install the ESP32 firmware in your browser
 
-1. On a computer, open [Flash firmware](https://igent.cc/flash) in Chrome or Edge.
-2. Choose the profile matching the chip printed on your board. The installer lists the currently built variants. ESP32-C2 needs at least **2 MB flash**; all other listed chips need **4 MB**. PSRAM, displays and external sensors are not required.
-3. Connect the board to the computer using a USB **data** cable. Select **Choose USB device and install**, then select that board in the browser's serial-port chooser.
-4. Wait for installation and verification to finish. If the board does not enter download mode automatically, hold BOOT while connecting or resetting it, then release BOOT and retry.
-5. Choose **Read device information** and select the same board. The page shows its setup Wi-Fi name/password and a phone connection link. Keep this information available for the next steps.
+1. Open the [browser installer](https://igent.cc/flash) in Chrome or Edge on a computer.
+2. Choose the chip printed on your board. C2 needs at least **2 MB flash**; the other listed chips need at least **4 MB of standard SPI flash**.
+3. Connect the board with a USB data cable. Click **Choose USB device and install**, select your board, and wait for completion.
+4. Click **Read device information**, select the same board, and keep its setup Wi-Fi details and phone connection link.
 
-USB is for firmware installation, reading setup information and supplying power. During phone operation, a power adapter or another USB power source is enough; there is no phone-to-board cable.
-
-The single **ESP32-C2** installer option automatically selects the 26 or 40 MHz crystal image. Its 2 MB image uses a single application partition without OTA. C2 connects through **USB-to-UART** (often built into the board), not native USB CDC. The **ESP32-C5** image uses 80 MHz flash and native USB CDC.
+If installation cannot start, hold the board’s BOOT button while reconnecting USB, release it, and try again. For C2, the installer automatically selects the correct 26 or 40 MHz version. After setup, leave the board powered within Bluetooth range of your phone.
 
 <a id="wifi"></a>
 ## 3. Put the bridge on your normal Wi-Fi
 
-For a new board, complete this once:
+1. On your computer, join the `iPhone-Harness-…` Wi-Fi shown by the installer, using the displayed password.
+2. Open `http://192.168.4.1`. Enter your usual Wi-Fi name and password. Use a 2.4 GHz network for compatibility with every supported chip.
+3. Once the bridge connects, put the computer back on your usual Wi-Fi. Keep the phone on that same network.
 
-1. On the **computer**, temporarily join the setup Wi-Fi shown by the installer, named `iPhone-Harness-…`, using its displayed password.
-2. Open `http://192.168.4.1` and enter the name and password of your normal local Wi-Fi. A 2.4 GHz network works with all supported variants.
-3. Wait for the page to confirm connection, then switch the computer back to that normal Wi-Fi.
-4. Keep the phone on the same local network. The phone does **not** need the board's access point or a cellular-data workaround.
-
-The bridge remembers these Wi-Fi details locally. On later power-ups it reconnects to that network. If you already configured the board, skip provisioning. The local manager at `http://igent.local/settings` can be used for the exposed device settings, including its local name.
+The bridge saves the network and reconnects when powered on. You only do this for a new board or when changing networks. Open `http://igent.local/settings` to change the bridge’s settings later.
 
 <a id="bluetooth"></a>
 ## 4. Pair the Bluetooth input bridge
 
-Open **Settings → Bluetooth** on the phone and pair **iPhone Agent Bridge**. Keep AssistiveTouch enabled. The system Bluetooth connection is separate from the browser-to-bridge network connection: the former delivers input to iOS, while the latter delivers agent commands to the board.
+On your phone, open **Settings → Bluetooth** and pair **iPhone Agent Bridge**. Keep AssistiveTouch on.
 
-After a firmware change that alters the HID reports, forget the old system Bluetooth record and pair it again. A normal page refresh or model change does not require pairing again.
+Bluetooth lets the bridge operate your phone. The Harness connects to the bridge separately over Wi-Fi in step 7.
 
 <a id="open-harness"></a>
 ## 5. Open Web Harness
 
-Open [igent.cc](https://igent.cc/) in Safari on the phone. Supported iPhone/iPad browsers enter the Harness; computer visitors get the homepage, skill community and firmware installer. No companion iOS app, certificate profile, Safari extension or Developer Mode is needed.
+Open [igent.cc](https://igent.cc/) in Safari on your iPhone or iPad. It opens the Harness directly.
 
-When you start an operation, Safari asks you to share the screen. Allow sharing and leave the phone unlocked while it works. This is the normal iOS screen-sharing prompt. You do not need experimental local-network flags or an additional network-authorization workaround. Ending sharing pauses an active task; **Continue** requests sharing again if needed.
+When you ask it to operate the phone, allow screen sharing and keep the phone unlocked. You can then switch to another app. Stopping screen sharing pauses the task; tap **Continue** in Harness to share again and resume.
 
 <a id="models"></a>
 ## 6. Configure an API or ChatGPT account
 
-Open **Settings → Accounts or API → Add**. You can keep several connections and switch their models from the conversation's model selector.
+Open **Settings → Accounts or API → Add**. You can save several connections and switch between their models in a conversation.
 
-### API endpoint and key
+**With an API key**
 
-1. Select an **OpenAI-compatible** or **Anthropic-compatible** API.
-2. Enter the provider's endpoint, API key and a name for this connection. Use the form's endpoint hint: a service root or `/v1` base works, and a complete supported operation URL is normalized by the adapter.
-3. Choose **Fetch models**. Select a default model from the list or type a model ID. All discovered models remain available in the session selector.
-4. Save. For phone tasks choose a model that can understand images and call tools. Set a supported reasoning effort from the selector when available.
+1. Choose **OpenAI-compatible** or **Anthropic-compatible**, according to your provider.
+2. Enter a name, the API endpoint and the key. For example, `https://api.example.com/v1` is an endpoint; you can also paste a full `/chat/completions` or `/messages` address for the matching API type.
+3. Click **Fetch models** and choose a default, or enter a model name yourself. All models in the list remain available in conversations.
+4. Save. Choose a model that accepts images and tool calls for phone tasks. Adjust reasoning effort in the model selector if the model offers it.
 
-Keys are saved in this browser. A selected request goes directly to that provider; it is not relayed through the website host. Your provider must allow browser requests from the site you use.
+**With a ChatGPT account**
 
-### ChatGPT subscription account
+Enable device-code login in ChatGPT’s security settings, then choose the ChatGPT/Codex option in Harness. Start sign-in, open the official page shown, and enter the code. Return to Harness to finish signing in, load models and save. For a managed workspace, ask its administrator to enable device-code login if the setting is unavailable. [OpenAI’s login instructions](https://learn.chatgpt.com/docs/auth#preferred-device-code-authentication-beta).
 
-First enable device-code login in your ChatGPT security settings; a managed workspace may require its administrator to enable it. Then select the ChatGPT/Codex account option in Harness, start device-code sign-in, open the official verification page shown in the form, and enter the displayed code. Complete sign-in there, return to Harness and choose the completion button. Load available models and save the connection. The returned credentials are kept locally and refreshed by the account adapter. This is a subscription connection rather than an ordinary OpenAI API key; the official sign-in service must be reachable from your browser. See [OpenAI’s device-code authentication instructions](https://learn.chatgpt.com/docs/auth#preferred-device-code-authentication-beta).
+Your login details and API keys are saved in this browser. Requests go directly to the chosen provider, which needs to support requests from a browser.
 
 <a id="bridge"></a>
 ## 7. Connect the bridge and optionally test input
 
-1. Open **Devices** from the session list or a conversation's bridge status.
-2. If no connection information is saved, choose **Get bridge information**. Open the local bridge page, then use its return link. This imports the board's address and public WebRTC connection information. The installer's phone connection link can supply the same information.
-3. Choose **Connect ESP32 bridge** and select the paired, input-ready phone when necessary. Once information is saved, future use starts with Connect; you do not need provisioning again.
-4. If you want to verify native keyboard input, choose **Start input test** once and leave that page focused. The board types eight digits into its test field and the browser confirms the result automatically. The test is optional on current firmware.
+1. Open **Devices** from the conversation list or tap the bridge status in a conversation.
+2. For a new connection, click **Get bridge information**. On the bridge page, use its return link to return to Harness. You can also open the phone connection link from the installer.
+3. Click **Connect ESP32 bridge**. Select your paired phone if asked. Next time, the saved connection is ready to use.
+4. To check typing, click **Start input test** and stay on that page. The bridge types eight digits and Harness checks them automatically. You can skip this test.
 
-**Refresh** only reads state. “Bridge connected,” “phone Bluetooth connected” and “phone input ready” are different states. If input is still initializing, wait briefly and refresh. A known rate-limited test shows a countdown and can retry once; an unknown physical outcome is not blindly resent. Connection errors show their status and reason.
+If the phone is not shown as ready, check its Bluetooth connection, wait a moment, then click **Refresh**.
 
-Try a short task such as “Open Clock and set an alarm for 7:00.” Allow screen sharing when asked and switch to the target app. The agent observes, performs actions and verifies the result. It returns to this Harness session by default; turn off **Settings → Task completion → Return to Harness** to leave the target app open.
+Try “Open Clock and set an alarm for 7:00.” Allow screen sharing when prompted. By default, the agent returns to this conversation after finishing; change that in **Settings → Task completion → Return to Harness**.
 
 <a id="clipboard"></a>
 ## 8. Set up clipboard copy with Shortcuts
 
-1. On the phone, open the [clipboard tutorial](https://igent.cc/shortcuts/clipboard.html) and download the signed Shortcut.
-2. Add it in Apple's Shortcuts app as **iPhone Agent Clipboard**, keeping that exact name.
-3. Connect the bridge in Harness. When the agent prepares text, choose **Copy with Shortcuts**. If iOS asks the Shortcut to access the local bridge URL, allow it; this is the Shortcut's own permission prompt.
-4. After copying, return to Harness. It waits for the copy receipt and checks the intended destination field before pasting.
+1. On your phone, open the [clipboard guide](https://igent.cc/shortcuts/clipboard.html) and install the Shortcut.
+2. Keep its name **iPhone Agent Clipboard**.
+3. Connect your bridge in Harness. When text is ready, choose **Copy with Shortcuts** and allow access to the bridge if iOS asks.
+4. Return to Harness after copying so it can paste into the intended field.
 
-Text is supplied from the browser to the bridge in chunks and returned through one local HTTP response to the Shortcut. The bridge does not need to buffer the whole text. With no pending clipboard job, running the Shortcut returns no text and leaves the clipboard unchanged. The foreground **Copy and continue** action is also available without the Shortcut.
+This works for long text and different languages. You can also use **Copy and continue** while Harness is on screen.
 
 <a id="install-skills"></a>
 ## 9. Install a community skill
 
-On the phone, open **Settings → Skills → Community**, or visit the [skill community](https://igent.cc/skills). Read a skill's instructions and choose **Add to local**. Built-in skills are listed alongside community publications and are already available locally. Toggle an installed skill on or off in the local skill list.
+Open **Settings → Skills → Community**, or visit the [skill community](https://igent.cc/skills). Open a skill, read its description and choose **Add to local**. You can enable or disable it in your skill list.
 
-Reloading the page updates built-ins and checks for updates to unmodified community installs. Your enable choices and locally changed content are retained. An active task continues with the versions it started with; updates apply to subsequent tasks. Community downloads remain read-only and keep their original author.
+Built-in skills are already installed. Refreshing the page checks for skill updates and keeps your on/off choices. Updates take effect on the next task.
 
 <a id="authoring"></a>
 ## 10. Create and improve your own skill
 
-On a computer, open [Skills](https://igent.cc/skills) and choose **Create your own skill** under **Create and publish**. On the phone use **Settings → Skills → Create**. Give it a name, a lowercase slug, a short description and Markdown instructions, then save the local draft.
+On a computer, open [Skills](https://igent.cc/skills) and choose **Create your own skill**. On the phone, use **Settings → Skills → Create**. Fill in a name, a short identifier using lowercase letters, a description and the instructions, then save.
 
-You can also ask Harness to create or improve your own skill. Describe the goal, when the procedure applies, the controls to use, what a successful screenshot should show and what to change after a failed attempt. Community downloads and built-in skills stay read-only.
+You can also ask Harness to write or improve a skill you created. Explain when to use it, the steps to follow and how to check the result. To adapt a community skill, create your own skill instead of editing the author’s copy.
 
-Ownership is a browser-generated signing identity, available on computers as well as iOS. Before moving to another browser or device, export your skill file and the encrypted **Creator identity** backup. Restore the identity and import your own skill file to continue editing under the same author.
+Before moving browsers, export your skills and save a **Creator identity** backup. Import both in the new browser to keep publishing as the same author.
 
 <a id="publish"></a>
 ## 11. Share a skill
 
-On the community page, choose **Publish** for your own draft; on the phone open the skill's sharing panel and choose **Publish to community**. Review it and confirm publication. The public package is signed by your local creator identity. Editing and publishing your own skill again creates its next version; other users receive the update when their installed copies refresh.
+Open one of your own skills and choose **Publish** on the community page, or **Publish to community** on the phone. Check its contents and confirm. Edit and publish it again to release an update.
 
-Use [Issues](https://github.com/cccat6/iphone-agent-harness/issues) for bugs and feature requests, and [pull requests](https://github.com/cccat6/iphone-agent-harness/pulls) for code, docs and translations. Share custom skills through the website community rather than a code PR.
+Other users can find it in the community and add it to their Harness. For bugs and feature ideas, [open an issue](https://github.com/cccat6/iphone-agent-harness/issues); for code or documentation improvements, [send a pull request](https://github.com/cccat6/iphone-agent-harness/pulls).
 
-## Sessions and self-hosting
+## Manage your conversations
 
-The session-list title switches between **Sessions** and **Archived**. Swipe a row for Rename/Archive, or Rename/Unarchive/Delete in the archive. Older messages load as you scroll; incoming replies preserve your reading position. Use **Latest** to return to the current output.
+Tap the conversation-list title to switch between **Sessions** and **Archived**. Swipe a conversation to rename or archive it; in the archive you can restore or delete it. Scroll up to read older messages and tap **Latest** to return to the newest reply.
 
-Sessions, stored images and credentials stay in the current browser. Export sessions from their menu and import them in Settings; exports exclude credentials. The website host supplies pages and public skills, while selected model/MCP data goes directly to those configured services. You can also [host the web harness yourself](../architecture/deployment.md).
+Export a conversation from its menu and import it in Settings. The file includes its messages and images. Account details and keys are saved separately in the browser.
