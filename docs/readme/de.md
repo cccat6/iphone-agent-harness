@@ -12,8 +12,8 @@ Die Website ist unter [igent.cc](https://igent.cc) erreichbar. Harness verbindet
 
 ## Funktionen
 
-- **Sitzungen:** lokale Nachrichten und Bilder, Suche, Umbenennen, Anheften, Archivieren sowie Dateiimport und -export. Besprechen, Planen und Ausführen erfolgen in einem Chat. Eine Bitte um einen Plan startet keine Aktionen.
-- **Konten oder API:** mehrere Verbindungen, OpenAI- und Anthropic-kompatible Endpunkte sowie Modellabfrage und -wechsel. Anmeldung und Adapter für ChatGPT-Abonnements sind implementiert; die tatsächliche Anmeldung in Safari wird noch geprüft.
+- **Sitzungen:** lokale Nachrichten und Bilder, Suche, Umbenennen, Anheften, Archivieren sowie Dateiimport und -export. Besprechen, Planen und Ausführen erfolgen in einem Chat. Eine Bitte um einen Plan startet keine Aktionen. Aus der ersten Anfrage wird automatisch ein Titel erstellt; manuelle Namen und importierte Titel bleiben erhalten.
+- **Konten oder API:** mehrere Verbindungen, OpenAI- und Anthropic-kompatible Endpunkte sowie Modellabfrage und -wechsel. Anmeldung und Adapter für ChatGPT-Abonnements sind implementiert; die tatsächliche Anmeldung in Safari wird noch geprüft. Unterstützte Modelle bieten eine Auswahl der Denkintensität (Reasoning Effort), die pro Konto und Modell gespeichert wird.
 - **Kontext:** automatische Modellzusammenfassungen ab einer einstellbaren Schwelle von standardmäßig **750.000 Token**. Der vollständige Verlauf bleibt auf dem Gerät.
 - **Bilder:** JPEG-Komprimierung in drei Qualitätsstufen bei unveränderten Originalabmessungen.
 - **Skills:** zehn integrierte Skills, eigene bearbeitbare Skills, Community-Downloads und Veröffentlichung. Die offizielle Community-Adresse ist voreingestellt. Das Harness hilft im Chat beim Erstellen und Überarbeiten eigener Skills.

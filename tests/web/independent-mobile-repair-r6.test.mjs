@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import vm from 'node:vm';
+import {modelReasoningMetadata} from '../../apps/web/core/reasoning.js';
 
 const source=await readFile(new URL('../../apps/web/app.js',import.meta.url),'utf8');
 const start=source.indexOf('  const applyModels='),end=source.indexOf("\n  $('#discover-models').onclick",start);
@@ -12,7 +13,7 @@ function harness(){
  const dropdown={innerHTML:'original',options:[{}]},field={hidden:true};
  let nodes={'#provider-form':form,'#provider-models':dropdown,'#discovered-models-field':field};
  const calls=[],state={providerModels:[],store:{saveSettings:patch=>{calls.push(['save',patch]);return pending;}}};
- const context=vm.createContext({state,editorForm:form,provider:{id:'original',protocol:'openai',baseUrl:'https://example.com/v1'},editorActive:()=>active,$:s=>nodes[s],isCodex:()=>false,modelContextMetadata:()=>({}),safeURL:x=>x,normalizeProviderEndpoint:x=>x,providers:()=>[{id:'original'}],renderModelOptions(){},t:x=>x,escapeHTML:x=>x,modelsStatus:x=>calls.push(['status',x]),setLocalizedText(){}});
+ const context=vm.createContext({state,editorForm:form,provider:{id:'original',protocol:'openai',baseUrl:'https://example.com/v1'},editorActive:()=>active,$:s=>nodes[s],isCodex:()=>false,modelContextMetadata:()=>({}),modelReasoningMetadata,safeURL:x=>x,normalizeProviderEndpoint:x=>x,providers:()=>[{id:'original'}],renderModelOptions(){},t:x=>x,escapeHTML:x=>x,modelsStatus:x=>calls.push(['status',x]),setLocalizedText(){}});
  vm.runInContext('let modelSequence=1;\n'+source.slice(start,end)+'\nglobalThis.apply=applyModels;',context);
  return {form,dropdown,field,state,calls,start:(models=[{id:'original-model',name:'Original model'}])=>context.apply(models),resolve:()=>resolve({providers:[]}),replace(){active=false;const next={innerHTML:'replacement',options:[{}]},nextField={hidden:true};nodes={'#provider-form':{},'#provider-models':next,'#discovered-models-field':nextField};return {next,nextField};},close(){active=false;nodes={};},invalidate(){state.providerModels=[];vm.runInContext('modelSequence++;',context);}};
 }

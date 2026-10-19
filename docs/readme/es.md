@@ -12,8 +12,8 @@ El sitio está en [igent.cc](https://igent.cc). Harness se conecta al puente ESP
 
 ## Funciones
 
-- **Conversaciones:** mensajes e imágenes locales, búsqueda, cambio de nombre, fijado, archivo e importación y exportación de archivos. Conversación, planificación y ejecución comparten un mismo chat. Pedir un plan no inicia acciones.
-- **Cuentas o API:** varias conexiones, endpoints compatibles con OpenAI y Anthropic, carga y cambio de modelos. El adaptador y la interfaz de acceso a la suscripción de ChatGPT están implementados; el inicio de sesión real en Safari sigue pendiente de verificación.
+- **Conversaciones:** mensajes e imágenes locales, búsqueda, cambio de nombre, fijado, archivo e importación y exportación de archivos. Conversación, planificación y ejecución comparten un mismo chat. Pedir un plan no inicia acciones. El título se genera automáticamente a partir de la primera petición; se conservan los nombres elegidos manualmente y los importados.
+- **Cuentas o API:** varias conexiones, endpoints compatibles con OpenAI y Anthropic, carga y cambio de modelos. El adaptador y la interfaz de acceso a la suscripción de ChatGPT están implementados; el inicio de sesión real en Safari sigue pendiente de verificación. Los modelos compatibles permiten elegir el esfuerzo de razonamiento, que se guarda por separado para cada cuenta y modelo.
 - **Contexto:** resúmenes automáticos del modelo con un umbral ajustable de **750 000 tokens** por defecto. El historial completo permanece en el dispositivo.
 - **Imágenes:** compresión JPEG con tres niveles de calidad y las dimensiones originales.
 - **Habilidades:** diez habilidades integradas, creación y edición de las propias, descargas y publicación en la comunidad. La dirección oficial ya está configurada. El Harness puede ayudarte a escribir y mejorar tus habilidades mediante el chat.

@@ -28,6 +28,6 @@ Session: `{id,title,mode:'chat'|'plan'|'task',modelId,pinned,archived,createdAt,
 
 UI import `./core/harness.js`，使用 `createHarness({store,onEvent})`；`await harness.run({sessionId,text,mode,modelId,signal})`、`harness.stop()`。UI 不重复插入 run 内的用户消息；事件至少 `{type:'status',status}`、`{type:'message',message}`、`{type:'delta',text}`、`{type:'error',message}`。真实后端未配置时给明确错误，不生成伪模型文本。
 
-UI 设置 provider 为 `{id,name,protocol:'openai'|'anthropic'|'codex',baseUrl,model,stream:true}`。凭据只用 `setCredential(providerId,secret)` / `hasCredential(providerId)`（core/credentials.js，默认内存），不调用持久设置保存原文 key。Codex profile 保存后显示显式设备码登录入口，显示官方实际签发的状态；真实浏览器登录边界见 auth-and-backends.md，不做假的授权页面。
+UI 设置 provider 为 `{id,name,protocol:'openai'|'anthropic'|'codex',baseUrl,model,stream:true}`。`core/credentials.js` 将凭据保存到独立的浏览器本地记录，供启动恢复与请求前按配置 ID 恢复使用；普通持久设置和会话导出不含密钥。新记录不要求解锁密码，旧加密记录保留显式恢复入口。官方鉴权端点缺少密钥时阻止空凭据请求，自定义兼容端点允许无密钥接入。Codex profile 保存后显示显式设备码登录入口，显示官方实际签发的状态；真实浏览器登录边界见 auth-and-backends.md，不做假的授权页面。
 
 UI 设备页提供证书指纹核对、所有者配对与 HID 目标证明，严禁仅填入地址就显示硬件已连接。核心 capture 与设备执行可以单独启用，未验证路径保持不可用。整个 UI 有真实可用的 session CRUD、模式、设置、导入导出与 Skill 本地管理。

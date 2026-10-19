@@ -163,3 +163,10 @@ body.harness-surface{position:fixed;inset:0;overflow:hidden}
 .device-information-complete{font-size:13px;color:var(--accent);margin:8px 0}
 .device-info-step[data-complete="true"] .primary{display:inline-block;background:transparent;color:var(--accent);border:0;padding:4px 0;min-height:0;text-align:left;text-decoration:underline;font-size:12px}
 .panel-header>div{flex:1;min-width:0}
+/* Sharing state stays readable above the Safari safe area. */
+.composer-note{font-size:12px;line-height:1.45;margin:7px 0 0;color:#687b71}
+.composer-wrap{padding-bottom:calc(10px + var(--safe-bottom))}
+#reasoning-select{max-width:92px;flex-shrink:0;font-size:12px}
+@media(prefers-reduced-motion:no-preference){.session-search-wrap:not([hidden]){animation:search-reveal .16s ease-out}@keyframes search-reveal{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:translateY(0)}}}
+.compact-viewport .composer-note{font-size:12px;line-height:1.45;margin-top:7px}
+.compact-viewport .composer-wrap{padding-bottom:calc(9px + var(--safe-bottom))}

@@ -1,4 +1,5 @@
 import {modelContextMetadata} from './models.js';
+import {modelReasoningMetadata,reasoningParameters} from './reasoning.js';
 import {contextOverflowError,readProviderFailure} from './provider-errors.js';
 import {readText} from './http.js';
 import {checkAbort} from './control.js';
@@ -65,7 +66,7 @@ export async function discoverModels({protocol,baseUrl,credential='',accountId,f
   else if(protocol==='anthropic'){url=new URL(root.href);url.pathname=root.pathname.replace(/\/$/,'')+(/\/v\d+$/.test(root.pathname)?'/models':'/v1/models');headers['anthropic-version']='2023-06-01';headers['anthropic-dangerous-direct-browser-access']='true';if(credential)headers['x-api-key']=credential;}
   else {url=new URL(root.href);const path=root.pathname.replace(/\/$/,'');url.pathname=path+(root.hostname==='api.openai.com'&&!path?'/v1/models':'/models');if(credential)headers.authorization='Bearer '+credential;}
   const models=[];let pages=0;
-  while(true){const r=await fetchImpl(url,{headers,credentials:'omit',referrerPolicy:'no-referrer',signal:signal?AbortSignal.any([signal,AbortSignal.timeout(20000)]):AbortSignal.timeout(20000)});checkAbort(signal);if(!r.ok)throw Object.assign(new Error(`PROVIDER_MODELS_HTTP (HTTP ${r.status})`),{code:'PROVIDER_MODELS_HTTP',status:r.status});const data=JSON.parse(await readText(r,{maxBytes:2000000,signal}));checkAbort(signal);const entries=data.data||data.models;if(!Array.isArray(entries))throw new Error('模型目录没有返回有效列表');for(const m of entries)if(typeof m.id==='string'&&!models.some(v=>v.id===m.id))models.push({id:m.id,name:m.display_name||m.name||m.id,...modelContextMetadata(m)});if(models.length>2000)throw new Error('模型目录超过限额');if(!data.has_more)return models;if(!data.last_id||++pages>=20)throw new Error('模型目录分页不完整');url.searchParams.set('after_id',data.last_id);}
+  while(true){const r=await fetchImpl(url,{headers,credentials:'omit',referrerPolicy:'no-referrer',signal:signal?AbortSignal.any([signal,AbortSignal.timeout(20000)]):AbortSignal.timeout(20000)});checkAbort(signal);if(!r.ok){if([401,402,403].includes(r.status))throw await readProviderFailure(r,{signal});throw Object.assign(new Error(`PROVIDER_MODELS_HTTP (HTTP ${r.status})`),{code:'PROVIDER_MODELS_HTTP',status:r.status});}const data=JSON.parse(await readText(r,{maxBytes:2000000,signal}));checkAbort(signal);const entries=data.data||data.models;if(!Array.isArray(entries))throw new Error('模型目录没有返回有效列表');for(const m of entries)if(typeof m.id==='string'&&!models.some(v=>v.id===m.id))models.push({id:m.id,name:m.display_name||m.name||m.id,...modelContextMetadata(m),...modelReasoningMetadata(m)});if(models.length>2000)throw new Error('模型目录超过限额');if(!data.has_more)return models;if(!data.last_id||++pages>=20)throw new Error('模型目录分页不完整');url.searchParams.set('after_id',data.last_id);}
 }
 export async function callModel({provider,credential,messages,tools=[],signal,onDelta=()=>{},fetchImpl=fetch}) {
   if(provider?.protocol==='codex')return callCodexModel({provider,messages,tools,signal,onDelta,fetchImpl});
@@ -87,7 +88,8 @@ export async function callModel({provider,credential,messages,tools=[],signal,on
   const canonicalEndpoint=new URL(endpoint);canonicalEndpoint.hash='';
   const scope={kind:provider.protocol,origin:base.origin,endpoint:canonicalEndpoint.href,accountId:provider.accountId||provider.id||'',model:provider.model};
   const payload={model:provider.model,stream:provider.stream!==false,messages:isAnthropic?anthropicMessages(messages,scope):openaiMessages(messages,scope,base.hostname==='api.deepseek.com')};
-  if(provider.maxTokens&&Number.isInteger(provider.maxTokens)&&provider.maxTokens>0)payload.max_tokens=provider.maxTokens;
+  Object.assign(payload,reasoningParameters(provider));
+  if(provider.maxTokens&&Number.isInteger(provider.maxTokens)&&provider.maxTokens>0)payload[base.hostname==='api.openai.com'&&payload.reasoning_effort?'max_completion_tokens':'max_tokens']=provider.maxTokens;
   if(isAnthropic){payload.max_tokens=provider.maxTokens||4096;payload.system=messages.filter(m=>m.role==='system').map(m=>m.text).join('\n\n');}
   if(!isAnthropic&&payload.stream&&['api.openai.com','api.deepseek.com'].includes(base.hostname))payload.stream_options={include_usage:true};
   // Only send provider-specific cache hints to the official native endpoint.

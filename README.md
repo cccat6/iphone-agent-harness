@@ -12,8 +12,8 @@ The website is at [igent.cc](https://igent.cc). The Harness page connects direct
 
 ## Features
 
-- **Sessions:** local conversations and images, search, rename, pin, archive, and file import/export. Discussion, planning and execution share one conversation; asking for a plan does not start it.
-- **Accounts or API:** multiple connections, OpenAI- and Anthropic-compatible API endpoints, model discovery and switching. The ChatGPT subscription adapter and login interface are implemented; real subscription sign-in in Safari still needs verification.
+- **Sessions:** local conversations and images, search, rename, pin, archive, and file import/export. Discussion, planning and execution share one conversation; asking for a plan does not start it. The first request also gets an automatic title; manual names and imported titles are preserved.
+- **Accounts or API:** multiple connections, OpenAI- and Anthropic-compatible API endpoints, model discovery and switching. The ChatGPT subscription adapter and login interface are implemented; real subscription sign-in in Safari still needs verification. Supported models offer a Reasoning Effort selector, with the choice saved separately for each account and model.
 - **Context:** automatic model-generated summaries, a default trigger of **750,000 tokens**, and a configurable threshold. Full history remains on the device.
 - **Images:** JPEG compression at three quality presets, preserving original dimensions.
 - **Skills:** ten built-in skills, your own editable skills, community downloads and publishing. The official community address is built in. You can ask the Harness to help write and revise your own skills.

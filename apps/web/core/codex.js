@@ -1,4 +1,5 @@
 import {modelContextMetadata} from './models.js';
+import {modelReasoningMetadata,reasoningParameters} from './reasoning.js';
 import {contextOverflowError,readProviderFailure} from './provider-errors.js';
 // Subscription transport. Tokens stay in this module's memory unless the caller
 // explicitly saves them in the browser-local credential store. Never reads Codex auth.json.
@@ -109,7 +110,7 @@ function headers(a,token,{sessionId}={}){const h={'authorization':'Bearer '+toke
 export async function discoverCodexModels({accountId=activeId,signal,fetchImpl=fetch,clientVersion='0.1.0'}={}){
  const a=accounts.get(accountId);if(!a)throw new Error('请先选择已登录的订阅账号');const token=await accessToken(accountId,{signal,fetchImpl});const url=new URL(a.flow==='codex'?CODEX_ENDPOINTS.models:CODEX_ENDPOINTS.planModels);if(a.flow==='codex')url.searchParams.set('client_version',clientVersion);
  const response=await request(url,{headers:headers(a,token),signal,fetchImpl});const data=await json(response,'订阅模型目录不可用');const items=data.models||data.data;if(!Array.isArray(items))throw new Error('模型目录格式无效');
- return items.map(m=>({id:m.slug||m.id,name:m.display_name||m.name||m.slug||m.id,description:m.description||'',catalogOnly:true,...modelContextMetadata(m)})).filter(m=>typeof m.id==='string'&&m.id);
+ return items.map(m=>({id:m.slug||m.id,name:m.display_name||m.name||m.slug||m.id,description:m.description||'',catalogOnly:true,...modelContextMetadata(m),...modelReasoningMetadata(m)})).filter(m=>typeof m.id==='string'&&m.id);
 }
 function replayState(message,scope){
  const state=message.providerState;
@@ -144,7 +145,7 @@ export async function callCodexModel({provider,messages,tools=[],signal,onDelta=
   const endpoint=a.flow==='codex'?CODEX_ENDPOINTS.responses:CODEX_ENDPOINTS.planResponses;
   const stateScope={origin:new URL(endpoint).origin,accountId:id,backendAccountId:a.accountId,clientId:a.clientId,model:provider.model,flow:a.flow};
   const payload={model:provider.model,store:false,stream:true,include:['reasoning.encrypted_content'],instructions:messages.filter(m=>m.role==='system').map(m=>m.text).join('\n\n')||'You are a helpful assistant.',input:toInput(messages,stateScope),tools:tools.map(t=>({type:'function',name:t.name,description:t.description,parameters:t.schema,strict:false})),tool_choice:tools.length?'auto':'none',parallel_tool_calls:true};
-  if(provider.reasoningEffort)payload.reasoning={effort:provider.reasoningEffort,summary:'auto'};
+  Object.assign(payload,reasoningParameters({...provider,protocol:'codex'}));
   const response=await request(endpoint,{method:'POST',headers:headers(a,token,{sessionId:sessionId||provider.sessionId}),body:JSON.stringify(payload),signal:active,fetchImpl});
   if(!response.ok){const error=await readProviderFailure(response,{signal:active});if(error.code==='CONTEXT_WINDOW_EXCEEDED')throw error;throw failure(response.status===401?'订阅登录失效，请刷新或重新登录':response.status===429?'订阅额度或速率达到限制':'订阅模型请求失败',response.status);}if(!response.body)throw new Error('订阅后端未返回响应流');
   let text='',terminal=null;const calls=new Map();const emit=value=>{try{Promise.resolve(onDelta(value)).catch(()=>{});}catch{}};

@@ -13,7 +13,7 @@ function controlsContext(){
  const nodes=new Map(),$=key=>{if(!nodes.has(key))nodes.set(key,{value:'p::model',textContent:'',hidden:false,disabled:false});return nodes.get(key);};
  const actions=[{disabled:true}];
  const state={running:false,submitting:false,current:{id:'session'},runGeneration:0,drafts:new Map()};
- const context=vm.createContext({state,$,$$:selector=>selector==='[data-execute-plan]'?actions:[],capture:{active:false},t:key=>key,updateModeDescription(){}});
+ const context=vm.createContext({state,$,$$:selector=>selector==='[data-execute-plan]'?actions:[],capture:{active:false},t:key=>key,renderReasoningOptions(){},updateModeDescription(){}});
  vm.runInContext(section('function renderRunControls()', '\nfunction setRunning('),context);
  return {state,$,context,actions};
 }
@@ -58,8 +58,8 @@ test('a proposed plan becomes executable once its response finishes, and is disa
 test('a retired session model falls back to a real available option, while valid selection remains selected',()=>{
  let options=[],value='';const modelSelect={set innerHTML(html){options=[...html.matchAll(/<option value="([^"]*)"/g)].map(match=>({value:match[1]}));value=options[0]?.value||'';},get options(){return options;},set value(next){value=options.some(option=>option.value===next)?next:'';},get value(){return value;},setAttribute(){}};
  const state={current:{modelId:'p::retired'},settings:{activeProviderId:'p',providers:[{id:'p',name:'Test API',model:'one',models:[{id:'one'},{id:'two'}]}]}};
- const context=vm.createContext({state,$:()=>modelSelect,providers:()=>state.settings.providers,modelContextMetadata:()=>({}),t:key=>key,escapeHTML:value=>String(value||'')});
- vm.runInContext(section('function selectionParts(', '\nfunction dateLabel(')+'\n'+section('function renderModelOptions()', '\nfunction updateModeDescription('),context);
+ const context=vm.createContext({state,$:()=>modelSelect,providers:()=>state.settings.providers,modelContextMetadata:()=>({}),modelReasoningMetadata:()=>({}),renderReasoningOptions(){},t:key=>key,escapeHTML:value=>String(value||'')});
+ vm.runInContext(section('function selectionParts(', '\nfunction dateLabel(')+'\n'+section('function renderModelOptions()', '\nfunction renderReasoningOptions('),context);
  context.renderModelOptions();assert.equal(modelSelect.value,'p::one');assert.match(modelSelect.title,/one/);assert.equal(options.some(option=>option.value===''),false);
  state.current.modelId='p::two';context.renderModelOptions();assert.equal(modelSelect.value,'p::two');assert.match(modelSelect.title,/two/);
 });

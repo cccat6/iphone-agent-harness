@@ -1,3 +1,4 @@
+import {modelReasoningMetadata,normalizeReasoningEffort} from './reasoning.js';
 export function modelContextMetadata(model={}){
   const capacity=model.contextWindowTokens??model.context_window??model.contextWindow??model.context_length??model.max_input_tokens;
   return Number.isSafeInteger(capacity)&&capacity>=1024&&capacity<=10000000?{contextWindowTokens:capacity}:{};
@@ -8,6 +9,7 @@ export function resolveModelSelection(settings,selection){
   const profile=(settings.providers||[]).find(p=>p.id===id);
   if(!profile)throw new Error('请先在设置中添加并选择模型后端');
   const selected=model||profile.model;if(!selected)throw new Error('请选择此账号的模型');
-  const metadata=modelContextMetadata(profile.models?.find(item=>item.id===selected)||{});
-  return {...profile,...metadata,model:selected,accountId:profile.accountId||profile.id};
+  const entry=profile.models?.find(item=>item.id===selected)||{};
+  const metadata={...modelContextMetadata(entry),...modelReasoningMetadata(entry)};
+  const resolved={...profile,...metadata,model:selected,accountId:profile.protocol==='codex'?(profile.accountId||profile.id):profile.id};const key=profile.id+'::'+selected;return {...resolved,reasoningEffort:normalizeReasoningEffort(resolved,settings.reasoningEfforts?.[key]??profile.reasoningEffort)};
 }

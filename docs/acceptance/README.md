@@ -10,7 +10,7 @@ Use Safari on an iPhone or iPad. One Harness page connects the ESP32 bridge, sha
 
 2. **Verify phone input.** Pair **iPhone Agent Bridge** in iOS Bluetooth settings and enable AssistiveTouch using the tutorial. Back in Harness, start the connection test, wait for the bridge to type eight digits and confirm. Full Keyboard Access can remain on or off. There is no connection code to type manually.
 
-3. **Add an account or API and chat.** Under **Settings → Accounts or API**, add a connection, enter an API endpoint and key and load its models, or follow the ChatGPT sign-in interface. Create a session, select a model and send a message. Reopen settings to check that the connection was saved. The keyboard should leave form inputs and back/close actions accessible.
+3. **Add an account or API and chat.** Under **Settings → Accounts or API**, add a connection, enter an API endpoint and key and load its models, or follow the ChatGPT sign-in interface. Create a session, select a model and a supported reasoning effort, then send a message. The first successful request should generate a title; later automatic results must not overwrite a manual rename. Reopen settings to check that the connection was saved. The keyboard should leave form inputs and back/close actions accessible.
 
 4. **Share the screen and run a task.** Start with Clock or a dedicated test page. Share the screen and ask the AI to perform a tap, scroll or drag. Switch to the target app to observe the action, then return to inspect the screenshot and result. There is one conversation entry: capability questions receive answers, planning requests show a reviewable plan, and explicit action requests can execute. Stop screen sharing during an action to pause; Continue should request sharing again if needed and observe the current screen before proceeding.
 
@@ -35,3 +35,5 @@ Change the bridge name at `http://igent.local/settings`, then use its new addres
 Short phone prototype tests have succeeded in the foreground and during background screen sharing, with intermittent failures also recorded. Integrated RTC/BLE firmware, actual Shortcut import and the complete phone workflow are undergoing hardware acceptance. The [connection record](../architecture/secure-lan.md) keeps those results separate.
 
 [Arduino guide](../../firmware/IPhoneAutomationHarness/README.md) · [Manual releases](../architecture/manual-release.md)
+
+Internal Back/Forward navigation between a conversation, settings and website routes should preserve the current capture and bridge owner. Full reload or actual document exit still requires a fresh screen-sharing authorization.

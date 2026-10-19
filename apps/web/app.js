@@ -1,3 +1,5 @@
+import {createViewNavigation} from './ui/navigation.js';
+import {reasoningOptions,normalizeReasoningEffort,modelReasoningMetadata} from './core/reasoning.js';
 import {messagePresentation,createConversationFollow} from './ui/message-presentation.js';
 import {showImagePreview} from './ui/image-preview.js';
 import {pendingDeviceSetupReturn} from './core/device-setup.js';
@@ -10,7 +12,7 @@ import { createHistoryWindow } from './core/history-window.js';
 import { createHistoryImages } from './ui/history-images.js';
 import { readImportFile, sessionBackupBlob, SESSION_BACKUP_BYTES, BACKUP_ERRORS } from './core/backup-files.js';
 import { createHarness, chatExecutionContext } from './core/harness.js';
-import { setCredential, hasCredential, getCredential, saveProviderCredential, removeProviderCredential, restoreProviderCredentials } from './core/credentials.js';
+import { setCredential, hasCredential, getCredential, saveProviderCredential, removeProviderCredential, restoreProviderCredentials, resolveProviderCredential } from './core/credentials.js';
 import { createDevicePanel } from './ui/device-panel.js';
 import { mountUsbSetup } from './ui/usb-setup.js';
 import { setLocalizedText, refreshLocalizedText } from './ui/localized-status.js';
@@ -19,7 +21,7 @@ import { createDeviceClipboard } from './core/device-clipboard.js';
 import { mountClipboardPanel } from './ui/clipboard.js';
 import { screenCapture, normalizeImageSettings } from './core/capture.js';
 import { normalizeContextSettings } from './core/context.js';
-import { modelContextMetadata } from './core/models.js';
+import { modelContextMetadata, resolveModelSelection } from './core/models.js';
 import { unsealCredentials } from './core/auth.js';
 import { createMCPAccess } from './core/mcp.js';
 import { mountSessionSearch } from './ui/session-search.js';
@@ -79,7 +81,7 @@ function profileModels(profile) {
   const models=new Map();
   for(const entry of Array.isArray(profile.models)?profile.models:[]) {
     const id=typeof entry==='string'?entry:entry?.id;
-    if(typeof id==='string'&&id.trim())models.set(id,{id,name:typeof entry==='object'?(entry.name||id):id,...modelContextMetadata(typeof entry==='object'?entry:{})});
+    if(typeof id==='string'&&id.trim())models.set(id,{id,name:typeof entry==='object'?(entry.name||id):id,...modelContextMetadata(typeof entry==='object'?entry:{}),...modelReasoningMetadata(typeof entry==='object'?entry:{})});
   }
   if(profile.model&&!models.has(profile.model))models.set(profile.model,{id:profile.model,name:profile.model});
   return [...models.values()];
@@ -124,10 +126,17 @@ function renderModelOptions() {
   const selected=profile?`${profile.id}::${parts.modelId||profile.model||profileModels(profile)[0]?.id||''}`:'';
   $('#model-select').innerHTML=(providers().some(item=>profileModels(item).length)?'':`<option value="" disabled>${t('status.configureModel')}</option>`)+providers().map(item=>`<optgroup label="${escapeHTML(item.name||t('provider.unnamed'))}">${profileModels(item).map(model=>`<option value="${escapeHTML(item.id+'::'+model.id)}">${escapeHTML(model.name)} · ${escapeHTML(item.name||t('provider.account'))}</option>`).join('')}</optgroup>`).join('');
   $('#model-select').value=selected||$('#model-select').options[0]?.value||'';if(!$('#model-select').value&&$('#model-select').options.length)$('#model-select').value=$('#model-select').options[0].value;$('#model-select').setAttribute('aria-label',t('session.model'));
-  const resolved=selectedProvider();$('#model-select').title=resolved?`${resolved.name} · ${selectionParts($('#model-select').value).modelId}`:t('provider.chooseAccountModel');
+  const resolved=selectedProvider();$('#model-select').title=resolved?`${resolved.name} · ${selectionParts($('#model-select').value).modelId}`:t('provider.chooseAccountModel');renderReasoningOptions();
+}
+function renderReasoningOptions(){
+  const select=$('#reasoning-select');if(!select)return;const profile=selectedProvider(),model=selectionParts($('#model-select').value).modelId||profile?.model;
+  const provider=profile?{...profile,model}:{};const options=reasoningOptions(provider),key=profile?profile.id+'::'+model:'';
+  const selected=normalizeReasoningEffort(provider,state.current?.reasoningEfforts?.[key]??state.settings.reasoningEfforts?.[key]??profile?.reasoningEffort);
+  select.hidden=!options.length;select.disabled=state.running||state.submitting;select.setAttribute('aria-label',t('reasoning.label'));select.title=t('reasoning.label');
+  select.innerHTML=['auto',...options].map(value=>`<option value="${value}">${escapeHTML(t('reasoning.'+value))}</option>`).join('');select.value=selected;
 }
 function updateModeDescription() { $('#mode-description').textContent=t(capture.active?'interaction.sharing':'interaction.notSharing'); }
-async function newSession({fromSubmit=false}={}) { if(!(fromSubmit?deviceSessionAvailable():await state.devicePanel?.ensureReady?.())){await showDevices();toast(t('device.startHint'));return null;} if((state.running||state.submitting)&&!fromSubmit)throw new Error('请先停止当前任务，再切换会话。');const session=await state.store.createSession({title:t('session.new'),mode:'auto',modelId:$('#model-select').value||state.settings.activeProviderId||providers()[0]?.id||''}); await refreshSessions(); await openSession(session.id,{fromSubmit}); $('#message-input').focus();return session; }
+async function newSession({fromSubmit=false}={}) { if(!(fromSubmit?deviceSessionAvailable():await state.devicePanel?.ensureReady?.())){await showDevices();toast(t('device.startHint'));return null;} if((state.running||state.submitting)&&!fromSubmit)throw new Error('请先停止当前任务，再切换会话。');const session=await state.store.createSession({title:t('session.new'),titleState:'pending',mode:'auto',modelId:$('#model-select').value||state.settings.activeProviderId||providers()[0]?.id||''}); await refreshSessions(); await openSession(session.id,{fromSubmit}); $('#message-input').focus();return session; }
 function historyWindow(){return state.history||(state.history=createHistoryWindow(state.store,{includeInternal:!!state.settings.developerMode}));}
 async function refreshConversationPresentation(){state.history?.clear();state.history=null;if(state.current){applyHistory(await historyWindow().load(state.current.id));}renderMessages();}
 function applyHistory(page){if(!page)return false;state.messages=page.messages;state.hasOlder=page.hasOlder;state.hasNewer=page.hasNewer;state.messageLimit=page.messages.length;return true;}
@@ -137,10 +146,10 @@ async function openSession(id,{fromSubmit=false}={}) {
   if(state.running&&state.current?.id!==id)throw new Error('请先停止当前任务，再切换会话。');
   const request=state.sessionOpenGeneration=(state.sessionOpenGeneration||0)+1;
   const session=await state.store.getSession(id);if(request!==state.sessionOpenGeneration)return;
-  if(!session)throw new Error('未找到这条会话。');
+  if(!session){if(state.navigation?.restoring){$('#app').classList.remove('in-conversation');return null;}throw new Error('未找到这条会话。');}
   const page=await historyWindow().load(id);if(request!==state.sessionOpenGeneration||!page)return;
   if(state.current?.id!==id)clipboard.clear();state.current=session;state.capturePaused=false;applyHistory(page);
-  state.lastError=null;state.pending=null;$('#app').classList.add('in-conversation');$('#session-title').textContent=session.title||t('session.new');$('#session-subtitle').textContent=t('interaction.localSession');$('#session-menu').hidden=false;$('#message-input').value=state.drafts.get(id)||'';resizeInput();renderModelOptions();updateModeDescription();renderSessions();renderClipboard();renderMessages();
+  state.lastError=null;state.pending=null;$('#app').classList.add('in-conversation');$('#session-title').textContent=session.title||t('session.new');$('#session-subtitle').textContent=t('interaction.localSession');$('#session-menu').hidden=false;$('#message-input').value=state.drafts.get(id)||'';resizeInput();renderModelOptions();updateModeDescription();renderSessions();renderClipboard();renderMessages();state.navigation?.go({route:'harness',screen:'session',sessionId:id,panel:null,action:null});
 }
 async function pageHistory(direction){
   const region=$('#conversation'),first=[...region.querySelectorAll('[data-message-id]')].find(node=>node.offsetTop+node.offsetHeight>=region.scrollTop),anchor=first?{id:first.dataset.messageId,offset:first.offsetTop-region.scrollTop}:null;
@@ -173,8 +182,9 @@ function renderMessages({scrollToEnd=true}={}) {
   state.historyImages=createHistoryImages({store:state.store,root:region,onImageReady:()=>{if(!state.hasNewer)follow.afterRender();}});state.historyImages.mount();renderRunControls();
 }
 function renderRunControls(){for(const action of $$('[data-execute-plan]'))action.disabled=state.running||state.submitting;const paused=Boolean(state.current?.promptState?.runResume||(!!state.current?.id&&state.capturePaused===state.current.id));const button=$('#resume-run');button.hidden=state.running||!paused;button.disabled=state.submitting;button.textContent=t(capture.active?'interaction.resume':'interaction.startSharing');$('#run-status').hidden=!state.running&&!paused;if(!state.running&&paused)$('#run-status').textContent=t('interaction.paused');updateModeDescription();}
-function setRunning(running) { state.running=running; $('#send-message').hidden=running; $('#stop-run').hidden=!running; $('#model-select').disabled=running; if(!running)$('#run-status').textContent='';renderRunControls(); }
+function setRunning(running) { state.running=running;if($('#reasoning-select'))$('#reasoning-select').disabled=running||state.submitting; $('#send-message').hidden=running; $('#stop-run').hidden=!running; $('#model-select').disabled=running; if(!running)$('#run-status').textContent='';renderRunControls(); }
 function onHarnessEvent(event) {
+  if(event.type==='session.title'){if(state.current?.id===event.sessionId){state.current.title=event.title;$('#session-title').textContent=event.title;}void refreshSessions().catch(report);return;}
   if((event.internal||event.message?.internal)&&!state.settings.developerMode)return;
   if(event.type==='status') { if(event.status==='paused')state.capturePaused=state.current?.id;$('#run-status').textContent=event.status==='paused'?t('interaction.paused'):({awaiting_model:'正在等待模型回复…',compacting:'正在整理上下文…',executing:'正在处理工具请求…',completed:'本轮已完成',needs_user:'需要补充信息或连接设备',unknown:'操作结果待核对',budget_exhausted:'达到本轮预算，进度已保存',cancelled:'已停止',failed:'本轮未完成'})[event.status]||event.status; }
   if(event.type==='delta') { state.pending=(state.pending||'')+event.text;const body=$('.message.pending .message-body');if(body){body.textContent=state.pending;conversationFollow().afterRender();}else renderMessages(); }
@@ -188,7 +198,7 @@ async function resumeRun(){
   state.submitting=true;let resolveCompletion;state.runCompletion=new Promise(resolve=>{resolveCompletion=resolve;});let generation=null;const sessionId=state.current.id;
   try{await sharing;if(!await state.devicePanel.ensureReady()){await showDevices();return;}generation=++state.runGeneration;state.abort=new AbortController();state.lastError=null;state.capturePaused=false;setRunning(true);await state.harness.resume({sessionId,modelId:$('#model-select').value,signal:state.abort.signal});}
   catch(error){state.lastError=error;}
-  finally{try{if(generation===null||generation===state.runGeneration){state.current=await state.store.getSession(sessionId);applyHistory(await historyWindow().load(sessionId));renderMessages();}}finally{if(generation===null||generation===state.runGeneration){state.abort=null;state.submitting=false;setRunning(false);}renderRunControls();resolveCompletion?.();}}
+  finally{try{if(generation===null||generation===state.runGeneration){state.current=await state.store.getSession(sessionId);applyHistory(await historyWindow().load(sessionId));renderMessages();}}finally{if(generation===null||generation===state.runGeneration){state.abort=null;state.submitting=false;setRunning(false);}renderRunControls();renderReasoningOptions();resolveCompletion?.();}}
 }
 async function sendMessage(event,textOverride=null,modeOverride=null) {
   event.preventDefault();if(!getBrowserCompatibility().supportedForHarness){renderPlatform();return;}const text=(textOverride===null?$('#message-input').value:textOverride).trim();if(!text||state.running||state.submitting)return;
@@ -212,7 +222,7 @@ async function sendMessage(event,textOverride=null,modeOverride=null) {
         const page=await historyWindow().load(sessionId),session=await state.store.getSession(sessionId);
         if(generation===state.runGeneration&&state.current?.id===sessionId){state.pending=null;applyHistory(page);state.current=session;$('#session-title').textContent=session.title;await refreshSessions();renderMessages();}
       }
-    }finally{if(generation!==null&&generation===state.runGeneration){state.abort=null;state.submitting=false;setRunning(false);}state.submitting=false;renderRunControls();resolveCompletion?.();}
+    }finally{if(generation!==null&&generation===state.runGeneration){state.abort=null;state.submitting=false;setRunning(false);}state.submitting=false;renderRunControls();renderReasoningOptions();resolveCompletion?.();}
   }
 }
 
@@ -229,14 +239,14 @@ function renderClipboard(){
 }
 function resizeInput() { const input=$('#message-input');input.style.height='auto';input.style.height=Math.min(input.scrollHeight,180)+'px'; }
 function discardProviderDraft(){const id=state.providerDraftId;if(id&&!providers().some(profile=>profile.id===id)){removeCodexAccount(id);setCredential(id,'');}state.providerDraftId=null;}
-function panel(title,subtitle,body,metadata={}) { state.panelGeneration=(state.panelGeneration||0)+1;state.codexAbort?.abort();state.modelsAbort?.abort();discardProviderDraft(); state.devicePanel?.dispose();state.mcpPanel?.disposeView();const titleKey=Object.hasOwn(metadata,'titleKey')?metadata.titleKey:translationKey(title),subtitleKey=Object.hasOwn(metadata,'subtitleKey')?metadata.subtitleKey:translationKey(subtitle);$('#panel-content').innerHTML=`<div class="panel-header"><div><h2 data-no-i18n${titleKey?` data-i18n="${escapeHTML(titleKey)}"`:''}>${escapeHTML(title)}</h2>${subtitle?`<p data-no-i18n${subtitleKey?` data-i18n="${escapeHTML(subtitleKey)}"`:''}>${escapeHTML(subtitle)}</p>`:''}</div><button class="icon-button" id="close-panel" aria-label="关闭">×</button></div><div class="panel-body">${body}</div>`;$('#close-panel').onclick=()=>{state.panelGeneration=(state.panelGeneration||0)+1;state.devicePanel?.dispose();state.codexAbort?.abort();state.modelsAbort?.abort();$('#panel-dialog').close();};if(!$('#panel-dialog').open)$('#panel-dialog').showModal();$('.panel-body').scrollTop=0;$('#close-panel').focus({preventScroll:true}); }
+function panel(title,subtitle,body,metadata={}) { state.navigation?.go({panel:state.nextPanelView||{kind:'settings',section:'home'},action:null},{replace:state.nextPanelView?.kind==='skills'&&state.navigation?.current.panel?.kind==='skills'});state.nextPanelView=null; state.panelGeneration=(state.panelGeneration||0)+1;state.codexAbort?.abort();state.modelsAbort?.abort();discardProviderDraft(); state.devicePanel?.dispose();state.mcpPanel?.disposeView();const titleKey=Object.hasOwn(metadata,'titleKey')?metadata.titleKey:translationKey(title),subtitleKey=Object.hasOwn(metadata,'subtitleKey')?metadata.subtitleKey:translationKey(subtitle);$('#panel-content').innerHTML=`<div class="panel-header"><div><h2 data-no-i18n${titleKey?` data-i18n="${escapeHTML(titleKey)}"`:''}>${escapeHTML(title)}</h2>${subtitle?`<p data-no-i18n${subtitleKey?` data-i18n="${escapeHTML(subtitleKey)}"`:''}>${escapeHTML(subtitle)}</p>`:''}</div><button class="icon-button" id="close-panel" aria-label="关闭">×</button></div><div class="panel-body">${body}</div>`;$('#close-panel').onclick=()=>{state.panelGeneration=(state.panelGeneration||0)+1;state.devicePanel?.dispose();state.codexAbort?.abort();state.modelsAbort?.abort();if(state.navigation)void state.navigation.back({panel:null,action:null});else $('#panel-dialog').close();};if(!$('#panel-dialog').open)$('#panel-dialog').showModal();$('.panel-body').scrollTop=0;$('#close-panel').focus({preventScroll:true}); }
 function setPanelStatus(message,bad=false) { const box=$('#panel-status');if(box){setLocalizedText(box,()=>localizeError(message));box.classList.toggle('bad',bad);box.hidden=false;} }
 
 async function showSessionMenu() {
-  if(!state.current)return;const session=state.current;
-  $('#action-content').innerHTML=`<h3 data-no-i18n data-i18n="session.actions">${t('session.actions')}</h3><button class="action-item" data-action="skills">${t('nav.skills')}</button><button class="action-item" data-action="rename">重命名</button><button class="action-item" data-action="pin">${session.pinned?'取消置顶':'置顶会话'}</button><button class="action-item" data-action="copy">复制会话 ID</button><button class="action-item" data-action="export">导出会话</button><button class="action-item" data-action="archive">${session.archived?'取消归档':'归档会话'}</button><button class="action-item danger" data-action="delete">删除会话</button><button class="action-item" data-action="cancel">取消</button>`;
-  $$('[data-action]').forEach(button=>button.onclick=guard(async()=>{ $('#action-dialog').close();const action=button.dataset.action;
-    if(action==='skills'){state.skillsFromSettings=false;await showSkills();return;}if(action==='rename'){showRenameDialog(session);return;}
+  if(!state.current)return;const session=state.current;state.navigation?.go({action:{kind:'session-menu'},panel:null});
+  $('#action-content').innerHTML=`<h3 data-no-i18n data-i18n="session.actions">${t('session.actions')}</h3><button class="action-item" data-action="rename">重命名</button><button class="action-item" data-action="pin">${session.pinned?'取消置顶':'置顶会话'}</button><button class="action-item" data-action="copy">复制会话 ID</button><button class="action-item" data-action="export">导出会话</button><button class="action-item" data-action="archive">${session.archived?'取消归档':'归档会话'}</button><button class="action-item danger" data-action="delete">删除会话</button><button class="action-item" data-action="cancel">取消</button>`;
+  $$('[data-action]').forEach(button=>button.onclick=guard(async()=>{ const action=button.dataset.action;closeNavigationDialog($('#action-dialog'));if(action!=='rename'&&state.navigation)await state.navigation.back({action:null});
+    if(action==='rename'){showRenameDialog(session);return;}
     if(action==='pin')await state.store.updateSession(session.id,{pinned:!session.pinned});
     if(action==='archive')await state.store.updateSession(session.id,{archived:!session.archived});
     if(action==='copy'){await navigator.clipboard.writeText(session.id);toast('会话 ID 已复制。');}
@@ -247,9 +257,10 @@ async function showSessionMenu() {
 }
 
 function showRenameDialog(session) {
+  state.navigation?.go({action:{kind:'rename',sessionId:session.id},panel:null},{replace:true});
   $('#action-content').innerHTML=`<form id="rename-form" style="padding:8px 12px 13px"><h3 style="margin-left:0" data-no-i18n data-i18n="session.renameTitle">${t('session.renameTitle')}</h3><label class="field"><span>名称</span><input id="rename-input" value="${escapeHTML(session.title)}" maxlength="160" required></label><div class="panel-actions"><button class="primary" type="submit">保存</button><button id="cancel-rename" type="button" class="secondary-button">取消</button></div></form>`;
   $('#cancel-rename').onclick=()=>$('#action-dialog').close();
-  $('#rename-form').onsubmit=guard(async event=>{event.preventDefault();const title=$('#rename-input').value.trim();if(!title)return;await state.store.updateSession(session.id,{title});$('#action-dialog').close();await refreshSessions();await openSession(session.id);});
+  $('#rename-form').onsubmit=guard(async event=>{event.preventDefault();const title=$('#rename-input').value.trim();if(!title)return;await state.store.updateSession(session.id,{title,titleState:'manual'});if(state.navigation){closeNavigationDialog($('#action-dialog'));await state.navigation.back({action:null});}else $('#action-dialog').close();await refreshSessions();await openSession(session.id);});
   $('#action-dialog').showModal();$('#rename-input').focus();$('#rename-input').select();
 }
 
@@ -263,13 +274,13 @@ function importSessionFile(){
   const input=$('#file-input');input.value='';input.accept='.json,application/json';input.onchange=guard(async()=>{const file=input.files[0];if(!file)return;const session=await restoreSessionFile(state.store,file,{titleSuffix:t('session.importSuffix'),fallbackTitle:t('session.importFallback')});await refreshSessions();await openSession(session.id);toast(t('status.sessionImported'));});input.click();
 }
 function panelBack(action){
-  const header=$('.panel-header');const close=$('#close-panel');if(close)close.hidden=true;header.insertAdjacentHTML('afterbegin',`<button type="button" id="panel-back" class="icon-button" aria-label="${escapeHTML(t('common.back'))}">‹</button>`);$('#panel-back').onclick=guard(action);
+  const header=$('.panel-header');const close=$('#close-panel');if(close)close.hidden=true;header.insertAdjacentHTML('afterbegin',`<button type="button" id="panel-back" class="icon-button" aria-label="${escapeHTML(t('common.back'))}">‹</button>`);$('#panel-back').onclick=guard(()=>state.navigation?state.navigation.back({panel:{kind:'settings',section:'home'},action:null}):action());
 }
 async function showSettings(section='home') {
   if(typeof section!=='string')section='home';
   state.codexAbort?.abort();state.modelsAbort?.abort();discardProviderDraft();
   if(!state.store)throw state.bootError||new Error(t('settings.storageRequired'));
-  const navigation=state.panelGeneration=(state.panelGeneration||0)+1;const settings=await state.store.getSettings();if(navigation!==state.panelGeneration)return;state.settings=settings;const list=providers();state.providerEdit=null;
+  const navigation=state.panelGeneration=(state.panelGeneration||0)+1;const settings=await state.store.getSettings();if(navigation!==state.panelGeneration)return;state.nextPanelView={kind:'settings',section};state.settings=settings;const list=providers();state.providerEdit=null;
   const row=(id,key)=>`<button type="button" class="settings-row" id="${id}">${systemTextHTML(key)}<span aria-hidden="true">›</span></button>`;
   if(section==='home'){
     panel(t('nav.settings'),'',`<nav class="settings-navigation">
@@ -327,7 +338,7 @@ function renderProviderForm(provider={}) {
   const isCodex=()=>$('#provider-form')?.elements.protocol.value==='codex';
   const loginStatus=message=>{if(editorActive())setLocalizedText($('#codex-login-status'),()=>localizeError(message));};
   const modelsStatus=({key,variables={},error,fallback=false})=>{if(editorActive())setLocalizedText($('#models-status'),()=>error?t('common.failed',{detail:localizeError(error)})+(fallback?' '+t('provider.modelsFallback'):''):t(key,variables));};
-  panel(t(provider.id?'provider.edit':'provider.add'),'', '<div id="provider-editor"></div>');
+  state.nextPanelView={kind:'provider',id:provider.id||null};panel(t(provider.id?'provider.edit':'provider.add'),'', '<div id="provider-editor"></div>');
   $('#provider-editor').innerHTML=`<form id="provider-form" class="provider-form"><p class="quiet-note" data-no-i18n data-i18n="provider.visionHelp">${t('provider.visionHelp')}</p><label class="field"><span>显示名称</span><input name="name" placeholder="例如：DeepSeek · 个人账号" value="${escapeHTML(provider.name)}" required maxlength="80"></label><label class="field"><span>账号接口</span><select name="protocol"><option value="openai" ${!['anthropic','codex'].includes(provider.protocol)?'selected':''}>OpenAI 风格 API</option><option value="anthropic" ${provider.protocol==='anthropic'?'selected':''}>Anthropic 风格 API</option><option value="codex" ${provider.protocol==='codex'?'selected':''}>Codex 订阅账号</option></select></label><label class="field" id="provider-endpoint-field"><span>${systemTextHTML('providerRefinement.endpoint')}</span><input name="baseUrl" type="url" inputmode="url" autocapitalize="none" spellcheck="false" placeholder="https://api.example.com/v1" value="${escapeHTML(provider.baseUrl)}"><small id="provider-endpoint-hint"></small></label><div id="codex-controls"><p class="quiet-note">${systemTextHTML('providerRefinement.loginIntro')}</p><div class="panel-actions"><button id="start-codex-login" class="secondary-button" type="button">开始设备码登录</button><button id="cancel-codex-login" class="secondary-button" type="button" hidden>取消登录</button></div><div id="codex-login-status" class="quiet-note">${provider.id&&hasCodexAccount(provider.id)?'该账号已在当前页面登录。':'该账号尚未在当前页面登录。'}</div><div id="codex-verification"></div><button id="complete-codex-login" class="secondary-button" type="button" hidden>我已完成验证，继续</button></div><label class="field"><span>${systemTextHTML('providerRefinement.defaultModel')}</span><input name="model" list="provider-models" autocapitalize="none" spellcheck="false" placeholder="${escapeHTML(t('providerRefinement.modelPlaceholder'))}" value="${escapeHTML(provider.model)}"><small>${systemTextHTML('providerRefinement.defaultHelp')}</small></label><div class="panel-actions" style="margin-top:-4px"><button id="discover-models" class="secondary-button" type="button">获取模型</button></div><datalist id="provider-models" data-no-i18n>${state.providerModels.map(model=>`<option value="${escapeHTML(model.id)}">${escapeHTML(model.name)}</option>`).join('')}</datalist><div id="models-status" class="quiet-note">${state.providerModels.length?systemTextHTML('provider.modelsSaved',{count:state.providerModels.length}):systemTextHTML('provider.modelsHint')}</div><label class="field" id="provider-secret-field"><span>API 密钥</span><input name="secret" type="password" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="${provider.id&&hasCredential(provider.id)?t('providerRefinement.secretSaved'):t('providerRefinement.secretPlaceholder')}"><small>${systemTextHTML('providerRefinement.localHelp')}</small></label>${state.settings.credentialVault?.[provider.id]&&!hasCredential(provider.id)&&!hasCodexAccount(provider.id)?`<details class="provider-legacy"><summary>${systemTextHTML('providerRefinement.legacyHelp')}</summary><label class="field"><span>本地解锁口令</span><input name="passphrase" type="password" autocomplete="off"></label><button id="unlock-provider" type="button" class="secondary-button">解锁已有凭据</button></details>`:''}<label class="check-field" id="provider-stream-field"><input name="stream" type="checkbox" ${provider.stream!==false?'checked':''}> 流式接收回复</label><div class="panel-actions"><button class="primary" type="submit">${systemTextHTML('providerRefinement.save')}</button></div></form>`;
   const editorForm=$('#provider-form');const editorActive=()=>state.providerEditorToken===editorToken&&$('#provider-form')===editorForm&&$('#panel-dialog').open;
   const invalidateModels=()=>{modelSequence++;state.modelsAbort?.abort();state.providerModels=[];if($('#discover-models'))$('#discover-models').disabled=false;modelsStatus({key:'provider.modelsHint'});if($('#provider-models'))$('#provider-models').innerHTML='';};
@@ -337,7 +348,7 @@ function renderProviderForm(provider={}) {
   const applyModels=async list=>{
     const sequence=modelSequence,current=()=>editorActive()&&sequence===modelSequence;if(!current())return;
     if(!Array.isArray(list)||!list.length)throw new Error('接口没有返回可用模型，可继续手动填写。');
-    const models=list.map(model=>({id:model.id,name:model.name||model.id,...modelContextMetadata(model)}));state.providerModels=models;
+    const models=list.map(model=>({id:model.id,name:model.name||model.id,...modelContextMetadata(model),...modelReasoningMetadata(model)}));state.providerModels=models;
     const form=editorForm;
     if(provider.id&&(isCodex()||(form.elements.protocol.value===provider.protocol&&normalizeProviderEndpoint(form.elements.baseUrl.value.trim())===normalizeProviderEndpoint(provider.baseUrl)))){
       state.settings=await state.store.saveSettings({providers:providers().map(item=>item.id===provider.id?{...item,models,model:item.model||models[0].id}:item)});
@@ -348,7 +359,7 @@ function renderProviderForm(provider={}) {
     if(!form.elements.model.value)form.elements.model.value=models[0].id;
     modelsStatus({key:'providerRefinement.allModels',variables:{count:models.length}});
   };
-  $('#discover-models').onclick=guard(async()=>{const button=$('#discover-models'),form=editorForm;state.modelsAbort?.abort();const controller=new AbortController();state.modelsAbort=controller;const sequence=++modelSequence;button.disabled=true;modelsStatus({key:'provider.modelsLoading'});$('#provider-models').innerHTML='';try{const list=isCodex()?await discoverCodexModels({accountId:provider.id,signal:controller.signal}):await discoverModels({protocol:form.elements.protocol.value,baseUrl:safeURL(form.elements.baseUrl.value.trim()),credential:form.elements.secret.value.trim()||getCredential(provider.id),signal:controller.signal});if(!editorActive()||sequence!==modelSequence||controller.signal.aborted)return;await applyModels(list);}catch(error){if(editorActive()&&sequence===modelSequence&&!controller.signal.aborted)modelsStatus({error,fallback:true});}finally{if(editorActive()&&sequence===modelSequence)button.disabled=false;}});
+  $('#discover-models').onclick=guard(async()=>{const button=$('#discover-models'),form=editorForm;state.modelsAbort?.abort();const controller=new AbortController();state.modelsAbort=controller;const sequence=++modelSequence;button.disabled=true;modelsStatus({key:'provider.modelsLoading'});$('#provider-models').innerHTML='';try{const list=isCodex()?await discoverCodexModels({accountId:provider.id,signal:controller.signal}):await discoverModels({protocol:form.elements.protocol.value,baseUrl:safeURL(form.elements.baseUrl.value.trim()),credential:form.elements.secret.value.trim()||await resolveProviderCredential(state.store,{...provider,protocol:form.elements.protocol.value},{settings:state.settings}),signal:controller.signal});if(!editorActive()||sequence!==modelSequence||controller.signal.aborted)return;await applyModels(list);}catch(error){if(editorActive()&&sequence===modelSequence&&!controller.signal.aborted)modelsStatus({error,fallback:true});}finally{if(editorActive()&&sequence===modelSequence)button.disabled=false;}});
 
   $('#start-codex-login').onclick=guard(async()=>{if(!provider.id){const id=shortId();provider={...provider,id,name:$('#provider-form').elements.name.value.trim()||'ChatGPT',protocol:'codex',accountId:id,models:[],model:'',stream:true};state.providerEdit=id;state.providerDraftId=id;$('#provider-form').elements.name.value=provider.name;}state.codexAbort?.abort();const controller=new AbortController();state.codexAbort=controller;const button=$('#start-codex-login');button.disabled=true;$('#cancel-codex-login').hidden=false;loginStatus('正在向 OpenAI 请求设备码…');try{const issuedLogin=await startCodexLogin({method:'device-code',flow:'codex',signal:controller.signal});if(controller.signal.aborted||state.codexAbort!==controller||!editorActive())return;login=issuedLogin;const url=new URL(login.verification_url||login.verificationUrl);if(url.origin!=='https://auth.openai.com')throw new Error('验证链接不是预期的官方地址。');$('#codex-verification').innerHTML=`<div class="status-box">${systemTextHTML('auth.deviceCode')}: <strong>${escapeHTML(login.user_code)}</strong><br><a href="${escapeHTML(url.href)}" target="_blank" rel="noopener noreferrer">打开 OpenAI 验证页 ↗</a></div>`;$('#complete-codex-login').hidden=false;loginStatus('在官方页面确认这个设备码，再返回这里继续。');}catch(error){if(editorActive()&&state.codexAbort===controller&&!controller.signal.aborted){loginStatus(error);button.disabled=false;}}});
   $('#cancel-codex-login').onclick=()=>{state.codexAbort?.abort();login=null;$('#codex-verification').replaceChildren();$('#complete-codex-login').hidden=true;$('#cancel-codex-login').hidden=true;$('#start-codex-login').disabled=false;loginStatus('登录已取消。');};
@@ -374,9 +385,9 @@ function renderProviderForm(provider={}) {
     state.providerSavingToken=editorToken;const submit=editorForm.querySelector('[type=submit]');if(submit)submit.disabled=true;
     try{
       const values=new FormData(event.target),id=state.providerEdit||shortId(),codex=values.get('protocol')==='codex';
-      const updated={id,name:String(values.get('name')).trim(),protocol:values.get('protocol'),baseUrl:codex?'':normalizeProviderEndpoint(String(values.get('baseUrl')).trim()),model:String(values.get('model')||'').trim(),models:state.providerModels,stream:codex?true:values.has('stream'),...(codex?{accountId:id}:{})};
+      const updated={id,name:String(values.get('name')).trim(),protocol:values.get('protocol'),baseUrl:codex?'':normalizeProviderEndpoint(String(values.get('baseUrl')).trim()),model:String(values.get('model')||'').trim(),models:state.providerModels,...(provider.reasoningEffort?{reasoningEffort:provider.reasoningEffort}:{}),stream:codex?true:values.has('stream'),...(codex?{accountId:id}:{})};
       updated.models=profileModels(updated);const list=providers().filter(item=>item.id!==id);list.push(updated);
-      const secret=String(values.get('secret')||'').trim(),account=codex?getCodexAccount(id):null;
+      const secret=String(values.get('secret')||'').trim()||getCredential(id),account=codex?getCodexAccount(id):null;
       const credential=codex?(account?{kind:'codex',tokens:account.exportTokens()}:null):secret?{kind:'api',apiKey:secret}:null;
       if(!editorActive())return;
       // Read before writing so cancelling a stale editor cannot replace a credential.
@@ -386,10 +397,10 @@ function renderProviderForm(provider={}) {
       state.settings=await state.store.saveSettings({providers:list,activeProviderId:state.settings.activeProviderId||id});
       if(state.providerDraftId===id)state.providerDraftId=null;
       event.target.elements.secret.value='';if(event.target.elements.passphrase)event.target.elements.passphrase.value='';renderModelOptions();
-      if(editorActive()){await showSettings('accounts');toast(t('providerRefinement.saved'));}
+      if(editorActive()){if(state.navigation){state.navigation.go({panel:{kind:'provider',id},action:null},{replace:true});await state.navigation.back({panel:{kind:'settings',section:'accounts'},action:null});}else await showSettings('accounts');toast(t('providerRefinement.saved'));}
     }finally{if(state.providerSavingToken===editorToken)state.providerSavingToken=null;if(editorActive()&&submit)submit.disabled=false;}
   });
-  const header=$('.panel-header');header.insertAdjacentHTML('afterbegin',`<button type="button" id="provider-back" class="icon-button" aria-label="${escapeHTML(t('providerRefinement.back'))}">‹</button>`);$('#provider-back').onclick=guard(()=>showSettings('accounts'));const close=header.querySelector('#close-panel');if(close)close.hidden=true;$('#provider-back').focus({preventScroll:true});$('.panel-body').scrollTop=0;
+  const header=$('.panel-header');header.insertAdjacentHTML('afterbegin',`<button type="button" id="provider-back" class="icon-button" aria-label="${escapeHTML(t('providerRefinement.back'))}">‹</button>`);$('#provider-back').onclick=guard(()=>state.navigation?state.navigation.back({panel:{kind:'settings',section:'accounts'},action:null}):showSettings('accounts'));const close=header.querySelector('#close-panel');if(close)close.hidden=true;$('#provider-back').focus({preventScroll:true});$('.panel-body').scrollTop=0;
 }
 
 async function showDevices() {
@@ -423,7 +434,7 @@ function sourceLabel(skill){return t(ownedSkill(skill)?'skills.sourceOwned':skil
 async function showSkills(tab=state.skillTab) {
   if(!state.store)throw state.bootError||new Error(t('settings.storageRequired'));
   const navigation=state.panelGeneration=(state.panelGeneration||0)+1;state.skillTab=tab;const skills=await state.store.listSkills();await creatorIdentity();if(navigation!==state.panelGeneration)return;state.skills=skills;const local=tab==='local';
-  panel(t('nav.skills'),t('skills.description'),`
+  state.nextPanelView={kind:'skills',tab};panel(t('nav.skills'),t('skills.description'),`
     <div class="panel-tabs"><button id="skills-local" class="${local?'active':''}">${t('skills.mine')} · ${state.skills.length}</button><button id="skills-catalog" class="${!local?'active':''}">${t('skills.catalog')}</button></div>
     ${local?`<div class="section-heading"><h3>${t('skills.local')}</h3><button id="create-skill">＋ ${t('skills.create')}</button></div><div class="panel-actions"><button id="import-skill" class="secondary-button">${t('skills.import')}</button><button id="creator-identity" class="secondary-button">${t('community.identity')}</button></div><div id="skill-list">${state.skills.length?state.skills.map(skill=>`<div class="skill-card"><div class="card-title">${skillTextHTML(skill,'name')}<span class="tag" data-no-i18n>${escapeHTML(skill.version||'local')}</span></div><div class="card-detail">${skillTextHTML(skill,'description')}<br><span class="skill-source">${sourceLabel(skill)}</span><br>${t(skill.enabled===false?'skills.disabled':'skills.enabled')}</div><div class="card-actions"><button data-skill-view="${escapeHTML(skill.id)}">${t('common.view')}</button>${ownedSkill(skill)?`<button data-skill-edit="${escapeHTML(skill.id)}">${t('common.edit')}</button>`:''}<button data-skill-toggle="${escapeHTML(skill.id)}">${t(skill.enabled===false?'common.enable':'common.disable')}</button><button data-skill-share="${escapeHTML(skill.id)}">${t('skills.share')}</button><button class="danger" data-skill-delete="${escapeHTML(skill.id)}">${t('common.remove')}</button></div></div>`).join(''):`<div class="empty-card">${t('community.empty')}</div>`}</div>`:`<div id="catalog-list"><p class="quiet-note">${t('community.loading')}</p></div>`}
     <div id="panel-status" class="status-box" hidden></div>`);
@@ -439,16 +450,17 @@ async function showSkills(tab=state.skillTab) {
     $$('[data-skill-share]').forEach(button=>button.onclick=()=>shareSkill(state.skills.find(item=>item.id===button.dataset.skillShare)));
   } else await loadSkillMarket();
 }
+async function returnFromSkillPanel(){if(state.navigation)await state.navigation.back({panel:{kind:'skills',tab:'local'},action:null});else await showSkills('local');}
 async function showSkillEditor(skill=null){
   if(!state.store)throw state.bootError||new Error(t('settings.storageRequired'));
   const identity=await creatorIdentity();if(skill&&!isOwnedAuthored(skill,identity.creatorId))throw Object.assign(new Error('SKILL_READ_ONLY'),{code:'SKILL_READ_ONLY'});
-  panel(t(skill?'skills.editOwn':'skills.create'),t('skills.readOnlyHelp'),`<form id="skill-editor"><label class="field"><span>${t('skills.name')}</span><input name="name" value="${escapeHTML(skill?.name||'')}" required maxlength="120"></label><label class="field"><span>${t('skills.slug')}</span><input name="slug" value="${escapeHTML(skill?.provenance.slug||'')}" pattern="[a-z0-9][a-z0-9-]{0,63}" ${skill?'readonly':''} required autocapitalize="none" spellcheck="false"><small>${t('skills.slugHelp')}</small></label><label class="field"><span>${t('skills.summary')}</span><input name="description" value="${escapeHTML(skill?.description||'')}" maxlength="1000"></label><label class="field"><span>${t('skills.body')}</span><textarea name="content" rows="14" required data-no-i18n>${escapeHTML(skill?.content||'')}</textarea></label><div class="panel-actions"><button class="primary" type="submit">${t('common.save')}</button><button id="cancel-skill-editor" type="button" class="secondary-button">${t('common.cancel')}</button></div></form>`);
-  $('#cancel-skill-editor').onclick=guard(()=>showSkills('local'));
-  $('#skill-editor').onsubmit=guard(async event=>{event.preventDefault();const values=new FormData(event.target),input={name:String(values.get('name')).trim(),description:String(values.get('description')||'').trim(),content:String(values.get('content'))};if(skill)await updateAuthoredSkill({store:state.store,identity,id:skill.id,patch:input});else await createAuthoredSkill({store:state.store,identity,input:{...input,slug:String(values.get('slug')).trim()}});await showSkills('local');toast(t('skills.saved'));});
+  state.nextPanelView={kind:'skill-editor',id:skill?.id||null};panel(t(skill?'skills.editOwn':'skills.create'),t('skills.readOnlyHelp'),`<form id="skill-editor"><label class="field"><span>${t('skills.name')}</span><input name="name" value="${escapeHTML(skill?.name||'')}" required maxlength="120"></label><label class="field"><span>${t('skills.slug')}</span><input name="slug" value="${escapeHTML(skill?.provenance.slug||'')}" pattern="[a-z0-9][a-z0-9-]{0,63}" ${skill?'readonly':''} required autocapitalize="none" spellcheck="false"><small>${t('skills.slugHelp')}</small></label><label class="field"><span>${t('skills.summary')}</span><input name="description" value="${escapeHTML(skill?.description||'')}" maxlength="1000"></label><label class="field"><span>${t('skills.body')}</span><textarea name="content" rows="14" required data-no-i18n>${escapeHTML(skill?.content||'')}</textarea></label><div class="panel-actions"><button class="primary" type="submit">${t('common.save')}</button><button id="cancel-skill-editor" type="button" class="secondary-button">${t('common.cancel')}</button></div></form>`);
+  $('#cancel-skill-editor').onclick=guard(returnFromSkillPanel);
+  $('#skill-editor').onsubmit=guard(async event=>{event.preventDefault();const values=new FormData(event.target),input={name:String(values.get('name')).trim(),description:String(values.get('description')||'').trim(),content:String(values.get('content'))};if(skill)await updateAuthoredSkill({store:state.store,identity,id:skill.id,patch:input});else await createAuthoredSkill({store:state.store,identity,input:{...input,slug:String(values.get('slug')).trim()}});state.skills=await state.store.listSkills();await returnFromSkillPanel();toast(t('skills.saved'));});
 }
 async function showCreatorIdentity(){
-  const identity=await creatorIdentity();panel(t('community.identity'),t('community.identityHelp'),`<div class="status-box" data-no-i18n>${escapeHTML(identity.creatorId)}</div><label class="field"><span>${t('community.identityPassphrase')}</span><input id="creator-passphrase" type="password" autocomplete="off"></label><div class="panel-actions"><button id="export-identity" class="secondary-button">${t('community.backupIdentity')}</button><button id="import-identity" class="secondary-button">${t('community.restoreIdentity')}</button><button id="back-creator" class="secondary-button">${t('common.back')}</button></div><div id="panel-status" class="status-box" hidden></div>`);
-  $('#back-creator').onclick=guard(()=>showSkills('local'));
+  const identity=await creatorIdentity();state.nextPanelView={kind:'creator'};panel(t('community.identity'),t('community.identityHelp'),`<div class="status-box" data-no-i18n>${escapeHTML(identity.creatorId)}</div><label class="field"><span>${t('community.identityPassphrase')}</span><input id="creator-passphrase" type="password" autocomplete="off"></label><div class="panel-actions"><button id="export-identity" class="secondary-button">${t('community.backupIdentity')}</button><button id="import-identity" class="secondary-button">${t('community.restoreIdentity')}</button><button id="back-creator" class="secondary-button">${t('common.back')}</button></div><div id="panel-status" class="status-box" hidden></div>`);
+  $('#back-creator').onclick=guard(returnFromSkillPanel);
   $('#export-identity').onclick=guard(async()=>{const passphrase=$('#creator-passphrase').value;const encrypted=await identity.exportEncrypted(passphrase);$('#creator-passphrase').value='';download(encrypted,'iah-creator-encrypted.json');});
   $('#import-identity').onclick=()=>{const passphrase=$('#creator-passphrase').value;chooseFile('.json,application/json',async text=>{if(!confirm(t('community.restoreConfirm')))return;state.identity=await importCreatorIdentity(JSON.parse(text),passphrase);await showCreatorIdentity();toast(t('community.identityRestored'));});};
 }
@@ -456,13 +468,13 @@ async function showCreatorIdentity(){
 function validateSkill(skill) { if(!skill||typeof skill!=='object'||Array.isArray(skill))throw new Error('Skill 文件必须是对象。');const content=skill.content||skill.instructions||skill.body;if(typeof content!=='string'||!content.trim())throw new Error('Skill 需要非空的 content、instructions 或 body 文本。');if(content.length>500000)throw new Error('Skill 内容超过大小限制。');skill.content=content; }
 function viewSkill(skill) {
   const metadata=skillMetadata(skill);
-  panel(metadata.name,metadata.description,`<div class="quiet-note"><span data-no-i18n>${escapeHTML(skill.version||'local')}</span> · <span data-no-i18n>${escapeHTML(skill.id)}</span><br>${sourceLabel(skill)}</div><pre class="diagnostic-json" data-no-i18n>${escapeHTML(skill.content||skill.instructions||skill.body||'')}</pre><div class="panel-actions"><button id="back-skills" class="secondary-button">${t('skills.back')}</button>${ownedSkill(skill)?`<button id="edit-viewed-skill" class="secondary-button">${t('common.edit')}</button>${getBrowserCompatibility().supportedForHarness?`<button id="refine-viewed-skill" class="secondary-button">${t('skills.refineChat')}</button>`:''}`:''}</div>`,{titleKey:metadata.nameKey,subtitleKey:metadata.descriptionKey});
-  $('#back-skills').onclick=guard(()=>showSkills('local'));if($('#edit-viewed-skill'))$('#edit-viewed-skill').onclick=guard(()=>showSkillEditor(skill));if($('#refine-viewed-skill'))$('#refine-viewed-skill').onclick=guard(async()=>{$('#panel-dialog').close();navigate('harness');const created=await newSession();if(!created)return;await state.store.updateSession(state.current.id,{mode:'auto'});$('#message-input').value=t('skills.refineDraft',{name:skill.name,id:skill.id});resizeInput();});
+  state.nextPanelView={kind:'skill-view',id:skill.id};panel(metadata.name,metadata.description,`<div class="quiet-note"><span data-no-i18n>${escapeHTML(skill.version||'local')}</span> · <span data-no-i18n>${escapeHTML(skill.id)}</span><br>${sourceLabel(skill)}</div><pre class="diagnostic-json" data-no-i18n>${escapeHTML(skill.content||skill.instructions||skill.body||'')}</pre><div class="panel-actions"><button id="back-skills" class="secondary-button">${t('skills.back')}</button>${ownedSkill(skill)?`<button id="edit-viewed-skill" class="secondary-button">${t('common.edit')}</button>${getBrowserCompatibility().supportedForHarness?`<button id="refine-viewed-skill" class="secondary-button">${t('skills.refineChat')}</button>`:''}`:''}</div>`,{titleKey:metadata.nameKey,subtitleKey:metadata.descriptionKey});
+  $('#back-skills').onclick=guard(returnFromSkillPanel);if($('#edit-viewed-skill'))$('#edit-viewed-skill').onclick=guard(()=>showSkillEditor(skill));if($('#refine-viewed-skill'))$('#refine-viewed-skill').onclick=guard(async()=>{$('#panel-dialog').close();navigate('harness');const created=await newSession();if(!created)return;await state.store.updateSession(state.current.id,{mode:'auto'});$('#message-input').value=t('skills.refineDraft',{name:skill.name,id:skill.id});resizeInput();});
 }
 function shareSkill(skill) {
   const owned=ownedSkill(skill),endpoint=communityEndpoint();
-  panel(t('skills.shareTitle'),t('community.localFirst'),`<div class="status-box">${skillTextHTML(skill,'name')}<br>${sourceLabel(skill)}</div><div class="panel-actions"><button id="export-skill" class="primary">${t('skills.export')}</button>${owned&&endpoint?`<button id="publish-skill" class="secondary-button">${t('skills.publish')}</button>`:''}<button id="back-skills" class="secondary-button">${t('common.back')}</button></div><p class="quiet-note">${owned?(endpoint?t('skills.publish'):t('community.exportOnly')):t('skills.readOnlyHelp')}</p><div id="panel-status" class="status-box" hidden></div>`);
-  const shared={id:skill.id,name:skill.name,description:skill.description,version:skill.version,content:skill.content||skill.instructions||skill.body,resources:skill.resources};$('#export-skill').onclick=()=>download(shared,`${String(skill.id).replace(/[^a-zA-Z0-9_-]/g,'_')}.skill.json`);$('#back-skills').onclick=guard(()=>showSkills('local'));
+  state.nextPanelView={kind:'skill-share',id:skill.id};panel(t('skills.shareTitle'),t('community.localFirst'),`<div class="status-box">${skillTextHTML(skill,'name')}<br>${sourceLabel(skill)}</div><div class="panel-actions"><button id="export-skill" class="primary">${t('skills.export')}</button>${owned&&endpoint?`<button id="publish-skill" class="secondary-button">${t('skills.publish')}</button>`:''}<button id="back-skills" class="secondary-button">${t('common.back')}</button></div><p class="quiet-note">${owned?(endpoint?t('skills.publish'):t('community.exportOnly')):t('skills.readOnlyHelp')}</p><div id="panel-status" class="status-box" hidden></div>`);
+  const shared={id:skill.id,name:skill.name,description:skill.description,version:skill.version,content:skill.content||skill.instructions||skill.body,resources:skill.resources};$('#export-skill').onclick=()=>download(shared,`${String(skill.id).replace(/[^a-zA-Z0-9_-]/g,'_')}.skill.json`);$('#back-skills').onclick=guard(returnFromSkillPanel);
   if($('#publish-skill'))$('#publish-skill').onclick=guard(async()=>{if(!confirm(t('confirm.publishSkill')))return;const button=$('#publish-skill');button.disabled=true;try{const client=new CommunityClient({baseUrl:endpoint,identity:await creatorIdentity()});await client.publish(skill,{explicit:true});setPanelStatus(t('community.published'));}catch(error){setPanelStatus(error,true);}finally{button.disabled=false;}});
 }
 
@@ -483,7 +495,7 @@ function languageField() {
 function wireLanguageSelector() {
   $$('.language-select').forEach(select=>{select.value=getLocalePreference();select.onchange=()=>setLocale(select.value);});
 }
-function showLanguageSettings(){panel(t('language.label'),t('language.description'),languageField());wireLanguageSelector();}
+function showLanguageSettings(){state.nextPanelView={kind:'language'};panel(t('language.label'),t('language.description'),languageField());wireLanguageSelector();}
 const localizedNodes=new WeakMap();
 const localizedAttributes=new WeakMap();
 let localizing=false;
@@ -545,15 +557,43 @@ function canonicalizeLocation(){
   const compatibility=getBrowserCompatibility();
   if(route==='harness'&&(compatibility.platform==='desktop'||(state.bootError&&compatibility.supportedForHarness)))route='main';
   const pathname=routeHref(route);
-  if(url.pathname!==pathname||url.hash!==location.hash){url.pathname=pathname;history.replaceState({route},'',url);}
+  if(url.pathname!==pathname||url.hash!==location.hash){url.pathname=pathname;history.replaceState({...history.state,route},'',url);}
   return route;
+}
+function navigationURL(view){const url=new URL(routeHref(view.route||'harness'),location.origin),fixture=new URLSearchParams(location.search).get('fixture');if(fixture)url.searchParams.set('fixture',fixture);if(view.route==='harness'&&view.screen==='session'&&view.sessionId)url.searchParams.set('session',view.sessionId);return url;}
+function closeNavigationDialog(dialog){if(dialog?.open){dialog.navigationClosing=true;dialog.close();}}
+async function applyNavigationView(view,{isCurrent=()=>true}={}){
+  state.panelGeneration=(state.panelGeneration||0)+1;state.sessionOpenGeneration=(state.sessionOpenGeneration||0)+1;
+  if(!view.panel)closeNavigationDialog($('#panel-dialog'));if(!view.action)closeNavigationDialog($('#action-dialog'));
+  renderPlatform();if(!isCurrent())return;
+  if(view.route==='harness'){
+    if(view.screen==='session'&&view.sessionId){
+      if((state.running||state.submitting)&&state.current?.id!==view.sessionId){$('#app').classList.remove('in-conversation');toast(t('session.stopBeforeImport'));return {screen:'list',sessionId:null,panel:null,action:null};}
+      if(state.current?.id===view.sessionId)$('#app').classList.add('in-conversation');else {await openSession(view.sessionId);if(!isCurrent())return;if(state.current?.id!==view.sessionId)return {screen:'list',sessionId:null,panel:null,action:null};}
+    }else $('#app').classList.remove('in-conversation');
+  }
+  const target=view.panel;
+  if(target){
+    if(target.kind==='settings')await showSettings(target.section||'home');
+    else if(target.kind==='provider'){const profile=providers().find(item=>item.id===target.id);renderProviderForm(profile||{});}
+    else if(target.kind==='devices')await showDevices();
+    else if(target.kind==='skills'){state.skillsFromSettings=true;await showSkills(target.tab||'local');}
+    else if(target.kind==='skill-editor')await showSkillEditor(state.skills.find(item=>item.id===target.id)||null);
+    else if(target.kind==='skill-view'){const skill=state.skills.find(item=>item.id===target.id);if(skill)await viewSkill(skill);else await showSkills('local');}
+    else if(target.kind==='skill-share'){const skill=state.skills.find(item=>item.id===target.id);if(skill)await shareSkill(skill);else await showSkills('local');}
+    else if(target.kind==='creator')await showCreatorIdentity();
+    else if(target.kind==='language')showLanguageSettings();
+  }
+  if(!isCurrent())return;
+  if(view.action?.kind==='session-menu')await showSessionMenu();
+  else if(view.action?.kind==='rename'&&state.current)showRenameDialog(state.current);
 }
 function rememberRouteDraft(){if(state.current)state.drafts.set(state.current.id,$('#message-input').value);}
 function navigate(route,{replace=false}={}){
   if(!Object.hasOwn(canonicalRoutes,route))return;
   if(state.flashing){toast(t('flash.runningNavigation'));return;}
   rememberRouteDraft();const url=new URL(routeHref(route),location.origin);
-  if(url.href!==location.href)history[replace?'replaceState':'pushState']({route},'',url);
+  if(state.navigation){state.navigation.go({route,panel:null,action:null},{replace});closeNavigationDialog($('#panel-dialog'));closeNavigationDialog($('#action-dialog'));}else if(url.href!==location.href)history[replace?'replaceState':'pushState']({route},'',url);
   renderPlatform();
 }
 function onNavigationClick(event){
@@ -566,7 +606,7 @@ function onNavigationClick(event){
   if(url.hash){const name=url.hash.slice(1).replace(/^\//,'').split('?')[0];if(Object.hasOwn(legacyRoutes,name)||['main','skills','flash'].includes(name)){event.preventDefault();navigate(legacyRoutes[name]||name);}return;}
   event.preventDefault();navigate(route);
 }
-window.addEventListener('popstate',()=>{rememberRouteDraft();renderPlatform();});
+window.addEventListener('popstate',event=>{rememberRouteDraft();if(state.navigation)void state.navigation.pop(event).catch(report);else renderPlatform();});
 window.addEventListener('hashchange',()=>{rememberRouteDraft();renderPlatform();});
 document.addEventListener('click',onNavigationClick);
 let compatibilityGateActive=false;
@@ -646,22 +686,24 @@ async function boot() {
   const pendingDeviceSetup=location.hash.startsWith('#device=')||returningDeviceSetup;
   renderPlatform();
   state.store=await openStore();void requestStorageProtection();await installBuiltinSkills(state.store);state.settings=await state.store.getSettings()||{};await restoreProviderCredentials(state.store,providers(),{registerAccount:registerCodexAccount,onError:report});state.skills=await state.store.listSkills();
-  state.devicePanel=createDevicePanel({store:state.store,capture,openPanel:panel,getPanelRoot:()=>$('#panel-content .panel-body'),onDeviceChange:(device,summary)=>{state.device=device;state.deviceStatus=summary;const pending=clipboard.getSnapshot();if(pending&&(!summary.inputVerified||summary.targetId!==pending.targetId))clipboard.clear();renderDeviceStatus();},onSettingsChange:settings=>{state.settings=settings;},isBusy:()=>state.running||state.submitting,onToast:toast});
+  state.devicePanel=createDevicePanel({store:state.store,capture,openPanel:(...args)=>{state.nextPanelView={kind:'devices'};return panel(...args);},getPanelRoot:()=>$('#panel-content .panel-body'),onDeviceChange:(device,summary)=>{state.device=device;state.deviceStatus=summary;const pending=clipboard.getSnapshot();if(pending&&(!summary.inputVerified||summary.targetId!==pending.targetId))clipboard.clear();renderDeviceStatus();},onSettingsChange:settings=>{state.settings=settings;},isBusy:()=>state.running||state.submitting,onToast:toast});
   state.mcpAccess=createMCPAccess();state.mcpPanel=createMCPSettings({access:state.mcpAccess,store:state.store,onSettingsChange:settings=>{state.settings=settings;}});
   void state.mcpPanel.restore({servers:state.settings.mcpServers,endpoint:state.settings.mcpEndpoint||''}).catch(report);
   state.harness=createHarness({store:state.store,onEvent:onHarnessEvent,capture,device:deviceAdapter,getContext:deviceContext,getDeviceStatus:deviceStatus,clipboard,mcp:state.mcpAccess});
   $('#new-session').onclick=guard(newSession);state.sessionSearch=mountSessionSearch({surface:$('.sidebar'),scrollArea:$('#sessions'),field:$('#session-search-wrap'),input:$('#session-search'),toggle:$('#toggle-session-search'),cancel:$('#cancel-session-search'),onQueryChange:guard(refreshSessions)});$('#archive-toggle').onclick=guard(async()=>{state.archived=!state.archived;await refreshSessions();});
-  $('#back-sessions').onclick=()=>$('#app').classList.remove('in-conversation');$('#session-menu').onclick=guard(showSessionMenu);
+  $('#back-sessions').onclick=guard(()=>state.navigation?state.navigation.back({screen:'list',sessionId:null,panel:null,action:null}):$('#app').classList.remove('in-conversation'));$('#session-menu').onclick=guard(showSessionMenu);
   $('#conversation-device').onclick=guard(showDevices);$('#open-settings').onclick=guard(showSettings);$('#open-devices').onclick=guard(showDevices);
   $('#resume-run').onclick=guard(resumeRun);capture.subscribe(event=>{state.deviceStatus=state.devicePanel?.getState?.();updateModeDescription();renderDeviceStatus();if(event.type==='stopped'&&state.running){$('#run-status').textContent=t('interaction.shareStopped');}renderRunControls();});
   $('#composer').onsubmit=guard(sendMessage);$('#message-input').oninput=resizeInput;$('#stop-run').onclick=()=>{state.harness.stop();state.abort?.abort();$('#run-status').textContent='正在停止…';};
-  $('#model-select').onchange=guard(async()=>{const resolved=selectedProvider();$('#model-select').title=resolved?`${resolved.name} · ${selectionParts($('#model-select').value).modelId}`:t('provider.chooseAccountModel');if(state.current){await state.store.updateSession(state.current.id,{modelId:$('#model-select').value});state.current.modelId=$('#model-select').value;}});
-  $('#panel-dialog').addEventListener('close',()=>{state.panelGeneration=(state.panelGeneration||0)+1;state.devicePanel?.dispose();discardProviderDraft();state.codexAbort?.abort();state.modelsAbort?.abort();state.mcpPanel?.disposeView();});
+  $('#reasoning-select').onchange=guard(async()=>{const profile=selectedProvider();if(!profile)return;const model=selectionParts($('#model-select').value).modelId||profile.model,key=profile.id+'::'+model,value=normalizeReasoningEffort({...profile,model},$('#reasoning-select').value);if(state.current){const id=state.current.id,reasoningEfforts={...state.current.reasoningEfforts,[key]:value};await state.store.updateSession(id,{reasoningEfforts});if(state.current?.id===id)state.current.reasoningEfforts=reasoningEfforts;}else state.settings=await state.store.saveSettings({reasoningEfforts:{...state.settings.reasoningEfforts,[key]:value}});renderReasoningOptions();});
+  $('#model-select').onchange=guard(async()=>{const selection=$('#model-select').value,resolved=selectedProvider();$('#model-select').title=resolved?`${resolved.name} · ${selectionParts(selection).modelId}`:t('provider.chooseAccountModel');renderReasoningOptions();if(state.current){const id=state.current.id;await state.store.updateSession(id,{modelId:selection});if(state.current?.id===id)state.current.modelId=selection;}});
+  $('#panel-dialog').addEventListener('close',()=>{const historyClose=$('#panel-dialog').navigationClosing;$('#panel-dialog').navigationClosing=false;if($('#panel-dialog').open)return;if(!historyClose&&state.navigation&&!state.navigation.restoring)void state.navigation.dismissPanel().catch(report);state.panelGeneration=(state.panelGeneration||0)+1;state.devicePanel?.dispose();discardProviderDraft();state.codexAbort?.abort();state.modelsAbort?.abort();state.mcpPanel?.disposeView();});
+  $('#action-dialog').addEventListener('close',()=>{if($('#action-dialog').navigationClosing){$('#action-dialog').navigationClosing=false;return;}if($('#action-dialog').open)return;if(state.navigation&&!state.navigation.restoring)void state.navigation.dismissAction().catch(report);});
   $$('dialog').forEach(dialog=>dialog.addEventListener('close',()=>{if(dialog.contains(toastNode))hideToast(toastNode);}));
   $$('dialog').forEach(dialog=>dialog.addEventListener('click',event=>{if(event.target===dialog){const rect=dialog.getBoundingClientRect();if(event.clientX<rect.left||event.clientX>rect.right||event.clientY<rect.top||event.clientY>rect.bottom)dialog.close();}}));
   mountViewport();const followLayout=()=>state.conversationFollow?.afterRender();window.addEventListener('resize',followLayout);window.visualViewport?.addEventListener('resize',followLayout);
   renderDeviceStatus();renderModelOptions();renderMessages();await refreshSessions();$('#app').inert=false;localizeView();renderPlatform();
-  const params=new URLSearchParams(location.search);const sessionId=params.get('session');if(sessionId)await openSession(sessionId);if(pendingDeviceSetup)await showDevices();
+  const params=new URLSearchParams(location.search);const sessionId=params.get('session');if(sessionId)await openSession(sessionId);state.navigation=createViewNavigation({history,location,urlForView:navigationURL,applyView:applyNavigationView,initialView:{route:routeForPath(location.pathname)||'main',screen:sessionId?'session':'list',sessionId:sessionId||null,panel:null,action:null}});if(pendingDeviceSetup)await showDevices();else if(state.navigation.current.panel||state.navigation.current.action)await state.navigation.restoreCurrent();
   window.addEventListener('pageshow',event=>{if(event.persisted&&pendingDeviceSetupReturn({consume:true}))void showDevices().catch(report);});
 }
 boot().catch(error=>{console.error(error);state.bootError=error;$('#app').inert=true;renderPlatform();toast(localizeError(error));});

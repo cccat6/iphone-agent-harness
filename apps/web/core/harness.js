@@ -1,7 +1,7 @@
 import {getLocale} from '../i18n.js';
 import {ERROR_CATALOG} from './error-catalog.js';
 import {callModel} from './providers.js';
-import {getCredential} from './credentials.js';
+import {resolveProviderCredential} from './credentials.js';
 import {screenCapture} from './capture.js';
 import {prefixMessages,runtimeMessage,ASSET_REVISION,PLAN_SCHEMA,PROMPTS} from './prompt.js';
 import {snapshotSkills,readSkill} from './skills.js';
@@ -12,6 +12,7 @@ import {openCreatorIdentity} from '../community/identity.js';
 import {createAuthoredSkill,updateAuthoredSkill} from '../community/authoring.js';
 import {resolveModelSelection} from './models.js';
 import {imageData} from './attachments.js';
+import {generateSessionTitle} from './session-title.js';
 import {bridgeStatus,phoneInputError,assertBridgePresent} from './bridge-status.js';
 import {assertClipboardPasteReady,runtimeClipboard} from './clipboard-plan.js';
 
@@ -47,7 +48,7 @@ function callsFrom(reply){
   return calls;
 }
 export function chatExecutionContext(){return {identityVerified:false,bindingVerified:false,leaseVerified:false,executionEnabled:false,inputState:'unknown',orientationEpoch:0,targetId:'unbound-screen'};}
-export function createHarness({store,onEvent=()=>{},capture=screenCapture,invoke=callModel,executePlan=null,device=null,mcp=null,clipboard=null,getContext=()=>({}),getDeviceStatus=()=>({}),maxSteps=24,maxToolCalls=72,maxDurationMs=600000,contextChars=48000,getIdentity=openCreatorIdentity}={}){
+export function createHarness({store,onEvent=()=>{},capture=screenCapture,invoke=callModel,titleInvoke=invoke===callModel?callModel:null,executePlan=null,device=null,mcp=null,clipboard=null,getContext=()=>({}),getDeviceStatus=()=>({}),maxSteps=24,maxToolCalls=72,maxDurationMs=600000,contextChars=48000,getIdentity=openCreatorIdentity}={}){
   let active=null;
   const emit=event=>{try{onEvent(event)?.catch?.(()=>{});}catch{/* View callbacks never control execution. */}};
   const api={
@@ -98,7 +99,7 @@ export function createHarness({store,onEvent=()=>{},capture=screenCapture,invoke
         checkAbort(runSignal);if(typeof text!=='string'||!text.trim()||text.length>100000)throw new Error('任务内容为空或过长');
         session=await store.getSession(sessionId);checkAbort(runSignal);if(!session)throw new Error('对话不存在');mode=mode||session.mode||'auto';if(!['auto','chat','plan','task'].includes(mode))throw new Error('未知运行模式');
         if(mode!=='chat'&&typeof capture.subscribe==='function')unsubscribeCapture=capture.subscribe(event=>{if(event?.type==='stopped'&&active===run&&!run.finished)pause('屏幕共享已停止，任务已暂停');});
-        const settings=await store.getSettings();checkAbort(runSignal);provider=resolveModelSelection(settings,modelId||session.modelId||settings.activeProviderId);credential=getCredential(provider.accountId||provider.id);if(mode!=='chat')capture.configure?.(settings.images);
+        const settings=await store.getSettings();checkAbort(runSignal);provider=resolveModelSelection({...settings,reasoningEfforts:{...settings.reasoningEfforts,...session.reasoningEfforts}},modelId||session.modelId||settings.activeProviderId);credential=await resolveProviderCredential(store,provider,{settings,requireCredential:invoke===callModel?undefined:false});checkAbort(runSignal);if(mode!=='chat')capture.configure?.(settings.images);
         if(store.claimRun){await store.claimRun(sessionId,run.id,{mode,expiresAt:Date.now()+maxDurationMs+30000});claimed=true;}
         await guard();skills=await snapshotSkills(store);await guard();
         if(!resumeCheckpoint){const user=await store.addMessage(sessionId,{role:'user',text});checkAbort(runSignal);emit({type:'message',message:user});}
@@ -136,7 +137,9 @@ export function createHarness({store,onEvent=()=>{},capture=screenCapture,invoke
             }
           }
           if(reply.usage)await journal('model.usage',{step:stepCount,usage:reply.usage,cache:reply.cache});
-          const calls=callsFrom(reply);answer=await store.addMessage(sessionId,{role:'assistant',text:reply.text,toolCalls:calls,...(reply.providerState?{providerState:reply.providerState}:{})});run.pending=calls;run.settled.clear();checkAbort(runSignal);emit({type:'message',message:answer});
+          const calls=callsFrom(reply);
+          if(stepCount===0)void generateSessionTitle({store,sessionId,provider,credential,invoke:titleInvoke,locale:getLocale(),signal:runSignal,onEvent:emit}).catch(()=>{});
+          answer=await store.addMessage(sessionId,{role:'assistant',text:reply.text,toolCalls:calls,...(reply.providerState?{providerState:reply.providerState}:{})});run.pending=calls;run.settled.clear();checkAbort(runSignal);emit({type:'message',message:answer});
           if(!calls.length){status=mode==='task'?'needs_user':'completed';break;}
           let batchFailed=false;
           for(const call of calls){

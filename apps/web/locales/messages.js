@@ -1,3 +1,4 @@
+import {REASONING_MESSAGES} from './reasoning.js';
 import {INTERACTION_MESSAGES} from './interaction-refinement.js';
 import {PROVIDER_REFINEMENT_MESSAGES} from './provider-refinement.js';
 // Eight locale tables for product text; user content and protocol identifiers stay unchanged.
@@ -5398,3 +5399,5 @@ export const sourceAliases = {
 for(const [locale,table] of Object.entries(PROVIDER_REFINEMENT_MESSAGES))Object.assign(messages[locale],table);
 
 for(const [locale,table] of Object.entries(INTERACTION_MESSAGES))Object.assign(messages[locale],table);
+
+for(const [locale,table] of Object.entries(REASONING_MESSAGES))Object.assign(messages[locale],table);

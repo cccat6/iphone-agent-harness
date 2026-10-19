@@ -15,8 +15,10 @@ if(!(await store.listSessions()).length){
  await store.addMessage(session.id,{role:'assistant',text:'屏幕已查看。你可以继续提问或让我制定计划。'});
 }
 await store.saveSettings({deviceEndpoint:'http://fixture.local',deviceBoardId:'fixture-board',deviceRTC:{ip:'192.168.0.200',port:18948,fingerprint:'ab'.repeat(32)}});
+const fixtureSettings=await store.getSettings();await store.saveSettings({providers:fixtureSettings.providers.map(profile=>profile.id==='fixture'?{...profile,models:[{id:'synthetic-flash',supportedReasoningEfforts:['low','high','max']},{id:'synthetic-pro',supportedReasoningEfforts:['low','high']}]}:profile)});
 store.close();
 let track;screenCapture.start=async()=>{track={readyState:'live',stop(){this.readyState='ended';}};screenCapture.stream={getVideoTracks:()=>[track],getTracks:()=>[track]};qa.captureStarts=(qa.captureStarts||0)+1;return screenCapture.stream;};
+qa.startSharing=()=>screenCapture.start();qa.captureStatus=()=>screenCapture.active;qa.pageHides=0;window.addEventListener('pagehide',()=>qa.pageHides++);
 const originalFetch=window.fetch;window.fetch=async(input,options={})=>{
  const url=new URL(typeof input==='string'||input instanceof URL?input:input.url,location.href);
  if(url.hostname==='model.example'&&url.pathname.endsWith('/chat/completions')){

@@ -34,7 +34,7 @@
       <div id="conversation" class="conversation" aria-live="polite"></div>
       <section class="composer-wrap" aria-label="消息输入">
         <div id="run-status" class="run-status" role="status" hidden></div><button id="resume-run" class="secondary-button resume-run" type="button" hidden></button><div id="clipboard-panel" hidden></div>
-        <form id="composer" class="composer"><textarea id="message-input" rows="1" placeholder="描述你想完成的事情…" aria-label="消息" maxlength="100000"></textarea><div class="composer-toolbar"><div class="composer-options"><select id="model-select" data-no-i18n aria-label="模型"><option value="">选择模型</option></select></div><button id="stop-run" class="send-button stop-button" type="button" aria-label="停止" hidden>■</button><button id="send-message" class="send-button" type="submit" aria-label="发送消息">↑</button></div></form>
+        <form id="composer" class="composer"><textarea id="message-input" rows="1" placeholder="描述你想完成的事情…" aria-label="消息" maxlength="100000"></textarea><div class="composer-toolbar"><div class="composer-options"><select id="model-select" data-no-i18n aria-label="模型"><option value="">选择模型</option></select><select id="reasoning-select" aria-label="推理强度" hidden></select></div><button id="stop-run" class="send-button stop-button" type="button" aria-label="停止" hidden>■</button><button id="send-message" class="send-button" type="submit" aria-label="发送消息">↑</button></div></form>
         <p id="mode-description" class="composer-note"></p>
       </section>
     </main>

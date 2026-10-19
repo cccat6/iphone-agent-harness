@@ -12,8 +12,8 @@ Le site est disponible sur [igent.cc](https://igent.cc). Harness se connecte au 
 
 ## Fonctionnalités
 
-- **Conversations :** messages et images locaux, recherche, renommage, épinglage, archivage et import/export de fichiers. Discussion, planification et exécution se font dans la même conversation. Demander un plan ne lance aucune action.
-- **Comptes ou API :** plusieurs connexions, points de terminaison compatibles OpenAI et Anthropic, chargement et sélection des modèles. L’adaptateur et l’interface de connexion à l’abonnement ChatGPT sont implémentés ; la connexion réelle dans Safari reste à vérifier.
+- **Conversations :** messages et images locaux, recherche, renommage, épinglage, archivage et import/export de fichiers. Discussion, planification et exécution se font dans la même conversation. Demander un plan ne lance aucune action. Un titre est généré automatiquement à partir de la première demande ; les titres saisis manuellement ou importés sont conservés.
+- **Comptes ou API :** plusieurs connexions, points de terminaison compatibles OpenAI et Anthropic, chargement et sélection des modèles. L’adaptateur et l’interface de connexion à l’abonnement ChatGPT sont implémentés ; la connexion réelle dans Safari reste à vérifier. Les modèles compatibles proposent un réglage de l’effort de raisonnement, mémorisé pour chaque compte et modèle.
 - **Contexte :** résumés automatiques par le modèle à partir d’un seuil réglable de **750 000 tokens** par défaut. L’historique complet reste sur l’appareil.
 - **Images :** compression JPEG à trois niveaux de qualité, en conservant les dimensions d’origine.
 - **Compétences :** dix compétences intégrées, création et modification de vos compétences, téléchargements et publication dans la communauté. L’adresse officielle est préconfigurée. Le Harness peut vous aider à rédiger et améliorer vos compétences en conversation.
