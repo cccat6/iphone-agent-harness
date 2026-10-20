@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720" role="img" aria-labelledby="title desc" lang="fr" xml:lang="fr">
-<title id="title">Architecture de iPhone Agent Harness</title><desc id="desc">Le site fournit des pages statiques et des compétences publiques. Safari garde conversations et clés en local, envoie le contexte choisi directement à l’IA et échange commandes et reçus avec ESP32 via WebRTC local. ESP32 pilote le même téléphone par Bluetooth HID, sans câble USB au téléphone ni relais cloud.</desc>
+<title id="title">Architecture de iPhone Agent Harness</title><desc id="desc">Historique, images et identifiants sont enregistrés dans le navigateur. Les API sont directes ; ChatGPT utilise un relais sans état pour le contexte choisi, les images, les réponses et un jeton d’accès temporaire. Le relais ne les conserve pas et ne journalise ni contenus ni identifiants. Connexion et renouvellement restent directs vers OpenAI.</desc>
 <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="m0 0 10 5-10 5z" fill="#356556" /></marker><style>text{font-family:system-ui,-apple-system,sans-serif;fill:#203a31}.title{font-size:25px;font-weight:700}.head{font-size:21px;font-weight:650}.body{font-size:17px}.small{font-size:15px;fill:#536b61}.box{fill:#fff;stroke:#bdcec5;stroke-width:1.5}.line{fill:none;stroke:#356556;stroke-width:2;marker-end:url(#arrow)}.both{marker-start:url(#arrow)}</style></defs>
 <rect width="1200" height="720" rx="24" fill="#f7faf8" />
 <text x="40" y="46" class="title">iPhone Agent Harness</text><text x="40" y="75" class="small">Raisonnement web · contrôle local · choix du modèle</text>
@@ -8,21 +8,21 @@
 <rect x="440" y="173" width="376" height="443" rx="25" fill="#fff" stroke="#456858" stroke-width="2" />
 <text x="466" y="209" class="head">iPhone / iPad</text>
 <rect x="466" y="237" width="324" height="154" rx="14" fill="#eaf1ee" />
-<text x="486" y="269" class="head">Safari · Web Harness</text><text x="486" y="301" class="body" style="font-size:16px">Boucle, instructions, compétences</text><text x="486" y="330" class="body" style="font-size:16px">Conversations, images, clés : local</text><text x="486" y="359" class="small" style="font-size:13px">IndexedDB · pas de conversation à l’hôte</text>
+<text x="486" y="269" class="head">Safari · Web Harness</text><text x="486" y="301" class="body" style="font-size:16px">Boucle, instructions, compétences</text><text x="486" y="330" class="body" style="font-size:16px">Conversations, images, clés : local</text><text x="486" y="359" class="small" style="font-size:13px">IndexedDB · sauvegarde locale</text>
 <rect x="466" y="468" width="324" height="112" rx="14" fill="#f4f6f5" stroke="#ccd8d1" />
 <text x="486" y="501" class="head">Écran iOS + autres apps</text><text x="486" y="532" class="body" style="font-size:16px">Apps, contrôles et presse-papiers</text><text x="486" y="558" class="small">AssistiveTouch reçoit le pointeur</text>
 <path class="line" d="M537 466v-66" /><text x="548" y="429" class="small">Partage d’écran</text><text x="548" y="449" class="small">observé en local</text>
 <rect x="48" y="144" width="295" height="157" rx="17" class="box" />
-<text x="70" y="180" class="head" style="font-size:19px">Site / auto-hébergement</text><text x="70" y="214" class="body">HTML, JS et firmware statiques</text><text x="70" y="244" class="body">Partage de compétences</text><text x="70" y="276" class="small" style="font-size:13px">Ni conversations, captures ni clés</text>
+<text x="70" y="180" class="head" style="font-size:19px">Site / auto-hébergement</text><text x="70" y="214" class="body">HTML, JS et firmware statiques</text><text x="70" y="244" class="body">Partage de compétences</text><text x="70" y="276" class="small" style="font-size:13px">Le relais ne conserve pas les données</text>
 <path class="line" d="M345 218h90" /><text x="352" y="201" class="small">Pages</text>
 <path class="line both" d="M344 280h92" /><text x="347" y="309" class="small"><tspan x="347" dy="0">Compétences</tspan><tspan x="347" dy="17">publiques</tspan></text>
 <rect x="48" y="413" width="295" height="164" rx="17" class="box" />
-<text x="70" y="450" class="head">IA / MCP choisis</text><text x="70" y="485" class="body">Votre compte ou API</text><text x="70" y="515" class="body">Reçoit le contexte sélectionné</text><text x="70" y="548" class="small">Connexion directe depuis Safari</text>
-<path class="line both" d="M343 443h50v-91h42" /><text x="352" y="476" class="small">HTTPS</text>
+<text x="70" y="450" class="head">IA / MCP choisis</text><text x="70" y="485" class="body">Votre compte ou API</text><text x="70" y="515" class="body">Reçoit le contexte sélectionné</text><text x="70" y="548" class="small" style="font-size:13px">API / MCP directs; plan via relais</text>
+<path class="line both" d="M343 443h50v-62h42" /><text x="352" y="476" class="small">HTTPS</text>
 <rect x="906" y="256" width="228" height="174" rx="18" class="box" />
 <text x="928" y="292" class="head">Pont ESP32</text><text x="928" y="326" class="body">Entrées temporisées</text><text x="928" y="355" class="body">Clavier Bluetooth</text><text x="928" y="383" class="body">et pointeur</text><text x="928" y="411" class="small">Alimenté à proximité</text>
 <path class="line both" d="M791 315h110" /><text x="821" y="288" class="small">WebRTC</text><text x="821" y="348" class="small" style="font-size:13px">Commandes</text><text x="821" y="369" class="small">+ reçus</text>
 <path class="line" d="M1020 434v89H795" /><text x="850" y="508" class="body">Bluetooth HID</text>
 <text x="843" y="559" class="small" style="font-size:13px">Raccourci de copie facultatif :</text><text x="843" y="582" class="small">texte par HTTP local</text>
-<text x="40" y="686" class="small">USB pour installer le firmware. Aucun câble au téléphone, relais de commandes cloud ou app iOS dédiée.</text>
-</svg>
+<text x="40" y="686" class="small">USB pour le firmware. Contrôle local via WebRTC et Bluetooth, sans app iOS supplémentaire.</text>
+<rect x="48" y="326" width="295" height="73" rx="12" class="box" /><path class="line both" d="M344 362h91" /><path class="line both" d="M195 400v10" /><text x="62" y="347" class="small" style="font-size:16px">ChatGPT · relais sans état</text><text x="62" y="369" class="small" style="font-size:13px">Contexte choisi + jeton temporaire</text><text x="62" y="389" class="small" style="font-size:13px">Images et réponses du modèle</text></svg>

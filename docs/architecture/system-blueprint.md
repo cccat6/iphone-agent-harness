@@ -9,6 +9,7 @@
 | Prompts | `prompts/` | System instructions, intent handling and context summaries |
 | Built-in skills | `apps/web/skills/` | Versioned operation procedures |
 | Public skill API | `apps/web/api/` | Signed public packages and revisions |
+| ChatGPT relay | `apps/web/api/openai-relay-worker.js` | Stateless forwarding of subscription model requests; no persistent model content or credentials |
 | Build and release tools | `tools/` | Website builds, firmware compilation and release reuse |
 | Tests | `tests/` | Runtime, protocol, UI and build checks |
 

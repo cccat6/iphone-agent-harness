@@ -9,7 +9,7 @@ const provider={accountId:'plan',model:'fixture'};
 beforeEach(()=>{clearCodexAccounts();registerCodexAccount('plan',{flow:'chatgpt-plan',clientId:'oaiapp_fixture',identityVerified:true,scope:'chatgpt.tokens.use.direct',access_token:'fixture-plan-access',expires_in:3600});});
 test('plan tools are grouped under the fixed namespace while local tool calls keep their original names',async()=>{
  const result=await callCodexModel({provider,messages:[{role:'user',text:'Look at the screen'}],tools,fetchImpl:async(url,options)=>{
-  assert.equal(url,CODEX_ENDPOINTS.planResponses);const body=JSON.parse(options.body);assert.equal(body.store,false);assert.equal(body.stream,true);assert.equal(body.tools.length,1);
+  assert.equal(url,'https://igent.cc/api/openai/responses');const body=JSON.parse(options.body);assert.equal(body.store,false);assert.equal(body.stream,true);assert.equal(body.tools.length,1);
   assert.equal(body.tools[0].type,'namespace');assert.equal(body.tools[0].name,CODEX_TOOL_NAMESPACE);assert.deepEqual(body.tools[0].tools,[{type:'function',name:'phone_observe',description:tools[0].description,parameters:tools[0].schema,strict:false}]);
   return output([call]);
  }});
@@ -35,5 +35,5 @@ test('plain plan conversations send no namespace object when there are no tools'
 });
 
 test('plan inference uses only standard headers even when a local session ID is supplied',async()=>{
- await callCodexModel({provider,messages:[],sessionId:'local-session-identifier',fetchImpl:async(url,options)=>{assert.equal(url,CODEX_ENDPOINTS.planResponses);assert.deepEqual(options.headers,{authorization:'Bearer fixture-plan-access','content-type':'application/json',accept:'text/event-stream'});assert.equal(options.redirect,'error');return output([message]);}});
+ await callCodexModel({provider,messages:[],sessionId:'local-session-identifier',fetchImpl:async(url,options)=>{assert.equal(url,'https://igent.cc/api/openai/responses');assert.deepEqual(options.headers,{authorization:'Bearer fixture-plan-access','content-type':'application/json',accept:'text/event-stream'});assert.equal(options.redirect,'error');return output([message]);}});
 });

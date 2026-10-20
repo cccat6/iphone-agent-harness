@@ -62,9 +62,13 @@
 
 **使用 ChatGPT 帳號**
 
-在 Harness 選擇「ChatGPT 訂閱」，點選「繼續使用 ChatGPT」，開啟官方頁面完成授權。接著瀏覽器會顯示無法開啟本機返回位址（`127.0.0.1`），這是正常情況。複製網址列的完整網址，回到 Harness 貼入「返回位址」，再點選「完成登入」。接著從取得的清單選擇模型並儲存帳號。登入憑證保存在目前瀏覽器，模型請求直接傳送至 OpenAI。現有 Codex 連線會保留，新增的 ChatGPT 訂閱使用獨立帳號。[OpenAI 授權說明](https://developers.openai.com/siwc/token-sharing-open-source/sign-in)。
+在 Harness 選擇「ChatGPT 訂閱」，點選「繼續使用 ChatGPT」，開啟官方頁面完成授權。接著瀏覽器會顯示無法開啟本機返回位址（`127.0.0.1`），這是正常情況。複製網址列的完整網址，回到 Harness 貼入「返回位址」，再點選「完成登入」。接著從取得的清單選擇模型並儲存帳號。登入憑證保存在目前瀏覽器。現有 Codex 連線會保留，新增的 ChatGPT 訂閱使用獨立帳號。[OpenAI 授權說明](https://developers.openai.com/siwc/token-sharing-open-source/sign-in)。
 
-帳號資訊與金鑰儲存在目前瀏覽器，請求直接送至所選服務商。服務商介面需支援瀏覽器存取。
+對話、截圖與憑證持續儲存在瀏覽器。一般 API 請求直接傳給服務商。ChatGPT 訂閱因瀏覽器跨來源限制，透過專案提供或你自行架設的無狀態轉送服務通信：選定內容、圖片、模型輸出及短期存取權杖會經過該服務。轉送程式不持續儲存這些資料，也不記錄請求本文或憑證。登入與權杖更新仍由瀏覽器直連 OpenAI，更新權杖及 ID 權杖不經轉送。MCP 請求傳至你設定的伺服器；只有主動發布的技能會進入社群。
+
+ChatGPT 訂閱的進階設定 **進階連線設定 → 自建轉送位址** 預設為 `https://igent.cc/api/openai`，也可填入自行架設服務的網址前綴。儲存帳號不必先取得模型清單，之後可再取得。
+
+只架設轉送服務時，在 `wrangler.relay.jsonc` 將 `ALLOWED_ORIGINS` 設為網頁來源（多個來源以逗號分隔），執行 `npx wrangler deploy --config wrangler.relay.jsonc`，再將部署網址加上 `/api/openai` 填入 **進階連線設定 → 自建轉送位址**。服務只提供 `GET /api/openai/models` 與 `POST /api/openai/responses`，不需 OpenAI 金鑰、資料庫或 KV，也可搭配官方託管的 Harness。
 
 ### 定位
 

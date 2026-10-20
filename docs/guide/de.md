@@ -62,9 +62,13 @@ Wenn du eine Aufgabe ausführst, erlaube die Bildschirmfreigabe und lass das Tel
 
 **Mit ChatGPT-Konto**
 
-Wähle in Harness „ChatGPT-Abonnement“ und dann „Mit ChatGPT fortfahren“. Öffne die offizielle Seite und erlaube den Zugriff. Danach kann der Browser die lokale Rücksprungadresse (`127.0.0.1`) nicht öffnen; das ist zu erwarten. Kopiere die vollständige URL aus der Adresszeile, kehre zu Harness zurück, füge sie in „Rücksprungadresse“ ein und wähle „Anmeldung abschließen“. Wähle ein Modell aus der geladenen Liste und speichere das Konto. Die Zugangsdaten bleiben in diesem Browser; Modellanfragen gehen direkt an OpenAI. Bestehende Codex-Verbindungen bleiben erhalten; das ChatGPT-Abonnement wird als separates Konto hinzugefügt. [OpenAI-Anmeldereferenz](https://developers.openai.com/siwc/token-sharing-open-source/sign-in).
+Wähle in Harness „ChatGPT-Abonnement“ und dann „Mit ChatGPT fortfahren“. Öffne die offizielle Seite und erlaube den Zugriff. Danach kann der Browser die lokale Rücksprungadresse (`127.0.0.1`) nicht öffnen; das ist zu erwarten. Kopiere die vollständige URL aus der Adresszeile, kehre zu Harness zurück, füge sie in „Rücksprungadresse“ ein und wähle „Anmeldung abschließen“. Wähle ein Modell aus der geladenen Liste und speichere das Konto. Die Zugangsdaten werden in diesem Browser gespeichert. Bestehende Codex-Verbindungen bleiben erhalten; das ChatGPT-Abonnement wird als separates Konto hinzugefügt. [OpenAI-Anmeldereferenz](https://developers.openai.com/siwc/token-sharing-open-source/sign-in).
 
-Anmeldedaten und Schlüssel bleiben in diesem Browser. Anfragen gehen direkt an deinen Anbieter, dessen API Browserzugriffe unterstützen muss.
+Sitzungen, Screenshots und Zugangsdaten werden im Browser gespeichert. Normale API-Anfragen gehen direkt an deinen Anbieter. Für ChatGPT-Abonnements nutzt der Browser wegen CORS den zustandslosen Relay des Projekts oder deinen eigenen. Ausgewählter Kontext, Bilder, Modellausgaben und ein kurzlebiges Zugriffstoken laufen darüber. Die Relay-Anwendung speichert sie nicht dauerhaft und protokolliert weder Inhalte noch Zugangsdaten. Anmeldung und Token-Erneuerung gehen direkt vom Browser an OpenAI; Refresh- und ID-Tokens werden nicht weitergeleitet. MCP-Anfragen gehen an deine konfigurierten Server; nur bewusst veröffentlichte Skills gelangen in die Community.
+
+In den erweiterten ChatGPT-Einstellungen ist **Erweiterte Verbindungseinstellungen → Eigene Vermittlungs-URL** standardmäßig `https://igent.cc/api/openai`. Du kannst die URL-Basis deines eigenen Relays eintragen. Das Konto lässt sich auch ohne Modellliste speichern; die Liste kannst du später abrufen.
+
+Für einen eigenen Relay trage deinen Website-Origin in `ALLOWED_ORIGINS` in `wrangler.relay.jsonc` ein (mehrere durch Kommas getrennt), führe `npx wrangler deploy --config wrangler.relay.jsonc` aus und trage die veröffentlichte URL mit `/api/openai` als **Erweiterte Verbindungseinstellungen → Eigene Vermittlungs-URL** ein. Unterstützt werden nur `GET /api/openai/models` und `POST /api/openai/responses`. OpenAI-Schlüssel, Datenbank oder KV sind nicht nötig; auch der gehostete Harness funktioniert damit.
 
 ### Standort
 

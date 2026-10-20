@@ -45,7 +45,9 @@ flowchart LR
     Harness <--> Storage
     Shortcut["苹果快捷指令<br/>iOS 剪贴板"]
   end
-  Harness <-->|上下文 / 回复| AI["你选择的 AI"]
+  Harness <-->|API / MCP| AI["你选择的 AI"]
+  Harness <-->|ChatGPT 订阅| Relay["无状态转发服务"]
+  Relay <--> AI
   Harness <-->|WebRTC · 局域网 Wi-Fi| Bridge["ESP32 桥"]
   Bridge -->|蓝牙键盘 / 鼠标| Apps
   Bridge -->|本地 HTTP · 文字| Shortcut
@@ -122,9 +124,9 @@ flowchart LR
 
 [配置剪贴板复制](../guide/zh-Hans.md#clipboard)
 
-## 🔒 数据由你掌握
+## 🔒 数据与隐私
 
-会话、截图、账号信息和 API 密钥保存在你的浏览器中。选中的消息和图片直接发送给你选择的 AI 服务商，MCP 请求发送给你配置的服务器。网站提供网页，以及你选择公开分享的技能。
+会话、截图和凭据保存在浏览器中，普通 API 直连服务商。ChatGPT 订阅因浏览器跨域限制，经项目的 Cloudflare 服务或自建无状态服务转发选定内容、图片、输出及短期访问令牌。转发程序不持久保存这些数据，也不记录正文或凭据。
 
 ## 🤝 参与贡献
 

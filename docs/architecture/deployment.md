@@ -20,4 +20,10 @@ Use the [manual release workflow](manual-release.md). It checks the source, sele
 
 The workflow reads `CLOUDFLARE_API_TOKEN` from repository secrets. Ordinary pushes and pull requests leave the deployed site unchanged. Production deployments run one at a time.
 
-The public skill API stores published packages, signatures and revisions. Conversations, screen images and model credentials remain in the user's browser; selected task context goes directly to the configured model service.
+The public skill API stores published packages, signatures and revisions. Conversations, saved screen images and credentials persist in the user's browser. Ordinary model APIs are direct; ChatGPT subscriptions use the configured stateless relay for selected inputs, images, output and a short-lived access token. The relay application does not persist these data or log request bodies or credentials. Sign-in and refresh are direct to OpenAI; refresh and ID tokens are not relayed.
+
+## Host only the ChatGPT relay
+
+Set `ALLOWED_ORIGINS` in [`wrangler.relay.jsonc`](../../wrangler.relay.jsonc) to the web origin allowed to use your relay; separate several origins with commas. Deploy with `npx wrangler deploy --config wrangler.relay.jsonc` and set the account’s advanced `subscriptionRelayUrl` to the resulting HTTPS URL plus `/api/openai`. This also works with the hosted Harness.
+
+This standalone Worker exposes only `GET /api/openai/models` and `POST /api/openai/responses`. It requires no OpenAI secret, database or KV binding. The browser supplies the short-lived access token for each request.

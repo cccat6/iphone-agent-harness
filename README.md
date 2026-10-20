@@ -45,7 +45,9 @@ flowchart LR
     Harness <--> Storage
     Shortcut["Apple Shortcuts<br/>iOS clipboard"]
   end
-  Harness <-->|Context / replies| AI["Your chosen AI"]
+  Harness <-->|API / MCP| AI["Your chosen AI"]
+  Harness <-->|ChatGPT subscription| Relay["Stateless relay"]
+  Relay <--> AI
   Harness <-->|WebRTC · local Wi-Fi| Bridge["ESP32 bridge"]
   Bridge -->|Bluetooth keyboard / mouse| Apps
   Bridge -->|Local HTTP · text| Shortcut
@@ -122,9 +124,9 @@ The browser sends the text to the ESP32 in small chunks over local WebRTC. The b
 
 [Set up clipboard copy](docs/guide/README.md#clipboard)
 
-## 🔒 Your data stays with you
+## 🔒 Data and privacy
 
-Conversations, screenshots, account details and API keys are saved in your browser. Your selected messages and images go directly to the AI provider you choose; MCP requests go to the servers you configure. The website supplies the app and the skills you choose to share publicly.
+Sessions, screenshots and credentials are saved in your browser; ordinary APIs connect directly to your provider. ChatGPT subscriptions use the project’s Cloudflare relay or your own stateless relay because of browser CORS, forwarding selected context, images, output and a short-lived access token. The relay application does not persist this traffic or log bodies or credentials.
 
 ## 🤝 Contribute
 

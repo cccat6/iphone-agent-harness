@@ -56,9 +56,9 @@ test('history entries referring to a deleted session safely return to the list',
 
 
 test('provider editor retains exact catalog reasoning metadata when applying and saving discovered models',async()=>{
- const state={},nodes={'#provider-models':{innerHTML:''}},editorForm={elements:{model:{value:''}}};
- const ctx=vm.createContext({state,modelSequence:0,editorActive:()=>true,provider:{},editorForm,modelContextMetadata,modelReasoningMetadata,$:selector=>nodes[selector],escapeHTML:String,modelsStatus(){}});
- const start=source.indexOf('  const applyModels=async list=>{'),end=source.indexOf("  $('#discover-models').onclick",start);assert.ok(start>=0&&end>start);vm.runInContext(source.slice(start,end)+'\nglobalThis.apply=applyModels;',ctx);
+ const state={},nodes={'#provider-models':{innerHTML:''}},editorForm={elements:{model:{value:''},protocol:{value:'codex'}}};
+ const ctx=vm.createContext({state,modelSequence:0,editorActive:()=>true,provider:{},providers:()=>[],editorForm,modelContextMetadata,modelReasoningMetadata,$:selector=>nodes[selector],escapeHTML:String,modelsStatus(){}});
+ const start=source.indexOf('  const applyModels='),end=source.indexOf("  $('#discover-models').onclick",start);assert.ok(start>=0&&end>start);vm.runInContext(source.slice(start,end)+'\nglobalThis.apply=applyModels;',ctx);
  await ctx.apply([{id:'catalog-model',supported_reasoning_levels:[{effort:'low'},{effort:'ultra'}],default_reasoning_level:'low',context_window:1000000}]);
  assert.deepEqual(Array.from(state.providerModels[0].supportedReasoningEfforts),['low','ultra']);assert.equal(state.providerModels[0].defaultReasoningEffort,'low');assert.equal(state.providerModels[0].contextWindowTokens,1000000);assert.equal(editorForm.elements.model.value,'catalog-model');
 });

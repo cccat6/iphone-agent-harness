@@ -45,7 +45,9 @@ flowchart LR
     Harness <--> Storage
     Shortcut["Apple Kurzbefehle<br/>iOS-Zwischenablage"]
   end
-  Harness <-->|Kontext / Antworten| AI["Deine gewählte KI"]
+  Harness <-->|API / MCP| AI["Deine gewählte KI"]
+  Harness <-->|ChatGPT-Abonnement| Relay["Zustandsloser Relay"]
+  Relay <--> AI
   Harness <-->|WebRTC · lokales WLAN| Bridge["ESP32-Bridge"]
   Bridge -->|Bluetooth-Tastatur / Maus| Apps
   Bridge -->|Lokales HTTP · Text| Shortcut
@@ -122,9 +124,9 @@ Der Browser sendet den Text in kleinen Teilen per lokalem WebRTC an den ESP32. D
 
 [Zwischenablage einrichten](../guide/de.md#clipboard)
 
-## 🔒 Deine Daten bleiben bei dir
+## 🔒 Daten und Datenschutz
 
-Gespräche, Bildschirmbilder, Kontodaten und API-Schlüssel speichert dein Browser. Ausgewählte Nachrichten und Bilder gehen direkt an deinen KI-Anbieter; MCP-Anfragen an die eingerichteten Server. Die Website stellt die App und die von dir öffentlich geteilten Skills bereit.
+Sitzungen, Screenshots und Zugangsdaten werden im Browser gespeichert; normale APIs verbinden sich direkt. ChatGPT-Abonnements nutzen wegen CORS den Cloudflare-Relay des Projekts oder deinen eigenen zustandslosen Relay für ausgewählten Kontext, Bilder, Ausgaben und ein kurzlebiges Zugriffstoken. Die Relay-Anwendung speichert diese Daten nicht und protokolliert keine Inhalte oder Zugangsdaten.
 
 ## 🤝 Mitwirken
 

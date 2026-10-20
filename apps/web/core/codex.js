@@ -22,7 +22,7 @@ function identityFailure(code,message='登录身份签名或账号验证失败')
 function failure(message,status){const e=new Error(message+(status?`（HTTP ${status}）`:''));if(status)e.status=status;return e;}
 const subscriptionTimeout=()=>Object.assign(new Error('订阅请求超时，请重试'),{name:'TimeoutError',code:'SUBSCRIPTION_TIMEOUT'});
 async function withSubscriptionDeadline(milliseconds,signal,work){const timeout=AbortSignal.timeout(milliseconds),active=signal?AbortSignal.any([signal,timeout]):timeout;try{return await work(active);}catch(cause){check(signal);if(timeout.aborted)throw subscriptionTimeout();throw cause;}}
-async function request(url,{fetchImpl=fetch,signal,redirectMode='error',...init}={}){check(signal);try{const pending=Promise.resolve(fetchImpl.call(globalThis,safeURL(url),{...init,signal,credentials:'omit',referrerPolicy:'no-referrer',cache:'no-store',redirect:redirectMode==='manual'?'manual':'error'})).then(response=>{if(signal?.aborted){void response.body?.cancel().catch(()=>{});check(signal);}return response;});return await awaitWithSignal(pending,signal);}catch{check(signal);throw Object.assign(failure('订阅连接失败；请检查浏览器 CORS、网络或服务可用性'),{code:'SUBSCRIPTION_NETWORK'});}}
+async function request(url,{fetchImpl=fetch,signal,redirectMode='error',relayEndpoint,...init}={}){check(signal);try{const pending=Promise.resolve(fetchImpl.call(globalThis,relayEndpoint===String(url)?relayEndpoint:safeURL(url),{...init,signal,credentials:'omit',referrerPolicy:'no-referrer',cache:'no-store',redirect:redirectMode==='manual'?'manual':'error'})).then(response=>{if(signal?.aborted){void response.body?.cancel().catch(()=>{});check(signal);}return response;});return await awaitWithSignal(pending,signal);}catch{check(signal);throw Object.assign(failure('订阅连接失败；请检查浏览器 CORS、网络或服务可用性'),{code:'SUBSCRIPTION_NETWORK'});}}
 async function post(url,body,options={},form=false){return request(url,{...options,method:'POST',headers:{'content-type':form?'application/x-www-form-urlencoded':'application/json'},body:form?new URLSearchParams(body):JSON.stringify(body)});}
 async function json(r,label,{signal}={}){
  check(signal);if(!r.ok)throw failure(label,r.status);const reader=r.body?.getReader();if(!reader)throw failure(label+'：响应格式无效');let total=0;const chunks=[];
@@ -207,31 +207,23 @@ export async function completeCodexLogin(login,{accountId=crypto.randomUUID(),ca
 }
 function headers(a,token,{sessionId}={}){const h={'authorization':'Bearer '+token,'content-type':'application/json','accept':'text/event-stream'};if(a.flow==='codex'){h.originator='iphone_automation_harness';h['chatgpt-account-id']=a.accountId;h['OpenAI-Beta']='responses=experimental';if(sessionId)h['session-id']=sessionId;}return h;}
 function catalogHeaders(a,token){return {authorization:'Bearer '+token,accept:'application/json',...(a.flow==='codex'?{'chatgpt-account-id':a.accountId}:{})};}
-const modelsFailure=(code,diagnostics)=>Object.assign(new Error('浏览器未能读取订阅模型目录响应 ['+code+']'),{code,...(diagnostics?{diagnostics}:{})});
+export function normalizeSubscriptionRelay(value){
+ const raw=typeof value==='string'?value.trim():value;if(raw!==undefined&&raw!==null&&typeof raw!=='string')throw Object.assign(new Error('订阅转发地址无效'),{code:'SIWC_RELAY_ADDRESS'});
+ let url;try{url=new URL(raw||SITE_CONFIG.subscriptionRelayUrl||'https://igent.cc/api/openai');}catch{throw Object.assign(new Error('订阅转发地址无效'),{code:'SIWC_RELAY_ADDRESS'});}
+ if(url.protocol!=='https:'||url.username||url.password||url.search||url.hash)throw Object.assign(new Error('订阅转发地址需要 HTTPS 且不能包含查询参数或片段'),{code:'SIWC_RELAY_ADDRESS'});
+ return url.href.replace(/\/+$/,'');
+}
+const relayFailure=()=>Object.assign(new Error('浏览器未能读取订阅转发服务响应'),{code:'SIWC_RELAY_NETWORK'});
 const catalogRedirect=response=>response?.type==='opaqueredirect'||response?.status>=300&&response?.status<400;
 function discardCatalogBody(response){try{Promise.resolve(response?.body?.cancel()).catch(()=>{});}catch{}}
-async function diagnosePlanCatalog({signal,fetchImpl}){
- const probe=async bearer=>{
-  const active=AbortSignal.any([signal,AbortSignal.timeout(3000)]);
-  try{
-   const response=await request(CODEX_ENDPOINTS.planModels,{headers:{accept:'application/json',...(bearer?{authorization:'Bearer iah-intentionally-invalid-catalog-probe'}:{})},signal:active,fetchImpl,redirectMode:'manual'});
-   discardCatalogBody(response);
-   if(catalogRedirect(response))return {kind:'redirect'};
-   return response.status>=200&&response.status<=599?{kind:'http',status:response.status}:{kind:'unreadable'};
-  }catch{check(signal);return {kind:'unreadable'};}
- };
- const [anonymous,bearer]=await Promise.all([probe(false),probe(true)]);check(signal);
- const code=anonymous.kind==='redirect'||bearer.kind==='redirect'?'SIWC_MODELS_REDIRECT':bearer.kind==='http'?'SIWC_MODELS_AUTH_RESPONSE':anonymous.kind==='http'?'SIWC_MODELS_PREFLIGHT':'SIWC_MODELS_NETWORK';
- return modelsFailure(code,{anonymous,bearer});
-}
-export async function discoverCodexModels({accountId=activeId,signal,fetchImpl=fetch,clientVersion='0.1.0'}={}){
+export async function discoverCodexModels({accountId=activeId,signal,fetchImpl=fetch,clientVersion='0.1.0',relayUrl}={}){
  return withSubscriptionDeadline(20000,signal,async signal=>{
- const a=accounts.get(accountId);if(!a)throw new Error('请先选择已登录的订阅账号');const token=await accessToken(accountId,{signal,fetchImpl});const url=new URL(a.flow==='codex'?CODEX_ENDPOINTS.models:CODEX_ENDPOINTS.planModels);if(a.flow==='codex')url.searchParams.set('client_version',clientVersion);
+ const a=accounts.get(accountId);if(!a)throw new Error('请先选择已登录的订阅账号');const endpoint=a.flow==='codex'?CODEX_ENDPOINTS.models:normalizeSubscriptionRelay(relayUrl)+'/models';const token=await accessToken(accountId,{signal,fetchImpl});const url=new URL(endpoint);if(a.flow==='codex')url.searchParams.set('client_version',clientVersion);
  let response;
- try{response=await request(url,{headers:catalogHeaders(a,token),signal,fetchImpl,redirectMode:a.flow==='chatgpt-plan'?'manual':'error'});}
- catch(error){check(signal);if(error?.code!=='SUBSCRIPTION_NETWORK')throw error;if(a.flow!=='chatgpt-plan')throw modelsFailure('CODEX_MODELS_NETWORK');throw await diagnosePlanCatalog({signal,fetchImpl});}
- if(a.flow==='chatgpt-plan'&&catalogRedirect(response)){discardCatalogBody(response);throw modelsFailure('SIWC_MODELS_REDIRECT');}
- if(a.flow==='chatgpt-plan'&&response.status===0){discardCatalogBody(response);throw await diagnosePlanCatalog({signal,fetchImpl});}
+ try{response=await request(url,{headers:catalogHeaders(a,token),signal,fetchImpl,...(a.flow==='chatgpt-plan'?{relayEndpoint:endpoint}:{})});}
+ catch(error){check(signal);if(error?.code!=='SUBSCRIPTION_NETWORK')throw error;if(a.flow!=='chatgpt-plan')throw Object.assign(error,{code:'CODEX_MODELS_NETWORK'});throw relayFailure();}
+ if(a.flow==='chatgpt-plan'&&catalogRedirect(response)){discardCatalogBody(response);throw Object.assign(new Error('订阅转发服务返回了重定向'),{code:'SIWC_RELAY_REDIRECT'});}
+ if(a.flow==='chatgpt-plan'&&response.status===0){discardCatalogBody(response);throw relayFailure();}
  const data=await json(response,'订阅模型目录不可用',{signal});const items=data.models||data.data;if(!Array.isArray(items))throw new Error('模型目录格式无效');
  // The plan catalog explicitly marks picker entries; older Codex lists omit visibility.
  return items.filter(m=>m&&typeof m==='object'&&(m.visibility==='list'||(a.flow==='codex'&&m.visibility===undefined))).map(m=>({id:m.slug||m.id,name:m.display_name||m.name||m.slug||m.id,description:m.description||'',catalogOnly:true,...modelContextMetadata(m),...modelReasoningMetadata(m)})).filter(m=>typeof m.id==='string'&&m.id);
@@ -267,14 +259,14 @@ export async function callCodexModel({provider,messages,tools=[],signal,onDelta=
  const id=provider?.accountId||provider?.codexAccountId||activeId,a=accounts.get(id);if(!a)throw new Error('请选择已登录的订阅账号');if(!provider?.model)throw new Error('请选择订阅模型');
  const controller=new AbortController(),abort=()=>controller.abort(signal?.reason);signal?.addEventListener('abort',abort,{once:true});if(signal?.aborted)abort();const timer=setTimeout(()=>controller.abort(new Error('订阅模型请求超时')),provider.timeoutMs||180000);const active=controller.signal;
  try{
+  const endpoint=a.flow==='codex'?CODEX_ENDPOINTS.responses:normalizeSubscriptionRelay(provider.subscriptionRelayUrl)+'/responses';
   const token=await accessToken(id,{signal:active,fetchImpl});check(active);if(accounts.get(id)!==a)throw new Error('请求前账号已更换');
-  const endpoint=a.flow==='codex'?CODEX_ENDPOINTS.responses:CODEX_ENDPOINTS.planResponses;
-  const stateScope={origin:new URL(endpoint).origin,accountId:id,backendAccountId:a.accountId,clientId:a.clientId,model:provider.model,flow:a.flow};
+  const stateScope={origin:a.flow==='chatgpt-plan'?endpoint:new URL(endpoint).origin,accountId:id,backendAccountId:a.accountId,clientId:a.clientId,model:provider.model,flow:a.flow};
   const functionTools=tools.map(t=>({type:'function',name:t.name,description:t.description,parameters:t.schema,strict:false}));
   const wireTools=a.flow==='chatgpt-plan'&&functionTools.length?[{type:'namespace',name:CODEX_TOOL_NAMESPACE,description:'Tools for this Harness conversation.',tools:functionTools}]:functionTools;
   const payload={model:provider.model,store:false,stream:true,include:['reasoning.encrypted_content'],instructions:messages.filter(m=>m.role==='system').map(m=>m.text).join('\n\n')||'You are a helpful assistant.',input:toInput(messages,stateScope),tools:wireTools,tool_choice:tools.length?'auto':'none',parallel_tool_calls:true};
   Object.assign(payload,reasoningParameters({...provider,protocol:'codex'}));
-  const response=await request(endpoint,{method:'POST',headers:headers(a,token,{sessionId:sessionId||provider.sessionId}),body:JSON.stringify(payload),signal:active,fetchImpl});
+  const response=await request(endpoint,{method:'POST',headers:headers(a,token,{sessionId:sessionId||provider.sessionId}),body:JSON.stringify(payload),signal:active,fetchImpl,...(a.flow==='chatgpt-plan'?{relayEndpoint:endpoint}:{})}).catch(error=>{check(active);if(a.flow==='chatgpt-plan'&&error?.code==='SUBSCRIPTION_NETWORK')throw relayFailure();throw error;});
   if(!response.ok){const error=await readProviderFailure(response,{signal:active});if(error.code==='CONTEXT_WINDOW_EXCEEDED')throw error;throw failure(response.status===401?'订阅登录失效，请刷新或重新登录':response.status===429?'订阅额度或速率达到限制':'订阅模型请求失败',response.status);}if(!response.body)throw new Error('订阅后端未返回响应流');
   let text='',terminal=null;const calls=new Map();const emit=value=>{try{Promise.resolve(onDelta(value)).catch(()=>{});}catch{}};
   function saveCall(key,value){if(typeof value.arguments!=='string'||value.arguments.length>CODEX_LIMITS.toolArgumentChars)throw new Error('工具参数超过容量限制');if(!calls.has(key)&&calls.size>=CODEX_LIMITS.toolCalls)throw new Error('工具调用超过数量限制');calls.set(key,value);}
@@ -296,6 +288,6 @@ export async function callCodexModel({provider,messages,tools=[],signal,onDelta=
   const items=copy((terminal.output||[]).filter(i=>['reasoning','message','function_call'].includes(i.type)));
   const providerState={kind:'codex-responses/1',...stateScope,items};
   return {text,toolCalls,finish:toolCalls.length?'tool_calls':'stop',usage:terminal.usage||null,responseId:terminal.id||null,providerState};
- }catch(e){check(active);if(e.status||e.code==='CONTEXT_WINDOW_EXCEEDED')throw e;throw new Error(['订阅响应','订阅协议','工具','请选择','请求前','订阅账号','登录'].some(p=>e.message?.startsWith(p))?e.message:'订阅通信失败；请检查登录、CORS 与网络');}
+ }catch(e){check(active);if(e.status||e.code==='CONTEXT_WINDOW_EXCEEDED'||e.code?.startsWith('SIWC_RELAY_'))throw e;throw new Error(['订阅响应','订阅协议','工具','请选择','请求前','订阅账号','登录'].some(p=>e.message?.startsWith(p))?e.message:'订阅通信失败；请检查登录、CORS 与网络');}
  finally{clearTimeout(timer);signal?.removeEventListener('abort',abort);}
 }

@@ -45,7 +45,9 @@ flowchart LR
     Harness <--> Storage
     Shortcut["Appleショートカット<br/>iOSクリップボード"]
   end
-  Harness <-->|コンテキスト / 応答| AI["選択したAI"]
+  Harness <-->|API / MCP| AI["選択したAI"]
+  Harness <-->|ChatGPT プラン| Relay["ステートレス中継"]
+  Relay <--> AI
   Harness <-->|WebRTC · 同じWi-Fi| Bridge["ESP32ブリッジ"]
   Bridge -->|Bluetoothキーボード / マウス| Apps
   Bridge -->|ローカルHTTP · テキスト| Shortcut
@@ -122,9 +124,9 @@ flowchart LR
 
 [クリップボードの設定](../guide/ja.md#clipboard)
 
-## 🔒 データは手元に
+## 🔒 データとプライバシー
 
-会話、スクリーンショット、アカウント情報、APIキーはブラウザーに保存します。選択したメッセージや画像は利用するAI提供元へ、MCPリクエストは設定したサーバーへ直接送られます。サイトはアプリと、公開することを選んだスキルを配信します。
+会話・スクリーンショット・認証情報はブラウザーに保存し、通常のAPIは提供元に直接接続します。ChatGPTサブスクリプションはCORS制約のため、プロジェクトのCloudflare中継または自分のステートレス中継を使い、選択情報・画像・出力・短期アクセストークンを転送します。中継アプリはこれらを保存せず、本文や認証情報も記録しません。
 
 ## 🤝 貢献する
 

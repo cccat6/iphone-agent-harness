@@ -1,11 +1,13 @@
-// Public pages and explicitly shared Skill packages. Private Harness state stays local.
+// Public pages, shared Skills and stateless ChatGPT subscription forwarding.
 import community from './api/worker.js';
 import {serveOpenAIPublicKeys} from './api/openai-public-keys.js';
+import {serveOpenAIRelay} from './api/openai-relay.js';
 const pages = new Set(['/main', '/skills', '/flash']);
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     if(url.pathname==='/api/openai/jwks')return serveOpenAIPublicKeys(request,{keyCache:env.OPENAI_PUBLIC_KEYS,context:ctx});
+    if(url.pathname==='/api/openai/models'||url.pathname==='/api/openai/responses')return serveOpenAIRelay(request,{allowedOrigins:env.ALLOWED_ORIGINS});
     if (url.pathname === '/api' || url.pathname.startsWith('/api/')) {
       url.pathname = url.pathname.slice(4) || '/';
       return community.fetch(new Request(url, request), env, ctx);

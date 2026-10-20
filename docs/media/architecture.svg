@@ -1,28 +1,28 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720" role="img" aria-labelledby="title desc">
-<title id="title">iPhone Agent Harness architecture</title><desc id="desc">The website supplies static pages and public skills. Safari keeps sessions and keys locally, sends selected context directly to the chosen AI provider, and exchanges commands and receipts with an ESP32 over local WebRTC. ESP32 uses Bluetooth HID to operate the same phone. No phone USB cable or command relay is needed.</desc>
-<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="m0 0 10 5-10 5z" fill="#356556"/></marker><style>text{font-family:system-ui,-apple-system,sans-serif;fill:#203a31}.title{font-size:25px;font-weight:700}.head{font-size:21px;font-weight:650}.body{font-size:17px}.small{font-size:15px;fill:#536b61}.box{fill:#fff;stroke:#bdcec5;stroke-width:1.5}.line{fill:none;stroke:#356556;stroke-width:2;marker-end:url(#arrow)}.both{marker-start:url(#arrow)}</style></defs>
-<rect width="1200" height="720" rx="24" fill="#f7faf8"/>
+<title id="title">iPhone Agent Harness architecture</title><desc id="desc">History, images and credentials are saved in your browser. APIs connect directly; ChatGPT subscriptions use a stateless relay for selected context, images, output and a short-lived access token. The relay does not store them or log bodies or credentials. Sign-in and refresh remain direct to OpenAI. Phone input uses local WebRTC and Bluetooth.</desc>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="m0 0 10 5-10 5z" fill="#356556" /></marker><style>text{font-family:system-ui,-apple-system,sans-serif;fill:#203a31}.title{font-size:25px;font-weight:700}.head{font-size:21px;font-weight:650}.body{font-size:17px}.small{font-size:15px;fill:#536b61}.box{fill:#fff;stroke:#bdcec5;stroke-width:1.5}.line{fill:none;stroke:#356556;stroke-width:2;marker-end:url(#arrow)}.both{marker-start:url(#arrow)}</style></defs>
+<rect width="1200" height="720" rx="24" fill="#f7faf8" />
 <text x="40" y="46" class="title">iPhone Agent Harness</text><text x="40" y="75" class="small">Browser reasoning · local device control · your choice of model</text>
-<rect x="412" y="110" width="746" height="545" rx="22" fill="#edf5f0" stroke="#aec6b7" stroke-dasharray="6 6"/>
+<rect x="412" y="110" width="746" height="545" rx="22" fill="#edf5f0" stroke="#aec6b7" stroke-dasharray="6 6" />
 <text x="440" y="145" class="small">SAME LOCAL WI-FI · phone stays on its usual network</text>
-<rect x="440" y="173" width="376" height="443" rx="25" fill="#fff" stroke="#456858" stroke-width="2"/>
+<rect x="440" y="173" width="376" height="443" rx="25" fill="#fff" stroke="#456858" stroke-width="2" />
 <text x="466" y="209" class="head">iPhone / iPad</text>
-<rect x="466" y="237" width="324" height="154" rx="14" fill="#eaf1ee"/>
-<text x="486" y="269" class="head">Safari · Web Harness</text><text x="486" y="301" class="body">Agent loop, prompts and skills</text><text x="486" y="330" class="body">Sessions, images, keys: local</text><text x="486" y="359" class="small">IndexedDB · no session upload to host</text>
-<rect x="466" y="468" width="324" height="112" rx="14" fill="#f4f6f5" stroke="#ccd8d1"/>
+<rect x="466" y="237" width="324" height="154" rx="14" fill="#eaf1ee" />
+<text x="486" y="269" class="head">Safari · Web Harness</text><text x="486" y="301" class="body">Agent loop, prompts and skills</text><text x="486" y="330" class="body">Sessions, images, keys: local</text><text x="486" y="359" class="small">IndexedDB · persistent local records</text>
+<rect x="466" y="468" width="324" height="112" rx="14" fill="#f4f6f5" stroke="#ccd8d1" />
 <text x="486" y="501" class="head">iOS screen + other apps</text><text x="486" y="532" class="body">Apps, controls and clipboard</text><text x="486" y="558" class="small">AssistiveTouch receives pointer input</text>
-<path class="line" d="M537 466v-66"/><text x="548" y="429" class="small">Screen sharing</text><text x="548" y="449" class="small">observed locally</text>
-<rect x="48" y="144" width="295" height="157" rx="17" class="box"/>
-<text x="70" y="180" class="head">Website / self-host</text><text x="70" y="214" class="body">Static HTML, JS and firmware</text><text x="70" y="244" class="body">Public skill sharing</text><text x="70" y="276" class="small">No sessions, screenshots or keys</text>
-<path class="line" d="M345 218h90"/><text x="352" y="201" class="small">Pages</text>
-<path class="line both" d="M344 280h92"/><text x="347" y="309" class="small">Public skills</text>
-<rect x="48" y="413" width="295" height="164" rx="17" class="box"/>
-<text x="70" y="450" class="head">Chosen AI / MCP service</text><text x="70" y="485" class="body">Your account or API endpoint</text><text x="70" y="515" class="body">Receives selected task context</text><text x="70" y="548" class="small">Connected directly from Safari</text>
-<path class="line both" d="M343 443h50v-91h42"/><text x="352" y="476" class="small">HTTPS</text>
-<rect x="906" y="256" width="228" height="174" rx="18" class="box"/>
+<path class="line" d="M537 466v-66" /><text x="548" y="429" class="small">Screen sharing</text><text x="548" y="449" class="small">observed locally</text>
+<rect x="48" y="144" width="295" height="157" rx="17" class="box" />
+<text x="70" y="180" class="head">Website / self-host</text><text x="70" y="214" class="body">Static HTML, JS and firmware</text><text x="70" y="244" class="body">Public skill sharing</text><text x="70" y="276" class="small" style="font-size:13px">Relay application: no data storage</text>
+<path class="line" d="M345 218h90" /><text x="352" y="201" class="small">Pages</text>
+<path class="line both" d="M344 280h92" /><text x="347" y="309" class="small">Public skills</text>
+<rect x="48" y="413" width="295" height="164" rx="17" class="box" />
+<text x="70" y="450" class="head">Chosen AI / MCP service</text><text x="70" y="485" class="body">Your account or API endpoint</text><text x="70" y="515" class="body">Receives selected task context</text><text x="70" y="548" class="small" style="font-size:13px">API / MCP direct · plan via relay</text>
+<path class="line both" d="M343 443h50v-62h42" /><text x="352" y="476" class="small">API</text>
+<rect x="906" y="256" width="228" height="174" rx="18" class="box" />
 <text x="928" y="292" class="head">ESP32 bridge</text><text x="928" y="326" class="body">Timed input execution</text><text x="928" y="355" class="body">Bluetooth keyboard</text><text x="928" y="383" class="body">and pointer</text><text x="928" y="411" class="small">Powered anywhere nearby</text>
-<path class="line both" d="M791 315h110"/><text x="821" y="288" class="small">WebRTC</text><text x="821" y="348" class="small">Commands</text><text x="821" y="369" class="small">+ receipts</text>
-<path class="line" d="M1020 434v89H795"/><text x="850" y="508" class="body">Bluetooth HID</text>
+<path class="line both" d="M791 315h110" /><text x="821" y="288" class="small">WebRTC</text><text x="821" y="348" class="small">Commands</text><text x="821" y="369" class="small">+ receipts</text>
+<path class="line" d="M1020 434v89H795" /><text x="850" y="508" class="body">Bluetooth HID</text>
 <text x="843" y="559" class="small">Optional clipboard Shortcut:</text><text x="843" y="582" class="small">local HTTP text retrieval</text>
-<text x="40" y="686" class="small">USB is needed only for initial firmware installation. No phone cable, cloud command relay or companion iOS app.</text>
-</svg>
+<text x="40" y="686" class="small">USB for firmware installation. Phone control uses local WebRTC and Bluetooth; no companion iOS app.</text>
+<rect x="48" y="326" width="295" height="73" rx="12" class="box" /><path class="line both" d="M344 362h91" /><path class="line both" d="M195 400v10" /><text x="62" y="347" class="small" style="font-size:16px">ChatGPT · stateless relay</text><text x="62" y="369" class="small" style="font-size:13px">Selected context + access token</text><text x="62" y="389" class="small" style="font-size:13px">Images and model output</text></svg>

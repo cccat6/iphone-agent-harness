@@ -2,7 +2,7 @@
 
 [Project](../../README.md) · [Setup guide](../guide/README.md) · [简体中文教程](../guide/zh-Hans.md)
 
-![Architecture: browser-local reasoning and storage, direct model requests, local Wi-Fi control, Bluetooth input](../media/architecture.svg)
+![Architecture: browser-local reasoning and storage, direct APIs and stateless ChatGPT relay, local Wi-Fi control, Bluetooth input](../media/architecture.svg)
 
 The phone runs the Harness in Safari. The ESP32 is a small input bridge on the same local Wi-Fi network, powered independently near the phone. It receives timed command batches over WebRTC Direct and sends Bluetooth HID keyboard and pointer input to iOS. Screen capture and frame processing stay on the phone.
 
@@ -18,7 +18,10 @@ flowchart LR
     Web <--> Local
     Screen -->|screen sharing| Web
   end
-  Web <-->|direct HTTPS: selected context and replies| Model["Your model provider / account"]
+  Web <-->|direct HTTPS: ordinary API requests| Model["Your model provider / account"]
+  Web <-->|selected context, images, output + short-lived access token| Relay["Stateless subscription relay<br/>project-hosted or self-hosted"]
+  Relay <-->|fixed OpenAI endpoints| OpenAI["ChatGPT subscription · OpenAI"]
+  Web <-->|direct sign-in / token refresh| Auth["OpenAI authorization"]
   Web <-->|optional authorized tools| MCP["Your MCP servers"]
   Web <-->|local WebRTC: commands and receipts| Bridge["ESP32 bridge<br/>same LAN Wi-Fi"]
   Bridge -->|Bluetooth HID| Screen
@@ -37,7 +40,7 @@ flowchart LR
 ## A task, end to end
 
 1. The user starts screen sharing from Safari and gives the agent a goal.
-2. The Harness reads fresh screen frames and sends the selected context directly to the chosen model.
+2. The Harness reads fresh screen frames and sends the selected context to the chosen model: ordinary APIs directly, ChatGPT subscriptions through the configured stateless relay.
 3. The model can propose a sequence of taps, key presses, drags, swipes, waits and intermediate captures.
 4. The browser sends device segments to the local bridge. The bridge executes input against the selected Bluetooth phone and returns receipts.
 5. The Harness checks fresh screenshots, adjusts the next action or input method, and continues until the goal is verified.
@@ -50,14 +53,16 @@ Input receipts record submitted commands. The runtime checks their effect with f
 | Data | Location / destination |
 |---|---|
 | Sessions, stored screenshots, API keys, login credentials | Local browser storage on the user's device |
-| Selected messages and images needed by the model | Directly to the user's chosen model backend |
+| Selected messages, images and model outputs | Ordinary APIs directly; ChatGPT subscription traffic through the configured stateless relay to OpenAI |
+| Short-lived ChatGPT access token | Sent with subscription requests through the relay; not persisted or logged by the relay application |
+| ChatGPT refresh token and ID token | Browser-local; used only with direct browser-to-OpenAI login and refresh, never sent to the relay |
 | Authorized MCP arguments | Directly to the configured MCP service |
 | Phone actions and execution receipts | Local Wi-Fi between Safari and ESP32; Bluetooth input from ESP32 to phone |
 | Home Wi-Fi credentials | ESP32 local storage after setup |
 | Published skill package, public author key and signature | Public skill community, only when the user chooses Publish |
 | Website assets and precompiled firmware | The chosen page host; self-hosting is supported |
 
-Our hosting service supplies pages, firmware and public skill packages. Private sessions, images and credentials stay in the browser. Selected task context goes directly to the configured model or MCP service; phone commands travel over the local network.
+Our hosting service supplies pages, firmware, public skills and the default stateless ChatGPT relay. Sessions, screenshots and credentials are persistently saved in the browser. The relay processes selected task content, images, output and a short-lived access token without persisting them or logging bodies or credentials. Ordinary API and MCP traffic remains direct; phone commands stay on the local network. These application-level storage rules do not describe all metadata handled by hosting or AI providers.
 
 The bridge supports two independent WebRTC control connections. Each browser selects its phone, and each phone has one active writer at a time. With two phones connected, run the optional input test on each to confirm that its Harness page controls the intended phone.
 

@@ -149,7 +149,7 @@ export async function openStore({memory=false,name=DB_NAME}={}){
     async saveProvider(profile,credential,{signal}={}){
       if(!profile||typeof profile.id!=='string'||!profile.id||profile.id.length>80||!['openai','anthropic','codex'].includes(profile.protocol))throw new Error('Invalid provider profile');
       if(credential&&(!['api','codex'].includes(credential.kind)||(profile.protocol==='codex')!==(credential.kind==='codex')))throw new Error('Invalid provider credential');
-      const fields=['id','name','protocol','baseUrl','model','models','reasoningEffort','stream','accountId','flow','clientId'];
+      const fields=['id','name','protocol','baseUrl','model','models','reasoningEffort','stream','accountId','flow','clientId','subscriptionRelayUrl'];
       const saved=safeSettings(clone(Object.fromEntries(fields.filter(key=>Object.hasOwn(profile,key)).map(key=>[key,profile[key]]))));
       const secret=credential?clone(credential):null;
       return transaction(['settings'],'readwrite',async s=>{

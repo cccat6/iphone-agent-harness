@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720" role="img" aria-labelledby="title desc" lang="ru" xml:lang="ru">
-<title id="title">Архитектура iPhone Agent Harness</title><desc id="desc">Сайт раздаёт статические страницы и публичные навыки. Safari хранит разговоры и ключи локально, передаёт выбранный контекст ИИ напрямую и обменивается командами и квитанциями с ESP32 по локальному WebRTC. ESP32 управляет тем же телефоном через Bluetooth HID. USB к телефону и облачное реле команд не нужны.</desc>
+<title id="title">Архитектура iPhone Agent Harness</title><desc id="desc">История, изображения и данные доступа хранятся в браузере. API подключаются напрямую; подписка ChatGPT передаёт выбранный контекст, изображения, ответы и краткосрочный токен через ретранслятор без состояния. Он не сохраняет данные и не журналирует содержимое или токены. Вход и обновление идут напрямую в OpenAI.</desc>
 <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="m0 0 10 5-10 5z" fill="#356556" /></marker><style>text{font-family:system-ui,-apple-system,sans-serif;fill:#203a31}.title{font-size:25px;font-weight:700}.head{font-size:21px;font-weight:650}.body{font-size:17px}.small{font-size:15px;fill:#536b61}.box{fill:#fff;stroke:#bdcec5;stroke-width:1.5}.line{fill:none;stroke:#356556;stroke-width:2;marker-end:url(#arrow)}.both{marker-start:url(#arrow)}</style></defs>
 <rect width="1200" height="720" rx="24" fill="#f7faf8" />
 <text x="40" y="46" class="title">iPhone Agent Harness</text><text x="40" y="75" class="small">Логика в браузере · локальное управление · выбор модели</text>
@@ -8,21 +8,21 @@
 <rect x="440" y="173" width="376" height="443" rx="25" fill="#fff" stroke="#456858" stroke-width="2" />
 <text x="466" y="209" class="head">iPhone / iPad</text>
 <rect x="466" y="237" width="324" height="154" rx="14" fill="#eaf1ee" />
-<text x="486" y="269" class="head">Safari · Web Harness</text><text x="486" y="301" class="body" style="font-size:16px">Цикл агента, промпты, навыки</text><text x="486" y="330" class="body" style="font-size:15px">Разговоры, снимки, ключи: локально</text><text x="486" y="359" class="small" style="font-size:13px">IndexedDB · разговоры не уходят хосту</text>
+<text x="486" y="269" class="head">Safari · Web Harness</text><text x="486" y="301" class="body" style="font-size:16px">Цикл агента, промпты, навыки</text><text x="486" y="330" class="body" style="font-size:15px">Разговоры, снимки, ключи: локально</text><text x="486" y="359" class="small" style="font-size:13px">IndexedDB · локальное хранение</text>
 <rect x="466" y="468" width="324" height="112" rx="14" fill="#f4f6f5" stroke="#ccd8d1" />
 <text x="486" y="501" class="head">Экран iOS и приложения</text><text x="486" y="532" class="body" style="font-size:14px">Приложения, элементы, буфер обмена</text><text x="486" y="558" class="small">AssistiveTouch принимает указатель</text>
 <path class="line" d="M537 466v-66" /><text x="548" y="429" class="small">Трансляция</text><text x="548" y="449" class="small">локальное чтение</text>
 <rect x="48" y="144" width="295" height="157" rx="17" class="box" />
-<text x="70" y="180" class="head">Сайт / свой хостинг</text><text x="70" y="214" class="body" style="font-size:15px">Статические HTML, JS, прошивка</text><text x="70" y="244" class="body" style="font-size:15px">Обмен публичными навыками</text><text x="70" y="276" class="small" style="font-size:13px">Без разговоров, снимков, ключей</text>
+<text x="70" y="180" class="head">Сайт / свой хостинг</text><text x="70" y="214" class="body" style="font-size:15px">Статические HTML, JS, прошивка</text><text x="70" y="244" class="body" style="font-size:15px">Обмен публичными навыками</text><text x="70" y="276" class="small" style="font-size:13px">Реле не сохраняет данные</text>
 <path class="line" d="M345 218h90" /><text x="352" y="201" class="small">Страницы</text>
 <path class="line both" d="M344 280h92" /><text x="347" y="309" class="small"><tspan x="347" dy="0">Публичные</tspan><tspan x="347" dy="17">навыки</tspan></text>
 <rect x="48" y="413" width="295" height="164" rx="17" class="box" />
-<text x="70" y="450" class="head">Выбранные ИИ / MCP</text><text x="70" y="485" class="body">Ваш аккаунт или API</text><text x="70" y="515" class="body">Получает выбранный контекст</text><text x="70" y="548" class="small">Прямое соединение с Safari</text>
-<path class="line both" d="M343 443h50v-91h42" /><text x="352" y="476" class="small">HTTPS</text>
+<text x="70" y="450" class="head">Выбранные ИИ / MCP</text><text x="70" y="485" class="body">Ваш аккаунт или API</text><text x="70" y="515" class="body">Получает выбранный контекст</text><text x="70" y="548" class="small" style="font-size:13px">API / MCP прямо; план через реле</text>
+<path class="line both" d="M343 443h50v-62h42" /><text x="352" y="476" class="small">HTTPS</text>
 <rect x="906" y="256" width="228" height="174" rx="18" class="box" />
 <text x="928" y="292" class="head">Мост ESP32</text><text x="928" y="326" class="body">Ввод по таймеру</text><text x="928" y="355" class="body">Bluetooth-клавиатура</text><text x="928" y="383" class="body">и указатель</text><text x="928" y="411" class="small" style="font-size:13px">Питание рядом с телефоном</text>
 <path class="line both" d="M791 315h110" /><text x="821" y="288" class="small">WebRTC</text><text x="821" y="348" class="small">Команды</text><text x="821" y="369" class="small" style="font-size:13px">+ квитанции</text>
 <path class="line" d="M1020 434v89H795" /><text x="850" y="508" class="body">Bluetooth HID</text>
 <text x="843" y="559" class="small">Необязательный Shortcut:</text><text x="843" y="582" class="small" style="font-size:13px">получение текста по HTTP в LAN</text>
-<text x="40" y="686" class="small">USB только для первой прошивки. Без кабеля к телефону, облачного реле команд и отдельного iOS-приложения.</text>
-</svg>
+<text x="40" y="686" class="small">USB для прошивки. Управление по локальным WebRTC и Bluetooth, без отдельного iOS-приложения.</text>
+<rect x="48" y="326" width="295" height="73" rx="12" class="box" /><path class="line both" d="M344 362h91" /><path class="line both" d="M195 400v10" /><text x="62" y="347" class="small" style="font-size:16px">ChatGPT · реле без состояния</text><text x="62" y="369" class="small" style="font-size:13px">Контекст и краткосрочный токен</text><text x="62" y="389" class="small" style="font-size:13px">Изображения и ответы модели</text></svg>

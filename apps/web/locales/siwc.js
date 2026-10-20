@@ -20,4 +20,14 @@ const verificationMessages={
  fr:['Réessayer la vérification','Les clés de vérification sont temporairement indisponibles : {detail} Réessayez la vérification pour terminer la connexion.'],
  es:['Reintentar verificación','Las claves de verificación no están disponibles temporalmente: {detail} Reintenta la verificación para completar el inicio de sesión.']
 };
-export const SIWC_MESSAGES=Object.fromEntries(Object.entries(rows).map(([locale,row])=>[locale,{...Object.fromEntries(keys.map((key,index)=>['siwc.'+key,row[index]])),'siwc.accountType':accountTypes[locale],'siwc.retryVerification':verificationMessages[locale][0],'siwc.verificationRetry':verificationMessages[locale][1]}]));
+const relayMessages={
+ en:['ChatGPT requests use a stateless relay. Your access token and request pass through it to OpenAI.','Advanced connection settings','Custom relay URL','Leave blank to use this site’s relay.'],
+ 'zh-Hans':['ChatGPT 请求通过无状态转发服务发送至 OpenAI，服务会转发本次请求和访问令牌。','高级连接设置','自建转发地址','留空使用本站默认转发服务。'],
+ 'zh-Hant':['ChatGPT 請求透過無狀態轉送服務傳送至 OpenAI，服務會轉送本次請求和存取權杖。','進階連線設定','自建轉送位址','留空使用本站預設轉送服務。'],
+ ja:['ChatGPT へのリクエストはステートレスな中継サービスを経由します。リクエストとアクセストークンを OpenAI に転送します。','接続の詳細設定','独自の中継 URL','空欄の場合はこのサイトの中継サービスを使用します。'],
+ ru:['Запросы ChatGPT проходят через ретранслятор без сохранения состояния. Он передаёт запрос и токен доступа в OpenAI.','Дополнительные настройки подключения','URL своего ретранслятора','Оставьте пустым, чтобы использовать ретранслятор этого сайта.'],
+ de:['ChatGPT-Anfragen laufen über einen zustandslosen Vermittlungsdienst. Er leitet Anfrage und Zugriffstoken an OpenAI weiter.','Erweiterte Verbindungseinstellungen','Eigene Vermittlungs-URL','Leer lassen, um den Dienst dieser Website zu nutzen.'],
+ fr:['Les requêtes ChatGPT passent par un relais sans état. Il transmet la requête et le jeton d’accès à OpenAI.','Paramètres de connexion avancés','URL de votre relais','Laissez vide pour utiliser le relais de ce site.'],
+ es:['Las solicitudes de ChatGPT pasan por un servicio de reenvío sin estado, que envía la solicitud y el token de acceso a OpenAI.','Configuración de conexión avanzada','URL de tu servicio de reenvío','Déjalo vacío para usar el servicio de este sitio.']
+};
+export const SIWC_MESSAGES=Object.fromEntries(Object.entries(rows).map(([locale,row])=>[locale,{...Object.fromEntries(keys.map((key,index)=>['siwc.'+key,row[index]])),...Object.fromEntries(['relayHelp','relayAdvanced','relayLabel','relayDefault'].map((key,i)=>['siwc.'+key,relayMessages[locale][i]])),'siwc.accountType':accountTypes[locale],'siwc.retryVerification':verificationMessages[locale][0],'siwc.verificationRetry':verificationMessages[locale][1]}]));

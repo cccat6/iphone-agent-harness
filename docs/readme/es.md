@@ -45,7 +45,9 @@ flowchart LR
     Harness <--> Storage
     Shortcut["Atajos de Apple<br/>Portapapeles de iOS"]
   end
-  Harness <-->|Contexto / respuestas| AI["Tu IA elegida"]
+  Harness <-->|API / MCP| AI["Tu IA elegida"]
+  Harness <-->|Suscripción de ChatGPT| Relay["Relé sin estado"]
+  Relay <--> AI
   Harness <-->|WebRTC · Wi-Fi local| Bridge["Puente ESP32"]
   Bridge -->|Teclado / ratón Bluetooth| Apps
   Bridge -->|HTTP local · texto| Shortcut
@@ -122,9 +124,9 @@ El navegador envía el texto al ESP32 en pequeños bloques por WebRTC local. El 
 
 [Configurar el portapapeles](../guide/es.md#clipboard)
 
-## 🔒 Tus datos se quedan contigo
+## 🔒 Datos y privacidad
 
-Conversaciones, capturas, cuentas y claves API se guardan en tu navegador. Los mensajes e imágenes elegidos van directamente a tu proveedor de IA; las peticiones MCP, a los servidores configurados. La web ofrece la aplicación y las habilidades que decides compartir públicamente.
+Las sesiones, capturas y credenciales se guardan en el navegador; las API normales se conectan directamente. Por CORS, ChatGPT usa el relé Cloudflare del proyecto o uno propio sin estado para el contexto seleccionado, imágenes, respuestas y un token temporal. La aplicación de relé no guarda estos datos ni registra contenidos o credenciales.
 
 ## 🤝 Contribuye
 

@@ -62,9 +62,13 @@ Open **Settings → Accounts or API → Add**. You can save several connections 
 
 **With a ChatGPT account**
 
-Choose **ChatGPT subscription** in Harness and select **Continue with ChatGPT**. Open the official authorization page and approve access. The browser will then be unable to open the local return address (`127.0.0.1`); this is expected. Copy the complete URL from the address bar. Return to Harness, paste it into **Return address** and select **Finish sign-in**. Choose a model from the retrieved list and save the account. Credentials stay in this browser, and model requests go directly to OpenAI. Existing Codex connections remain separate when you add a ChatGPT subscription. [OpenAI authorization reference](https://developers.openai.com/siwc/token-sharing-open-source/sign-in).
+Choose **ChatGPT subscription** in Harness and select **Continue with ChatGPT**. Open the official authorization page and approve access. The browser will then be unable to open the local return address (`127.0.0.1`); this is expected. Copy the complete URL from the address bar. Return to Harness, paste it into **Return address** and select **Finish sign-in**. Choose a model from the retrieved list and save the account. Credentials are saved in this browser. Existing Codex connections remain separate when you add a ChatGPT subscription. [OpenAI authorization reference](https://developers.openai.com/siwc/token-sharing-open-source/sign-in).
 
-Your login details and API keys are saved in this browser. Requests go directly to the chosen provider, which needs to support requests from a browser.
+Sessions, screenshots and credentials are saved persistently in your browser. Ordinary API requests go directly to your provider. ChatGPT subscription requests use the project’s stateless relay, or your own relay, because of browser CORS: selected context, images, model output and a short-lived access token pass through it. The relay application does not persist them or log request bodies or credentials. Sign-in and token refresh remain direct browser-to-OpenAI requests; refresh tokens and ID tokens are not relayed. MCP requests go to the servers you configure; only skills you publish enter the community.
+
+For ChatGPT subscriptions, the advanced **Advanced connection settings → Custom relay URL** defaults to `https://igent.cc/api/openai`. You can replace it with your own relay prefix. Saving an account does not require a model list; you can fetch models later.
+
+To host only the relay, set `ALLOWED_ORIGINS` in `wrangler.relay.jsonc` to your web origin (comma-separated for several), then run `npx wrangler deploy --config wrangler.relay.jsonc`. Enter the deployed URL followed by `/api/openai` as **Advanced connection settings → Custom relay URL**. It serves only `GET /api/openai/models` and `POST /api/openai/responses`, needs no OpenAI secret, database or KV, and also works with the hosted Harness.
 
 ### Location
 

@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720" role="img" aria-labelledby="title desc" lang="zh-Hans" xml:lang="zh-Hans">
-<title id="title">iPhone Agent Harness 架构</title><desc id="desc">网站提供静态网页与公开技能。Safari 在本地保存会话和密钥，将选中上下文直接发送给所选 AI 服务，并经局域网 WebRTC 与 ESP32 交换命令及回执。ESP32 用蓝牙 HID 操作同一手机。手机无需 USB 线或云端指令中继。</desc>
+<title id="title">iPhone Agent Harness 架构</title><desc id="desc">会话、图片和凭据保存在浏览器中。普通 API 直连；ChatGPT 订阅通过无状态服务转发选定内容、图片、输出和短期访问令牌，不保存这些数据，也不记录正文或凭据。登录与刷新仍直连 OpenAI。</desc>
 <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="m0 0 10 5-10 5z" fill="#356556" /></marker><style>text{font-family:system-ui,-apple-system,sans-serif;fill:#203a31}.title{font-size:25px;font-weight:700}.head{font-size:21px;font-weight:650}.body{font-size:17px}.small{font-size:15px;fill:#536b61}.box{fill:#fff;stroke:#bdcec5;stroke-width:1.5}.line{fill:none;stroke:#356556;stroke-width:2;marker-end:url(#arrow)}.both{marker-start:url(#arrow)}</style></defs>
 <rect width="1200" height="720" rx="24" fill="#f7faf8" />
 <text x="40" y="46" class="title">iPhone Agent Harness</text><text x="40" y="75" class="small">浏览器推理 · 本地设备控制 · 自选模型</text>
@@ -8,21 +8,21 @@
 <rect x="440" y="173" width="376" height="443" rx="25" fill="#fff" stroke="#456858" stroke-width="2" />
 <text x="466" y="209" class="head">iPhone / iPad</text>
 <rect x="466" y="237" width="324" height="154" rx="14" fill="#eaf1ee" />
-<text x="486" y="269" class="head">Safari · 网页 Harness</text><text x="486" y="301" class="body">Agent 循环、提示词与技能</text><text x="486" y="330" class="body">会话、图片、密钥：本地保存</text><text x="486" y="359" class="small">IndexedDB · 会话不上传网站主机</text>
+<text x="486" y="269" class="head">Safari · 网页 Harness</text><text x="486" y="301" class="body">Agent 循环、提示词与技能</text><text x="486" y="330" class="body">会话、图片、密钥：本地保存</text><text x="486" y="359" class="small" style="font-size:13px">IndexedDB · 持久本地记录</text>
 <rect x="466" y="468" width="324" height="112" rx="14" fill="#f4f6f5" stroke="#ccd8d1" />
 <text x="486" y="501" class="head">iOS 屏幕与其他 App</text><text x="486" y="532" class="body">应用、控件与剪贴板</text><text x="486" y="558" class="small">辅助触控接收指针输入</text>
 <path class="line" d="M537 466v-66" /><text x="548" y="429" class="small">屏幕共享</text><text x="548" y="449" class="small">本地观察</text>
 <rect x="48" y="144" width="295" height="157" rx="17" class="box" />
-<text x="70" y="180" class="head">网站／自托管</text><text x="70" y="214" class="body">静态 HTML、JS 与固件</text><text x="70" y="244" class="body">公开技能分享</text><text x="70" y="276" class="small">不接收会话、截图或密钥</text>
+<text x="70" y="180" class="head">网站／自托管</text><text x="70" y="214" class="body">静态 HTML、JS 与固件</text><text x="70" y="244" class="body">公开技能分享</text><text x="70" y="276" class="small" style="font-size:13px">转发程序不持久存储数据</text>
 <path class="line" d="M345 218h90" /><text x="352" y="201" class="small">网页</text>
 <path class="line both" d="M344 280h92" /><text x="347" y="309" class="small">公开技能</text>
 <rect x="48" y="413" width="295" height="164" rx="17" class="box" />
-<text x="70" y="450" class="head">所选 AI／MCP 服务</text><text x="70" y="485" class="body">自有账号或 API 端点</text><text x="70" y="515" class="body">接收选中的任务上下文</text><text x="70" y="548" class="small">由 Safari 直接连接</text>
-<path class="line both" d="M343 443h50v-91h42" /><text x="352" y="476" class="small">HTTPS</text>
+<text x="70" y="450" class="head">所选 AI／MCP 服务</text><text x="70" y="485" class="body">自有账号或 API 端点</text><text x="70" y="515" class="body">接收选中的任务上下文</text><text x="70" y="548" class="small" style="font-size:13px">API／MCP 直连；订阅经转发</text>
+<path class="line both" d="M343 443h50v-62h42" /><text x="352" y="476" class="small">HTTPS</text>
 <rect x="906" y="256" width="228" height="174" rx="18" class="box" />
 <text x="928" y="292" class="head">ESP32 桥</text><text x="928" y="326" class="body">定时执行输入</text><text x="928" y="355" class="body">蓝牙键盘</text><text x="928" y="383" class="body">与指针</text><text x="928" y="411" class="small">附近供电即可</text>
 <path class="line both" d="M791 315h110" /><text x="821" y="288" class="small">WebRTC</text><text x="821" y="348" class="small">命令</text><text x="821" y="369" class="small">与回执</text>
 <path class="line" d="M1020 434v89H795" /><text x="850" y="508" class="body">蓝牙 HID</text>
 <text x="843" y="559" class="small">可选剪贴板快捷指令：</text><text x="843" y="582" class="small">通过本地 HTTP 获取文字</text>
-<text x="40" y="686" class="small">USB 仅用于首次安装固件。手机无需线缆、云端指令中继或配套 iOS App。</text>
-</svg>
+<text x="40" y="686" class="small">USB 用于安装固件；手机操作经局域网 WebRTC 与蓝牙，无需配套 iOS App。</text>
+<rect x="48" y="326" width="295" height="73" rx="12" class="box" /><path class="line both" d="M344 362h91" /><path class="line both" d="M195 400v10" /><text x="62" y="347" class="small" style="font-size:16px">ChatGPT · 无状态转发</text><text x="62" y="369" class="small" style="font-size:13px">选定内容与短期访问令牌</text><text x="62" y="389" class="small" style="font-size:13px">图片与模型输出</text></svg>

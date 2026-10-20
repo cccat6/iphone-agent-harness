@@ -62,9 +62,13 @@
 
 **使用 ChatGPT 账号**
 
-在 Harness 中选择“ChatGPT 订阅”，点击“继续使用 ChatGPT”，打开官方页面完成授权。随后浏览器会显示无法打开本机返回地址（`127.0.0.1`），这是正常现象。复制地址栏的完整网址，回到 Harness 粘贴到“返回地址”，再点击“完成登录”。随后从获取到的列表中选择模型并保存账号。登录凭据保存在当前浏览器，模型请求直接发送给 OpenAI。已有 Codex 连接会保留，新增的 ChatGPT 订阅使用独立账号。[OpenAI 授权说明](https://developers.openai.com/siwc/token-sharing-open-source/sign-in)。
+在 Harness 中选择“ChatGPT 订阅”，点击“继续使用 ChatGPT”，打开官方页面完成授权。随后浏览器会显示无法打开本机返回地址（`127.0.0.1`），这是正常现象。复制地址栏的完整网址，回到 Harness 粘贴到“返回地址”，再点击“完成登录”。随后从获取到的列表中选择模型并保存账号。登录凭据保存在当前浏览器。已有 Codex 连接会保留，新增的 ChatGPT 订阅使用独立账号。[OpenAI 授权说明](https://developers.openai.com/siwc/token-sharing-open-source/sign-in)。
 
-账号信息和 API 密钥保存在当前浏览器中，请求直接发送给所选服务商。服务商的接口需要支持浏览器访问。
+会话、截图和凭据持久保存在浏览器中。普通 API 请求直接发送给服务商。ChatGPT 订阅因浏览器跨域限制，通过项目提供或你自建的无状态转发服务通信：选定的上下文、图片、模型输出和短期访问令牌会经过该服务。转发程序不持久保存这些数据，也不记录请求正文或凭据。登录和令牌刷新仍由浏览器直连 OpenAI，刷新令牌和 ID 令牌不经过转发。MCP 请求发送至你配置的服务器；只有主动发布的技能会进入社区。
+
+ChatGPT 订阅的高级设置 **高级连接设置 → 自建转发地址** 默认为 `https://igent.cc/api/openai`，也可填写自建服务的地址前缀。保存账号不要求先取得模型列表，之后可以再获取。
+
+仅自建转发服务时，在 `wrangler.relay.jsonc` 中将 `ALLOWED_ORIGINS` 设为网页来源（多个来源用逗号分隔），执行 `npx wrangler deploy --config wrangler.relay.jsonc`，再把部署地址加上 `/api/openai` 填入 **高级连接设置 → 自建转发地址**。服务仅提供 `GET /api/openai/models` 和 `POST /api/openai/responses`，无需配置 OpenAI 密钥、数据库或 KV，也可搭配官方托管的 Harness。
 
 ### 定位
 

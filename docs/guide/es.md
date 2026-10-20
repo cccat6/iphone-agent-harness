@@ -62,9 +62,13 @@ Abre **Ajustes → Cuentas o API → Añadir**. Puedes guardar varias conexiones
 
 **Con una cuenta ChatGPT**
 
-Elige «Suscripción de ChatGPT» en Harness y pulsa «Continuar con ChatGPT». Abre la página oficial y autoriza el acceso. Después, el navegador indicará que no puede abrir la dirección de retorno local (`127.0.0.1`); es normal. Copia la URL completa de la barra de direcciones, vuelve a Harness, pégala en «Dirección de retorno» y pulsa «Completar inicio de sesión». Elige un modelo de la lista obtenida y guarda la cuenta. Las credenciales se guardan en este navegador y las solicitudes a los modelos se envían directamente a OpenAI. Las conexiones Codex existentes se conservan; la suscripción de ChatGPT se añade como una cuenta independiente. [Referencia de autorización de OpenAI](https://developers.openai.com/siwc/token-sharing-open-source/sign-in).
+Elige «Suscripción de ChatGPT» en Harness y pulsa «Continuar con ChatGPT». Abre la página oficial y autoriza el acceso. Después, el navegador indicará que no puede abrir la dirección de retorno local (`127.0.0.1`); es normal. Copia la URL completa de la barra de direcciones, vuelve a Harness, pégala en «Dirección de retorno» y pulsa «Completar inicio de sesión». Elige un modelo de la lista obtenida y guarda la cuenta. Las credenciales se guardan en este navegador. Las conexiones Codex existentes se conservan; la suscripción de ChatGPT se añade como una cuenta independiente. [Referencia de autorización de OpenAI](https://developers.openai.com/siwc/token-sharing-open-source/sign-in).
 
-Las credenciales y claves se guardan en este navegador. Las peticiones van directamente al proveedor, cuya API debe aceptar el acceso desde el navegador.
+Las sesiones, capturas y credenciales se guardan en el navegador. Las API normales se conectan directamente al proveedor. Las suscripciones de ChatGPT usan el relé sin estado del proyecto o uno propio por las restricciones CORS del navegador: por él pasan el contexto seleccionado, imágenes, respuestas y un token de acceso de corta duración. La aplicación de relé no los almacena ni registra el contenido o las credenciales. El inicio de sesión y la renovación de tokens siguen directamente del navegador a OpenAI; los tokens de renovación e ID no pasan por el relé. MCP se conecta a los servidores configurados; solo las habilidades que publiques llegan a la comunidad.
+
+En las opciones avanzadas de ChatGPT, **Configuración de conexión avanzada → URL de tu servicio de reenvío** usa por defecto `https://igent.cc/api/openai`. Puedes indicar el prefijo de tu propio relé. Puedes guardar la cuenta sin obtener la lista de modelos y consultarla después.
+
+Para alojar solo el relé, configura `ALLOWED_ORIGINS` en `wrangler.relay.jsonc` con el origen web (varios separados por comas), ejecuta `npx wrangler deploy --config wrangler.relay.jsonc` e introduce la URL publicada seguida de `/api/openai` en **Configuración de conexión avanzada → URL de tu servicio de reenvío**. Solo ofrece `GET /api/openai/models` y `POST /api/openai/responses`. No necesita clave OpenAI, base de datos ni KV y funciona también con Harness alojado.
 
 ### Ubicación
 

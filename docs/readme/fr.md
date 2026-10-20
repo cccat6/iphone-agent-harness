@@ -45,7 +45,9 @@ flowchart LR
     Harness <--> Storage
     Shortcut["Raccourcis Apple<br/>Presse-papiers iOS"]
   end
-  Harness <-->|Contexte / réponses| AI["Votre IA"]
+  Harness <-->|API / MCP| AI["Votre IA"]
+  Harness <-->|Abonnement ChatGPT| Relay["Relais sans état"]
+  Relay <--> AI
   Harness <-->|WebRTC · Wi-Fi local| Bridge["Pont ESP32"]
   Bridge -->|Clavier / souris Bluetooth| Apps
   Bridge -->|HTTP local · texte| Shortcut
@@ -122,9 +124,9 @@ Le navigateur envoie le texte à l’ESP32 par petits blocs via le WebRTC local.
 
 [Configurer le presse-papiers](../guide/fr.md#clipboard)
 
-## 🔒 Vos données restent chez vous
+## 🔒 Données et confidentialité
 
-Conversations, captures, comptes et clés API sont enregistrés dans votre navigateur. Les messages et images choisis vont directement à votre fournisseur d’IA ; les requêtes MCP aux serveurs configurés. Le site fournit l’application et les compétences que vous choisissez de partager publiquement.
+Sessions, captures et identifiants sont enregistrés dans le navigateur ; les API ordinaires sont directes. En raison de CORS, ChatGPT utilise le relais Cloudflare du projet ou votre relais sans état pour le contexte choisi, les images, les réponses et un jeton d’accès temporaire. L’application relais ne conserve pas ces données et ne journalise ni contenus ni identifiants.
 
 ## 🤝 Contribuer
 

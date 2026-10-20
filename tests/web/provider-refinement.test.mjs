@@ -53,7 +53,7 @@ test('provider form prevents native credential submission even if later editor i
 
 test('a late catalog result cannot erase an empty-model subscription while its first save is pending',async()=>{
  const {default:vm}=await import('node:vm'),source=await readFile(new URL('../../apps/web/app.js',import.meta.url),'utf8');
- const applyStart=source.indexOf('  const applyModels=async list=>{'),applyEnd=source.indexOf("  $('#discover-models').onclick=",applyStart),saveStart=source.indexOf("  $('#provider-form').onsubmit=",applyEnd),saveEnd=source.indexOf("  const header=$('.panel-header')",saveStart);assert.ok(applyStart>=0&&saveEnd>saveStart);
+ const applyStart=source.indexOf('  const applyModels='),applyEnd=source.indexOf("  $('#discover-models').onclick=",applyStart),saveStart=source.indexOf("  $('#provider-form').onsubmit=",applyEnd),saveEnd=source.indexOf("  const header=$('.panel-header')",saveStart);assert.ok(applyStart>=0&&saveEnd>saveStart);
  const store=await openStore({memory:true});let release,entered;const blocked=new Promise(resolve=>release=resolve),ready=new Promise(resolve=>entered=resolve),atomicSave=store.saveProvider.bind(store);let active=true;
  const form={elements:{protocol:{value:'codex'},baseUrl:{value:''},model:{value:''},secret:{value:''}},querySelector:()=>({disabled:false})},nodes={'#provider-form':form,'#provider-models':{innerHTML:''}},state={settings:{providers:[]},providerModels:[],providerEdit:'new-plan',providerDraftId:'new-plan',store:{...store,async saveProvider(...args){entered();await blocked;return atomicSave(...args);},saveSettings(){assert.fail('must not save a stale account-list snapshot');},updateProviderModels(){assert.fail('unsaved catalog must not mutate stored accounts');}}};
  const fields={name:'ChatGPT',protocol:'codex',model:'',secret:''},tokens={access_token:'synthetic-save-access',refresh_token:'synthetic-save-refresh',flow:'chatgpt-plan',clientId:'oaiapp_synthetic',identityVerified:true,scopes:['chatgpt.tokens.use.direct'],expiresAt:Date.now()+3600000};
@@ -61,4 +61,10 @@ test('a late catalog result cannot erase an empty-model subscription while its f
  vm.runInContext(source.slice(applyStart,applyEnd)+source.slice(saveStart,saveEnd)+'\nthis.applyModels=applyModels;',ctx);
  const saving=form.onsubmit({preventDefault(){},target:form});await ready;await ctx.applyModels([{id:'late-catalog-model'}]);release();await saving;
  const saved=await store.getSettings();assert.equal(saved.providers.length,1);assert.equal(saved.providers[0].id,'new-plan');assert.equal(saved.providers[0].model,'');assert.equal((await store.getLocalCredential('provider:new-plan')).tokens.refresh_token,tokens.refresh_token);assert.equal(state.providerDraftId,null);store.close();
+});
+
+test('subscription relay settings are localized and used consistently by discover and save',async()=>{
+ const source=await readFile(new URL('../../apps/web/app.js',import.meta.url),'utf8'),editor=source.slice(source.indexOf('function renderProviderForm('),source.indexOf('async function showDevices('));
+ assert.match(editor,/name="subscriptionRelayUrl" type="url"/);assert.match(editor,/relayUrl=editorForm.elements.subscriptionRelayUrl.value/);assert.match(editor,/updated.subscriptionRelayUrl=.*normalizeSubscriptionRelay/);assert.match(editor,/subscriptionRelayUrl.disabled=\$\('#subscription-relay-settings'\).hidden/);
+ for(const dictionary of Object.values(messages))for(const key of ['relayHelp','relayAdvanced','relayLabel','relayDefault'])assert.ok(dictionary['siwc.'+key]);
 });
