@@ -44,3 +44,25 @@ test('legacy upgrades create an independent profile while verified returning acc
 test('all eight languages expose matching sign-in steps and callback instructions',()=>{
  assert.deepEqual(Object.keys(SIWC_MESSAGES).sort(),['en','zh-Hans','zh-Hant','ja','ru','de','fr','es'].sort());const keys=Object.keys(SIWC_MESSAGES.en);for(const [locale,table]of Object.entries(SIWC_MESSAGES)){assert.deepEqual(Object.keys(table),keys);for(const key of keys){assert.ok(table[key]);assert.equal(messages[locale][key],table[key]);}assert.match(table['siwc.stepTwo'],/127\.0\.0\.1/);}
 });
+
+test('public-key failure offers in-page verification retry without another code exchange or stored tokens',async t=>{
+ let retries=0,cancelled=0;const pending={expiresAt:Date.now()+60000,cancel(){cancelled++;},async retry(){retries++;return {flow:'chatgpt-plan',id:'new-account'};}};
+ const f=fixture(t,{complete:async(login,options)=>{options.onVerificationPending(pending);throw Object.assign(Error('keys unavailable'),{code:'SIWC_KEYS_FETCH'});}});
+ await f.field('start-codex-login').onclick();f.field('codex-callback').value=f.callback();await f.field('complete-codex-login').onclick();assert.equal(f.calls.success.length,0);assert.equal(f.ui.pending(),true);assert.equal(f.field('complete-codex-login').textContent,'Retry verification');assert.equal(f.field('complete-codex-login').disabled,false);assert.equal(f.field('codex-callback-field').hidden,true);assert.equal(f.session.size,0);assert.match(f.calls.status.at(-1),/Retry verification/);
+ await f.field('complete-codex-login').onclick();assert.equal(retries,1);assert.equal(f.calls.complete.length,1);assert.equal(f.calls.success.length,1);assert.equal(f.ui.pending(),false);assert.equal(cancelled,1);
+});
+test('verification may retry another outage, while terminal failure clears the handle',async t=>{
+ let retries=0,cancelled=0;const pending={expiresAt:Date.now()+60000,cancel(){cancelled++;},async retry(){throw Object.assign(Error('verification failed'),{code:++retries===1?'SIWC_KEYS_FETCH':'SIWC_ID_NONCE'});}};
+ const f=fixture(t,{complete:async(login,options)=>{options.onVerificationPending(pending);throw Object.assign(Error('outage'),{code:'SIWC_KEYS_FETCH'});}});
+ await f.field('start-codex-login').onclick();f.field('codex-callback').value=f.callback();await f.field('complete-codex-login').onclick();await f.field('complete-codex-login').onclick();assert.equal(cancelled,0);assert.equal(f.ui.pending(),true);await f.field('complete-codex-login').onclick();assert.equal(cancelled,1);assert.equal(f.ui.pending(),false);assert.equal(f.calls.success.length,0);assert.equal(f.calls.complete.length,1);
+});
+test('leaving the editor destroys its pending verification handle and late retries cannot save',async t=>{
+ const gate=deferred();let cancelled=0;const pending={expiresAt:Date.now()+60000,cancel(){cancelled++;},retry:()=>gate.promise};
+ const f=fixture(t,{complete:async(login,options)=>{options.onVerificationPending(pending);throw Object.assign(Error('outage'),{code:'SIWC_KEYS_FETCH'});}});
+ await f.field('start-codex-login').onclick();f.field('codex-callback').value=f.callback();await f.field('complete-codex-login').onclick();const retry=f.field('complete-codex-login').onclick();f.ui.dispose();gate.resolve({flow:'chatgpt-plan'});await retry;assert.equal(cancelled,1);assert.equal(f.calls.success.length,0);assert.equal(f.ui.pending(),false);assert.equal(f.session.size,0);
+});
+test('expired or cancelled verification removes its retry button without persisting pending credentials',async t=>{
+ const realSet=setTimeout,timers=[];t.mock.method(globalThis,'setTimeout',(fn,ms,...args)=>{if(ms>0&&ms<=60000){timers.push(fn);return {unref(){}};}return realSet(fn,ms,...args);});let cancelled=0;
+ const f=fixture(t,{complete:async(login,options)=>{options.onVerificationPending({expiresAt:Date.now()+60000,cancel(){cancelled++;},retry:()=>assert.fail('expired retry')});throw Object.assign(Error('outage'),{code:'SIWC_KEYS_FETCH'});}});
+ await f.field('start-codex-login').onclick();f.field('codex-callback').value=f.callback();await f.field('complete-codex-login').onclick();timers.at(-1)();assert.equal(cancelled,1);assert.equal(f.ui.pending(),false);assert.equal(f.field('complete-codex-login').hidden,true);assert.equal(f.field('cancel-codex-login').hidden,true);assert.equal(f.session.size,0);
+});

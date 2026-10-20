@@ -178,3 +178,44 @@ test('ID-token not-before accepts only a small clock skew and callback errors ha
  for(const [value,code]of [[url.replace(':1455',':1456'),'SIWC_CALLBACK_ADDRESS'],[url.replace(login.state,'other-state'),'SIWC_CALLBACK_STATE']])assert.throws(()=>validateCodexCallback(login,value),{code});
  const returning=await begin({clientId:'oaiapp_fixture'});assert.throws(()=>validateCodexCallback(returning,callback(returning,{client_id:'another-client'})),{code:'SIWC_CALLBACK_CLIENT'});
 });
+
+test('a public-key outage retains only a retry handle, verifies fully and exchanges the code exactly once',async()=>{
+ const login=await begin(),{idToken,jwk}=await signed(login);let exchanged=0,keys=0,pending;
+ const options={accountId:'retry-plan',callbackUrl:callback(login),fetchImpl:async()=>{exchanged++;return Response.json({access_token:'retry-private-access',refresh_token:'retry-private-refresh',id_token:idToken,scope:'chatgpt.tokens.use.direct'});},loadPublicKeys:async()=>{if(++keys===1)throw Object.assign(Error('upstream private response'),{status:502});return {keys:[jwk]};},onVerificationPending:value=>pending=value};
+ await assert.rejects(completeCodexLogin(login,options),e=>e.code==='SIWC_KEYS_FETCH'&&e.status===502&&!e.message.includes('private'));
+ assert.equal(listCodexAccounts().length,0);assert.deepEqual(Object.keys(pending).sort(),['cancel','expiresAt','retry']);assert.doesNotMatch(JSON.stringify(pending),/private|token|nonce|code/);
+ await assert.rejects(completeCodexLogin({...login},options),/已使用/);
+ const result=await pending.retry();assert.equal(result.identityVerified,true);assert.equal(exchanged,1);assert.equal(keys,2);assert.equal(result.id,'retry-plan');await assert.rejects(pending.retry());
+});
+test('retry after key outage still enforces nonce and destroys its pending tokens on verification failure',async()=>{
+ const login=await begin(),{idToken,jwk}=await signed(login,{claims:{nonce:'wrong'}});let pending,keys=0;
+ await assert.rejects(completeCodexLogin(login,{callbackUrl:callback(login),fetchImpl:async()=>Response.json({access_token:'private-access',id_token:idToken,scope:'chatgpt.tokens.use.direct'}),loadPublicKeys:async()=>{if(++keys===1)throw Error('outage');return {keys:[jwk]};},onVerificationPending:value=>pending=value}),{code:'SIWC_KEYS_FETCH'});
+ await assert.rejects(pending.retry(),{code:'SIWC_ID_NONCE'});await assert.rejects(pending.retry(),{code:'SIWC_ATTEMPT_INVALID'});assert.equal(keys,2);assert.equal(listCodexAccounts().length,0);
+});
+test('pending verification cancellation aborts a retry and cannot replace an existing account',async()=>{
+ await finish(await begin());const previous=getCodexAccount('plan').exportTokens(),login=await begin({clientId:'oaiapp_fixture'}),{idToken}=await signed(login);let pending,calls=0,entered;const started=new Promise(resolve=>entered=resolve);
+ await assert.rejects(completeCodexLogin(login,{accountId:'plan',callbackUrl:callback(login),fetchImpl:async()=>Response.json({access_token:'new-private-access',id_token:idToken,scope:'chatgpt.tokens.use.direct'}),loadPublicKeys:async()=>{if(++calls===1)throw Error('outage');entered();return new Promise(()=>{});},onVerificationPending:value=>pending=value}),{code:'SIWC_KEYS_FETCH'});
+ const retry=pending.retry();await started;await assert.rejects(pending.retry(),{code:'SIWC_VERIFICATION_BUSY'});pending.cancel();await assert.rejects(retry,{name:'AbortError'});await assert.rejects(pending.retry(),{code:'SIWC_ATTEMPT_INVALID'});assert.deepEqual(getCodexAccount('plan').exportTokens(),previous);
+});
+test('pending verification expires automatically and original cancellation clears it',async t=>{
+ const realSet=setTimeout,timers=[];t.mock.method(globalThis,'setTimeout',(fn,ms,...args)=>{if(ms===300000){timers.push(fn);return {unref(){}};}return realSet(fn,ms,...args);});
+ for(const cancel of ['expiry','signal']){const login=await begin(),{idToken}=await signed(login),controller=new AbortController();let pending;
+ await assert.rejects(completeCodexLogin(login,{signal:controller.signal,callbackUrl:callback(login),fetchImpl:async()=>Response.json({access_token:'private',id_token:idToken,scope:'chatgpt.tokens.use.direct'}),loadPublicKeys:async()=>{throw Error('outage');},onVerificationPending:value=>pending=value}),{code:'SIWC_KEYS_FETCH'});
+ if(cancel==='expiry')timers.at(-1)();else controller.abort();await assert.rejects(pending.retry(),{code:'SIWC_ATTEMPT_INVALID'});assert.equal(listCodexAccounts().length,0);
+ }
+});
+test('a missing signing key triggers one public refresh with no identity fields and never loops',async()=>{
+ const login=await begin(),{jwk}=await signed(login),calls=[];
+ assert.equal((await finish(login,{loadPublicKeys:async value=>{calls.push(value);return {keys:value.refresh?[jwk]:[]};}})).identityVerified,true);assert.deepEqual(calls,[{signal:undefined},{signal:undefined,refresh:true}]);
+ const missing=await begin();let count=0;await assert.rejects(finish(missing,{loadPublicKeys:async()=>{count++;return {keys:[]};}}),{code:'SIWC_ID_KEY_MATCH'});assert.equal(count,2);
+ const requests=[];await loadOpenAIPublicKeys({refresh:true,fetchImpl:async(url,options)=>{requests.push({url,options});return Response.json({keys:[jwk]});}});assert.equal(new URL(requests[0].url).search,'?refresh=1');assert.equal(requests[0].options.credentials,'omit');assert.equal(requests[0].options.body,undefined);
+});
+test('invalid public-key JSON is terminal rather than retaining retryable login credentials',async()=>{
+ const login=await begin();let retained=false;
+ await assert.rejects(finish(login,{loadPublicKeys:()=>loadOpenAIPublicKeys({fetchImpl:async()=>new Response('{malformed')}),onVerificationPending:()=>retained=true}),{code:'SIWC_KEYS_FORMAT'});assert.equal(retained,false);assert.equal(listCodexAccounts().length,0);
+});
+test('signing-key refresh outage remains retryable without exchanging another authorization code',async()=>{
+ const login=await begin(),{jwk}=await signed(login);let retained,calls=0;
+ await assert.rejects(finish(login,{loadPublicKeys:async options=>{calls++;if(options.refresh)throw Object.assign(Error('outage'),{status:502});return {keys:calls>2?[jwk]:[]};},onVerificationPending:value=>retained=value}),{code:'SIWC_KEYS_FETCH'});
+ assert.equal((await retained.retry()).identityVerified,true);assert.equal(calls,3);
+});

@@ -10,4 +10,14 @@ const rows={
  es:['Inicia sesión en ChatGPT para usar tu plan. La autorización se realiza en OpenAI.','Continuar con ChatGPT','Cancelar inicio de sesión','Completar inicio de sesión','Dirección de retorno','Pega la dirección completa http://127.0.0.1:1455/auth/callback.','Abrir inicio de sesión de OpenAI ↗','Abre OpenAI, inicia sesión y autoriza el acceso.','Tras autorizar, Safari no puede abrir la página 127.0.0.1. Copia la dirección completa de la barra de direcciones.','Vuelve aquí, pega la dirección y completa el inicio de sesión.','Preparando inicio de sesión…','Abre la página de inicio de sesión y vuelve después de autorizar.','Verificando inicio de sesión…','Sesión iniciada. Guarda esta cuenta para conservarla en este navegador.','Inicio de sesión cancelado.','Se restauró el inicio de sesión pendiente.','No se pudo iniciar sesión: {detail}','No se pudo iniciar sesión: {detail} Inicia una autorización nueva.','El almacenamiento del navegador no está disponible. Permite el almacenamiento local e inténtalo de nuevo.','Este intento no es válido o ha caducado. Empieza de nuevo.','Esta es una conexión Codex existente. Continuar con ChatGPT crea una cuenta independiente y conserva esta conexión.']
 };
 const accountTypes={en:'ChatGPT subscription','zh-Hans':'ChatGPT 订阅','zh-Hant':'ChatGPT 訂閱',ja:'ChatGPT サブスクリプション',ru:'Подписка ChatGPT',de:'ChatGPT-Abonnement',fr:'Abonnement ChatGPT',es:'Suscripción de ChatGPT'};
-export const SIWC_MESSAGES=Object.fromEntries(Object.entries(rows).map(([locale,row])=>[locale,{...Object.fromEntries(keys.map((key,index)=>['siwc.'+key,row[index]])),'siwc.accountType':accountTypes[locale]}]));
+const verificationMessages={
+ en:['Retry verification','The verification keys are temporarily unavailable: {detail} Retry verification here to finish signing in.'],
+ 'zh-Hans':['重试验证','暂时无法获取验证公钥：{detail} 点击“重试验证”即可继续完成登录。'],
+ 'zh-Hant':['重試驗證','暫時無法取得驗證公鑰：{detail} 點選「重試驗證」即可繼續完成登入。'],
+ ja:['確認を再試行','検証用の公開鍵を一時的に取得できません：{detail} 「確認を再試行」でログインを続けられます。'],
+ ru:['Повторить проверку','Ключи проверки временно недоступны: {detail} Нажмите «Повторить проверку», чтобы завершить вход.'],
+ de:['Prüfung wiederholen','Die Prüfschlüssel sind vorübergehend nicht verfügbar: {detail} Wiederhole die Prüfung, um die Anmeldung abzuschließen.'],
+ fr:['Réessayer la vérification','Les clés de vérification sont temporairement indisponibles : {detail} Réessayez la vérification pour terminer la connexion.'],
+ es:['Reintentar verificación','Las claves de verificación no están disponibles temporalmente: {detail} Reintenta la verificación para completar el inicio de sesión.']
+};
+export const SIWC_MESSAGES=Object.fromEntries(Object.entries(rows).map(([locale,row])=>[locale,{...Object.fromEntries(keys.map((key,index)=>['siwc.'+key,row[index]])),'siwc.accountType':accountTypes[locale],'siwc.retryVerification':verificationMessages[locale][0],'siwc.verificationRetry':verificationMessages[locale][1]}]));

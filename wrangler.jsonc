@@ -31,6 +31,12 @@
     "enabled": false
   },
   "main": "apps/web/worker.js",
+  "kv_namespaces": [
+    {
+      "binding": "OPENAI_PUBLIC_KEYS",
+      "id": "d886c064fe0e489c80e419b5ad675054"
+    }
+  ],
   "d1_databases": [
     {
       "binding": "DB",

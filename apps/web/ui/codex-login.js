@@ -36,31 +36,40 @@ export function prepareCodexSignInProfile({provider,account,saved,label,newId}){
 // The callback URL is read only by the completion click, held in memory for the
 // exchange, and cleared immediately. It is never stored or put in page history.
 export function mountCodexLogin({root,getProvider,prepareProvider,start,validate,complete,onSuccess,onRegistration=()=>{},isActive=()=>true,onController=()=>{},t=translate,status=()=>{}}){
- const node=id=>root.querySelector('#'+id),begin=node('start-codex-login'),cancel=node('cancel-codex-login'),finish=node('complete-codex-login'),verification=node('codex-verification'),callback=node('codex-callback'),callbackField=node('codex-callback-field');let login=null,controller=null,generation=0,working=false;
+ const node=id=>root.querySelector('#'+id),begin=node('start-codex-login'),cancel=node('cancel-codex-login'),finish=node('complete-codex-login'),verification=node('codex-verification'),callback=node('codex-callback'),callbackField=node('codex-callback-field');let login=null,controller=null,generation=0,working=false,pendingVerification=null,verificationTimer=null;
  const tell=(key,params)=>status(t('siwc.'+key,params));
  const explain=error=>error?.code==='SIWC_STORAGE_UNAVAILABLE'?t('siwc.storageUnavailable'):error?.code==='SIWC_ATTEMPT_INVALID'?t('siwc.invalidAttempt'):localizeError(error);
  function render(){
-  begin.textContent=t('siwc.start');cancel.textContent=t('siwc.cancel');finish.textContent=t('siwc.finish');node('codex-callback-label').textContent=t('siwc.callbackLabel');node('codex-callback-help').textContent=t('siwc.callbackHelp');
-  cancel.hidden=!login&&!working;finish.hidden=!login;finish.disabled=working||!callback.value.trim();callbackField.hidden=!login;begin.disabled=working;
+  begin.textContent=t('siwc.start');cancel.textContent=t('siwc.cancel');finish.textContent=t(pendingVerification?'siwc.retryVerification':'siwc.finish');node('codex-callback-label').textContent=t('siwc.callbackLabel');node('codex-callback-help').textContent=t('siwc.callbackHelp');
+  cancel.hidden=!login&&!working&&!pendingVerification;finish.hidden=!login&&!pendingVerification;finish.disabled=working||!pendingVerification&&!callback.value.trim();callbackField.hidden=!login;begin.disabled=working;
   verification.replaceChildren();if(login){const link=document.createElement('a');link.href=login.authorizationUrl;link.target='_blank';link.rel='noopener noreferrer';link.textContent=t('siwc.open');link.className='secondary-button';verification.append(link);const steps=document.createElement('ol');for(const key of ['stepOne','stepTwo','stepThree']){const item=document.createElement('li');item.textContent=t('siwc.'+key);steps.append(item);}verification.append(steps);}
  }
- function cancelAttempt({quiet=false}={}){generation++;controller?.abort();if(login)clearPendingCodexLogin(getProvider().id,login.state);login=null;working=false;callback.value='';render();if(!quiet)tell('cancelled');}
+ function clearVerification(){clearTimeout(verificationTimer);verificationTimer=null;pendingVerification?.cancel();pendingVerification=null;}
+ function rememberVerification(value,current){if(current!==generation||controller.signal.aborted||!isActive()){value.cancel();return;}clearVerification();pendingVerification=value;verificationTimer=setTimeout(()=>{clearVerification();if(current===generation&&isActive()){working=false;render();tell('invalidAttempt');}},Math.max(0,value.expiresAt-Date.now()));verificationTimer.unref?.();}
+ function cancelAttempt({quiet=false}={}){generation++;controller?.abort();clearVerification();if(login)clearPendingCodexLogin(getProvider().id,login.state);login=null;working=false;callback.value='';render();if(!quiet)tell('cancelled');}
  begin.onclick=async()=>{
   if(working||!isActive())return;cancelAttempt({quiet:true});const current=++generation;working=true;controller=new AbortController();onController(controller);render();tell('preparing');
   try{const prepared=await prepareProvider();if(current!==generation||controller.signal.aborted||!isActive())return;const issued=await start({method:'authorization-code',hostId:codexHostId(),...prepared.options,signal:controller.signal});if(current!==generation||controller.signal.aborted||!isActive())return;savePendingCodexLogin(issued,prepared.provider);login=issued;working=false;render();tell('ready');}
   catch(error){if(current===generation&&isActive()&&!controller.signal.aborted){working=false;render();status(t('siwc.failed',{detail:explain(error)}));}}
  };
- callback.oninput=()=>{finish.disabled=working||!callback.value.trim();};
+ callback.oninput=()=>{finish.disabled=working||!pendingVerification&&!callback.value.trim();};
  finish.onclick=async()=>{
-  if(working||!login||!callback.value.trim()||!isActive())return;const attempt=login,url=callback.value.trim(),provider=getProvider(),current=++generation;
+  if(working||!isActive())return;
+  if(pendingVerification){
+   const pending=pendingVerification,current=++generation;clearTimeout(verificationTimer);working=true;render();tell('checking');
+   try{const result=await pending.retry();if(current!==generation||controller.signal.aborted||!isActive())return;clearVerification();working=false;render();tell('success');await onSuccess(result,controller.signal);}
+   catch(error){if(current===generation&&isActive()&&!controller.signal.aborted){working=false;if(error?.code==='SIWC_KEYS_FETCH'&&pending.expiresAt>Date.now()){pendingVerification=null;rememberVerification(pending,current);render();status(t('siwc.verificationRetry',{detail:explain(error)}));}else{clearVerification();render();status(t('siwc.failedRestart',{detail:explain(error)}));}}}
+   return;
+  }
+  if(!login||!callback.value.trim())return;const attempt=login,url=callback.value.trim(),provider=getProvider(),current=++generation;
   try{if(attempt.expiresAt<=Date.now()||url.length>32768)throw fail('SIWC_ATTEMPT_INVALID');const registration=validate(attempt,url);onRegistration(registration.clientId);}catch(error){status(t('siwc.failed',{detail:explain(error)}));return;}
   // Consume before any asynchronous exchange. Refresh or a second click cannot
   // recover an already submitted authorization code from local pending state.
   clearPendingCodexLogin(provider.id,attempt.state);login=null;callback.value='';working=true;render();tell('checking');
-  try{const result=await complete(attempt,{accountId:provider.id,label:provider.name,callbackUrl:url,signal:controller.signal});if(current!==generation||controller.signal.aborted||!isActive())return;if(result?.flow!=='chatgpt-plan')throw fail('SIWC_ATTEMPT_INVALID');working=false;render();tell('success');await onSuccess(result,controller.signal);}
-  catch(error){if(current===generation&&isActive()&&!controller.signal.aborted){working=false;render();status(t('siwc.failedRestart',{detail:explain(error)}));}}
+  try{const result=await complete(attempt,{accountId:provider.id,label:provider.name,callbackUrl:url,signal:controller.signal,onVerificationPending:value=>rememberVerification(value,current)});if(current!==generation||controller.signal.aborted||!isActive())return;if(result?.flow!=='chatgpt-plan')throw fail('SIWC_ATTEMPT_INVALID');working=false;render();tell('success');await onSuccess(result,controller.signal);}
+  catch(error){if(current===generation&&isActive()&&!controller.signal.aborted){working=false;render();status(t(pendingVerification?'siwc.verificationRetry':'siwc.failedRestart',{detail:explain(error)}));}}
  };
  cancel.onclick=()=>cancelAttempt();
  const pending=loadPendingCodexLogin();if(pending?.provider.id===getProvider().id){login=pending.login;controller=new AbortController();onController(controller);tell('restored');}
- render();return {cancel:cancelAttempt,dispose(){generation++;controller?.abort();callback.value='';},pending:()=>!!login};
+ render();return {cancel:cancelAttempt,dispose(){generation++;controller?.abort();clearVerification();callback.value='';},pending:()=>!!login||!!pendingVerification};
 }

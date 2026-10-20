@@ -122,12 +122,12 @@ export async function startCodexLogin({method='device-code',flow='codex',clientI
  if(!data.device_auth_id||!code||!Number.isFinite(interval)||interval<0)throw new Error('设备码响应不完整');
  return {method,flow,clientId:id,device_auth_id:data.device_auth_id,user_code:code,interval:Math.max(1,interval),verification_url:CODEX_ENDPOINTS.verification,verificationUrl:CODEX_ENDPOINTS.verification,expiresAt:Date.now()+900000};
 }
-export async function loadOpenAIPublicKeys({signal,fetchImpl=globalThis.fetch,endpoint=SITE_CONFIG.openaiPublicKeysEndpoint||'https://igent.cc/api/openai/jwks'}={}){
- const url=new URL(endpoint);if(url.protocol!=='https:'||url.username||url.password||url.search||url.hash)throw new Error('身份公钥网址无效');
+export async function loadOpenAIPublicKeys({signal,refresh=false,fetchImpl=globalThis.fetch,endpoint=SITE_CONFIG.openaiPublicKeysEndpoint||'https://igent.cc/api/openai/jwks'}={}){
+ const url=new URL(endpoint);if(url.protocol!=='https:'||url.username||url.password||url.search||url.hash)throw new Error('身份公钥网址无效');if(refresh===true)url.searchParams.set('refresh','1');
  const active=signal?AbortSignal.any([signal,AbortSignal.timeout(10000)]):AbortSignal.timeout(10000);check(active);
  const response=await awaitWithSignal(fetchImpl.call(globalThis,url.href,{method:'GET',headers:{accept:'application/json'},signal:active,credentials:'omit',referrerPolicy:'no-referrer',redirect:'error'}),active);
  if(!response.ok)throw failure('身份公钥不可用',response.status);
- const keys=JSON.parse(await readText(response,{maxBytes:262144,signal:active}));if(!Array.isArray(keys?.keys)||keys.keys.length<1||keys.keys.length>64)throw new Error('身份公钥格式无效');return keys;
+ const body=await readText(response,{maxBytes:262144,signal:active});let keys;try{keys=JSON.parse(body);}catch{throw identityFailure('SIWC_KEYS_FORMAT');}if(!Array.isArray(keys?.keys)||keys.keys.length<1||keys.keys.length>64)throw identityFailure('SIWC_KEYS_FORMAT');return keys;
 }
 async function verifyIdentity(token,clientId,nonce,loadPublicKeys,signal){
  let stage='SIWC_ID_FORMAT';
@@ -137,9 +137,12 @@ async function verifyIdentity(token,clientId,nonce,loadPublicKeys,signal){
   if(!header||typeof header!=='object'||!claims||typeof claims!=='object')throw 0;
   stage='SIWC_ID_ALGORITHM';if(header.alg!=='RS256')throw 0;
   stage='SIWC_ID_KEY_ID';if(typeof header.kid!=='string'||!header.kid||header.kid.length>256)throw 0;
-  stage='SIWC_KEYS_FETCH';const jwks=await awaitWithSignal(Promise.resolve(loadPublicKeys({signal})),signal);check(signal);
+  const matching=keys=>keys.filter(k=>k?.kid===header.kid&&k.kty==='RSA'&&(!k.alg||k.alg==='RS256')&&(!k.use||k.use==='sig'));
+  stage='SIWC_KEYS_FETCH';let jwks=await awaitWithSignal(Promise.resolve(loadPublicKeys({signal})),signal);check(signal);
   stage='SIWC_KEYS_FORMAT';if(!Array.isArray(jwks?.keys)||jwks.keys.length>64)throw 0;
-  stage='SIWC_ID_KEY_MATCH';const matches=jwks.keys.filter(k=>k?.kid===header.kid&&k.kty==='RSA'&&(!k.alg||k.alg==='RS256')&&(!k.use||k.use==='sig'));if(matches.length!==1)throw 0;
+  let matches=matching(jwks.keys);
+  if(!matches.length){stage='SIWC_KEYS_FETCH';jwks=await awaitWithSignal(Promise.resolve(loadPublicKeys({signal,refresh:true})),signal);check(signal);stage='SIWC_KEYS_FORMAT';if(!Array.isArray(jwks?.keys)||jwks.keys.length>64)throw 0;matches=matching(jwks.keys);}
+  stage='SIWC_ID_KEY_MATCH';if(matches.length!==1)throw 0;
   const jwk=matches[0];stage='SIWC_KEYS_FORMAT';if(['d','p','q','dp','dq','qi','oth'].some(key=>key in jwk))throw 0;
   stage='SIWC_ID_CRYPTO';const key=await crypto.subtle.importKey('jwk',jwk,{name:'RSASSA-PKCS1-v1_5',hash:'SHA-256'},false,['verify']);
   stage='SIWC_ID_SIGNATURE';if(!await crypto.subtle.verify('RSASSA-PKCS1-v1_5',key,decode64(parts[2]),new TextEncoder().encode(parts[0]+'.'+parts[1])))throw 0;
@@ -151,9 +154,29 @@ async function verifyIdentity(token,clientId,nonce,loadPublicKeys,signal){
   stage='SIWC_ID_EXPIRED';if(!Number.isFinite(claims.exp)||claims.exp*1000<=Date.now())throw 0;
   stage='SIWC_ID_NOT_YET_VALID';if(claims.nbf!==undefined&&(!Number.isFinite(claims.nbf)||claims.nbf*1000>Date.now()+5000))throw 0;
   return claims;
- }catch(cause){check(signal);const error=identityFailure(stage);if(stage==='SIWC_KEYS_FETCH'&&Number.isInteger(cause?.status)&&cause.status>=400&&cause.status<=599){error.status=cause.status;error.message+=` (HTTP ${cause.status})`;}throw error;}
+ }catch(cause){check(signal);if(stage==='SIWC_KEYS_FETCH'&&cause?.code==='SIWC_KEYS_FORMAT')stage='SIWC_KEYS_FORMAT';const error=identityFailure(stage);if(stage==='SIWC_KEYS_FETCH'&&Number.isInteger(cause?.status)&&cause.status>=400&&cause.status<=599){error.status=cause.status;error.message+=` (HTTP ${cause.status})`;}throw error;}
 }
-export async function completeCodexLogin(login,{accountId=crypto.randomUUID(),callbackUrl,signal,fetchImpl=fetch,maxWaitMs=900000,waitImpl=wait,label,loadPublicKeys=loadOpenAIPublicKeys}={}){
+// Only a temporary public-key outage is retryable after the code is consumed.
+// The handle exposes operations, never the exchanged tokens or identity claims.
+function pendingIdentityVerification(raw,{accountId,clientId,nonce,label,expiresAt,loadPublicKeys,signal}){
+ let tokens=raw,running=false,closed=false;raw=null;
+ const controller=new AbortController(),active=signal?AbortSignal.any([signal,controller.signal]):controller.signal;
+ const cancel=()=>{closed=true;tokens=null;clearTimeout(timer);signal?.removeEventListener('abort',cancel);controller.abort();};
+ const deadline=Math.min(expiresAt,Date.now()+300000),timer=setTimeout(cancel,Math.max(0,deadline-Date.now()));timer.unref?.();signal?.addEventListener('abort',cancel,{once:true});
+ if(signal?.aborted)cancel();
+ return Object.freeze({expiresAt:deadline,cancel,async retry(){
+  if(closed||deadline<=Date.now()){cancel();throw identityFailure('SIWC_ATTEMPT_INVALID','登录尝试已超时');}
+  if(running)throw identityFailure('SIWC_VERIFICATION_BUSY','正在验证登录');
+  running=true;
+  try{
+   const claims=await verifyIdentity(tokens.id_token,clientId,nonce,loadPublicKeys,active);check(active);
+   if(closed||deadline<=Date.now())throw identityFailure('SIWC_ATTEMPT_INVALID','登录尝试已超时');
+   const result=registerCodexAccount(accountId,tokens,{clientId,flow:'chatgpt-plan',label,email:claims.email||'',identityVerified:true});cancel();return result;
+  }catch(error){if(error?.code!=='SIWC_KEYS_FETCH'||active.aborted||deadline<=Date.now())cancel();throw error;}
+  finally{running=false;}
+ }});
+}
+export async function completeCodexLogin(login,{accountId=crypto.randomUUID(),callbackUrl,signal,fetchImpl=fetch,maxWaitMs=900000,waitImpl=wait,label,loadPublicKeys=loadOpenAIPublicKeys,onVerificationPending}={}){
  if(!login||typeof login!=='object'||completedLogins.has(login))throw new Error('登录尝试无效或已使用');check(signal);let raw,clientId=login.clientId,identityVerified=false,email='';
  if(!Number.isFinite(login.expiresAt)||login.expiresAt<=Date.now())throw new Error('登录尝试已超时');
  if(!['authorization-code','device-code'].includes(login.method))throw new Error('未知订阅登录方式');
@@ -163,7 +186,14 @@ export async function completeCodexLogin(login,{accountId=crypto.randomUUID(),ca
   if(login.flow!=='chatgpt-plan'||typeof login.verifier!=='string'||!/^[A-Za-z0-9_-]{43,128}$/.test(login.verifier)||typeof login.nonce!=='string'||!login.nonce)throw new Error('登录尝试无效或已使用');
   clientId=callback.clientId;attempt.consume();
   raw=await withSubscriptionDeadline(30000,signal,async exchangeSignal=>json(await post(CODEX_ENDPOINTS.planToken,{grant_type:'authorization_code',client_id:clientId,code:callback.code,code_verifier:login.verifier,redirect_uri:login.redirectUri,resource:'https://api.openai.com/v1'},{signal:exchangeSignal,fetchImpl},true),'登录兑换失败',{signal:exchangeSignal}));
-  const claims=await verifyIdentity(raw.id_token,clientId,login.nonce,loadPublicKeys,signal);identityVerified=true;email=claims.email||'';
+  try{const claims=await verifyIdentity(raw.id_token,clientId,login.nonce,loadPublicKeys,signal);identityVerified=true;email=claims.email||'';}
+  catch(error){
+   if(error?.code==='SIWC_KEYS_FETCH'&&typeof onVerificationPending==='function'&&!signal?.aborted&&login.expiresAt>Date.now()){
+    const pending=pendingIdentityVerification(raw,{accountId,clientId,nonce:login.nonce,label,expiresAt:login.expiresAt,loadPublicKeys,signal});raw=null;
+    try{onVerificationPending(pending);}catch{pending.cancel();}
+   }
+   throw error;
+  }
  }else{
   const until=Math.min(login.expiresAt,Date.now()+maxWaitMs);let interval=login.interval*1000,code;
   while(Date.now()<until){check(signal);const r=await post(CODEX_ENDPOINTS.poll,{device_auth_id:login.device_auth_id,user_code:login.user_code},{signal,fetchImpl});if(r.ok){code=await json(r,'设备码响应无效');break;}let body={};try{body=await r.json();}catch{}const error=typeof body.error==='string'?body.error:body.error?.code;if(error==='slow_down')interval+=5000;else if(![403,404].includes(r.status)&&error!=='deviceauth_authorization_pending')throw failure('设备码验证失败',r.status);await waitImpl(Math.min(interval,Math.max(0,until-Date.now())),signal);}
