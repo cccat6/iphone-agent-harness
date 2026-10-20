@@ -4,9 +4,9 @@ import {DEVICE_MESSAGES} from '../locales/device.js';
 const escapeHTML=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 /** USB setup credentials remain inside this component and are never logged. */
 export function mountUsbSetup({container,readSetup,canRead=()=>false,isBusy=()=>false,setBusy=()=>{}}){
-  let information=null,revealed=false,working=false,disposed=false,controller=null,statusKey='usbEmpty',detail='';
+  let information=null,revealed=false,working=false,disposed=false,controller=null,statusKey='',detail='';
   const copy=key=>(DEVICE_MESSAGES[getLocale()]||DEVICE_MESSAGES.en)[key]||key;
-  function clear(){information=null;revealed=false;statusKey='usbEmpty';detail='';render();}
+  function clear(){information=null;revealed=false;statusKey='';detail='';render();}
   async function action(work){
     if(working||isBusy()||disposed)return;working=true;setBusy(true);controller=new AbortController();render();
     try{await work(controller.signal);}catch(error){if(!disposed){detail=error;statusKey='';}}
