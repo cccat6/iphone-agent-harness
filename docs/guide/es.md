@@ -66,6 +66,10 @@ Activa el acceso por código de dispositivo en los ajustes de seguridad de ChatG
 
 Las credenciales y claves se guardan en este navegador. Las peticiones van directamente al proveedor, cuya API debe aceptar el acceso desde el navegador.
 
+### Ubicación
+
+Activa esta función en **Ajustes → Ubicación**; está desactivada por defecto. La posición se obtiene una vez, únicamente cuando el agente llama explícitamente a `phone_get_location`. En la primera llamada, el navegador pide permiso y el resultado se envía al modelo seleccionado. Se obtiene la ubicación del dispositivo donde está abierto Harness, incluso sin conexión al ESP32 ni pantalla compartida.
+
 <a id="bridge"></a>
 ## 7. Conecta el puente y prueba la entrada si quieres
 

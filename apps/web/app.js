@@ -1,3 +1,5 @@
+import {createLocationAccess} from './core/location.js';
+import {mountLocationSettings} from './ui/location-settings.js';
 import {createSessionActions} from './ui/session-actions.js';
 import {mountSessionSwipe} from './ui/session-swipe.js';
 import {createViewNavigation} from './ui/navigation.js';
@@ -312,11 +314,11 @@ async function showSettings(section='home') {
   if(section==='home'){
     panel(t('nav.settings'),'',`<nav class="settings-navigation">
       <div class="settings-group">${row('settings-accounts','settings.accounts')}${row('settings-devices','nav.devices')}${row('open-skills','nav.skills')}${row('settings-mcp','mcp.title')}</div>
-      <div class="settings-group">${row('settings-context','context.title')}${row('settings-language','language.label')}${row('settings-storage','settings.localStorage')}</div>
+      <div class="settings-group">${row('settings-context','context.title')}${row('settings-location','location.title')}${row('settings-language','language.label')}${row('settings-storage','settings.localStorage')}</div>
       <div class="settings-group">${row('settings-behavior','taskSettings.title')}${row('import-session','session.import')}</div><label class="check-field"><input id="developer-mode" type="checkbox" ${settings.developerMode===true?'checked':''}>${systemTextHTML('providerRefinement.developer')}</label><p class="quiet-note">${systemTextHTML('providerRefinement.developerHelp')}</p>
     </nav>`);
     $('#developer-mode').onchange=guard(async event=>{state.settings=await state.store.saveSettings({developerMode:event.target.checked});await refreshConversationPresentation();});
-    for(const page of ['accounts','mcp','context','language','storage','behavior'])$('#settings-'+page).onclick=guard(()=>showSettings(page));
+    for(const page of ['accounts','mcp','context','language','storage','behavior','location'])$('#settings-'+page).onclick=guard(()=>showSettings(page));
     $('#settings-devices').onclick=guard(async()=>{const opened=await showDevices();if(opened?.isConnected&&$('#panel-dialog').open&&$('#panel-content').contains(opened))panelBack(()=>showSettings());});
     $('#open-skills').onclick=guard(async()=>{state.skillsFromSettings=true;await showSkills();});
     $('#import-session').onclick=()=>{if(state.running||state.submitting){toast(t('session.stopBeforeImport'));return;}$('#panel-dialog').close();importSessionFile();};
@@ -335,6 +337,11 @@ async function showSettings(section='home') {
   }else if(section==='mcp'){
     panel(t('mcp.title'),'','<div id="mcp-settings" class="standalone-mcp"></div>');
     state.mcpPanel.mount($('#mcp-settings'),{servers:state.settings.mcpServers,endpoint:state.settings.mcpEndpoint||''});$('#mcp-settings details').open=true;
+  }else if(section==='location'){
+    panel(t('location.title'),'','<div id="location-settings"></div>');
+    state.locationAccess ||= createLocationAccess({getSettings:()=>state.store.getSettings()});
+    await mountLocationSettings($('#location-settings'),{store:state.store,access:state.locationAccess,onSave:settings=>{state.settings=settings;},onError:toast});
+    if(navigation!==state.panelGeneration)return;
   }else if(section==='behavior'){
     panel(t('taskSettings.title'),'',`<label class="check-field"><input id="return-to-harness" type="checkbox" ${settings.returnToHarness!==false?'checked':''}>${systemTextHTML('taskSettings.return')}</label><p class="quiet-note">${systemTextHTML('taskSettings.returnHelp')}</p>`);
     $('#return-to-harness').onchange=guard(async event=>{state.settings=await state.store.saveSettings({returnToHarness:event.target.checked});});
@@ -736,7 +743,8 @@ async function boot() {
   state.devicePanel=createDevicePanel({store:state.store,capture,openPanel:(...args)=>{state.nextPanelView={kind:'devices'};return panel(...args);},getPanelRoot:()=>$('#panel-content .panel-body'),onDeviceChange:(device,summary)=>{state.device=device;state.deviceStatus=summary;const pending=clipboard.getSnapshot();if(pending&&(!summary.ready||summary.targetId!==pending.targetId))clipboard.clear();renderDeviceStatus();},onSettingsChange:settings=>{state.settings=settings;},isBusy:()=>state.running||state.submitting,onToast:toast});
   state.mcpAccess=createMCPAccess();state.mcpPanel=createMCPSettings({access:state.mcpAccess,store:state.store,onSettingsChange:settings=>{state.settings=settings;}});
   void state.mcpPanel.restore({servers:state.settings.mcpServers,endpoint:state.settings.mcpEndpoint||''}).catch(report);
-  state.harness=createHarness({store:state.store,onEvent:onHarnessEvent,capture,device:deviceAdapter,getContext:deviceContext,getDeviceStatus:deviceStatus,getHarnessState:({sessionId})=>({visible:document.visibilityState==='visible'&&document.hasFocus()&&routeForPath(location.pathname)==='harness'&&state.current?.id===sessionId&&$('#app').classList.contains('in-conversation')&&!$('#panel-dialog').open&&!$('#action-dialog').open,sessionId:state.current?.id||null,origin:location.origin,url:new URL(routeHref('harness')+'?session='+encodeURIComponent(sessionId),location.origin).href}),clipboard,mcp:state.mcpAccess});
+  state.locationAccess ||= createLocationAccess({getSettings:()=>state.store.getSettings()});
+  state.harness=createHarness({store:state.store,locationAccess:state.locationAccess,onEvent:onHarnessEvent,capture,device:deviceAdapter,getContext:deviceContext,getDeviceStatus:deviceStatus,getHarnessState:({sessionId})=>({visible:document.visibilityState==='visible'&&document.hasFocus()&&routeForPath(location.pathname)==='harness'&&state.current?.id===sessionId&&$('#app').classList.contains('in-conversation')&&!$('#panel-dialog').open&&!$('#action-dialog').open,sessionId:state.current?.id||null,origin:location.origin,url:new URL(routeHref('harness')+'?session='+encodeURIComponent(sessionId),location.origin).href}),clipboard,mcp:state.mcpAccess});
   $('#new-session').onclick=guard(newSession);state.sessionSearch=mountSessionSearch({surface:$('.sidebar'),scrollArea:$('#sessions'),field:$('#session-search-wrap'),input:$('#session-search'),toggle:$('#toggle-session-search'),cancel:$('#cancel-session-search'),onQueryChange:guard(refreshSessions)});$('#list-label').onchange=guard(event=>switchSessionLibrary(event.target.value));
   $('#back-sessions').onclick=guard(()=>state.navigation?state.navigation.back({screen:'list',sessionId:null,panel:null,action:null}):$('#app').classList.remove('in-conversation'));$('#session-menu').onclick=guard(showSessionMenu);
   $('#conversation-device').onclick=guard(showDevices);$('#open-settings').onclick=guard(showSettings);$('#open-devices').onclick=guard(showDevices);

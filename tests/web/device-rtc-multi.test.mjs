@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import {DeviceRTCTransport,validateRTCConfiguration,encodeRTCFrames} from '../../apps/web/core/device-rtc.js';
 import {createDeviceSetupLink,parseDeviceSetupLink} from '../../apps/web/core/device-setup.js';
 const baseUrl='http://igent.local',rtc={ip:'192.168.0.125',port:18948,ports:[18948,18949],fingerprint:'ab'.repeat(32)};
-const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 class Events{events=new Map();addEventListener(name,fn){if(!this.events.has(name))this.events.set(name,[]);this.events.get(name).push(fn);}emit(name,event={}){for(const fn of this.events.get(name)||[])fn(event);}}
 class Channel extends Events{readyState='connecting';frames=[];send(raw){assert.equal(this.readyState,'open');this.frames.push(JSON.parse(raw));}open(){this.readyState='open';this.emit('open');}close(){if(this.readyState==='closed')return;this.readyState='closed';this.emit('close');}}
 function peerClass({auto=true,failPorts=[],occupied=new Map()}={}){
@@ -32,9 +31,10 @@ test('two browser transports find different slots and every probe has separate I
   const pending=second.fetch(baseUrl+'/v1/identity');reply(second.pc);assert.equal((await pending).status,200);assert.equal(first.channel.frames.length,0);assert.equal(Peer.instances[1].channel.frames.length,0);
  }finally{first.close();second.close();}
 });
-test('the first ready channel wins; late losing events never disconnect it or send RPC',async()=>{
+test('the first ready channel wins; late losing events never disconnect it or send RPC',async t=>{
+ t.mock.timers.enable({apis:['setTimeout']});
  const Peer=peerClass({auto:false});let lost=0;const transport=new DeviceRTCTransport({baseUrl,rtc,Peer,hedgeDelayMs:1,onDisconnect:()=>lost++});
- const opening=transport.open();await sleep(8);assert.equal(Peer.instances.length,2);await assert.rejects(transport.fetch(baseUrl+'/v1/identity'),{code:'DEVICE_RTC_CLOSED'});
+ const opening=transport.open();await new Promise(setImmediate);t.mock.timers.tick(1);await new Promise(setImmediate);assert.equal(Peer.instances.length,2);await assert.rejects(transport.fetch(baseUrl+'/v1/identity'),{code:'DEVICE_RTC_CLOSED'});
  const [first,second]=Peer.instances;second.channel.open();first.channel.open();await opening;
  assert.equal(transport.pc,second);assert.equal(first.connectionState,'closed');first.channel.emit('close');first.emit('connectionstatechange');assert.equal(transport.ready,true);assert.equal(lost,0);assert.ok(Peer.instances.every(peer=>peer.channel.frames.length===0));
  transport.close();assert.equal(lost,1);assert.equal(second.connectionState,'closed');
@@ -44,12 +44,13 @@ test('failed primary starts fallback immediately and only winner loss reaches th
  await transport.open();assert.equal(transport.pc.port,18949);assert.equal(lost,0);assert.equal(Peer.instances[0].channel.frames.length,0);
  transport.pc.connectionState='failed';transport.pc.emit('connectionstatechange');assert.equal(transport.closed,true);assert.equal(lost,1);
 });
-test('one connection deadline and caller cancellation close every probe without owner disconnect',async()=>{
+test('one connection deadline and caller cancellation close every probe without owner disconnect',async t=>{
+ t.mock.timers.enable({apis:['setTimeout']});
  for(const cancel of [false,true]){
   const Peer=peerClass({auto:false}),controller=new AbortController();let lost=0;
   const transport=new DeviceRTCTransport({baseUrl,rtc,Peer,connectTimeoutMs:40,hedgeDelayMs:5,onDisconnect:()=>lost++});
   const result=assert.rejects(transport.open({signal:controller.signal}),{code:cancel?'DEVICE_REQUEST_CANCELLED':'DEVICE_RTC_CONNECT_TIMEOUT'});
-  await sleep(12);assert.equal(Peer.instances.length,2);if(cancel)controller.abort();await result;
+  await new Promise(setImmediate);t.mock.timers.tick(5);await new Promise(setImmediate);assert.equal(Peer.instances.length,2);if(cancel)controller.abort();else t.mock.timers.tick(35);await result;
   assert.equal(transport.closed,true);assert.equal(lost,0);assert.ok(Peer.instances.every(peer=>peer.connectionState==='closed'&&peer.channel.frames.length===0));
  }
 });

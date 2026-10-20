@@ -6,7 +6,8 @@ export function messagePresentation(message,{developerMode=false,t=key=>key}={})
  let value;try{value=JSON.parse(message.text);}catch{}
  const status=value?.status,name=message.toolName||'';
  let text='';
- if(name==='phone_remember_interaction')text=t('interaction.correctionSaved');
+ if(name==='phone_get_location'&&status==='located')text=t('location.located');
+ else if(name==='phone_remember_interaction')text=t('interaction.correctionSaved');
  else if(name==='task_plan')text=value?.summary||'';
  else if(name==='task_report')text=value?.summary||'';
  else if(name==='user_request_input')text=value?.question||'';

@@ -66,6 +66,10 @@ Enable device-code login in ChatGPT’s security settings, then choose the ChatG
 
 Your login details and API keys are saved in this browser. Requests go directly to the chosen provider, which needs to support requests from a browser.
 
+### Location
+
+Open **Settings → Location** to enable location access; it is off by default. Enabling it makes the capability available: your position is read once only when the agent explicitly calls `phone_get_location`. The browser asks for permission on first use, and the result is provided to the currently selected model. The position comes from the device running Harness, so the tool also works without an ESP32 connection or screen sharing.
+
 <a id="bridge"></a>
 ## 7. Connect the bridge and optionally test input
 

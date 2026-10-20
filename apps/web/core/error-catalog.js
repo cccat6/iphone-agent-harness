@@ -1,3 +1,4 @@
+import {LOCATION_MESSAGES} from '../locales/location.js';
 import {HARNESS_RETURN_ERRORS} from './harness-return-errors.js';
 // Localized errors keep stable protocol codes and legacy diagnostic aliases.
 const locales=["en","zh-Hans","zh-Hant","ja","ru","de","fr","es"];
@@ -134,3 +135,5 @@ const rows=[
 ];
 export const ERROR_CATALOG=Object.fromEntries(rows.flatMap(([aliases,texts])=>aliases.map(alias=>[alias,Object.fromEntries(locales.map((locale,i)=>[locale,texts[i]]))])));
 Object.assign(ERROR_CATALOG,HARNESS_RETURN_ERRORS);
+
+for(const [code,key] of Object.entries({LOCATION_DISABLED:'disabledError',LOCATION_DENIED:'deniedError',LOCATION_UNAVAILABLE:'unavailableError',LOCATION_TIMEOUT:'timeoutError',LOCATION_UNSUPPORTED:'unsupportedError'}))ERROR_CATALOG[code]=Object.fromEntries(Object.entries(LOCATION_MESSAGES).map(([locale,table])=>[locale,table['location.'+key]]));

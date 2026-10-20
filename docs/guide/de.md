@@ -66,6 +66,10 @@ Aktiviere die Anmeldung per Gerätecode in den Sicherheitseinstellungen von Chat
 
 Anmeldedaten und Schlüssel bleiben in diesem Browser. Anfragen gehen direkt an deinen Anbieter, dessen API Browserzugriffe unterstützen muss.
 
+### Standort
+
+Unter **Einstellungen → Standort** kannst du den Standortzugriff aktivieren; standardmäßig ist er ausgeschaltet. Erst wenn der Agent ausdrücklich `phone_get_location` aufruft, wird dein Standort einmal abgefragt. Beim ersten Aufruf bittet der Browser um Erlaubnis; das Ergebnis erhält das aktuell ausgewählte Modell. Ermittelt wird der Standort des Geräts, auf dem Harness geöffnet ist. Das funktioniert auch ohne ESP32-Verbindung oder Bildschirmfreigabe.
+
 <a id="bridge"></a>
 ## 7. Bridge verbinden und Eingabe optional testen
 

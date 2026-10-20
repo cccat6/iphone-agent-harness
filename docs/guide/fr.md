@@ -66,6 +66,10 @@ Activez la connexion par code d’appareil dans les paramètres de sécurité de
 
 Identifiants et clés restent dans ce navigateur. Les requêtes vont directement au fournisseur, dont l’API doit accepter les accès depuis un navigateur.
 
+### Localisation
+
+Activez la localisation dans **Réglages → Localisation** ; elle est désactivée par défaut. La position est lue une seule fois, uniquement lorsque l’agent appelle explicitement l’outil `phone_get_location`. Au premier appel, le navigateur demande votre accord, puis le résultat est transmis au modèle sélectionné. Il s’agit de la position de l’appareil où Harness est ouvert : l’outil fonctionne aussi sans connexion à l’ESP32 ni partage d’écran.
+
 <a id="bridge"></a>
 ## 7. Connecter le pont et tester les entrées si souhaité
 
