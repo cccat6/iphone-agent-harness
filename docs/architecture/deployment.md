@@ -1,6 +1,6 @@
 # Official website deployment
 
-The official site is [igent.cc](https://igent.cc). Worker `igent-web` serves the static website and the public skill API. The D1 binding and routes are defined in [wrangler.jsonc](../../wrangler.jsonc).
+The official site is [igent.cc](https://igent.cc). Worker `igent-web` serves the static website, public skill API, stateless ChatGPT subscription relay and public OpenAI verification keys. [wrangler.jsonc](../../wrangler.jsonc) defines the routes, the D1 binding for the skill community and the KV binding for public JWKS caching. The relay does not use either binding for account credentials or model traffic.
 
 ## Routes
 
@@ -11,6 +11,9 @@ The official site is [igent.cc](https://igent.cc). Worker `igent-web` serves the
 | `/skills` | Skill community |
 | `/flash` | Browser firmware installer |
 | `/api/skills` | Public skill packages and publication API |
+| `/api/openai/models` | `GET`: ChatGPT subscription model directory through the stateless relay |
+| `/api/openai/responses` | `POST`: ChatGPT subscription Responses stream through the stateless relay |
+| `/api/openai/jwks` | `GET`: public OpenAI verification keys with bounded public KV caching |
 
 Document routes return `index.html`. Missing assets return 404. `build/site` contains the complete website, firmware manifest and precompiled binary parts.
 
