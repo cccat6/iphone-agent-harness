@@ -62,7 +62,7 @@ Abre **Ajustes → Cuentas o API → Añadir**. Puedes guardar varias conexiones
 
 **Con una cuenta ChatGPT**
 
-Activa el acceso por código de dispositivo en los ajustes de seguridad de ChatGPT. Elige ChatGPT/Codex en Harness, inicia sesión e introduce el código en la página oficial indicada. Vuelve a Harness para terminar, obtener modelos y guardar. En una cuenta de organización, el administrador puede tener que activar esta opción. [Instrucciones de OpenAI](https://learn.chatgpt.com/docs/auth#preferred-device-code-authentication-beta).
+Elige «Suscripción de ChatGPT» en Harness y pulsa «Continuar con ChatGPT». Abre la página oficial y autoriza el acceso. Después, el navegador indicará que no puede abrir la dirección de retorno local (`127.0.0.1`); es normal. Copia la URL completa de la barra de direcciones, vuelve a Harness, pégala en «Dirección de retorno» y pulsa «Completar inicio de sesión». Elige un modelo de la lista obtenida y guarda la cuenta. Las credenciales se guardan en este navegador y las solicitudes a los modelos se envían directamente a OpenAI. Las conexiones Codex existentes se conservan; la suscripción de ChatGPT se añade como una cuenta independiente. [Referencia de autorización de OpenAI](https://developers.openai.com/siwc/token-sharing-open-source/sign-in).
 
 Las credenciales y claves se guardan en este navegador. Las peticiones van directamente al proveedor, cuya API debe aceptar el acceso desde el navegador.
 

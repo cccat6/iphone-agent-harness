@@ -62,7 +62,7 @@ Open **Settings → Accounts or API → Add**. You can save several connections 
 
 **With a ChatGPT account**
 
-Enable device-code login in ChatGPT’s security settings, then choose the ChatGPT/Codex option in Harness. Start sign-in, open the official page shown, and enter the code. Return to Harness to finish signing in, load models and save. For a managed workspace, ask its administrator to enable device-code login if the setting is unavailable. [OpenAI’s login instructions](https://learn.chatgpt.com/docs/auth#preferred-device-code-authentication-beta).
+Choose **ChatGPT subscription** in Harness and select **Continue with ChatGPT**. Open the official authorization page and approve access. The browser will then be unable to open the local return address (`127.0.0.1`); this is expected. Copy the complete URL from the address bar. Return to Harness, paste it into **Return address** and select **Finish sign-in**. Choose a model from the retrieved list and save the account. Credentials stay in this browser, and model requests go directly to OpenAI. Existing Codex connections remain separate when you add a ChatGPT subscription. [OpenAI authorization reference](https://developers.openai.com/siwc/token-sharing-open-source/sign-in).
 
 Your login details and API keys are saved in this browser. Requests go directly to the chosen provider, which needs to support requests from a browser.
 

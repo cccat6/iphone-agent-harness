@@ -62,7 +62,7 @@
 
 **使用 ChatGPT 帳號**
 
-先在 ChatGPT 安全設定開啟裝置碼登入，再於 Harness 選擇 ChatGPT/Codex 登入。開啟畫面提供的官方驗證頁，輸入裝置碼，再回到 Harness 完成登入、取得模型並儲存。組織工作區若沒有此選項，可請管理員開啟。[OpenAI 登入說明](https://learn.chatgpt.com/docs/auth#preferred-device-code-authentication-beta)。
+在 Harness 選擇「ChatGPT 訂閱」，點選「繼續使用 ChatGPT」，開啟官方頁面完成授權。接著瀏覽器會顯示無法開啟本機返回位址（`127.0.0.1`），這是正常情況。複製網址列的完整網址，回到 Harness 貼入「返回位址」，再點選「完成登入」。接著從取得的清單選擇模型並儲存帳號。登入憑證保存在目前瀏覽器，模型請求直接傳送至 OpenAI。現有 Codex 連線會保留，新增的 ChatGPT 訂閱使用獨立帳號。[OpenAI 授權說明](https://developers.openai.com/siwc/token-sharing-open-source/sign-in)。
 
 帳號資訊與金鑰儲存在目前瀏覽器，請求直接送至所選服務商。服務商介面需支援瀏覽器存取。
 

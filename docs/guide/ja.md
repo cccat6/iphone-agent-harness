@@ -62,7 +62,7 @@ iPhoneまたはiPadのSafariで [igent.cc](https://igent.cc/) を開くと、Har
 
 **ChatGPTアカウントを使う**
 
-ChatGPTのセキュリティ設定でデバイスコードによるログインを有効にし、HarnessでChatGPT/Codexを選びます。ログインを始め、表示された公式ページでコードを入力します。Harnessに戻ってログインを完了し、モデルを取得して保存します。組織のアカウントで設定がない場合は管理者に有効化を依頼してください。[OpenAIのログイン手順](https://learn.chatgpt.com/docs/auth#preferred-device-code-authentication-beta)。
+Harnessで「ChatGPT サブスクリプション」を選び、「ChatGPT で続行」から公式ページを開いてアクセスを許可します。その後、ブラウザーはローカルの戻り先（`127.0.0.1`）を開けないと表示しますが、これは正常です。アドレスバーのURL全体をコピーし、Harnessに戻って「戻り先のアドレス」に貼り付け、「ログインを完了」を選んでください。取得した一覧からモデルを選んでアカウントを保存します。認証情報はこのブラウザーに保存され、モデルへのリクエストはOpenAIへ直接送信されます。既存のCodex接続は保持され、ChatGPTサブスクリプションは別のアカウントとして追加されます。[OpenAIの認証手順](https://developers.openai.com/siwc/token-sharing-open-source/sign-in)。
 
 ログイン情報とキーはこのブラウザーに保存されます。リクエストは選んだ提供元へ直接送られるため、提供元がブラウザーからのアクセスに対応している必要があります。
 

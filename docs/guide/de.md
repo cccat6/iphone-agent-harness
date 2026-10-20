@@ -62,7 +62,7 @@ Wenn du eine Aufgabe ausführst, erlaube die Bildschirmfreigabe und lass das Tel
 
 **Mit ChatGPT-Konto**
 
-Aktiviere die Anmeldung per Gerätecode in den Sicherheitseinstellungen von ChatGPT. Wähle ChatGPT/Codex im Harness, starte die Anmeldung und gib den Code auf der angegebenen offiziellen Seite ein. Kehre zurück, schließe die Anmeldung ab, lade Modelle und speichere. Bei einem verwalteten Konto kann die Freigabe durch den Administrator nötig sein. [OpenAI-Anleitung](https://learn.chatgpt.com/docs/auth#preferred-device-code-authentication-beta).
+Wähle in Harness „ChatGPT-Abonnement“ und dann „Mit ChatGPT fortfahren“. Öffne die offizielle Seite und erlaube den Zugriff. Danach kann der Browser die lokale Rücksprungadresse (`127.0.0.1`) nicht öffnen; das ist zu erwarten. Kopiere die vollständige URL aus der Adresszeile, kehre zu Harness zurück, füge sie in „Rücksprungadresse“ ein und wähle „Anmeldung abschließen“. Wähle ein Modell aus der geladenen Liste und speichere das Konto. Die Zugangsdaten bleiben in diesem Browser; Modellanfragen gehen direkt an OpenAI. Bestehende Codex-Verbindungen bleiben erhalten; das ChatGPT-Abonnement wird als separates Konto hinzugefügt. [OpenAI-Anmeldereferenz](https://developers.openai.com/siwc/token-sharing-open-source/sign-in).
 
 Anmeldedaten und Schlüssel bleiben in diesem Browser. Anfragen gehen direkt an deinen Anbieter, dessen API Browserzugriffe unterstützen muss.
 

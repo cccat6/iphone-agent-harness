@@ -1,12 +1,15 @@
+import {SITE_CONFIG} from '../site-config.js';
+import {readText} from './http.js';
 import {modelContextMetadata} from './models.js';
 import {modelReasoningMetadata,reasoningParameters} from './reasoning.js';
 import {contextOverflowError,readProviderFailure} from './provider-errors.js';
 // Subscription transport. Tokens stay in this module's memory unless the caller
 // explicitly saves them in the browser-local credential store. Never reads Codex auth.json.
 export const CODEX_LIMITS=Object.freeze({eventChars:2000000,textChars:1000000,toolArgumentChars:64000,stateChars:1000000,toolCalls:8,outputItems:256,jsonBytes:2000000});
+export const CODEX_TOOL_NAMESPACE='harness';
 export const CODEX_CLIENT_ID='app_EMoamEEZ73f0CkXaXp7hrann';
 export const CODEX_ENDPOINTS=Object.freeze({issuer:'https://auth.openai.com',userCode:'https://auth.openai.com/api/accounts/deviceauth/usercode',poll:'https://auth.openai.com/api/accounts/deviceauth/token',token:'https://auth.openai.com/oauth/token',planToken:'https://auth.openai.com/api/accounts/oauth/token',verification:'https://auth.openai.com/codex/device',responses:'https://chatgpt.com/backend-api/codex/responses',models:'https://chatgpt.com/backend-api/codex/models',planResponses:'https://api.openai.com/v1/responses',planModels:'https://api.openai.com/v1/models'});
-const accounts=new Map();let activeId='';const completedLogins=new WeakSet();const tokenObservers=new Set();
+const accounts=new Map();let activeId='';const completedLogins=new WeakSet(),loginExchanges=new Map();const tokenObservers=new Set();
 export function setCodexTokenObserver(listener){if(typeof listener!=='function')throw new TypeError('需要令牌更新监听函数');tokenObservers.add(listener);return ()=>tokenObservers.delete(listener);}
 function tokensChanged(id){for(const listener of [...tokenObservers])try{Promise.resolve(listener(Object.freeze({id,event:'refreshed'}))).catch(()=>{});}catch{}}
 const copy=v=>structuredClone(v), abortError=()=>new DOMException('操作已取消','AbortError');
@@ -16,16 +19,18 @@ function opaque(bytes=32){const v=crypto.getRandomValues(new Uint8Array(bytes));
 function decode64(value){return Uint8Array.from(atob(value.replaceAll('-','+').replaceAll('_','/').padEnd(Math.ceil(value.length/4)*4,'=')),c=>c.charCodeAt(0));}
 function jwt(token){try{return JSON.parse(new TextDecoder().decode(decode64(token.split('.')[1])));}catch{return {};}}
 function failure(message,status){const e=new Error(message+(status?`（HTTP ${status}）`:''));if(status)e.status=status;return e;}
-async function request(url,{fetchImpl=fetch,signal,...init}={}){check(signal);try{return await fetchImpl.call(globalThis,safeURL(url),{...init,signal,credentials:'omit',referrerPolicy:'no-referrer',cache:'no-store'});}catch{check(signal);throw failure('订阅连接失败；请检查浏览器 CORS、网络或服务可用性');}}
+const subscriptionTimeout=()=>Object.assign(new Error('订阅请求超时，请重试'),{name:'TimeoutError',code:'SUBSCRIPTION_TIMEOUT'});
+async function withSubscriptionDeadline(milliseconds,signal,work){const timeout=AbortSignal.timeout(milliseconds),active=signal?AbortSignal.any([signal,timeout]):timeout;try{return await work(active);}catch(cause){check(signal);if(timeout.aborted)throw subscriptionTimeout();throw cause;}}
+async function request(url,{fetchImpl=fetch,signal,...init}={}){check(signal);try{const pending=Promise.resolve(fetchImpl.call(globalThis,safeURL(url),{...init,signal,credentials:'omit',referrerPolicy:'no-referrer',cache:'no-store',redirect:'error'})).then(response=>{if(signal?.aborted){void response.body?.cancel().catch(()=>{});check(signal);}return response;});return await awaitWithSignal(pending,signal);}catch{check(signal);throw failure('订阅连接失败；请检查浏览器 CORS、网络或服务可用性');}}
 async function post(url,body,options={},form=false){return request(url,{...options,method:'POST',headers:{'content-type':form?'application/x-www-form-urlencoded':'application/json'},body:form?new URLSearchParams(body):JSON.stringify(body)});}
-async function json(r,label){
- if(!r.ok)throw failure(label,r.status);const reader=r.body?.getReader();if(!reader)throw failure(label+'：响应格式无效');let total=0;const chunks=[];
- try{while(true){const {done,value}=await reader.read();if(done)break;total+=value.byteLength;if(total>CODEX_LIMITS.jsonBytes)throw failure('订阅 JSON 超过容量限制');chunks.push(value);}const all=new Uint8Array(total);let offset=0;for(const chunk of chunks){all.set(chunk,offset);offset+=chunk.length;}return JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(all));}
- catch(e){throw failure(e.message==='订阅 JSON 超过容量限制'?e.message:label+'：响应格式无效');}
- finally{try{await reader.cancel();}catch{}reader.releaseLock();}
+async function json(r,label,{signal}={}){
+ check(signal);if(!r.ok)throw failure(label,r.status);const reader=r.body?.getReader();if(!reader)throw failure(label+'：响应格式无效');let total=0;const chunks=[];
+ try{while(true){const {done,value}=await awaitWithSignal(reader.read(),signal);check(signal);if(done)break;total+=value.byteLength;if(total>CODEX_LIMITS.jsonBytes)throw failure('订阅 JSON 超过容量限制');chunks.push(value);}const all=new Uint8Array(total);let offset=0;for(const chunk of chunks){all.set(chunk,offset);offset+=chunk.length;}return JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(all));}
+ catch(e){check(signal);throw failure(e.message==='订阅 JSON 超过容量限制'?e.message:label+'：响应格式无效');}
+ finally{try{const closing=reader.cancel();if(signal?.aborted)void closing.catch(()=>{});else await closing;}catch{}reader.releaseLock();}
 }
 function wait(ms,signal){return new Promise((resolve,reject)=>{check(signal);const finish=()=>{signal?.removeEventListener('abort',stop);resolve();};const timer=setTimeout(finish,ms);function stop(){clearTimeout(timer);reject(signal.reason||abortError());}signal?.addEventListener('abort',stop,{once:true});});}
-function awaitWithSignal(promise,signal){if(!signal)return promise;check(signal);return new Promise((resolve,reject)=>{const stop=()=>reject(signal.reason||abortError());signal.addEventListener('abort',stop,{once:true});promise.then(resolve,reject).finally(()=>signal.removeEventListener('abort',stop));});}
+function awaitWithSignal(promise,signal){if(!signal)return promise;if(signal.aborted){Promise.resolve(promise).catch(()=>{});check(signal);}return new Promise((resolve,reject)=>{const stop=()=>reject(signal.reason||abortError());signal.addEventListener('abort',stop,{once:true});promise.then(resolve,reject).finally(()=>signal.removeEventListener('abort',stop));});}
 function metadata(a){return {id:a.id,label:a.label,email:a.email,accountId:a.accountId,clientId:a.clientId,flow:a.flow,expiresAt:a.tokens.expiresAt,identityVerified:a.identityVerified,scopes:[...a.scopes]};}
 export function listCodexAccounts(){return [...accounts.values()].map(metadata);}
 export function hasCodexAccount(id=activeId){return accounts.has(id);}
@@ -50,27 +55,60 @@ export function registerCodexAccount(id,raw,options={}){
  const old=accounts.get(id);if(old?.accountId&&old.accountId!==accountId)throw new Error('不同账号请使用独立登记 ID');if(flow==='chatgpt-plan'&&old?.subject&&identity.sub!==old.subject)throw new Error('重新登录身份与选中账号不匹配');if(old&&old.clientId!==clientId)throw new Error('请为不同客户端登记创建独立账号 ID');old?.refreshController?.abort();
  accounts.set(id,{id,tokens,flow,clientId,accountId,subject:identity.sub||'',scopes:[...scopes],identityVerified:Boolean(options.identityVerified??raw.identityVerified),email:options.email||raw.email||identity.email||'',label:options.label||raw.label||options.email||raw.email||id,refreshing:null});if(!activeId)activeId=id;return getCodexAccount(id);
 }
-async function accessToken(id,{signal,fetchImpl=fetch}={}){
+async function accessToken(id,{signal,fetchImpl=fetch,loadPublicKeys=loadOpenAIPublicKeys}={}){
  check(signal);const a=accounts.get(id);if(!a)throw new Error('订阅账号尚未登录');
  if(a.flow==='chatgpt-plan'&&!a.scopes.includes('chatgpt.tokens.use.direct'))throw new Error('订阅账号缺少 plan 使用授权');
  if(a.tokens.expiresAt>Date.now()+60000)return a.tokens.access_token;
  if(!a.tokens.refresh_token)throw new Error('订阅登录已到期，请重新登录');
- if(!a.refreshing){a.refreshController=new AbortController();const timer=setTimeout(()=>a.refreshController.abort(),30000);
-  a.refreshing=(async()=>{const body={grant_type:'refresh_token',client_id:a.clientId,refresh_token:a.tokens.refresh_token,...(a.flow==='chatgpt-plan'?{resource:'https://api.openai.com/v1'}:{})};const r=await post(a.flow==='chatgpt-plan'?CODEX_ENDPOINTS.planToken:CODEX_ENDPOINTS.token,body,{fetchImpl,signal:a.refreshController.signal},true);const raw=await json(r,'订阅刷新失败');const next=acceptTokens(raw,a.tokens);if(accounts.get(id)!==a)throw new Error('刷新期间账号已移除');const refreshedId=jwt(next.access_token)['https://api.openai.com/auth']?.chatgpt_account_id;if(a.flow==='codex'&&refreshedId&&refreshedId!==a.accountId)throw new Error('刷新返回了不匹配的账号');const scopes=raw.scope===undefined?a.scopes:String(raw.scope).split(/\s+/).filter(Boolean);if(a.flow==='chatgpt-plan'&&!scopes.includes('chatgpt.tokens.use.direct'))throw new Error('刷新后缺少 plan 使用授权');a.tokens=next;a.scopes=scopes;tokensChanged(id);return next.access_token;})().finally(()=>{clearTimeout(timer);a.refreshing=null;a.refreshController=null;});
+ if(!a.refreshing){a.refreshController=new AbortController();const timer=setTimeout(()=>a.refreshController.abort(subscriptionTimeout()),30000);
+  a.refreshing=(async()=>{
+   const active=a.refreshController.signal,body={grant_type:'refresh_token',client_id:a.clientId,refresh_token:a.tokens.refresh_token,...(a.flow==='chatgpt-plan'?{resource:'https://api.openai.com/v1'}:{})};
+   const r=await post(a.flow==='chatgpt-plan'?CODEX_ENDPOINTS.planToken:CODEX_ENDPOINTS.token,body,{fetchImpl,signal:active},true),raw=await json(r,'订阅刷新失败',{signal:active}),next=acceptTokens(raw,a.tokens);
+   if(accounts.get(id)!==a)throw new Error('刷新期间账号已移除');
+   const refreshedId=jwt(next.access_token)['https://api.openai.com/auth']?.chatgpt_account_id;if(a.flow==='codex'&&refreshedId&&refreshedId!==a.accountId)throw new Error('刷新返回了不匹配的账号');
+   if(a.flow==='chatgpt-plan'&&raw.id_token!==undefined){const identity=await verifyIdentity(raw.id_token,a.clientId,undefined,loadPublicKeys,active);if(!a.subject||identity.sub!==a.subject)throw new Error('刷新返回了不匹配的账号');}
+   const scopes=raw.scope===undefined?a.scopes:String(raw.scope).split(/\s+/).filter(Boolean);if(a.flow==='chatgpt-plan'&&!scopes.includes('chatgpt.tokens.use.direct'))throw new Error('刷新后缺少 plan 使用授权');
+   check(active);if(accounts.get(id)!==a)throw new Error('刷新期间账号已移除');a.tokens=next;a.scopes=scopes;tokensChanged(id);return next.access_token;
+  })().finally(()=>{clearTimeout(timer);a.refreshing=null;a.refreshController=null;});
  }
  return awaitWithSignal(a.refreshing,signal);
 }
 
-// Default is the device-code compatibility flow used in public Codex CLI/pi.
-// method:'authorization-code' implements the separate registered SIWC flow;
-// its official loopback callback still requires a caller-owned local runtime.
-export async function startCodexLogin({method='device-code',flow='codex',clientId,hostId,agentName='iPhone Agent Harness',redirectUri='http://127.0.0.1:1455/auth/callback',signal,fetchImpl=fetch}={}){
+// Device-code remains available for existing Codex registrations. The UI can
+// return an authorization-code callback as a pasted URL; OAuth checks are identical.
+function loopbackURI(value){
+ if(typeof value!=='string'||!/^http:\/\/127\.0\.0\.1(?::[1-9]\d{0,4})?\/auth\/callback$/.test(value))throw new Error('官方 SIWC 要求 127.0.0.1 /auth/callback 回调');
+ const url=new URL(value);if(url.username||url.password||url.search||url.hash)throw new Error('登录回调地址无效');return url;
+}
+function callbackFields(login,value){
+ if(typeof value!=='string'||value.length>16384||/[\u0000-\u001f\u007f]/.test(value))throw new Error('登录回调地址无效');
+ const callback=new URL(value.trim()),expected=loopbackURI(login.redirectUri);
+ if(callback.username||callback.password||callback.hash||callback.origin!==expected.origin||callback.pathname!==expected.pathname)throw new Error('登录回调地址或 state 不匹配');
+ const seen=new Set(),unique=new Set(['code','state','client_id','error']);for(const [key,value]of callback.searchParams){if(/[\u0000-\u001f\u007f]/.test(key+value))throw new Error('登录回调地址无效');if(unique.has(key)&&seen.has(key))throw new Error('登录回调包含重复字段');seen.add(key);}
+ if(!login.state||callback.searchParams.get('state')!==login.state)throw new Error('登录回调地址或 state 不匹配');
+ if(callback.searchParams.has('error')){if(callback.searchParams.has('code'))throw new Error('登录回调字段冲突');throw new Error('用户未授权本次登录');}
+ const code=callback.searchParams.get('code');if(!code||code.length>8192||/[\u0000-\u0020]/.test(code))throw new Error('登录回调缺少有效 code');
+ const issued=callback.searchParams.get('client_id'),valid=id=>typeof id==='string'&&/^[A-Za-z0-9_-]{1,256}$/.test(id)&&id!=='dynamic_agent_client';
+ let clientId=login.clientId;if(clientId==='dynamic_agent_client'){if(!valid(issued))throw new Error('缺少签发的客户端 ID');clientId=issued;}else if(!valid(clientId)||issued!==null&&issued!==clientId)throw new Error('回调客户端与选中账号不匹配');
+ return {code,clientId};
+}
+export function validateCodexCallback(login,value){if(!login||login.method!=='authorization-code'||!Number.isFinite(login.expiresAt)||login.expiresAt<=Date.now())throw new Error('登录尝试已超时');const {clientId}=callbackFields(login,value);return {clientId};}
+function claimLogin(login){
+ const now=Date.now();for(const [key,value]of loginExchanges)if(value.expiresAt<=now)loginExchanges.delete(key);
+ const identity=login.method==='authorization-code'?login.state:login.device_auth_id;
+ if(typeof identity!=='string'||!identity||identity.length>1024)throw new Error('登录尝试无效或已使用');
+ const key=login.method+':'+identity;if(loginExchanges.has(key))throw new Error('登录尝试无效或已使用');
+ const entry={exchanged:false,expiresAt:login.expiresAt};loginExchanges.set(key,entry);
+ return {consume(){entry.exchanged=true;completedLogins.add(login);},release(){if(!entry.exchanged&&loginExchanges.get(key)===entry)loginExchanges.delete(key);}};
+}
+export async function startCodexLogin({method='device-code',flow='codex',clientId,hostId,idTokenHint,loginHint,agentName='iPhone Agent Harness',redirectUri='http://127.0.0.1:1455/auth/callback',signal,fetchImpl=fetch}={}){
  check(signal);
  if(method==='authorization-code'){
-  const uri=new URL(redirectUri);if(uri.protocol!=='http:'||uri.hostname!=='127.0.0.1'||uri.pathname!=='/auth/callback')throw new Error('官方 SIWC 要求 127.0.0.1 /auth/callback 回调');if(!hostId)throw new Error('需要稳定的 hostId');
+  const uri=loopbackURI(redirectUri);redirectUri=uri.href;if(typeof hostId!=='string'||!hostId||hostId.length>256)throw new Error('需要稳定的 hostId');
   const verifier=opaque(),challenge=btoa(String.fromCharCode(...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(verifier))))).replaceAll('+','-').replaceAll('/','_').replace(/=+$/,'');
   const state=opaque(),nonce=opaque(),id=clientId||'dynamic_agent_client',url=new URL('https://auth.openai.com/api/accounts/authorize');
   const params={client_id:id,ext_agent_host_id:hostId,response_type:'code',redirect_uri:redirectUri,scope:'openid profile email offline_access resource.invoke chatgpt.tokens.use.direct',resource:'https://api.openai.com/v1',state,nonce,code_challenge_method:'S256',code_challenge:challenge};if(id==='dynamic_agent_client')params.agent_name_hint=agentName;
+  if(id!=='dynamic_agent_client'){if(idTokenHint!==undefined){if(typeof idTokenHint!=='string'||!idTokenHint||idTokenHint.length>65536)throw new Error('登录身份提示无效');params.id_token_hint=idTokenHint;}if(loginHint!==undefined){if(typeof loginHint!=='string'||!loginHint||loginHint.length>320)throw new Error('登录账号提示无效');params.login_hint=loginHint;}}
   for(const [k,v]of Object.entries(params))url.searchParams.set(k,v);
   return {method,flow:'chatgpt-plan',clientId:id,hostId,redirectUri,verifier,state,nonce,authorizationUrl:url.href,expiresAt:Date.now()+900000};
  }
@@ -80,45 +118,62 @@ export async function startCodexLogin({method='device-code',flow='codex',clientI
  if(!data.device_auth_id||!code||!Number.isFinite(interval)||interval<0)throw new Error('设备码响应不完整');
  return {method,flow,clientId:id,device_auth_id:data.device_auth_id,user_code:code,interval:Math.max(1,interval),verification_url:CODEX_ENDPOINTS.verification,verificationUrl:CODEX_ENDPOINTS.verification,expiresAt:Date.now()+900000};
 }
-async function verifyIdentity(token,clientId,nonce,fetchImpl,signal){
+export async function loadOpenAIPublicKeys({signal,fetchImpl=globalThis.fetch,endpoint=SITE_CONFIG.openaiPublicKeysEndpoint||'https://igent.cc/api/openai/jwks'}={}){
+ const url=new URL(endpoint);if(url.protocol!=='https:'||url.username||url.password||url.search||url.hash)throw new Error('身份公钥网址无效');
+ const active=signal?AbortSignal.any([signal,AbortSignal.timeout(10000)]):AbortSignal.timeout(10000);check(active);
+ const response=await awaitWithSignal(fetchImpl.call(globalThis,url.href,{method:'GET',headers:{accept:'application/json'},signal:active,credentials:'omit',referrerPolicy:'no-referrer',redirect:'error'}),active);
+ if(!response.ok)throw failure('身份公钥不可用',response.status);
+ const keys=JSON.parse(await readText(response,{maxBytes:262144,signal:active}));if(!Array.isArray(keys?.keys)||keys.keys.length<1||keys.keys.length>64)throw new Error('身份公钥格式无效');return keys;
+}
+async function verifyIdentity(token,clientId,nonce,loadPublicKeys,signal){
  try{
-  const parts=token.split('.');if(parts.length!==3)throw 0;const header=JSON.parse(new TextDecoder().decode(decode64(parts[0]))),claims=jwt(token);if(header.alg!=='RS256'||!header.kid)throw 0;
-  const discovery=await json(await request('https://auth.openai.com/.well-known/openid-configuration',{fetchImpl,signal}),'身份元数据不可用');const jwks=await json(await request(discovery.jwks_uri,{fetchImpl,signal}),'身份公钥不可用');const jwk=jwks.keys?.find(k=>k.kid===header.kid&&k.kty==='RSA');if(!jwk)throw 0;
+  if(typeof token!=='string'||token.length>65536)throw 0;const parts=token.split('.');if(parts.length!==3)throw 0;
+  const header=JSON.parse(new TextDecoder().decode(decode64(parts[0]))),claims=jwt(token);if(header.alg!=='RS256'||typeof header.kid!=='string'||!header.kid||header.kid.length>256)throw 0;
+  const jwks=await awaitWithSignal(Promise.resolve(loadPublicKeys({signal})),signal);check(signal);if(!Array.isArray(jwks?.keys)||jwks.keys.length>64)throw 0;
+  const matches=jwks.keys.filter(k=>k?.kid===header.kid&&k.kty==='RSA'&&(!k.alg||k.alg==='RS256')&&(!k.use||k.use==='sig'));if(matches.length!==1)throw 0;const jwk=matches[0];if(['d','p','q','dp','dq','qi','oth'].some(key=>key in jwk))throw 0;
   const key=await crypto.subtle.importKey('jwk',jwk,{name:'RSASSA-PKCS1-v1_5',hash:'SHA-256'},false,['verify']);if(!await crypto.subtle.verify('RSASSA-PKCS1-v1_5',key,decode64(parts[2]),new TextEncoder().encode(parts[0]+'.'+parts[1])))throw 0;
-  if(claims.iss!==CODEX_ENDPOINTS.issuer||!claims.sub||!(Array.isArray(claims.aud)?claims.aud.includes(clientId):claims.aud===clientId)||claims.nonce!==nonce||claims.exp*1000<=Date.now()||!Number.isFinite(claims.exp))throw 0;return claims;
+  check(signal);const audience=Array.isArray(claims.aud)?claims.aud:[claims.aud];
+  if(claims.iss!==CODEX_ENDPOINTS.issuer||typeof claims.sub!=='string'||!claims.sub||!audience.includes(clientId)||(audience.length>1&&claims.azp!==clientId)||(claims.azp!==undefined&&claims.azp!==clientId)||(nonce!==undefined&&claims.nonce!==nonce)||!Number.isFinite(claims.exp)||claims.exp*1000<=Date.now()||(claims.nbf!==undefined&&(!Number.isFinite(claims.nbf)||claims.nbf*1000>Date.now())))throw 0;return claims;
  }catch{check(signal);throw new Error('登录身份签名或账号验证失败');}
 }
-export async function completeCodexLogin(login,{accountId=crypto.randomUUID(),callbackUrl,signal,fetchImpl=fetch,maxWaitMs=900000,waitImpl=wait,label}={}){
- if(!login||completedLogins.has(login))throw new Error('登录尝试无效或已使用');check(signal);let raw,clientId=login.clientId,identityVerified=false,email='';
- if(login.expiresAt<=Date.now())throw new Error('登录尝试已超时');
+export async function completeCodexLogin(login,{accountId=crypto.randomUUID(),callbackUrl,signal,fetchImpl=fetch,maxWaitMs=900000,waitImpl=wait,label,loadPublicKeys=loadOpenAIPublicKeys}={}){
+ if(!login||typeof login!=='object'||completedLogins.has(login))throw new Error('登录尝试无效或已使用');check(signal);let raw,clientId=login.clientId,identityVerified=false,email='';
+ if(!Number.isFinite(login.expiresAt)||login.expiresAt<=Date.now())throw new Error('登录尝试已超时');
+ if(!['authorization-code','device-code'].includes(login.method))throw new Error('未知订阅登录方式');
+ const callback=login.method==='authorization-code'?callbackFields(login,callbackUrl):null,attempt=claimLogin(login);
+ try{
  if(login.method==='authorization-code'){
-  const cb=new URL(callbackUrl),expected=new URL(login.redirectUri);if(cb.origin!==expected.origin||cb.pathname!==expected.pathname||cb.searchParams.get('state')!==login.state)throw new Error('登录回调地址或 state 不匹配');if(cb.searchParams.has('error'))throw new Error('用户未授权本次登录');
-  const issued=cb.searchParams.get('client_id');if(clientId==='dynamic_agent_client'){if(!issued||issued==='dynamic_agent_client')throw new Error('缺少签发的客户端 ID');clientId=issued;}else if(issued&&issued!==clientId)throw new Error('回调客户端与选中账号不匹配');
-  const code=cb.searchParams.get('code');if(!code)throw new Error('登录回调缺少 code');raw=await json(await post(CODEX_ENDPOINTS.planToken,{grant_type:'authorization_code',client_id:clientId,code,code_verifier:login.verifier,redirect_uri:login.redirectUri,resource:'https://api.openai.com/v1'},{signal,fetchImpl},true),'登录兑换失败');
-  const claims=await verifyIdentity(raw.id_token,clientId,login.nonce,fetchImpl,signal);identityVerified=true;email=claims.email||'';
+  if(login.flow!=='chatgpt-plan'||typeof login.verifier!=='string'||!/^[A-Za-z0-9_-]{43,128}$/.test(login.verifier)||typeof login.nonce!=='string'||!login.nonce)throw new Error('登录尝试无效或已使用');
+  clientId=callback.clientId;attempt.consume();
+  raw=await withSubscriptionDeadline(30000,signal,async exchangeSignal=>json(await post(CODEX_ENDPOINTS.planToken,{grant_type:'authorization_code',client_id:clientId,code:callback.code,code_verifier:login.verifier,redirect_uri:login.redirectUri,resource:'https://api.openai.com/v1'},{signal:exchangeSignal,fetchImpl},true),'登录兑换失败',{signal:exchangeSignal}));
+  const claims=await verifyIdentity(raw.id_token,clientId,login.nonce,loadPublicKeys,signal);identityVerified=true;email=claims.email||'';
  }else{
   const until=Math.min(login.expiresAt,Date.now()+maxWaitMs);let interval=login.interval*1000,code;
   while(Date.now()<until){check(signal);const r=await post(CODEX_ENDPOINTS.poll,{device_auth_id:login.device_auth_id,user_code:login.user_code},{signal,fetchImpl});if(r.ok){code=await json(r,'设备码响应无效');break;}let body={};try{body=await r.json();}catch{}const error=typeof body.error==='string'?body.error:body.error?.code;if(error==='slow_down')interval+=5000;else if(![403,404].includes(r.status)&&error!=='deviceauth_authorization_pending')throw failure('设备码验证失败',r.status);await waitImpl(Math.min(interval,Math.max(0,until-Date.now())),signal);}
   if(!code?.authorization_code||!code.code_verifier)throw new Error('设备码已超时或兑换字段不完整');
-  raw=await json(await post(login.flow==='chatgpt-plan'?CODEX_ENDPOINTS.planToken:CODEX_ENDPOINTS.token,{grant_type:'authorization_code',client_id:clientId,code:code.authorization_code,code_verifier:code.code_verifier,redirect_uri:'https://auth.openai.com/deviceauth/callback',...(login.flow==='chatgpt-plan'?{resource:'https://api.openai.com/v1'}:{})},{signal,fetchImpl},true),'设备码令牌兑换失败');
+  attempt.consume();raw=await json(await post(login.flow==='chatgpt-plan'?CODEX_ENDPOINTS.planToken:CODEX_ENDPOINTS.token,{grant_type:'authorization_code',client_id:clientId,code:code.authorization_code,code_verifier:code.code_verifier,redirect_uri:'https://auth.openai.com/deviceauth/callback',...(login.flow==='chatgpt-plan'?{resource:'https://api.openai.com/v1'}:{})},{signal,fetchImpl},true),'设备码令牌兑换失败');
   // A custom registered device client is not assumed to have SIWC identity verification.
   if(login.flow==='chatgpt-plan')throw new Error('注册客户端请使用经过 ID 签名验证的 authorization-code 流程');
  }
  check(signal);completedLogins.add(login);return registerCodexAccount(accountId,raw,{clientId,flow:login.flow,label,email,identityVerified});
+ }finally{attempt.release();}
 }
-function headers(a,token,{sessionId}={}){const h={'authorization':'Bearer '+token,'content-type':'application/json','accept':'text/event-stream','originator':'iphone_automation_harness'};if(a.flow==='codex'){h['chatgpt-account-id']=a.accountId;h['OpenAI-Beta']='responses=experimental';}if(sessionId)h['session-id']=sessionId;return h;}
+function headers(a,token,{sessionId}={}){const h={'authorization':'Bearer '+token,'content-type':'application/json','accept':'text/event-stream'};if(a.flow==='codex'){h.originator='iphone_automation_harness';h['chatgpt-account-id']=a.accountId;h['OpenAI-Beta']='responses=experimental';if(sessionId)h['session-id']=sessionId;}return h;}
 function catalogHeaders(a,token){return {authorization:'Bearer '+token,accept:'application/json',...(a.flow==='codex'?{'chatgpt-account-id':a.accountId}:{})};}
 export async function discoverCodexModels({accountId=activeId,signal,fetchImpl=fetch,clientVersion='0.1.0'}={}){
+ return withSubscriptionDeadline(20000,signal,async signal=>{
  const a=accounts.get(accountId);if(!a)throw new Error('请先选择已登录的订阅账号');const token=await accessToken(accountId,{signal,fetchImpl});const url=new URL(a.flow==='codex'?CODEX_ENDPOINTS.models:CODEX_ENDPOINTS.planModels);if(a.flow==='codex')url.searchParams.set('client_version',clientVersion);
- const response=await request(url,{headers:catalogHeaders(a,token),signal,fetchImpl});const data=await json(response,'订阅模型目录不可用');const items=data.models||data.data;if(!Array.isArray(items))throw new Error('模型目录格式无效');
+ const response=await request(url,{headers:catalogHeaders(a,token),signal,fetchImpl});const data=await json(response,'订阅模型目录不可用',{signal});const items=data.models||data.data;if(!Array.isArray(items))throw new Error('模型目录格式无效');
  // The plan catalog explicitly marks picker entries; older Codex lists omit visibility.
  return items.filter(m=>m&&typeof m==='object'&&(m.visibility==='list'||(a.flow==='codex'&&m.visibility===undefined))).map(m=>({id:m.slug||m.id,name:m.display_name||m.name||m.slug||m.id,description:m.description||'',catalogOnly:true,...modelContextMetadata(m),...modelReasoningMetadata(m)})).filter(m=>typeof m.id==='string'&&m.id);
+ });
 }
+function validToolNamespace(call,flow){return flow==='chatgpt-plan'?call.namespace===CODEX_TOOL_NAMESPACE:call.namespace==null||call.namespace==='';}
 function replayState(message,scope){
  const state=message.providerState;
  if(message.role!=='assistant'||state?.kind!=='codex-responses/1'||state.origin!==scope.origin||state.accountId!==scope.accountId||state.backendAccountId!==scope.backendAccountId||state.clientId!==scope.clientId||state.model!==scope.model||state.flow!==scope.flow||!Array.isArray(state.items)||!state.items.length)return null;
  if(state.items.length>CODEX_LIMITS.outputItems||JSON.stringify(state.items).length>CODEX_LIMITS.stateChars)throw new Error('订阅协议状态超过容量限制');
- if(state.items.some(i=>!i||!['reasoning','message','function_call'].includes(i.type)||(i.type==='message'&&(i.role!=='assistant'||!Array.isArray(i.content)||i.content.some(c=>c.type!=='output_text'||typeof c.text!=='string')))||(i.type==='function_call'&&(!i.call_id||typeof i.name!=='string'||typeof i.arguments!=='string'))))return null;
+ if(state.items.some(i=>!i||!['reasoning','message','function_call'].includes(i.type)||(i.type==='message'&&(i.role!=='assistant'||!Array.isArray(i.content)||i.content.some(c=>c.type!=='output_text'||typeof c.text!=='string')))||(i.type==='function_call'&&(!i.call_id||typeof i.name!=='string'||typeof i.arguments!=='string'||!validToolNamespace(i,scope.flow)))))return null;
  // A transformed or edited message must not silently replay an older full
  // answer/tool call from opaque state. Compacting callers can drop this state.
  const text=state.items.filter(i=>i.type==='message').flatMap(i=>i.content).map(c=>c.text).join('');
@@ -134,7 +189,7 @@ function toInput(messages,scope){
   if(m.role==='tool'){if(!m.toolCallId)throw new Error('工具结果缺少调用 ID');out.push({type:'function_call_output',call_id:m.toolCallId,output:m.text||' '});for(const image of m.images||[])images.push({type:'input_image',image_url:image,detail:'auto'});continue;}
   if(images.length)out.push({role:'user',content:images.splice(0)});
   const replay=replayState(m,scope);if(replay){out.push(...replay);continue;}
-  const content=[];if(m.text)content.push({type:m.role==='assistant'?'output_text':'input_text',text:m.text});for(const image of m.images||[])content.push({type:'input_image',image_url:image,detail:'auto'});if(content.length)out.push({role:m.role,content});for(const c of m.toolCalls||[])out.push({type:'function_call',call_id:c.id,name:c.name,arguments:JSON.stringify(c.arguments)});
+  const content=[];if(m.text)content.push({type:m.role==='assistant'?'output_text':'input_text',text:m.text});for(const image of m.images||[])content.push({type:'input_image',image_url:image,detail:'auto'});if(content.length)out.push({role:m.role,content});for(const c of m.toolCalls||[])out.push({type:'function_call',call_id:c.id,name:c.name,...(scope.flow==='chatgpt-plan'?{namespace:CODEX_TOOL_NAMESPACE}:{}),arguments:JSON.stringify(c.arguments)});
  }
  if(images.length)out.push({role:'user',content:images});return out;
 }
@@ -146,7 +201,9 @@ export async function callCodexModel({provider,messages,tools=[],signal,onDelta=
   const token=await accessToken(id,{signal:active,fetchImpl});check(active);if(accounts.get(id)!==a)throw new Error('请求前账号已更换');
   const endpoint=a.flow==='codex'?CODEX_ENDPOINTS.responses:CODEX_ENDPOINTS.planResponses;
   const stateScope={origin:new URL(endpoint).origin,accountId:id,backendAccountId:a.accountId,clientId:a.clientId,model:provider.model,flow:a.flow};
-  const payload={model:provider.model,store:false,stream:true,include:['reasoning.encrypted_content'],instructions:messages.filter(m=>m.role==='system').map(m=>m.text).join('\n\n')||'You are a helpful assistant.',input:toInput(messages,stateScope),tools:tools.map(t=>({type:'function',name:t.name,description:t.description,parameters:t.schema,strict:false})),tool_choice:tools.length?'auto':'none',parallel_tool_calls:true};
+  const functionTools=tools.map(t=>({type:'function',name:t.name,description:t.description,parameters:t.schema,strict:false}));
+  const wireTools=a.flow==='chatgpt-plan'&&functionTools.length?[{type:'namespace',name:CODEX_TOOL_NAMESPACE,description:'Tools for this Harness conversation.',tools:functionTools}]:functionTools;
+  const payload={model:provider.model,store:false,stream:true,include:['reasoning.encrypted_content'],instructions:messages.filter(m=>m.role==='system').map(m=>m.text).join('\n\n')||'You are a helpful assistant.',input:toInput(messages,stateScope),tools:wireTools,tool_choice:tools.length?'auto':'none',parallel_tool_calls:true};
   Object.assign(payload,reasoningParameters({...provider,protocol:'codex'}));
   const response=await request(endpoint,{method:'POST',headers:headers(a,token,{sessionId:sessionId||provider.sessionId}),body:JSON.stringify(payload),signal:active,fetchImpl});
   if(!response.ok){const error=await readProviderFailure(response,{signal:active});if(error.code==='CONTEXT_WINDOW_EXCEEDED')throw error;throw failure(response.status===401?'订阅登录失效，请刷新或重新登录':response.status===429?'订阅额度或速率达到限制':'订阅模型请求失败',response.status);}if(!response.body)throw new Error('订阅后端未返回响应流');
@@ -165,7 +222,7 @@ export async function callCodexModel({provider,messages,tools=[],signal,onDelta=
   if(terminal.output!==undefined&&(!Array.isArray(terminal.output)||terminal.output.length>CODEX_LIMITS.outputItems||JSON.stringify(terminal.output).length>CODEX_LIMITS.stateChars))throw new Error('订阅协议状态超过容量限制');
   if((terminal.output||[]).some(i=>(i.content||[]).some(c=>c.type==='refusal')))throw new Error('订阅响应被拒绝；未执行操作');
   const finalText=(terminal.output||[]).filter(i=>i.type==='message').flatMap(i=>i.content||[]).filter(c=>c.type==='output_text').map(c=>c.text||'').join('');if(finalText.length>CODEX_LIMITS.textChars)throw new Error('订阅响应文本超过容量限制');if(finalText){if(finalText.startsWith(text)&&finalText.length>text.length)emit(finalText.slice(text.length));text=finalText;}
-  const source=Array.isArray(terminal.output)?terminal.output.filter(i=>i.type==='function_call'):[...calls.values()],ids=new Set();if(calls.size&&!source.length)throw new Error('工具调用结束状态缺失');if(source.length>CODEX_LIMITS.toolCalls)throw new Error('工具调用超过数量限制');const toolCalls=source.map(c=>{if(!c.call_id||!c.name||ids.has(c.call_id))throw new Error('工具调用身份无效或重复');ids.add(c.call_id);if(typeof c.arguments!=='string'||c.arguments.length>CODEX_LIMITS.toolArgumentChars)throw new Error('工具参数超过容量限制');let args;try{args=JSON.parse(c.arguments||'{}');}catch{throw new Error('工具参数 JSON 不完整');}if(!args||typeof args!=='object'||Array.isArray(args))throw new Error('工具参数必须是对象');return {id:c.call_id,name:c.name,arguments:args};});
+  const source=Array.isArray(terminal.output)?terminal.output.filter(i=>i.type==='function_call'):[...calls.values()],ids=new Set();if(calls.size&&!source.length)throw new Error('工具调用结束状态缺失');if(source.length>CODEX_LIMITS.toolCalls)throw new Error('工具调用超过数量限制');const toolCalls=source.map(c=>{if(!c.call_id||!c.name||ids.has(c.call_id)||!validToolNamespace(c,a.flow)||a.flow==='chatgpt-plan'&&!tools.some(tool=>tool.name===c.name))throw new Error('工具调用身份无效或重复');ids.add(c.call_id);if(typeof c.arguments!=='string'||c.arguments.length>CODEX_LIMITS.toolArgumentChars)throw new Error('工具参数超过容量限制');let args;try{args=JSON.parse(c.arguments||'{}');}catch{throw new Error('工具参数 JSON 不完整');}if(!args||typeof args!=='object'||Array.isArray(args))throw new Error('工具参数必须是对象');return {id:c.call_id,name:c.name,arguments:args};});
   if(!text&&!toolCalls.length)throw new Error('订阅响应为空；未执行操作');
   const items=copy((terminal.output||[]).filter(i=>['reasoning','message','function_call'].includes(i.type)));
   const providerState={kind:'codex-responses/1',...stateScope,items};

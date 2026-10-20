@@ -1,0 +1,134 @@
+import test,{beforeEach} from 'node:test';
+import assert from 'node:assert/strict';
+import {startCodexLogin,completeCodexLogin,validateCodexCallback,loadOpenAIPublicKeys,CODEX_ENDPOINTS,clearCodexAccounts,getCodexAccount,listCodexAccounts,registerCodexAccount,removeCodexAccount,setCodexTokenObserver,discoverCodexModels} from '../../apps/web/core/codex.js';
+import {SITE_CONFIG} from '../../apps/web/site-config.js';
+const enc=new TextEncoder(),b64=value=>Buffer.from(JSON.stringify(value)).toString('base64url');
+const keyPair=crypto.subtle.generateKey({name:'RSASSA-PKCS1-v1_5',modulusLength:2048,publicExponent:new Uint8Array([1,0,1]),hash:'SHA-256'},true,['sign','verify']);
+beforeEach(()=>clearCodexAccounts());
+async function signed(login,{claims={},header={}}={}){
+ const keys=await keyPair,jwk=await crypto.subtle.exportKey('jwk',keys.publicKey);jwk.kid='fixture-key';
+ const head=b64({alg:'RS256',kid:'fixture-key',...header}),body=b64({iss:CODEX_ENDPOINTS.issuer,sub:'subject-a',aud:'oaiapp_fixture',nonce:login.nonce,exp:Math.floor(Date.now()/1000)+3600,email:'person@example.invalid',...claims});
+ const signature=Buffer.from(await crypto.subtle.sign('RSASSA-PKCS1-v1_5',keys.privateKey,enc.encode(head+'.'+body))).toString('base64url');
+ return {idToken:head+'.'+body+'.'+signature,jwk};
+}
+const begin=options=>startCodexLogin({method:'authorization-code',hostId:'fixture-host-id',...options});
+function callback(login,extra={}){return login.redirectUri+'?'+new URLSearchParams({code:'fixture-authorization-code',state:login.state,client_id:'oaiapp_fixture',...extra});}
+async function finish(login,{accountId='plan',claims,scope='openid chatgpt.tokens.use.direct',...options}={}){
+ const {idToken,jwk}=await signed(login,{claims});
+ return completeCodexLogin(login,{accountId,callbackUrl:callback(login),fetchImpl:async(url,request)=>{
+  assert.equal(url,CODEX_ENDPOINTS.planToken);assert.equal(request.credentials,'omit');assert.equal(request.referrerPolicy,'no-referrer');
+  const form=new URLSearchParams(request.body);assert.equal(form.get('code_verifier'),login.verifier);assert.equal(form.get('redirect_uri'),login.redirectUri);assert.equal(form.get('client_id'),'oaiapp_fixture');assert.equal(form.get('resource'),'https://api.openai.com/v1');
+  return Response.json({access_token:'fixture-plan-access',refresh_token:'fixture-plan-refresh',id_token:idToken,scope,expires_in:3600});
+ },loadPublicKeys:async({signal})=>{assert.equal(signal,options.signal);return {keys:[jwk]};},...options});
+}
+test('returning SIWC authorization preserves host/client registration and optional account hints',async()=>{
+ const login=await begin({clientId:'oaiapp_fixture',idTokenHint:'fixture.retained.id-token',loginHint:'person@example.invalid'}),url=new URL(login.authorizationUrl);
+ assert.equal(url.searchParams.get('client_id'),'oaiapp_fixture');assert.equal(url.searchParams.get('ext_agent_host_id'),'fixture-host-id');assert.equal(url.searchParams.get('id_token_hint'),'fixture.retained.id-token');assert.equal(url.searchParams.get('login_hint'),'person@example.invalid');assert.equal(url.searchParams.has('agent_name_hint'),false);
+ const initial=new URL((await begin({idTokenHint:'do-not-send',loginHint:'wrong@example.invalid'})).authorizationUrl);assert.equal(initial.searchParams.has('id_token_hint'),false);assert.equal(initial.searchParams.has('login_hint'),false);
+ for(const redirectUri of ['https://127.0.0.1:1455/auth/callback','http://localhost:1455/auth/callback','http://127.0.0.1:1455/callback','http://user@127.0.0.1:1455/auth/callback','http://127.0.0.1:1455/auth/callback?extra=1','http://127.0.0.1:1455/auth/callback#part'])await assert.rejects(begin({redirectUri}));
+});
+test('manual callbacks reject origin/path/port mismatch and duplicate fields before exchange',async()=>{
+ const login=await begin();let calls=0;const fetchImpl=async()=>{calls++;throw Error('must not fetch');};
+ const valid=callback(login),invalid=[valid.replace(':1455',':1456'),valid.replace('http:','https:'),valid.replace('127.0.0.1','localhost'),valid.replace('/auth/callback','/callback'),valid.replace('//127','//user@127'),valid+'#fragment',valid.replace(login.state,'wrong-state'),valid+'&code=second',valid+'&state='+login.state,valid+'&%73tate='+login.state,valid+'&client_id=oaiapp_fixture',valid+'&error=access_denied',login.redirectUri+'?state='+login.state+'&error=access_denied&error=access_denied'];
+ for(const callbackUrl of invalid)await assert.rejects(completeCodexLogin(login,{callbackUrl,fetchImpl}));
+ assert.equal(calls,0);assert.equal(listCodexAccounts().length,0);assert.equal((await finish(login)).clientId,'oaiapp_fixture');
+});
+test('OAuth denial stops before token or public-key requests',async()=>{
+ const login=await begin();let calls=0;await assert.rejects(completeCodexLogin(login,{callbackUrl:login.redirectUri+'?'+new URLSearchParams({state:login.state,error:'access_denied'}),fetchImpl:async()=>{calls++;},loadPublicKeys:async()=>{calls++;}}),/未授权/);assert.equal(calls,0);
+});
+test('one attempt exchanges once even when a copied pending object races with the original',async()=>{
+ const login=await begin(),{idToken,jwk}=await signed(login);let calls=0,release,entered;const gate=new Promise(resolve=>entered=resolve),pending=new Promise(resolve=>release=resolve);
+ const fetchImpl=async()=>{calls++;entered();await pending;return Response.json({access_token:'fixture-access',id_token:idToken,scope:'chatgpt.tokens.use.direct'});};
+ const first=completeCodexLogin(login,{accountId:'plan',callbackUrl:callback(login),fetchImpl,loadPublicKeys:async()=>({keys:[jwk]})});await gate;
+ await assert.rejects(completeCodexLogin(structuredClone(login),{callbackUrl:callback(login),fetchImpl}),/已使用/);assert.equal(calls,1);release();await first;
+ await assert.rejects(completeCodexLogin({...login,clientId:'oaiapp_fixture'},{callbackUrl:callback(login),fetchImpl}),/已使用/);assert.equal(calls,1);
+});
+test('a dispatched exchange is consumed even after transport failure, with no credential replacement',async()=>{
+ const login=await begin();let calls=0;const fetchImpl=async()=>{calls++;throw Error('synthetic network loss');};
+ await assert.rejects(completeCodexLogin(login,{callbackUrl:callback(login),fetchImpl}));await assert.rejects(completeCodexLogin(structuredClone(login),{callbackUrl:callback(login),fetchImpl}),/已使用/);assert.equal(calls,1);assert.equal(listCodexAccounts().length,0);
+});
+test('returning callback may omit issued client ID, but cannot replace it',async()=>{
+ const login=await begin({clientId:'oaiapp_fixture'}),url=new URL(callback(login));url.searchParams.delete('client_id');assert.equal((await finish(login,{callbackUrl:url.href})).clientId,'oaiapp_fixture');
+ const other=await begin({clientId:'oaiapp_fixture'});let calls=0;await assert.rejects(completeCodexLogin(other,{callbackUrl:callback(other,{client_id:'oaiapp_other'}),fetchImpl:async()=>{calls++;}}),/不匹配/);assert.equal(calls,0);
+});
+test('RS256 validation rejects wrong issuer, audience, nonce, expired token and mismatched authorized party',async()=>{
+ for(const claims of [{iss:'https://issuer.invalid'},{aud:'other-client'},{nonce:'other-nonce'},{exp:0},{sub:''},{aud:['oaiapp_fixture','other-client']},{azp:'other-client'},{nbf:Math.floor(Date.now()/1000)+3600}]){const login=await begin();await assert.rejects(finish(login,{claims}),/签名或账号验证失败/);assert.equal(listCodexAccounts().length,0);}
+ const valid=await begin();assert.equal((await finish(valid,{claims:{aud:['oaiapp_fixture','another-audience'],azp:'oaiapp_fixture'}})).identityVerified,true);
+});
+test('signature mismatch, missing key and non-public keys never register an account',async()=>{
+ for(const kind of ['signature','missing-key','private-key','wrong-alg']){
+  const login=await begin(),{idToken,jwk}=await signed(login);const fields=idToken.split('.');if(kind==='signature'){const bytes=Buffer.from(fields[2],'base64url');bytes[0]^=1;fields[2]=bytes.toString('base64url');}
+  await assert.rejects(completeCodexLogin(login,{callbackUrl:callback(login),fetchImpl:async()=>Response.json({access_token:'fixture-access',id_token:fields.join('.'),scope:'chatgpt.tokens.use.direct'}),loadPublicKeys:async()=>({keys:kind==='missing-key'?[]:[{...jwk,...(kind==='private-key'?{d:'invalid-private-component'}:{}),...(kind==='wrong-alg'?{alg:'RS512'}:{})}]})}),/签名或账号验证失败/);
+  assert.equal(listCodexAccounts().length,0);
+ }
+});
+test('reauthorization preserves a saved registration when the validated identity or plan scope differs',async()=>{
+ await finish(await begin());const saved=getCodexAccount('plan').exportTokens();
+ await assert.rejects(finish(await begin({clientId:'oaiapp_fixture'}),{claims:{sub:'other-subject'}}),/身份.*不匹配/);assert.deepEqual(getCodexAccount('plan').exportTokens(),saved);
+ await assert.rejects(finish(await begin({clientId:'oaiapp_fixture'}),{scope:'openid profile email'}),/授权/);assert.deepEqual(getCodexAccount('plan').exportTokens(),saved);
+});
+test('default public-key fetch is separate from token exchange and sends no login data',async t=>{
+ const login=await begin(),{idToken,jwk}=await signed(login),publicCalls=[];
+ t.mock.method(globalThis,'fetch',async(url,options)=>{publicCalls.push({url,options});return Response.json({keys:[jwk]});});
+ const tokens=[];await completeCodexLogin(login,{accountId:'plan',callbackUrl:callback(login),fetchImpl:async(url,options)=>{tokens.push(url);return Response.json({access_token:'fixture-access',refresh_token:'fixture-refresh',id_token:idToken,scope:'chatgpt.tokens.use.direct'});}});
+ assert.deepEqual(tokens,[CODEX_ENDPOINTS.planToken]);assert.equal(publicCalls.length,1);const {url,options}=publicCalls[0];assert.equal(url,SITE_CONFIG.openaiPublicKeysEndpoint||'https://igent.cc/api/openai/jwks');assert.equal(options.method,'GET');assert.deepEqual(options.headers,{accept:'application/json'});assert.equal(options.credentials,'omit');assert.equal(options.referrerPolicy,'no-referrer');assert.equal(options.redirect,'error');assert.equal(options.body,undefined);assert.equal(url.includes(login.state),false);
+});
+test('public-key endpoint requires HTTPS without credentials, query or fragment',async()=>{
+ let calls=0;for(const endpoint of ['http://igent.cc/api/openai/jwks','https://user:pass@igent.cc/api/openai/jwks','https://igent.cc/api/openai/jwks?token=fixture','https://igent.cc/api/openai/jwks#part'])await assert.rejects(loadOpenAIPublicKeys({endpoint,fetchImpl:async()=>{calls++;}}));assert.equal(calls,0);
+ const {jwk}=await signed(await begin());assert.deepEqual(await loadOpenAIPublicKeys({endpoint:'https://self-host.example/api/openai/jwks',fetchImpl:async()=>Response.json({keys:[jwk]})}),{keys:[jwk]});
+});
+
+test('pure callback validation allows scope and future fields without consuming a valid attempt',async()=>{
+ const login=await begin(),url=callback(login)+'&scope=openid&iss=https%3A%2F%2Fauth.openai.com&future=value&future=another';
+ assert.deepEqual(validateCodexCallback(login,url),{clientId:'oaiapp_fixture'});assert.deepEqual(validateCodexCallback(login,url),{clientId:'oaiapp_fixture'});
+ for(const invalid of [url+'#part',url+'\n',url+'&extra=%0A',url+'&code=again',url.replace(login.state,'wrong')])assert.throws(()=>validateCodexCallback(login,invalid));
+ assert.equal((await finish(login,{callbackUrl:url})).identityVerified,true);
+});
+
+async function expiredPlan(){await finish(await begin());const saved=getCodexAccount('plan').exportTokens();registerCodexAccount('plan',{...saved,expiresAt:0});return getCodexAccount('plan');}
+test('plan refresh verifies a newly issued ID token without requiring the original authorization nonce',async()=>{
+ const account=await expiredPlan(),{idToken,jwk}=await signed(await begin(),{claims:{nonce:undefined}}),events=[],off=setCodexTokenObserver(event=>events.push(event));
+ try{
+  const result=await account.accessToken({fetchImpl:async(url,options)=>{assert.equal(url,CODEX_ENDPOINTS.planToken);assert.equal(options.redirect,'error');return Response.json({access_token:'refreshed-access',refresh_token:'rotated-refresh',id_token:idToken,expires_in:3600});},loadPublicKeys:async()=>({keys:[jwk]})});
+  assert.equal(result,'refreshed-access');assert.equal(account.exportTokens().id_token,idToken);assert.equal(account.exportTokens().refresh_token,'rotated-refresh');assert.deepEqual(events,[{id:'plan',event:'refreshed'}]);
+ }finally{off();}
+});
+test('plan refresh without a new ID token retains the existing account hint and skips JWKS',async()=>{
+ const account=await expiredPlan(),saved=account.exportTokens();let keys=0;
+ assert.equal(await account.accessToken({fetchImpl:async()=>Response.json({access_token:'refreshed',expires_in:3600}),loadPublicKeys:async()=>{keys++;throw Error('not needed');}}),'refreshed');assert.equal(keys,0);assert.equal(account.exportTokens().id_token,saved.id_token);
+});
+test('invalid refreshed identity never replaces stored tokens or emits a persistence event',async()=>{
+ for(const kind of ['issuer','audience','expired','subject','signature','empty']){
+  const account=await expiredPlan(),saved=account.exportTokens(),claims={nonce:undefined,...({issuer:{iss:'https://wrong.invalid'},audience:{aud:'other-client'},expired:{exp:0},subject:{sub:'other-subject'}}[kind]||{})};
+  let {idToken,jwk}=await signed(await begin(),{claims});if(kind==='signature'){const parts=idToken.split('.'),sig=Buffer.from(parts[2],'base64url');sig[0]^=1;parts[2]=sig.toString('base64url');idToken=parts.join('.');}if(kind==='empty')idToken='';
+  const events=[],off=setCodexTokenObserver(event=>events.push(event));try{await assert.rejects(account.accessToken({fetchImpl:async()=>Response.json({access_token:'must-not-save',refresh_token:'must-not-save-refresh',id_token:idToken,expires_in:3600}),loadPublicKeys:async()=>({keys:[jwk]})}));assert.deepEqual(account.exportTokens(),saved,kind);assert.deepEqual(events,[],kind);}finally{off();}
+ }
+});
+test('removing an account during refreshed ID validation prevents late persistence',async()=>{
+ const account=await expiredPlan(),{idToken,jwk}=await signed(await begin(),{claims:{nonce:undefined}}),events=[];let entered,release;const ready=new Promise(resolve=>entered=resolve),keys=new Promise(resolve=>release=resolve),off=setCodexTokenObserver(event=>events.push(event));
+ try{const pending=account.accessToken({fetchImpl:async()=>Response.json({access_token:'late-access',id_token:idToken,expires_in:3600}),loadPublicKeys:async()=>{entered();return keys;}});await ready;removeCodexAccount('plan');release({keys:[jwk]});await assert.rejects(pending);assert.equal(getCodexAccount('plan'),null);assert.deepEqual(events,[]);}finally{off();}
+});
+test('authorization-code exchange has a 30-second network deadline and consumes a timed-out code',async t=>{
+ await finish(await begin());const saved=getCodexAccount('plan').exportTokens(),login=await begin({clientId:'oaiapp_fixture'}),deadline=new AbortController();let entered,release,calls=0;const ready=new Promise(resolve=>entered=resolve);
+ t.mock.method(AbortSignal,'timeout',ms=>{assert.equal(ms,30000);return deadline.signal;});
+ const pending=completeCodexLogin(login,{accountId:'plan',callbackUrl:callback(login),fetchImpl:async(url,options)=>{calls++;assert.equal(options.redirect,'error');entered();return new Promise(resolve=>release=resolve);},loadPublicKeys:async()=>{throw Error('must not verify');}});
+ await ready;deadline.abort(new DOMException('Exchange deadline','TimeoutError'));await assert.rejects(pending,{name:'TimeoutError',code:'SUBSCRIPTION_TIMEOUT'});release(Response.json({access_token:'late-response'}));await new Promise(resolve=>setTimeout(resolve,0));
+ await assert.rejects(completeCodexLogin(structuredClone(login),{accountId:'plan',callbackUrl:callback(login),fetchImpl:async()=>{calls++;}}),/已使用/);assert.equal(calls,1);assert.deepEqual(getCodexAccount('plan').exportTokens(),saved);
+});
+test('exchange deadline also interrupts stalled JSON and caller cancellation retains its reason',async t=>{
+ for(const cancelledByCaller of [false,true]){
+  const login=await begin(),deadline=new AbortController(),caller=new AbortController();let began,cancels=0;const ready=new Promise(resolve=>began=resolve),body=new ReadableStream({pull(){if(body.locked)began();},cancel(){cancels++;}});
+  const timeout=t.mock.method(AbortSignal,'timeout',ms=>{assert.equal(ms,30000);return deadline.signal;});
+  const pending=completeCodexLogin(login,{callbackUrl:callback(login),signal:caller.signal,fetchImpl:async()=>new Response(body)});await ready;
+  const reason=new DOMException(cancelledByCaller?'Cancelled by caller':'Exchange deadline',cancelledByCaller?'AbortError':'TimeoutError');(cancelledByCaller?caller:deadline).abort(reason);
+  await assert.rejects(pending,error=>cancelledByCaller?error===reason:error.code==='SUBSCRIPTION_TIMEOUT'&&error.name==='TimeoutError');assert.equal(cancels,1);assert.equal(body.locked,false);assert.equal(listCodexAccounts().length,0);timeout.mock.restore();
+ }
+});
+test('model discovery has its own 20-second deadline for network and JSON waits',async t=>{
+ await finish(await begin());const saved=getCodexAccount('plan').exportTokens();
+ for(const stalledBody of [false,true]){
+  const deadline=new AbortController();let entered,cancels=0;const ready=new Promise(resolve=>entered=resolve),body=new ReadableStream({pull(){if(body.locked)entered();},cancel(){cancels++;}});
+  const timeout=t.mock.method(AbortSignal,'timeout',ms=>{assert.equal(ms,20000);return deadline.signal;});
+  const pending=discoverCodexModels({accountId:'plan',fetchImpl:async(url,options)=>{assert.equal(url,CODEX_ENDPOINTS.planModels);assert.equal(options.redirect,'error');if(stalledBody)return new Response(body);entered();return new Promise(()=>{});}});await ready;deadline.abort(new DOMException('Catalog deadline','TimeoutError'));await assert.rejects(pending,{name:'TimeoutError',code:'SUBSCRIPTION_TIMEOUT'});if(stalledBody){assert.equal(cancels,1);assert.equal(body.locked,false);}assert.deepEqual(getCodexAccount('plan').exportTokens(),saved);timeout.mock.restore();
+ }
+});

@@ -62,7 +62,7 @@ Ouvrez **Réglages → Comptes ou API → Ajouter**. Vous pouvez enregistrer plu
 
 **Avec un compte ChatGPT**
 
-Activez la connexion par code d’appareil dans les paramètres de sécurité de ChatGPT. Choisissez ChatGPT/Codex dans Harness, lancez la connexion et saisissez le code sur la page officielle indiquée. Revenez pour terminer, charger les modèles et enregistrer. Pour un compte d’organisation, l’administrateur peut devoir activer cette option. [Instructions OpenAI](https://learn.chatgpt.com/docs/auth#preferred-device-code-authentication-beta).
+Choisissez « Abonnement ChatGPT » dans Harness, puis « Continuer avec ChatGPT ». Ouvrez la page officielle et autorisez l’accès. Le navigateur indiquera ensuite qu’il ne peut pas ouvrir l’adresse de retour locale (`127.0.0.1`) ; c’est normal. Copiez l’URL complète depuis la barre d’adresse, revenez dans Harness, collez-la dans « Adresse de retour » et sélectionnez « Terminer la connexion ». Choisissez un modèle dans la liste obtenue et enregistrez le compte. Les identifiants restent dans ce navigateur ; les requêtes aux modèles sont envoyées directement à OpenAI. Les connexions Codex existantes sont conservées ; l’abonnement ChatGPT est ajouté dans un compte distinct. [Référence d’autorisation OpenAI](https://developers.openai.com/siwc/token-sharing-open-source/sign-in).
 
 Identifiants et clés restent dans ce navigateur. Les requêtes vont directement au fournisseur, dont l’API doit accepter les accès depuis un navigateur.
 

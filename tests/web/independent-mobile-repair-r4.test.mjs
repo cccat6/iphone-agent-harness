@@ -1,19 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readFile} from 'node:fs/promises';
-import vm from 'node:vm';
-const source=await readFile(new URL('../../apps/web/app.js',import.meta.url),'utf8');
-for(const method of ['start','complete'])for(const transition of ['replacement editor','new controller in the same editor'])test(`cancelled ${method} Codex login cannot change a ${transition}`,async()=>{
- let rejectPending,active=true;const pending=new Promise((_,reject)=>{rejectPending=reject;});
- let currentStatus={textContent:'original'};const nodes=new Map();
- const $=selector=>selector==='#codex-login-status'?currentStatus:nodes.get(selector)||(()=>{const node={disabled:false,hidden:false,elements:{name:{value:'Original account'}}};nodes.set(selector,node);return node;})();
- const state={codexAbort:new AbortController()};
- const context=vm.createContext({state,$,provider:{id:'old',name:'Original account'},login:{verification_url:'https://auth.openai.com'},guard:fn=>fn,AbortController,URL,editorActive:()=>active,providers:()=>[],removeCodexAccount(){},startCodexLogin:()=>pending,completeCodexLogin:()=>pending,setLocalizedText:(node,render)=>{if(node)node.textContent=render();},localizeError:value=>String(value)});
- const helperStart=source.indexOf('  const loginStatus='),helperEnd=source.indexOf('\n',helperStart);
- vm.runInContext(source.slice(helperStart,helperEnd),context);
- const marker=`$('#${method}-codex-login').onclick=guard(`,start=source.indexOf(marker),end=source.indexOf('\n',start);
- assert.ok(helperStart>=0&&start>=0);vm.runInContext(source.slice(start,end),context);
- const running=$(`#${method}-codex-login`).onclick();state.codexAbort.abort();active=transition!=='replacement editor';if(active)state.codexAbort=new AbortController();currentStatus={textContent:'NEW EDITOR INITIAL STATUS'};
- rejectPending(new Error('Synthetic aborted login'));await running;
- assert.equal(currentStatus.textContent,'NEW EDITOR INITIAL STATUS');
+import {mountCodexLogin} from '../../apps/web/ui/codex-login.js';
+for(const method of ['start','complete'])for(const transition of ['replacement editor','new controller in the same editor'])test(`cancelled ${method} Codex login cannot change a ${transition}`,async t=>{
+ const prior=new Map(['document','localStorage','sessionStorage'].map(key=>[key,Object.getOwnPropertyDescriptor(globalThis,key)])),local=new Map(),session=new Map(),fields=new Map();
+ const element=()=>({value:'',textContent:'',hidden:false,children:[],append(...items){this.children.push(...items);},replaceChildren(){this.children=[];}}),node=key=>{if(!fields.has(key))fields.set(key,element());return fields.get(key);};
+ for(const[key,value]of Object.entries({document:{createElement:element},localStorage:{getItem:k=>local.get(k)||null,setItem:(k,v)=>local.set(k,v),removeItem:k=>local.delete(k)},sessionStorage:{getItem:k=>session.get(k)||null,setItem:(k,v)=>session.set(k,v),removeItem:k=>session.delete(k)}}))Object.defineProperty(globalThis,key,{configurable:true,value});
+ let rejectPending,entered=false,active=true,attempts=0,status='original';const pending=new Promise((_,reject)=>{rejectPending=reject;});
+ const valid=options=>{const state=String(++attempts).repeat(43),nonce='n'.repeat(43),redirectUri='http://127.0.0.1:1455/auth/callback',url=new URL('https://auth.openai.com/api/accounts/authorize');for(const[key,value]of Object.entries({client_id:'dynamic_agent_client',ext_agent_host_id:options.hostId,state,nonce,redirect_uri:redirectUri,code_challenge:'c'.repeat(43)}))url.searchParams.set(key,value);return {method:'authorization-code',flow:'chatgpt-plan',clientId:'dynamic_agent_client',hostId:options.hostId,state,nonce,verifier:'v'.repeat(43),redirectUri,authorizationUrl:url.href,expiresAt:Date.now()+900000};};
+ const ui=mountCodexLogin({root:{querySelector:node},getProvider:()=>({id:'old',name:'Original'}),prepareProvider:async()=>({provider:{id:'old',name:'Original'},options:{}}),start:async options=>{if(method==='start'&&!entered){entered=true;return pending;}return valid(options);},validate:()=>({clientId:'issued'}),complete:()=>{entered=true;return pending;},onSuccess:()=>assert.fail('Cancelled completion must not publish an account'),isActive:()=>active,t:key=>key,status:value=>status=value});
+ t.after(()=>{ui.dispose();for(const[key,value]of prior)if(value)Object.defineProperty(globalThis,key,value);else delete globalThis[key];});
+ let running;if(method==='start')running=node('#start-codex-login').onclick();else{await node('#start-codex-login').onclick();node('#codex-callback').value='synthetic-local-callback';running=node('#complete-codex-login').onclick();}
+ for(let n=0;n<12&&!entered;n++)await Promise.resolve();assert.equal(entered,true);ui.cancel({quiet:true});active=transition!=='replacement editor';if(active)await node('#start-codex-login').onclick();status='NEW EDITOR INITIAL STATUS';rejectPending(new Error('Synthetic aborted login'));await running;assert.equal(status,'NEW EDITOR INITIAL STATUS');
 });

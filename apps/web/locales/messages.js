@@ -1,4 +1,5 @@
 import {LOCATION_MESSAGES} from './location.js';
+import {SIWC_MESSAGES} from './siwc.js';
 import {PRODUCT_NAVIGATION_MESSAGES} from './product-navigation.js';
 import {COMMUNITY_REFINEMENT_MESSAGES} from './community-refinement.js';
 import {REASONING_MESSAGES} from './reasoning.js';
@@ -5412,3 +5413,4 @@ for(const [locale,table] of Object.entries(COMMUNITY_REFINEMENT_MESSAGES))Object
 for(const [locale,table] of Object.entries(PRODUCT_NAVIGATION_MESSAGES))Object.assign(messages[locale],table);
 
 for(const [locale,table] of Object.entries(LOCATION_MESSAGES))Object.assign(messages[locale],table);
+for(const [locale,table] of Object.entries(SIWC_MESSAGES))Object.assign(messages[locale],table);
