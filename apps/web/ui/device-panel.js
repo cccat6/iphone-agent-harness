@@ -29,8 +29,15 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
   let challenge=null,nonce='',armed=false,challengeTimer=null,testWait=null,unsubscribe=null,settings={},statusKey='notPaired',statusDetail='',checkedAt=null;
   let legacyBinding=false,challengeCancellation=Promise.resolve(),bindingError=null,verifiedRTC=null,challengeMayExist=false,challengeRetryController=null;
   let connectionActive=false,pendingSetup=null,connectionEpoch=0,monitorTimer=null,refreshTask=null,disposed=false,lastRefreshStarted=0;
-  let importError=null,progressTimer=null,progressStarted=0,informationEdit=0,informationSaving=null;
-  try{pendingSetup=takeDeviceSetupLink();}catch(error){importError=error;}
+  let importError=null,progressTimer=null,progressStarted=0,informationEdit=0,informationSaving=null,pendingSetupSource='';
+  function receiveSetupLink(){
+    const source=globalThis.location?.href;if(!source||!new URLSearchParams(globalThis.location.hash?.slice(1)||'').has('device'))return false;
+    if(source===pendingSetupSource)return true;
+    informationEdit++;pendingSetupSource=source;
+    try{pendingSetup=parseDeviceSetupLink(source);importError=null;}catch(error){pendingSetup=null;importError=error;}
+    return true;
+  }
+  receiveSetupLink();
   const componentError=key=>Object.assign(new Error('DEVICE_UI_'+key),{deviceMessageKey:key});
   const copy=(key,params={})=>Object.entries(params).reduce((text,[name,value])=>text.replaceAll('{'+name+'}',String(value)),(DEVICE_MESSAGES[getLocale()]||DEVICE_MESSAGES.en)[key]||key);
   const node=selector=>root?.querySelector(selector);
@@ -41,19 +48,20 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
   function invalidateProof(){proof=null;publish();}
   function resetChallenge(){challengeRetryController?.abort();challengeRetryController=null;if(challengeMayExist&&client&&targetId){const tested=client,selected=targetId;challengeCancellation=challengeCancellation.catch(()=>{}).then(()=>tested.cancelChallenge?.(selected));challengeCancellation.catch(()=>{});}challengeMayExist=false;if(testWait){testWait.reject(componentError('needsFreshChallenge'));testWait=null;}clearTimeout(challengeTimer);challengeTimer=null;challenge=null;nonce='';armed=false;const input=node('[data-nonce]');if(input)input.value='';}
   function information(){
-    if(importError)return null;
+    if(importError||pendingSetupSource)return null;
     try{const candidate=pendingSetup?pendingSetup:{baseUrl:defaultBridgeEndpoint(settings.deviceEndpoint),boardId:settings.deviceBoardId,rtc:settings.deviceRTC};
       if(!candidate.rtc)return null;const rtc=validateRTCConfiguration(candidate.rtc);if(!rtc.ip)return null;
       return {...candidate,rtc};
     }catch{return null;}
   }
-  async function saveInformation(value,{current=()=>true}={}){
+  async function saveInformation(value,{current}={}){
     if(!value?.rtc||!validateRTCConfiguration(value.rtc).ip)throw componentError('importInvalid');
+    const edit=informationEdit,source=pendingSetupSource;current ||= ()=>edit===informationEdit;
     const previous=informationSaving;let finish;const completed=new Promise(resolve=>finish=resolve);informationSaving=completed;
     try{
       if(previous)await previous;if(!current())return false;
       await savePublicSettings({deviceEndpoint:value.baseUrl,deviceRTC:value.rtc,...(value.boardId?{deviceBoardId:value.boardId}:{})});
-      if(!current())return false;pendingSetup=null;importError=null;return true;
+      if(!current())return false;pendingSetup=null;importError=null;if(source&&globalThis.location?.href===source)takeDeviceSetupLink();pendingSetupSource='';return true;
     }finally{finish();if(informationSaving===completed)informationSaving=null;}
   }
   function stopProgress(){clearInterval(progressTimer);progressTimer=null;}
@@ -73,11 +81,12 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
     const state=getState(),connected=state.connected,verified=state.inputVerified,ready=state.ready;
     node('[data-bridge-state]').textContent=copy(connected?'bridgeConnected':'bridgeDisconnected');
     node('[data-bridge-address]').textContent=connected?client.baseUrl.origin:defaultBridgeEndpoint(settings.deviceEndpoint);
-    node('[data-bridge-settings]').hidden=!connected;node('[data-bridge-settings]').href=connected?(information()?.rtc?.ip?'http://'+information().rtc.ip:client.baseUrl.origin)+'/settings?lang='+encodeURIComponent(getLocale()):'#';
+    node('[data-bridge-settings]').hidden=!connected;node('[data-bridge-settings]').href=connected?client.baseUrl.origin+'/settings?lang='+encodeURIComponent(getLocale()):'#';
     const saved=information();node('[data-information-complete]').textContent=copy('infoSaved');node('[data-info-step]').hidden=false;node('[data-info-step]').dataset.complete=String(!!saved);node('[data-information-complete]').hidden=!saved;node('[data-info-help]').hidden=!!saved;node('[data-import-help]').hidden=!!saved;node('[data-import-connection]').textContent=copy(saved?'infoReload':'importConnection');
     node('[data-connect-help]').hidden=connected;
     let importOrigin=DEFAULT_BRIDGE_URL;try{const entered=node('[data-address]').value.trim(),origin=entered.includes('#device=')?parseDeviceSetupLink(entered).baseUrl:DeviceClient.createURL(entered);if(origin.startsWith('http:'))importOrigin=origin;}catch{}
-    const savedInformation=information();if(savedInformation?.rtc?.ip&&savedInformation.baseUrl===importOrigin)importOrigin='http://'+savedInformation.rtc.ip;
+    // Reacquire through the configured local name; rtc.ip is a DHCP snapshot
+    // for the data channel, not a stable address for discovery or settings.
     const url=bridgeImportURL(importOrigin,getLocale());node('[data-import-connection]').href=url;node('[data-reimport-connection]').href=url;
     node('[data-information-state]').textContent=copy(saved?'infoSaved':'infoRequired');node('[data-connect-step]').dataset.unavailable=String(!saved);
     node('[data-test-controls]').hidden=!connected;
@@ -195,9 +204,10 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
     try{await refresh();return getState().ready;}catch{return false;}
   }
   async function open({isCurrent=()=>true}={}){
+    receiveSetupLink();
     close();const opening=operation;settings=await store.getSettings();if(opening!==operation||!isCurrent())return null;
     legacyEndpoint=settings.deviceEndpoint&&defaultBridgeEndpoint(settings.deviceEndpoint)!==settings.deviceEndpoint?settings.deviceEndpoint:'';
-    if(pendingSetup){try{await saveInformation(pendingSetup);}catch(error){importError=error;}}
+    if(pendingSetup&&!isBusy()){const edit=informationEdit;try{await saveInformation(pendingSetup,{current:()=>edit===informationEdit&&opening===operation&&isCurrent()&&!isBusy()});}catch(error){if(edit===informationEdit)importError=error;}}
     if(opening!==operation||!isCurrent())return null;
     statusKey=importError?'importInvalid':getState().ready?'bound':getState().connected?'paired':information()?'infoSaved':'infoRequired';
     if(!document.querySelector('link[data-device-panel-style]')){const style=document.createElement('link');style.rel='stylesheet';style.href=new URL('./device-panel.css',import.meta.url).href;style.dataset.devicePanelStyle='';document.head.append(style);}
@@ -211,7 +221,7 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
       <details class="device-step"><summary data-device-text="phoneGuide"></summary><ol><li data-device-text="prepareBluetooth"></li><li data-device-text="settingsHelp"></li></ol></details>
       <details class="device-step"><summary data-device-text="advanced"></summary><p class="quiet-note" data-device-text="connectionSaved"></p><pre data-device-metadata></pre><button type="button" class="secondary-button" data-control-check data-device-text="checkControl"></button></details><div class="status-box device-status" data-device-status role="status" aria-live="polite"></div></div>`);
     root=getPanelRoot().querySelector('.device-onboarding');node('[data-address]').addEventListener('input',async()=>{
-      const edit=++informationEdit,value=node('[data-address]').value.trim();importError=null;
+      const edit=++informationEdit,value=node('[data-address]').value.trim();importError=null;pendingSetupSource='';
       if(value.includes('#device=')){
         pendingSetup={baseUrl:value};renderState();
         try{const imported=parseDeviceSetupLink(value);await saveInformation(imported,{current:()=>edit===informationEdit});}catch(error){if(edit===informationEdit)importError=error;}
@@ -324,5 +334,5 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
   function destroy(){disposed=true;stopMonitor();connectionEpoch++;globalThis.document?.removeEventListener?.('visibilitychange',foreground);globalThis.removeEventListener?.('pagehide',suspend);close();transport?.close();transport=null;connectionActive=false;targets=[];invalidateProof();}
   function suspend(){stopMonitor();connectionEpoch++;close();const previous=transport;transport=null;previous?.close();connectionActive=false;targets=[];invalidateProof();}
   globalThis.addEventListener?.('pagehide',suspend);
-  return {open,dispose:close,destroy,getDevice:()=>getState().ready?client:null,getState,ensureReady,refreshConnection};
+  return {open,dispose:close,destroy,receiveSetupLink,hasPendingSetup:()=>Boolean(pendingSetup||importError),getDevice:()=>getState().ready?client:null,getState,ensureReady,refreshConnection};
 }

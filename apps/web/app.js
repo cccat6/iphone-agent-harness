@@ -654,8 +654,19 @@ function onNavigationClick(event){
   if(url.hash){const name=url.hash.slice(1).replace(/^\//,'').split('?')[0];if(Object.hasOwn(legacyRoutes,name)||['main','skills','flash'].includes(name)){event.preventDefault();navigate(legacyRoutes[name]||name);}return;}
   event.preventDefault();navigate(route);
 }
-window.addEventListener('popstate',event=>{rememberRouteDraft();if(state.navigation)void state.navigation.pop(event).catch(report);else renderPlatform();});
-window.addEventListener('hashchange',()=>{rememberRouteDraft();renderPlatform();});
+function queueDeviceSetupImport({popEvent=null}={}){
+  if(!state.devicePanel?.receiveSetupLink?.())return false;
+  // A setup link can arrive in this document while a task owns the bridge.
+  // Keep it pending until the device panel is opened after the task finishes.
+  if(state.running||state.submitting||state.flashing)return true;
+  const source=location.href;if(state.deviceSetupImportSource===source)return true;
+  state.deviceSetupImportSource=source;const request=state.deviceSetupImportGeneration=(state.deviceSetupImportGeneration||0)+1,previous=state.deviceSetupImportTask||Promise.resolve();
+  const current=()=>request===state.deviceSetupImportGeneration&&!state.running&&!state.submitting&&!state.flashing;
+  const task=previous.catch(()=>{}).then(async()=>{if(!current())return;if(popEvent&&state.navigation)await state.navigation.pop(popEvent);if(current()&&state.devicePanel.hasPendingSetup())await showDevices();}).catch(report).finally(()=>{if(state.deviceSetupImportTask===task){state.deviceSetupImportTask=null;state.deviceSetupImportSource='';}});
+  state.deviceSetupImportTask=task;return true;
+}
+window.addEventListener('popstate',event=>{rememberRouteDraft();if(queueDeviceSetupImport({popEvent:event}))return;if(state.navigation)void state.navigation.pop(event).catch(report);else renderPlatform();});
+window.addEventListener('hashchange',()=>{rememberRouteDraft();if(!queueDeviceSetupImport())renderPlatform();});
 document.addEventListener('click',onNavigationClick);
 let compatibilityGateActive=false;
 function setCompatibilityGate(compatibility=null){

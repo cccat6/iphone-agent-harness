@@ -23,6 +23,24 @@ el('retry').onclick=()=>readInformation();if(importMode)void readInformation();e
 </script></body></html>)IAH";}
 // A public information snapshot rides in the first HTML response. A second
 // phone can import it while another phone owns RTC; no client slot is created.
+struct BridgeSettingsPageParts {const char* prefix=nullptr;size_t prefixLength=0;const char* suffix=nullptr;size_t suffixLength=0;};
+inline BridgeSettingsPageParts bridgeSettingsPageParts(){
+ const char* source=renderBridgeSettingsPage();const char* marker="const bridgeInformation=null;";const char* at=std::strstr(source,marker);
+ if(!at)return {};const char* suffix=at+std::strlen(marker);return {source,static_cast<size_t>(at-source),suffix,std::strlen(suffix)};
+}
+// Reserve is injected so the same checked small-buffer builder runs with the
+// Arduino String allocator in production and deterministic failures in host tests.
+template<class Text,class Reserve> bool buildBridgeInformationInjection(const Text& information,Text& injection,Reserve reserve){
+ injection=Text{};if(information.length()>1024)return false;
+ JsonDocument literal;if(!literal.set(information)||literal.overflowed())return false;
+ const size_t literalBytes=measureJson(literal);Text escaped;
+ if(literalBytes>1536||!reserve(escaped,literalBytes)||serializeJson(literal,escaped)!=literalBytes||escaped.length()!=literalBytes)return false;
+ constexpr const char* prefix="const bridgeInformation=JSON.parse(";constexpr const char* suffix=");";
+ size_t injectionBytes=std::strlen(prefix)+literalBytes+std::strlen(suffix);for(size_t i=0;i<escaped.length();i++)if(escaped[i]=='<')injectionBytes+=5;
+ if(injectionBytes>2048||!reserve(injection,injectionBytes))return false;
+ injection+=prefix;for(size_t i=0;i<escaped.length();i++){const char c=escaped[i];if(c=='<')injection+="\\u003c";else injection+=c;}injection+=suffix;
+ return injection.length()==injectionBytes;
+}
 template<class Text> Text renderBridgeSettingsPage(const Text& informationJson){
  const char* source=renderBridgeSettingsPage();const char* marker="const bridgeInformation=null;";const char* at=std::strstr(source,marker);
  if(!at)return Text(source);

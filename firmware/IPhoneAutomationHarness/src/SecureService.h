@@ -21,6 +21,7 @@
 #include "WifiSetupPage.h"
 #include "BridgeSettings.h"
 #include "BridgeSettingsPage.h"
+#include "HttpHtmlResponse.h"
 #include "ClipboardMailbox.h"
 #include "ClipboardWire.h"
 #include "RtcIdentity.h"
@@ -139,8 +140,15 @@ class SecureService {
   if(header(r,"X-Harness-Window")=="1"&&localHost&&localOrigin)browserOrigin=origin_;
   String pagePath=r->uri;int pageQuery=pagePath.indexOf('?');if(pageQuery>=0)pagePath.remove(pageQuery);
   if(r->http&&r->method==HTTP_GET&&(pagePath=="/settings"||pagePath=="/")){
-   JsonDocument information;addIdentity(information);information["hostname"]=host_+".local";information["harnessURL"]=origin_+"/";addRtc(information);String encoded;serializeJson(information,encoded);String page=renderBridgeSettingsPage(encoded);
-   httpd_resp_set_type(r->http,"text/html; charset=utf-8");httpd_resp_set_hdr(r->http,"Cache-Control","no-store");httpd_resp_set_hdr(r->http,"Referrer-Policy","no-referrer");httpd_resp_set_hdr(r->http,"X-Frame-Options","DENY");httpd_resp_set_hdr(r->http,"Content-Security-Policy","default-src 'none'; connect-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'");httpd_resp_set_hdr(r->http,"Connection","close");auto sent=httpd_resp_send(r->http,page.c_str(),page.length());return sent==ESP_OK?ESP_FAIL:sent;
+   JsonDocument information;addIdentity(information);information["hostname"]=host_+".local";information["harnessURL"]=origin_+"/";addRtc(information);
+   const size_t informationBytes=measureJson(information);String encoded;
+   if(information.overflowed()||informationBytes>1024||!encoded.reserve(informationBytes)||serializeJson(information,encoded)!=informationBytes||encoded.length()!=informationBytes)return error(r,503,"memory_unavailable");
+   String injection;if(!buildBridgeInformationInjection(encoded,injection,[](String& value,size_t count){return value.reserve(count);}))return error(r,503,"memory_unavailable");
+   const auto parts=bridgeSettingsPageParts();if(!parts.prefix||!parts.suffix)return error(r,503,"memory_unavailable");
+   const HttpHtmlSegment segments[]={{parts.prefix,parts.prefixLength},{injection.c_str(),injection.length()},{parts.suffix,parts.suffixLength}};
+   const auto sent=sendHttpHtmlSegments(segments,3,[&](const char* bytes,size_t count){errno=0;const int result=httpd_send(r->http,bytes,count);return HttpHtmlAttempt{result,errno};},[]{return static_cast<uint64_t>(esp_timer_get_time())/1000;},[]{vTaskDelay(1);},HTTPD_SOCK_ERR_TIMEOUT);
+   if(!sent.complete)Serial.printf("{\"event\":\"http_html_send_failed\",\"stage\":\"%s\",\"headerBytes\":%u,\"bodyBytes\":%u,\"code\":%d,\"errno\":%d,\"durationMs\":%llu}\n",sent.stage,static_cast<unsigned>(sent.headerBytes),static_cast<unsigned>(sent.bodyBytes),sent.code,sent.errorNumber,static_cast<unsigned long long>(sent.durationMs));
+   return ESP_FAIL;
   }
   if(browserOrigin.length()&&browserOrigin!=origin_)return error(r,403,"origin_not_allowed");
   if(r->http&&r->method==HTTP_OPTIONS){

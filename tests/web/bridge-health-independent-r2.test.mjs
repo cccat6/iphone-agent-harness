@@ -26,7 +26,7 @@ async function fixture(t,{identityRTC=rtc,bindError=null}={}){
  return {panel,store,field,pairs:()=>pairs,binds:()=>binds,reads:()=>reads,setError:value=>error=value,setBusy:value=>busy=value};
 }
 test('verified identity RTC address survives the final explicit-connect settings write',async t=>{
- const f=await fixture(t,{identityRTC:{...rtc,ip:'192.168.0.126'}});assert.equal(f.panel.getState().connected,true);assert.equal((await f.store.getSettings()).deviceRTC.ip,'192.168.0.126');assert.equal(new URL(f.field('[data-import-connection]').href).hostname,'192.168.0.126');
+ const f=await fixture(t,{identityRTC:{...rtc,ip:'192.168.0.126'}});assert.equal(f.panel.getState().connected,true);assert.equal((await f.store.getSettings()).deviceRTC.ip,'192.168.0.126');assert.equal(new URL(f.field('[data-import-connection]').href).origin,endpoint);
 });
 test('a busy association retains the bridge and later status refresh does not silently retry the mutation',async t=>{
  const f=await fixture(t,{bindError:new DeviceError('DEVICE_TARGET_BUSY','busy',{status:409,serverCode:'target_busy'})});assert.equal(f.panel.getState().connected,true);assert.equal(f.panel.getState().ready,false);assert.equal(f.binds(),1);await f.panel.refreshConnection({force:true});await f.field('[data-refresh]').onclick();assert.equal(f.panel.getState().connected,true);assert.equal(f.binds(),1);assert.equal(f.pairs(),1);assert.equal(f.field('[data-start-challenge]').disabled,false);

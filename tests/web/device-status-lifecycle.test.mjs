@@ -35,8 +35,8 @@ test('lifecycle refresh publishes checking, shares one in-flight probe and retai
  f.setFailure(new DeviceError('DEVICE_RTC_TIMEOUT'));assert.equal(await f.panel.refreshConnection({force:true}),false);assert.equal(f.panel.getState().connected,false);assert.equal(f.panel.getState().checking,false);assert.equal(f.pairs(),1);
  f.setFailure(null);assert.equal(await f.panel.refreshConnection({force:true}),true);assert.equal(f.panel.getState().ready,true);
 });
-test('explicit disconnect survives lifecycle refresh and cached LAN links use the known numeric address',async t=>{
- const f=await fixture(t);assert.equal(new URL(f.field('[data-import-connection]').href).origin,'http://192.168.0.125');assert.equal(new URL(f.field('[data-bridge-settings]').href).origin,'http://192.168.0.125');const reads=f.identities();f.field('[data-disconnect]').onclick();assert.equal(await f.panel.refreshConnection({force:true}),false);assert.equal(f.identities(),reads);assert.equal(f.opens(),1);assert.equal(f.panel.getState().connected,false);
+test('explicit disconnect survives lifecycle refresh and LAN links retain the configured hostname',async t=>{
+ const f=await fixture(t);assert.equal(new URL(f.field('[data-import-connection]').href).origin,endpoint);assert.equal(new URL(f.field('[data-bridge-settings]').href).origin,endpoint);const reads=f.identities();f.field('[data-disconnect]').onclick();assert.equal(await f.panel.refreshConnection({force:true}),false);assert.equal(f.identities(),reads);assert.equal(f.opens(),1);assert.equal(f.panel.getState().connected,false);
 });
 
 test('connected Bluetooth awaiting HID is distinct from disconnected and refresh never starts an input test',async t=>{

@@ -1,6 +1,6 @@
 # iPhone Agent Harness — Arduino firmware
 
-The ESP32 receives commands from Harness over local Wi-Fi and sends Bluetooth keyboard and pointer input to the phone. Version **0.5.1-rtc-direct** uses WebRTC for commands and HTTP for Wi-Fi setup, settings and clipboard Shortcuts.
+The ESP32 receives commands from Harness over local Wi-Fi and sends Bluetooth keyboard and pointer input to the phone. The firmware uses WebRTC for commands and HTTP for Wi-Fi setup, settings and clipboard Shortcuts.
 
 ## Hardware and build
 
