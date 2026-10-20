@@ -1,9 +1,11 @@
 // Public pages and explicitly shared Skill packages. Private Harness state stays local.
 import community from './api/worker.js';
+import {serveOpenAIPublicKeys} from './api/openai-public-keys.js';
 const pages = new Set(['/main', '/skills', '/flash']);
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+    if(url.pathname==='/api/openai/jwks')return serveOpenAIPublicKeys(request);
     if (url.pathname === '/api' || url.pathname.startsWith('/api/')) {
       url.pathname = url.pathname.slice(4) || '/';
       return community.fetch(new Request(url, request), env, ctx);
