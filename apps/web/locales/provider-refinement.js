@@ -29,4 +29,17 @@ const extra={
 };
 for(const locale of Object.keys(rows))rows[locale].push(...extra[locale]);
 const keys=['endpoint','openaiHint','anthropicHint','defaultModel','modelPlaceholder','models','allModels','localHelp','secretSaved','secretPlaceholder','legacyHelp','developer','developerHelp','back','save','saved','signedIn','defaultHelp','loginIntro','credentialSaveFailed'];
-export const PROVIDER_REFINEMENT_MESSAGES=Object.fromEntries(Object.entries(rows).map(([locale,values])=>[locale,Object.fromEntries(keys.map((key,i)=>['providerRefinement.'+key,values[i]]))]));
+const accountActions={
+ en:['Save','Refresh models','Choose a model','No models were returned.'],
+ 'zh-Hans':['保存','刷新模型','选择模型','接口没有返回可用模型。'],
+ 'zh-Hant':['儲存','重新整理模型','選擇模型','介面未傳回可用模型。'],
+ ja:['保存','モデルを更新','モデルを選択','利用可能なモデルが返されませんでした。'],
+ ru:['Сохранить','Обновить модели','Выберите модель','Сервис не вернул доступные модели.'],
+ de:['Speichern','Modelle aktualisieren','Modell auswählen','Der Dienst hat keine verfügbaren Modelle zurückgegeben.'],
+ fr:['Enregistrer','Actualiser les modèles','Choisir un modèle','Le service n’a renvoyé aucun modèle disponible.'],
+ es:['Guardar','Actualizar modelos','Elegir modelo','El servicio no devolvió modelos disponibles.']
+};
+const connectionChanged={"en": "This connection changed in another tab. Reopen it to refresh its models.", "zh-Hans": "此连接已在其他标签页修改，请重新打开后刷新模型。", "zh-Hant": "此連線已在其他分頁修改，請重新開啟後重新整理模型。", "ja": "別のタブで接続設定が変更されました。開き直してモデルを更新してください。", "ru": "Настройки подключения изменены в другой вкладке. Откройте их заново и обновите модели.", "de": "Die Verbindung wurde in einem anderen Tab geändert. Öffnen Sie sie erneut und aktualisieren Sie die Modelle.", "fr": "La connexion a été modifiée dans un autre onglet. Rouvrez-la pour actualiser les modèles.", "es": "La conexión cambió en otra pestaña. Vuelve a abrirla para actualizar los modelos."};
+for(const locale of Object.keys(accountActions))accountActions[locale].push(connectionChanged[locale]);
+for(const [locale,values]of Object.entries(rows))values[14]=accountActions[locale][0];
+export const PROVIDER_REFINEMENT_MESSAGES=Object.fromEntries(Object.entries(rows).map(([locale,values])=>[locale,{...Object.fromEntries(keys.map((key,i)=>['providerRefinement.'+key,values[i]])),...Object.fromEntries(['refreshModels','chooseModel','noModels','connectionChanged'].map((key,i)=>['providerRefinement.'+key,accountActions[locale][i+1]]))}]));

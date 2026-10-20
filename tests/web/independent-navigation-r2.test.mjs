@@ -3,29 +3,15 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import vm from 'node:vm';
 const source=await readFile(new URL('../../apps/web/app.js',import.meta.url),'utf8');
-const deferred=()=>{let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve};};
-function fixture(){
- let nodes={},title='',closeCount=0;
- const writes=[],refresh=deferred(),button={dataset:{providerDefault:'provider-a'}};
- const state={settings:{providers:[]},store:{getSettings:async()=>({providers:[]}),saveSettings(value){const d=deferred();writes.push({...d,value});return d.promise;}}};
- const dialog={open:true,close(){closeCount++;this.open=false;state.panelGeneration=(state.panelGeneration||0)+1;}};
- const ctx=vm.createContext({state,t:k=>k,escapeHTML:String,systemTextHTML:k=>k,discardProviderDraft(){},providers:()=>[],guard:f=>f,languageField:()=>'',wireLanguageSelector(){},renderModelOptions(){},refreshSessions:()=>refresh.promise,panel:(t,s,body)=>{state.panelGeneration=(state.panelGeneration||0)+1;title=t;nodes={};for(const id of body.matchAll(/id="([^"]+)"/g))nodes['#'+id[1]]={};dialog.open=true;},$:s=>s==='#panel-dialog'?dialog:s==='#app'?{classList:{remove(){}}}:s==='.panel-header'?{insertAdjacentHTML(){nodes['#panel-back']={};}}:nodes[s],$$:s=>s==='[data-provider-default]'?[button]:[]});
- const begin=source.indexOf('function panelBack('),end=source.indexOf('async function renderStorage()',begin);
- vm.runInContext(source.slice(begin,end)+'\nglobalThis.openSettings=showSettings;',ctx);
- return {open:s=>ctx.openSettings(s),writes,refresh,button,dialog,get title(){return title;},get closeCount(){return closeCount;},node:s=>nodes[s]};
+const deferred=()=>{let resolve,reject;const promise=new Promise((yes,no)=>{resolve=yes;reject=no;});return {promise,resolve,reject};};
+const start=source.indexOf("  $$('[data-provider-refresh]')"),end=source.indexOf("  $$('[data-provider-delete]')",start);
+function fixture({protocol='codex'}={}){
+ const profile={id:'a',protocol,flow:protocol==='codex'?'chatgpt-plan':undefined,baseUrl:protocol==='codex'?'':'https://api.example/v1',subscriptionRelayUrl:'https://relay.example'};
+ let latest={...profile},readCalls=0;const discovery=deferred(),writes=[],status={textContent:''},chips={innerHTML:''},count={textContent:''},button={dataset:{providerRefresh:'a'},disabled:false,isConnected:true,closest:()=>({querySelector:selector=>selector==='.provider-model-chips'?chips:selector==='[data-model-count]'?count:status})},dialog={open:true},state={panelGeneration:1,settings:{providers:[profile]},store:{getSettings:async()=>({providers:latest?[latest]:[]}),updateProviderModels:async(id,models)=>{writes.push({id,models});return {providers:[{...profile,models}]};}}};
+ const ctx=vm.createContext({state,list:[profile],accountsGeneration:1,AbortController,$$:()=>[button],$:()=>dialog,guard:fn=>fn,t:(k,p)=>p?.detail||k,localizeError:e=>e.message,escapeHTML:value=>String(value),profileModels:profile=>profile.models,setLocalizedText:(node,fn)=>node.textContent=fn(),resolveProviderCredential:async()=> 'synthetic-key',discoverCodexModels:options=>{readCalls++;return discovery.promise;},discoverModels:options=>{readCalls++;return discovery.promise;},modelContextMetadata:()=>({}),modelReasoningMetadata:()=>({}),renderModelOptions(){},showSettings:async()=>{ctx.reopens++;},reopens:0});
+ vm.runInContext(source.slice(start,end),ctx);return {button,dialog,state,status,chips,count,discovery,writes,ctx,get readCalls(){return readCalls;},change:()=>latest={...latest,subscriptionRelayUrl:'https://changed.example'},remove:()=>latest=null};
 }
-test('setting a default account must not reopen accounts after the user navigates away',async()=>{
- const f=fixture();await f.open('accounts');const saving=f.button.onclick();await f.open('language');
- f.writes[0].resolve({...f.writes[0].value,providers:[]});await saving;
- assert.equal(f.title,'language.label');
-});
-test('setting a default account still refreshes its current accounts page',async()=>{
- const f=fixture();await f.open('accounts');const saving=f.button.onclick();
- f.writes[0].resolve({...f.writes[0].value,providers:[]});await saving;
- assert.equal(f.title,'settings.accounts');assert.equal(f.dialog.open,true);
-});
-test('finishing default-account persistence after closing settings does not reopen it',async()=>{
- const f=fixture();await f.open('accounts');const saving=f.button.onclick();f.dialog.close();
- f.writes[0].resolve({...f.writes[0].value,providers:[]});await saving;
- assert.equal(f.dialog.open,false);assert.equal(f.closeCount,1);
-});
+test('card refresh persists every discovered model and updates the card in place without reopening or scrolling the list',async()=>{const f=fixture(),run=f.button.onclick();await Promise.resolve();f.discovery.resolve([{id:'one'},{id:'two'}]);await run;assert.deepEqual(f.writes[0].models.map(x=>x.id),['one','two']);assert.equal(f.ctx.reopens,0);assert.match(f.chips.innerHTML,/one/);assert.match(f.chips.innerHTML,/two/);assert.equal(f.status.textContent,'provider.modelsSaved');assert.equal(f.button.disabled,false);});
+for(const mode of ['navigate','close','change','remove'])test('card refresh cannot update stale account view: '+mode,async()=>{const f=fixture(),run=f.button.onclick();await Promise.resolve();if(mode==='navigate')f.state.panelGeneration++;else if(mode==='close')f.dialog.open=false;else f[mode]();f.discovery.resolve([{id:'late'}]);await run;assert.equal(f.writes.length,0);assert.equal(f.ctx.reopens,0);});
+test('card refresh is single flight, reports failure, and preserves saved model cache',async()=>{const f=fixture(),run=f.button.onclick();await f.button.onclick();f.discovery.reject(Error('synthetic request failed'));await run;assert.equal(f.readCalls,1);assert.equal(f.writes.length,0);assert.match(f.status.textContent,/synthetic request failed/);assert.equal(f.button.disabled,false);});
+test('API card refresh uses API discovery and the same atomic catalog persistence',async()=>{const f=fixture({protocol:'openai'}),run=f.button.onclick();await Promise.resolve();f.discovery.resolve([{id:'api-model'}]);await run;assert.equal(f.readCalls,1);assert.equal(f.writes[0].models[0].id,'api-model');});

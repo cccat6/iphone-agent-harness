@@ -35,12 +35,12 @@ export function prepareCodexSignInProfile({provider,account,saved,label,newId}){
 
 // The callback URL is read only by the completion click, held in memory for the
 // exchange, and cleared immediately. It is never stored or put in page history.
-export function mountCodexLogin({root,getProvider,prepareProvider,start,validate,complete,onSuccess,onRegistration=()=>{},isActive=()=>true,onController=()=>{},t=translate,status=()=>{}}){
+export function mountCodexLogin({root,getProvider,prepareProvider,start,validate,complete,onSuccess,onRegistration=()=>{},isActive=()=>true,isSignedIn=()=>false,onController=()=>{},t=translate,status=()=>{}}){
  const node=id=>root.querySelector('#'+id),begin=node('start-codex-login'),cancel=node('cancel-codex-login'),finish=node('complete-codex-login'),verification=node('codex-verification'),callback=node('codex-callback'),callbackField=node('codex-callback-field');let login=null,controller=null,generation=0,working=false,pendingVerification=null,verificationTimer=null;
  const tell=(key,params)=>status(t('siwc.'+key,params));
  const explain=error=>error?.code==='SIWC_STORAGE_UNAVAILABLE'?t('siwc.storageUnavailable'):error?.code==='SIWC_ATTEMPT_INVALID'?t('siwc.invalidAttempt'):localizeError(error);
  function render(){
-  begin.textContent=t('siwc.start');cancel.textContent=t('siwc.cancel');finish.textContent=t(pendingVerification?'siwc.retryVerification':'siwc.finish');node('codex-callback-label').textContent=t('siwc.callbackLabel');node('codex-callback-help').textContent=t('siwc.callbackHelp');
+  begin.textContent=t(working?'siwc.preparing':isSignedIn()?'siwc.signInAgain':'siwc.start');begin.hidden=Boolean(login||pendingVerification);cancel.textContent=t('siwc.cancel');finish.textContent=t(pendingVerification?'siwc.retryVerification':'siwc.finish');node('codex-callback-label').textContent=t('siwc.callbackLabel');node('codex-callback-help').textContent=t('siwc.callbackHelp');
   cancel.hidden=!login&&!working&&!pendingVerification;finish.hidden=!login&&!pendingVerification;finish.disabled=working||!pendingVerification&&!callback.value.trim();callbackField.hidden=!login;begin.disabled=working;
   verification.replaceChildren();if(login){const link=document.createElement('a');link.href=login.authorizationUrl;link.target='_blank';link.rel='noopener noreferrer';link.textContent=t('siwc.open');link.className='secondary-button';verification.append(link);const steps=document.createElement('ol');for(const key of ['stepOne','stepTwo','stepThree']){const item=document.createElement('li');item.textContent=t('siwc.'+key);steps.append(item);}verification.append(steps);}
  }

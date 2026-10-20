@@ -160,13 +160,20 @@ export async function openStore({memory=false,name=DB_NAME}={}){
         await s.settings.put({id:'settings',value});return value;
       },{signal});
     },
-    async updateProviderModels(id,models){
+    async updateProviderModels(id,models,{expectedConnection}={}){
       if(typeof id!=='string'||!Array.isArray(models))throw new Error('Invalid provider models');
+      if(expectedConnection!==undefined&&(!expectedConnection||typeof expectedConnection!=='object'||Array.isArray(expectedConnection)))throw new Error('Invalid provider connection');
+      const fields=['protocol','baseUrl','flow','clientId','subscriptionRelayUrl'];
+      const expected=expectedConnection===undefined?null:clone(Object.fromEntries(fields.map(key=>[key,expectedConnection[key]||''])));
       const saved=safeSettings(clone(models));
       return transaction(['settings'],'readwrite',async s=>{
         const old=(await s.settings.get('settings'))?.value||{},list=Array.isArray(old.providers)?old.providers:[],index=list.findIndex(item=>item.id===id);
         if(index<0)return old;
-        const providers=[...list],profile=list[index];providers[index]={...profile,models:saved,model:profile.model||saved[0]?.id||''};
+        const profile=list[index];
+        // Check the request's connection in the write transaction: another tab
+        // may have changed it after the caller read settings.
+        if(expected&&fields.some(key=>(profile[key]||'')!==expected[key]))return old;
+        const providers=[...list];providers[index]={...profile,models:saved,model:profile.model||saved[0]?.id||''};
         const value={...old,providers};await s.settings.put({id:'settings',value});return value;
       });
     },
