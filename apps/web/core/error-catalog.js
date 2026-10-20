@@ -1,4 +1,5 @@
 import {LOCATION_MESSAGES} from '../locales/location.js';
+import {SIWC_ERROR_CATALOG} from '../locales/siwc-errors.js';
 import {HARNESS_RETURN_ERRORS} from './harness-return-errors.js';
 // Localized errors keep stable protocol codes and legacy diagnostic aliases.
 const locales=["en","zh-Hans","zh-Hant","ja","ru","de","fr","es"];
@@ -137,6 +138,6 @@ const rows=[
 [["STORE_VERSION_CHANGED"],["The local database was updated. Reload this page to continue.","本地数据已更新，请刷新页面后继续。","本機資料已更新，請重新整理頁面後繼續。","ローカルデータが更新されました。ページを再読み込みしてください。","Локальная база данных обновлена. Перезагрузите страницу.","Die lokale Datenbank wurde aktualisiert. Laden Sie die Seite neu.","La base de données locale a été mise à jour. Rechargez cette page.","La base de datos local se ha actualizado. Recarga la página para continuar."]],
 ];
 export const ERROR_CATALOG=Object.fromEntries(rows.flatMap(([aliases,texts])=>aliases.map(alias=>[alias,Object.fromEntries(locales.map((locale,i)=>[locale,texts[i]]))])));
-Object.assign(ERROR_CATALOG,HARNESS_RETURN_ERRORS);
+Object.assign(ERROR_CATALOG,HARNESS_RETURN_ERRORS,SIWC_ERROR_CATALOG);
 
 for(const [code,key] of Object.entries({LOCATION_DISABLED:'disabledError',LOCATION_DENIED:'deniedError',LOCATION_UNAVAILABLE:'unavailableError',LOCATION_TIMEOUT:'timeoutError',LOCATION_UNSUPPORTED:'unsupportedError'}))ERROR_CATALOG[code]=Object.fromEntries(Object.entries(LOCATION_MESSAGES).map(([locale,table])=>[locale,table['location.'+key]]));

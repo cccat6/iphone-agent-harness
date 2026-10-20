@@ -151,3 +151,30 @@ test('model discovery has its own 20-second deadline for network and JSON waits'
   const pending=discoverCodexModels({accountId:'plan',fetchImpl:async(url,options)=>{assert.equal(url,CODEX_ENDPOINTS.planModels);assert.equal(options.redirect,'error');if(stalledBody)return new Response(body);entered();return new Promise(()=>{});}});await ready;deadline.abort(new DOMException('Catalog deadline','TimeoutError'));await assert.rejects(pending,{name:'TimeoutError',code:'SUBSCRIPTION_TIMEOUT'});if(stalledBody){assert.equal(cancels,1);assert.equal(body.locked,false);}assert.deepEqual(getCodexAccount('plan').exportTokens(),saved);timeout.mock.restore();
  }
 });
+
+test('identity failures identify the exact check without exposing token claims or provider errors',async()=>{
+ const cases=[
+  ['SIWC_ID_ISSUER',{iss:'https://private-issuer.invalid'}],
+  ['SIWC_ID_SUBJECT',{sub:''}],
+  ['SIWC_ID_AUDIENCE',{aud:'private-audience'}],
+  ['SIWC_ID_NONCE',{nonce:'private-nonce'}],
+  ['SIWC_ID_EXPIRED',{exp:0}],
+  ['SIWC_ID_NOT_YET_VALID',{nbf:Math.floor(Date.now()/1000)+60}],
+ ];
+ for(const [code,claims]of cases){const login=await begin();await assert.rejects(finish(login,{claims}),error=>{assert.equal(error.code,code);assert.doesNotMatch(error.message,/private-|person@example|fixture-authorization-code/);return true;});assert.equal(listCodexAccounts().length,0);}
+ const login=await begin();await assert.rejects(finish(login,{loadPublicKeys:async()=>{throw Object.assign(new Error('private network payload'),{status:502});}}),error=>{assert.equal(error.code,'SIWC_KEYS_FETCH');assert.equal(error.status,502);assert.doesNotMatch(error.message,/private network/);return true;});
+});
+test('verification distinguishes key selection, key import and signature failure',async()=>{
+ for(const kind of ['key','import','signature']){
+  const login=await begin(),{idToken,jwk}=await signed(login);
+  const keys=kind==='key'?[]:[{...jwk,...(kind==='import'?{key_ops:['sign']}:{})}];
+  let token=idToken;if(kind==='signature'){const parts=token.split('.'),sig=Buffer.from(parts[2],'base64url');sig[0]^=1;parts[2]=sig.toString('base64url');token=parts.join('.');}
+  await assert.rejects(completeCodexLogin(login,{callbackUrl:callback(login),fetchImpl:async()=>Response.json({id_token:token,access_token:'fixture-access',scope:'chatgpt.tokens.use.direct'}),loadPublicKeys:async()=>({keys})}),error=>{assert.equal(error.code,{key:'SIWC_ID_KEY_MATCH',import:'SIWC_ID_CRYPTO',signature:'SIWC_ID_SIGNATURE'}[kind]);return true;});
+ }
+});
+test('ID-token not-before accepts only a small clock skew and callback errors have separate codes',async()=>{
+ assert.equal((await finish(await begin(),{claims:{nbf:Date.now()/1000+3}})).identityVerified,true);
+ const login=await begin(),url=callback(login);
+ for(const [value,code]of [[url.replace(':1455',':1456'),'SIWC_CALLBACK_ADDRESS'],[url.replace(login.state,'other-state'),'SIWC_CALLBACK_STATE']])assert.throws(()=>validateCodexCallback(login,value),{code});
+ const returning=await begin({clientId:'oaiapp_fixture'});assert.throws(()=>validateCodexCallback(returning,callback(returning,{client_id:'another-client'})),{code:'SIWC_CALLBACK_CLIENT'});
+});

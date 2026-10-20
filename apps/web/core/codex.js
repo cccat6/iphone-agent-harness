@@ -18,6 +18,7 @@ function safeURL(value){const u=new URL(value);if(u.protocol!=='https:'||u.usern
 function opaque(bytes=32){const v=crypto.getRandomValues(new Uint8Array(bytes));return btoa(String.fromCharCode(...v)).replaceAll('+','-').replaceAll('/','_').replace(/=+$/,'');}
 function decode64(value){return Uint8Array.from(atob(value.replaceAll('-','+').replaceAll('_','/').padEnd(Math.ceil(value.length/4)*4,'=')),c=>c.charCodeAt(0));}
 function jwt(token){try{return JSON.parse(new TextDecoder().decode(decode64(token.split('.')[1])));}catch{return {};}}
+function identityFailure(code,message='登录身份签名或账号验证失败'){return Object.assign(new Error(message+' ['+code+']'),{code});}
 function failure(message,status){const e=new Error(message+(status?`（HTTP ${status}）`:''));if(status)e.status=status;return e;}
 const subscriptionTimeout=()=>Object.assign(new Error('订阅请求超时，请重试'),{name:'TimeoutError',code:'SUBSCRIPTION_TIMEOUT'});
 async function withSubscriptionDeadline(milliseconds,signal,work){const timeout=AbortSignal.timeout(milliseconds),active=signal?AbortSignal.any([signal,timeout]):timeout;try{return await work(active);}catch(cause){check(signal);if(timeout.aborted)throw subscriptionTimeout();throw cause;}}
@@ -52,7 +53,7 @@ export function registerCodexAccount(id,raw,options={}){
  const scopes=options.scopes||raw.scopes||String(tokens.scope).split(/\s+/).filter(Boolean);
  if(flow==='codex'&&!accountId)throw new Error('Codex 令牌缺少 ChatGPT account ID');
  if(flow==='chatgpt-plan'&&(!scopes.includes('chatgpt.tokens.use.direct')||!(options.identityVerified??raw.identityVerified)))throw new Error('尚未验证身份或获得 ChatGPT plan 使用授权');
- const old=accounts.get(id);if(old?.accountId&&old.accountId!==accountId)throw new Error('不同账号请使用独立登记 ID');if(flow==='chatgpt-plan'&&old?.subject&&identity.sub!==old.subject)throw new Error('重新登录身份与选中账号不匹配');if(old&&old.clientId!==clientId)throw new Error('请为不同客户端登记创建独立账号 ID');old?.refreshController?.abort();
+ const old=accounts.get(id);if(old?.accountId&&old.accountId!==accountId)throw new Error('不同账号请使用独立登记 ID');if(flow==='chatgpt-plan'&&old?.subject&&identity.sub!==old.subject)throw identityFailure('SIWC_ACCOUNT_SUBJECT','重新登录身份与选中账号不匹配');if(old&&old.clientId!==clientId)throw new Error('请为不同客户端登记创建独立账号 ID');old?.refreshController?.abort();
  accounts.set(id,{id,tokens,flow,clientId,accountId,subject:identity.sub||'',scopes:[...scopes],identityVerified:Boolean(options.identityVerified??raw.identityVerified),email:options.email||raw.email||identity.email||'',label:options.label||raw.label||options.email||raw.email||id,refreshing:null});if(!activeId)activeId=id;return getCodexAccount(id);
 }
 async function accessToken(id,{signal,fetchImpl=fetch,loadPublicKeys=loadOpenAIPublicKeys}={}){
@@ -65,8 +66,8 @@ async function accessToken(id,{signal,fetchImpl=fetch,loadPublicKeys=loadOpenAIP
    const active=a.refreshController.signal,body={grant_type:'refresh_token',client_id:a.clientId,refresh_token:a.tokens.refresh_token,...(a.flow==='chatgpt-plan'?{resource:'https://api.openai.com/v1'}:{})};
    const r=await post(a.flow==='chatgpt-plan'?CODEX_ENDPOINTS.planToken:CODEX_ENDPOINTS.token,body,{fetchImpl,signal:active},true),raw=await json(r,'订阅刷新失败',{signal:active}),next=acceptTokens(raw,a.tokens);
    if(accounts.get(id)!==a)throw new Error('刷新期间账号已移除');
-   const refreshedId=jwt(next.access_token)['https://api.openai.com/auth']?.chatgpt_account_id;if(a.flow==='codex'&&refreshedId&&refreshedId!==a.accountId)throw new Error('刷新返回了不匹配的账号');
-   if(a.flow==='chatgpt-plan'&&raw.id_token!==undefined){const identity=await verifyIdentity(raw.id_token,a.clientId,undefined,loadPublicKeys,active);if(!a.subject||identity.sub!==a.subject)throw new Error('刷新返回了不匹配的账号');}
+   const refreshedId=jwt(next.access_token)['https://api.openai.com/auth']?.chatgpt_account_id;if(a.flow==='codex'&&refreshedId&&refreshedId!==a.accountId)throw identityFailure('SIWC_ACCOUNT_SUBJECT','刷新返回了不匹配的账号');
+   if(a.flow==='chatgpt-plan'&&raw.id_token!==undefined){const identity=await verifyIdentity(raw.id_token,a.clientId,undefined,loadPublicKeys,active);if(!a.subject||identity.sub!==a.subject)throw identityFailure('SIWC_ACCOUNT_SUBJECT','刷新返回了不匹配的账号');}
    const scopes=raw.scope===undefined?a.scopes:String(raw.scope).split(/\s+/).filter(Boolean);if(a.flow==='chatgpt-plan'&&!scopes.includes('chatgpt.tokens.use.direct'))throw new Error('刷新后缺少 plan 使用授权');
    check(active);if(accounts.get(id)!==a)throw new Error('刷新期间账号已移除');a.tokens=next;a.scopes=scopes;tokensChanged(id);return next.access_token;
   })().finally(()=>{clearTimeout(timer);a.refreshing=null;a.refreshController=null;});
@@ -86,13 +87,13 @@ function callbackFields(login,value){
  const pasted=value.trim(),normalized=/^127\.0\.0\.1(?::[1-9]\d{0,4})?\/auth\/callback(?:\?|$)/.test(pasted)?'http://'+pasted:pasted;
  let callback;try{callback=new URL(normalized);}catch{throw new Error('登录回调地址无效');}
  const expected=loopbackURI(login.redirectUri);
- if(callback.username||callback.password||callback.hash||callback.origin!==expected.origin||callback.pathname!==expected.pathname)throw new Error('登录回调地址或 state 不匹配');
+ if(callback.username||callback.password||callback.hash||callback.origin!==expected.origin||callback.pathname!==expected.pathname)throw identityFailure('SIWC_CALLBACK_ADDRESS','登录回调地址或 state 不匹配');
  const seen=new Set(),unique=new Set(['code','state','client_id','error']);for(const [key,value]of callback.searchParams){if(/[\u0000-\u001f\u007f]/.test(key+value))throw new Error('登录回调地址无效');if(unique.has(key)&&seen.has(key))throw new Error('登录回调包含重复字段');seen.add(key);}
- if(!login.state||callback.searchParams.get('state')!==login.state)throw new Error('登录回调地址或 state 不匹配');
+ if(!login.state||callback.searchParams.get('state')!==login.state)throw identityFailure('SIWC_CALLBACK_STATE','登录回调地址或 state 不匹配');
  if(callback.searchParams.has('error')){if(callback.searchParams.has('code'))throw new Error('登录回调字段冲突');throw new Error('用户未授权本次登录');}
  const code=callback.searchParams.get('code');if(!code||code.length>8192||/[\u0000-\u0020]/.test(code))throw new Error('登录回调缺少有效 code');
  const issued=callback.searchParams.get('client_id'),valid=id=>typeof id==='string'&&/^[A-Za-z0-9_-]{1,256}$/.test(id)&&id!=='dynamic_agent_client';
- let clientId=login.clientId;if(clientId==='dynamic_agent_client'){if(!valid(issued))throw new Error('缺少签发的客户端 ID');clientId=issued;}else if(!valid(clientId)||issued!==null&&issued!==clientId)throw new Error('回调客户端与选中账号不匹配');
+ let clientId=login.clientId;if(clientId==='dynamic_agent_client'){if(!valid(issued))throw new Error('缺少签发的客户端 ID');clientId=issued;}else if(!valid(clientId)||issued!==null&&issued!==clientId)throw identityFailure('SIWC_CALLBACK_CLIENT','回调客户端与选中账号不匹配');
  return {code,clientId};
 }
 export function validateCodexCallback(login,value){if(!login||login.method!=='authorization-code'||!Number.isFinite(login.expiresAt)||login.expiresAt<=Date.now())throw new Error('登录尝试已超时');const {clientId}=callbackFields(login,value);return {clientId};}
@@ -129,15 +130,28 @@ export async function loadOpenAIPublicKeys({signal,fetchImpl=globalThis.fetch,en
  const keys=JSON.parse(await readText(response,{maxBytes:262144,signal:active}));if(!Array.isArray(keys?.keys)||keys.keys.length<1||keys.keys.length>64)throw new Error('身份公钥格式无效');return keys;
 }
 async function verifyIdentity(token,clientId,nonce,loadPublicKeys,signal){
+ let stage='SIWC_ID_FORMAT';
  try{
   if(typeof token!=='string'||token.length>65536)throw 0;const parts=token.split('.');if(parts.length!==3)throw 0;
-  const header=JSON.parse(new TextDecoder().decode(decode64(parts[0]))),claims=jwt(token);if(header.alg!=='RS256'||typeof header.kid!=='string'||!header.kid||header.kid.length>256)throw 0;
-  const jwks=await awaitWithSignal(Promise.resolve(loadPublicKeys({signal})),signal);check(signal);if(!Array.isArray(jwks?.keys)||jwks.keys.length>64)throw 0;
-  const matches=jwks.keys.filter(k=>k?.kid===header.kid&&k.kty==='RSA'&&(!k.alg||k.alg==='RS256')&&(!k.use||k.use==='sig'));if(matches.length!==1)throw 0;const jwk=matches[0];if(['d','p','q','dp','dq','qi','oth'].some(key=>key in jwk))throw 0;
-  const key=await crypto.subtle.importKey('jwk',jwk,{name:'RSASSA-PKCS1-v1_5',hash:'SHA-256'},false,['verify']);if(!await crypto.subtle.verify('RSASSA-PKCS1-v1_5',key,decode64(parts[2]),new TextEncoder().encode(parts[0]+'.'+parts[1])))throw 0;
-  check(signal);const audience=Array.isArray(claims.aud)?claims.aud:[claims.aud];
-  if(claims.iss!==CODEX_ENDPOINTS.issuer||typeof claims.sub!=='string'||!claims.sub||!audience.includes(clientId)||(audience.length>1&&claims.azp!==clientId)||(claims.azp!==undefined&&claims.azp!==clientId)||(nonce!==undefined&&claims.nonce!==nonce)||!Number.isFinite(claims.exp)||claims.exp*1000<=Date.now()||(claims.nbf!==undefined&&(!Number.isFinite(claims.nbf)||claims.nbf*1000>Date.now())))throw 0;return claims;
- }catch{check(signal);throw new Error('登录身份签名或账号验证失败');}
+  const header=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(decode64(parts[0]))),claims=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(decode64(parts[1])));
+  if(!header||typeof header!=='object'||!claims||typeof claims!=='object')throw 0;
+  stage='SIWC_ID_ALGORITHM';if(header.alg!=='RS256')throw 0;
+  stage='SIWC_ID_KEY_ID';if(typeof header.kid!=='string'||!header.kid||header.kid.length>256)throw 0;
+  stage='SIWC_KEYS_FETCH';const jwks=await awaitWithSignal(Promise.resolve(loadPublicKeys({signal})),signal);check(signal);
+  stage='SIWC_KEYS_FORMAT';if(!Array.isArray(jwks?.keys)||jwks.keys.length>64)throw 0;
+  stage='SIWC_ID_KEY_MATCH';const matches=jwks.keys.filter(k=>k?.kid===header.kid&&k.kty==='RSA'&&(!k.alg||k.alg==='RS256')&&(!k.use||k.use==='sig'));if(matches.length!==1)throw 0;
+  const jwk=matches[0];stage='SIWC_KEYS_FORMAT';if(['d','p','q','dp','dq','qi','oth'].some(key=>key in jwk))throw 0;
+  stage='SIWC_ID_CRYPTO';const key=await crypto.subtle.importKey('jwk',jwk,{name:'RSASSA-PKCS1-v1_5',hash:'SHA-256'},false,['verify']);
+  stage='SIWC_ID_SIGNATURE';if(!await crypto.subtle.verify('RSASSA-PKCS1-v1_5',key,decode64(parts[2]),new TextEncoder().encode(parts[0]+'.'+parts[1])))throw 0;
+  check(signal);
+  stage='SIWC_ID_ISSUER';if(claims.iss!==CODEX_ENDPOINTS.issuer)throw 0;
+  stage='SIWC_ID_SUBJECT';if(typeof claims.sub!=='string'||!claims.sub)throw 0;
+  stage='SIWC_ID_AUDIENCE';const audience=Array.isArray(claims.aud)?claims.aud:[claims.aud];if(!audience.includes(clientId)||(audience.length>1&&claims.azp!==clientId)||(claims.azp!==undefined&&claims.azp!==clientId))throw 0;
+  stage='SIWC_ID_NONCE';if(nonce!==undefined&&claims.nonce!==nonce)throw 0;
+  stage='SIWC_ID_EXPIRED';if(!Number.isFinite(claims.exp)||claims.exp*1000<=Date.now())throw 0;
+  stage='SIWC_ID_NOT_YET_VALID';if(claims.nbf!==undefined&&(!Number.isFinite(claims.nbf)||claims.nbf*1000>Date.now()+5000))throw 0;
+  return claims;
+ }catch(cause){check(signal);const error=identityFailure(stage);if(stage==='SIWC_KEYS_FETCH'&&Number.isInteger(cause?.status)&&cause.status>=400&&cause.status<=599){error.status=cause.status;error.message+=` (HTTP ${cause.status})`;}throw error;}
 }
 export async function completeCodexLogin(login,{accountId=crypto.randomUUID(),callbackUrl,signal,fetchImpl=fetch,maxWaitMs=900000,waitImpl=wait,label,loadPublicKeys=loadOpenAIPublicKeys}={}){
  if(!login||typeof login!=='object'||completedLogins.has(login))throw new Error('登录尝试无效或已使用');check(signal);let raw,clientId=login.clientId,identityVerified=false,email='';
