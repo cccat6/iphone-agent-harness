@@ -26,3 +26,41 @@ test('harness starts title generation after successful main reply without delayi
 test('failed main model reply does not cause a second unauthorized title API request',async()=>{const {store,session}=await setup();let calls=0;const harness=createHarness({store,invoke:async()=>{throw Object.assign(new Error('401'),{status:401});},titleInvoke:async()=>{calls++;return {text:'Should not happen'};}});await assert.rejects(harness.run({sessionId:session.id,text:'Hello'}));assert.equal(calls,0);assert.equal((await store.getSession(session.id)).titleState,'pending');store.close();});
 
 test('titles reject structured debug output and strip harmless model quoting',()=>{assert.equal(normalizeSessionTitle('"Morning alarm"'),'Morning alarm');assert.equal(normalizeSessionTitle('{"title":"Alarm"}'),'');assert.equal(normalizeSessionTitle('<b>Alarm</b>'),'');assert.equal(normalizeSessionTitle('a'.repeat(121)),'');});
+
+test('an already cancelled title request keeps pending state and never claims or invokes',async()=>{
+ const {store,session}=await setup();await store.addMessage(session.id,{role:'user',text:'Set an alarm'});const controller=new AbortController();controller.abort();let calls=0,claims=0;const begin=store.beginSessionTitle.bind(store);store.beginSessionTitle=async(...args)=>{claims++;return begin(...args);};
+ assert.equal(await generateSessionTitle({store,sessionId:session.id,provider,signal:controller.signal,invoke:async()=>{calls++;return {text:'Alarm'};}}),null);
+ assert.equal(calls,0);assert.equal(claims,0);assert.equal((await store.getSession(session.id)).titleState,'pending');store.close();
+});
+
+test('cancellation while claiming the title never starts its API request or overwrites a manual name',async()=>{
+ for(const rename of [false,true]){
+  const {store,session}=await setup(false);await store.addMessage(session.id,{role:'user',text:'First request'});const controller=new AbortController(),begin=store.beginSessionTitle.bind(store);let calls=0;
+  store.beginSessionTitle=async(...args)=>{const claim=await begin(...args);controller.abort();if(rename)await store.updateSession(session.id,{title:'My manual name'});return claim;};
+  await generateSessionTitle({store,sessionId:session.id,provider,signal:controller.signal,invoke:async()=>{calls++;return {text:'Unwanted title'};}});
+  assert.equal(calls,0);const saved=await store.getSession(session.id);assert.equal(saved.title,rename?'My manual name':'First request');assert.equal(saved.titleState,rename?'manual':'fallback');store.close();
+ }
+});
+
+test('a successful retry after main-model failure titles the original first request',async()=>{
+ const {store,session}=await setup();let failMain=true,titleCalls=0,finished;const titled=new Promise(resolve=>finished=resolve);
+ const harness=createHarness({store,invoke:async()=>{if(failMain)throw Object.assign(new Error('HTTP 401'),{status:401});return {text:'Ready now',toolCalls:[]};},titleInvoke:async request=>{titleCalls++;assert.equal(request.messages[1].text,'Set a seven o’clock alarm');return {text:'Morning alarm'};},onEvent:event=>{if(event.type==='session.title'&&event.title==='Morning alarm')finished();}});
+ await assert.rejects(harness.run({sessionId:session.id,text:'Set a seven o’clock alarm'}));assert.equal(titleCalls,0);assert.equal((await store.getSession(session.id)).titleState,'pending');
+ failMain=false;await harness.run({sessionId:session.id,text:'Please try again'});await titled;
+ assert.equal(titleCalls,1);assert.equal((await store.getSession(session.id)).title,'Morning alarm');store.close();
+});
+
+test('successful run cleanup leaves an in-flight title request alive with the selected model',async()=>{
+ const {store,session}=await setup();const parent=new AbortController();let request,release,started;const entered=new Promise(resolve=>started=resolve);
+ const harness=createHarness({store,invoke:async()=>({text:'Main response',toolCalls:[]}),titleInvoke:input=>{request=input;started();return new Promise(resolve=>release=resolve);}});
+ await harness.run({sessionId:session.id,text:'Plan my morning',signal:parent.signal});await entered;assert.equal(request.signal.aborted,false);assert.equal(request.provider.model,provider.model);
+ parent.abort();assert.equal(request.signal.aborted,false,'finished run has detached the caller signal');release({text:'Morning plan'});
+ for(let i=0;i<30&&(await store.getSession(session.id)).titleState==='generating';i++)await wait();assert.equal((await store.getSession(session.id)).title,'Morning plan');store.close();
+});
+
+test('structured fenced output is rejected instead of naming the conversation json',()=>{
+ assert.equal(normalizeSessionTitle('```json\n{"title":"Morning alarm"}\n```'),'');
+ assert.equal(normalizeSessionTitle('```javascript\nconst title="Alarm";\n```'),'');
+ assert.equal(normalizeSessionTitle('```text\nMorning alarm\n```'),'Morning alarm');
+ assert.equal(normalizeSessionTitle('```\nMorning alarm\n```'),'Morning alarm');
+});

@@ -107,10 +107,12 @@ export async function completeCodexLogin(login,{accountId=crypto.randomUUID(),ca
  check(signal);completedLogins.add(login);return registerCodexAccount(accountId,raw,{clientId,flow:login.flow,label,email,identityVerified});
 }
 function headers(a,token,{sessionId}={}){const h={'authorization':'Bearer '+token,'content-type':'application/json','accept':'text/event-stream','originator':'iphone_automation_harness'};if(a.flow==='codex'){h['chatgpt-account-id']=a.accountId;h['OpenAI-Beta']='responses=experimental';}if(sessionId)h['session-id']=sessionId;return h;}
+function catalogHeaders(a,token){return {authorization:'Bearer '+token,accept:'application/json',...(a.flow==='codex'?{'chatgpt-account-id':a.accountId}:{})};}
 export async function discoverCodexModels({accountId=activeId,signal,fetchImpl=fetch,clientVersion='0.1.0'}={}){
  const a=accounts.get(accountId);if(!a)throw new Error('请先选择已登录的订阅账号');const token=await accessToken(accountId,{signal,fetchImpl});const url=new URL(a.flow==='codex'?CODEX_ENDPOINTS.models:CODEX_ENDPOINTS.planModels);if(a.flow==='codex')url.searchParams.set('client_version',clientVersion);
- const response=await request(url,{headers:headers(a,token),signal,fetchImpl});const data=await json(response,'订阅模型目录不可用');const items=data.models||data.data;if(!Array.isArray(items))throw new Error('模型目录格式无效');
- return items.map(m=>({id:m.slug||m.id,name:m.display_name||m.name||m.slug||m.id,description:m.description||'',catalogOnly:true,...modelContextMetadata(m),...modelReasoningMetadata(m)})).filter(m=>typeof m.id==='string'&&m.id);
+ const response=await request(url,{headers:catalogHeaders(a,token),signal,fetchImpl});const data=await json(response,'订阅模型目录不可用');const items=data.models||data.data;if(!Array.isArray(items))throw new Error('模型目录格式无效');
+ // The plan catalog explicitly marks picker entries; older Codex lists omit visibility.
+ return items.filter(m=>m&&typeof m==='object'&&(m.visibility==='list'||(a.flow==='codex'&&m.visibility===undefined))).map(m=>({id:m.slug||m.id,name:m.display_name||m.name||m.slug||m.id,description:m.description||'',catalogOnly:true,...modelContextMetadata(m),...modelReasoningMetadata(m)})).filter(m=>typeof m.id==='string'&&m.id);
 }
 function replayState(message,scope){
  const state=message.providerState;

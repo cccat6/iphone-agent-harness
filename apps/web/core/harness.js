@@ -66,7 +66,7 @@ export function createHarness({store,onEvent=()=>{},capture=screenCapture,invoke
       if(session.activeRun?.id===checkpoint.runId&&store.finishRun)await store.finishRun(sessionId,session.activeRun.id,'interrupted',{reason:'explicit_resume'});
       return api.run({sessionId,text:checkpoint.text||checkpoint.goal,mode:checkpoint.mode||'auto',modelId,signal,goal:checkpoint.goal,resumeCheckpoint:checkpoint});
     },
-    async run({sessionId,text,mode,modelId,signal,goal,resumeCheckpoint}={}){
+    async run({sessionId,text,mode,modelId,signal,goal,resumeCheckpoint,firstMessageId}={}){
       if(active)throw new Error('当前已有任务正在运行');
       // Reserve synchronously before any storage or provider await.
       const run={id:crypto.randomUUID(),controller:new AbortController(),pending:[],settled:new Set(),current:null,mutating:false,executingPlan:false,finished:false,lifecycleController:new AbortController(),heartbeatController:new AbortController(),heartbeatTimer:null,heartbeatPending:false,ownershipTimer:null,ownershipPending:false,pauseReason:null};active=run;
@@ -107,11 +107,18 @@ export function createHarness({store,onEvent=()=>{},capture=screenCapture,invoke
       try{
         checkAbort(runSignal);if(typeof text!=='string'||!text.trim()||text.length>100000)throw new Error('任务内容为空或过长');
         session=await store.getSession(sessionId);checkAbort(runSignal);interactionNotes=Array.isArray(session?.promptState?.interactionNotes)?session.promptState.interactionNotes.slice(-24):[];if(!session)throw new Error('对话不存在');mode=mode||session.mode||'auto';if(!['auto','chat','plan','task'].includes(mode))throw new Error('未知运行模式');
+        let savedFirstMessage=null;
+        if(firstMessageId!==undefined){
+          if(resumeCheckpoint||session.lastSeq!==1)throw new Error('首条消息与新会话不匹配');
+          [savedFirstMessage]=await store.getMessages(sessionId,{limit:1,direction:'next',includeImages:false});
+          if(!savedFirstMessage||savedFirstMessage.id!==firstMessageId||savedFirstMessage.seq!==1||savedFirstMessage.role!=='user'||savedFirstMessage.internal||savedFirstMessage.text!==text)throw new Error('首条消息与新会话不匹配');
+          checkAbort(runSignal);
+        }
         if(mode!=='chat'&&typeof capture.subscribe==='function')unsubscribeCapture=capture.subscribe(event=>{if(event?.type==='stopped'&&active===run&&!run.finished)pause('屏幕共享已停止，任务已暂停');});
         const settings=await store.getSettings();returnRequired=['auto','task'].includes(mode)&&settings.returnToHarness!==false&&typeof getHarnessState==='function';checkAbort(runSignal);provider=resolveModelSelection({...settings,reasoningEfforts:{...settings.reasoningEfforts,...session.reasoningEfforts}},modelId||session.modelId||settings.activeProviderId);credential=await resolveProviderCredential(store,provider,{settings,requireCredential:invoke===callModel?undefined:false});checkAbort(runSignal);if(mode!=='chat')capture.configure?.(settings.images);
-        if(store.claimRun){await store.claimRun(sessionId,run.id,{mode,expiresAt:Date.now()+90000});claimed=true;if(store.renewRun)run.ownershipTimer=setInterval(()=>{if(run.ownershipPending||run.finished||runSignal.aborted)return;run.ownershipPending=true;store.renewRun(sessionId,run.id,{ttlMs:90000}).catch(error=>{if(!run.finished&&!runSignal.aborted)run.controller.abort(error);}).finally(()=>{run.ownershipPending=false;});},15000);}
+        if(store.claimRun){await store.claimRun(sessionId,run.id,{mode,expiresAt:Date.now()+90000,...(firstMessageId!==undefined?{firstMessageId}:{})});claimed=true;if(store.renewRun)run.ownershipTimer=setInterval(()=>{if(run.ownershipPending||run.finished||runSignal.aborted)return;run.ownershipPending=true;store.renewRun(sessionId,run.id,{ttlMs:90000}).catch(error=>{if(!run.finished&&!runSignal.aborted)run.controller.abort(error);}).finally(()=>{run.ownershipPending=false;});},15000);}
         await guard();skills=await snapshotSkills(store);await guard();
-        if(!resumeCheckpoint){const user=await store.addMessage(sessionId,{role:'user',text});checkAbort(runSignal);emit({type:'message',message:user});}
+        if(!resumeCheckpoint){const user=savedFirstMessage||await store.addMessage(sessionId,{role:'user',text});checkAbort(runSignal);emit({type:'message',message:user});}
         else await store.addMessage(sessionId,{role:'user',internal:true,text:'Resume the existing user task after an explicit Continue action. Do not replay interrupted inputs. Observe the current screen, reconcile prior results, and construct new actions from fresh evidence. Interrupted run state (data): '+JSON.stringify({goal:resumeCheckpoint.goal,interruptedCall:resumeCheckpoint.interruptedCall,uncertainOutcome:resumeCheckpoint.uncertainOutcome,taskCompletion})});
         await saveResume({version:1,state:'running',runId:run.id,goal:(goal||session?.goal||text).slice(0,4000),text:text.slice(0,4000),mode,reason:'interrupted',uncertainPlans:[...uncertainPlans].slice(-8)});
         await journal('run.started',{mode,providerId:provider.id,model:provider.model,promptRevision:ASSET_REVISION,skills:skills.map(s=>({id:s.id,version:s.version}))});

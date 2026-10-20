@@ -1,4 +1,5 @@
 import {createLocationAccess} from './core/location.js';
+import {loadComposerDraft,saveComposerDraft,clearComposerDraft} from './ui/composer-draft.js';
 import {mountLocationSettings} from './ui/location-settings.js';
 import {createSessionActions} from './ui/session-actions.js';
 import {mountSessionSwipe} from './ui/session-swipe.js';
@@ -42,7 +43,7 @@ import { startCodexLogin, completeCodexLogin, discoverCodexModels, getCodexAccou
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 const escapeHTML = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
-const state = { store:null, harness:null, device:null, devicePanel:null, mcpAccess:null, mcpPanel:null, settings:{}, sessions:[], current:null, messages:[], messageLimit:80, hasOlder:false, archived:false, running:false, submitting:false, runGeneration:0, pending:null, skills:[], catalog:[], skillTab:'local', providerEdit:null, providerModels:[], drafts:new Map(), abort:null, lastError:null };
+const state = { store:null, harness:null, device:null, devicePanel:null, mcpAccess:null, mcpPanel:null, settings:{}, sessions:[], current:null, composerDraft:null, composerDraftActive:false, messages:[], messageLimit:80, hasOlder:false, archived:false, running:false, submitting:false, runGeneration:0, pending:null, skills:[], catalog:[], skillTab:'local', providerEdit:null, providerModels:[], drafts:new Map(), abort:null, lastError:null };
 const capture = screenCapture;
 const clipboard=createClipboardController({isCurrent:({sessionId,targetId})=>state.current?.id===sessionId&&deviceStatus().targetBound&&deviceStatus().targetId===targetId});
 const deviceClipboard=createDeviceClipboard({getDevice:()=>activeInputBridge(),isCurrent:({sessionId,targetId})=>state.current?.id===sessionId&&deviceStatus().targetBound&&deviceStatus().targetId===targetId});
@@ -151,7 +152,7 @@ async function sessionRowAction(action,id){
   await performSessionAction(action,session);
 }
 function renderModelOptions() {
-  const current=state.current?.modelId||state.settings.activeProviderId||'';
+  const current=state.current?.modelId||(state.composerDraftActive?state.composerDraft?.modelId:'')||state.settings.activeProviderId||'';
   const parts=selectionParts(current);const profile=providers().find(item=>item.id===parts.providerId);
   const selected=profile?`${profile.id}::${parts.modelId||profile.model||profileModels(profile)[0]?.id||''}`:'';
   $('#model-select').innerHTML=(providers().some(item=>profileModels(item).length)?'':`<option value="" disabled>${t('status.configureModel')}</option>`)+providers().map(item=>`<optgroup label="${escapeHTML(item.name||t('provider.unnamed'))}">${profileModels(item).map(model=>`<option value="${escapeHTML(item.id+'::'+model.id)}">${escapeHTML(model.name)} · ${escapeHTML(item.name||t('provider.account'))}</option>`).join('')}</optgroup>`).join('');
@@ -161,25 +162,45 @@ function renderModelOptions() {
 function renderReasoningOptions(){
   const select=$('#reasoning-select');if(!select)return;const profile=selectedProvider(),model=selectionParts($('#model-select').value).modelId||profile?.model;
   const provider=profile?{...profile,model}:{};const options=reasoningOptions(provider),key=profile?profile.id+'::'+model:'';
-  const selected=normalizeReasoningEffort(provider,state.current?.reasoningEfforts?.[key]??state.settings.reasoningEfforts?.[key]??profile?.reasoningEffort);
+  const selected=normalizeReasoningEffort(provider,state.current?.reasoningEfforts?.[key]??(state.composerDraftActive?state.composerDraft?.reasoningEfforts?.[key]:undefined)??state.settings.reasoningEfforts?.[key]??profile?.reasoningEffort);
   select.hidden=!options.length;select.disabled=state.running||state.submitting;select.setAttribute('aria-label',t('reasoning.label'));select.title=t('reasoning.label');
   select.innerHTML=['auto',...options].map(value=>`<option value="${value}">${escapeHTML(t('reasoning.'+value))}</option>`).join('');select.value=selected;
 }
 function updateModeDescription() { $('#mode-description').textContent=t(capture.active?'interaction.sharing':'interaction.notSharing'); }
-async function newSession({fromSubmit=false}={}) { if(!(fromSubmit?deviceSessionAvailable():await state.devicePanel?.ensureReady?.())){await showDevices();toast(t('device.startHint'));return null;} if((state.running||state.submitting)&&!fromSubmit)throw new Error('请先停止当前任务，再切换会话。');state.archived=false;const session=await state.store.createSession({title:t('session.new'),titleState:'pending',mode:'auto',modelId:$('#model-select').value||state.settings.activeProviderId||providers()[0]?.id||''}); await refreshSessions(); await openSession(session.id,{fromSubmit}); $('#message-input').focus();return session; }
+async function changeReasoningSelection(){const profile=selectedProvider();if(!profile)return;const model=selectionParts($('#model-select').value).modelId||profile.model,key=profile.id+'::'+model,value=normalizeReasoningEffort({...profile,model},$('#reasoning-select').value);if(state.current){const id=state.current.id,reasoningEfforts={...state.current.reasoningEfforts,[key]:value};await state.store.updateSession(id,{reasoningEfforts});if(state.current?.id===id)state.current.reasoningEfforts=reasoningEfforts;}else if(state.composerDraftActive&&state.composerDraft){state.composerDraft.reasoningEfforts={...state.composerDraft.reasoningEfforts,[key]:value};rememberComposerDraft();}else state.settings=await state.store.saveSettings({reasoningEfforts:{...state.settings.reasoningEfforts,[key]:value}});renderReasoningOptions();}
+async function changeModelSelection(){const selection=$('#model-select').value,resolved=selectedProvider();$('#model-select').title=resolved?`${resolved.name} · ${selectionParts(selection).modelId}`:t('provider.chooseAccountModel');renderReasoningOptions();if(state.current){const id=state.current.id;await state.store.updateSession(id,{modelId:selection});if(state.current?.id===id)state.current.modelId=selection;}else if(state.composerDraftActive&&state.composerDraft){state.composerDraft.modelId=selection;rememberComposerDraft();}}
+function rememberComposerDraft(){if(!state.composerDraftActive||state.current||!state.composerDraft)return;state.composerDraft.text=$('#message-input').value;saveComposerDraft(state.composerDraft);}
+function openComposerDraft({focus=false,navigation=true}={}){
+  if(state.running||state.submitting)throw new Error(t('session.stopBeforeImport'));
+  rememberRouteDraft();state.sessionOpenGeneration=(state.sessionOpenGeneration||0)+1;
+  state.composerDraft ||= loadComposerDraft()||{text:'',modelId:$('#model-select').value||state.settings.activeProviderId||providers()[0]?.id||'',reasoningEfforts:{}};
+  state.current=null;state.composerDraftActive=true;state.messages=[];state.hasOlder=state.hasNewer=false;state.history?.clear();state.pending=null;state.lastError=null;state.capturePaused=false;
+  clipboard.clear();state.clipboardView?.destroy();$('#clipboard-panel').replaceChildren();$('#app').classList.add('in-conversation');$('#session-title').textContent=t('session.new');$('#session-subtitle').textContent='';$('#session-menu').hidden=true;
+  $('#message-input').value=state.composerDraft.text;resizeInput();renderModelOptions();renderSessions();renderMessages({forceFollow:true});saveComposerDraft(state.composerDraft);
+  if(navigation)state.navigation?.go({route:'harness',screen:'draft',sessionId:null,panel:null,action:null});if(focus)$('#message-input').focus();return state.composerDraft;
+}
+async function newSession(){
+  if(state.running||state.submitting)throw new Error(t('session.stopBeforeImport'));if(state.draftOpening)return state.draftOpening;
+  const request=state.sessionOpenGeneration=(state.sessionOpenGeneration||0)+1;
+  const task=(async()=>{const ready=await state.devicePanel?.ensureReady?.();if(request!==state.sessionOpenGeneration)return null;if(!ready){await showDevices();toast(t('device.startHint'));return null;}return openComposerDraft({focus:true});})().finally(()=>{if(state.draftOpening===task)state.draftOpening=null;});state.draftOpening=task;return task;
+}
 function historyWindow(){return state.history||(state.history=createHistoryWindow(state.store,{includeInternal:!!state.settings.developerMode}));}
 async function refreshConversationPresentation(){state.history?.clear();state.history=null;if(state.current){applyHistory(await historyWindow().load(state.current.id));}renderMessages();}
 function applyHistory(page){if(!page)return false;state.messages=page.messages;state.hasOlder=page.hasOlder;state.hasNewer=page.hasNewer;state.messageLimit=page.messages.length;return true;}
-async function openSession(id,{fromSubmit=false}={}) {
+async function openSession(id,{fromSubmit=false,replaceDraft=false}={}) {
   if(state.submitting&&!fromSubmit)throw new Error('请先停止当前任务，再切换会话。');
-  if(state.current)state.drafts.set(state.current.id,$('#message-input').value);
+  if(state.current)state.drafts.set(state.current.id,$('#message-input').value);else if(state.composerDraftActive)rememberComposerDraft();
   if(state.running&&state.current?.id!==id)throw new Error('请先停止当前任务，再切换会话。');
   const request=state.sessionOpenGeneration=(state.sessionOpenGeneration||0)+1;
   const switching=state.current?.id!==id;const session=await state.store.getSession(id);if(request!==state.sessionOpenGeneration)return;
   if(!session){if(state.navigation?.restoring){$('#app').classList.remove('in-conversation');return null;}throw new Error('未找到这条会话。');}
   const page=await historyWindow().load(id);if(request!==state.sessionOpenGeneration||!page)return;
-  if(state.current?.id!==id)clipboard.clear();state.current=session;state.capturePaused=false;applyHistory(page);
-  state.lastError=null;state.pending=null;$('#app').classList.add('in-conversation');$('#session-title').textContent=session.title||t('session.new');$('#session-subtitle').textContent=t('interaction.localSession');$('#session-menu').hidden=false;$('#message-input').value=state.drafts.get(id)||'';resizeInput();renderModelOptions();updateModeDescription();renderSessions();renderClipboard();renderMessages({forceFollow:switching});state.navigation?.go({route:'harness',screen:'session',sessionId:id,panel:null,action:null});
+  // The composer stays editable while the saved session/history are loaded.
+  // Refreshing the current conversation must retain text typed during either await.
+  if(state.current?.id===id)state.drafts.set(id,$('#message-input').value);
+  if(state.current?.id!==id)clipboard.clear();state.current=session;state.composerDraftActive=false;state.capturePaused=false;applyHistory(page);
+  state.lastError=null;state.pending=null;$('#app').classList.add('in-conversation');$('#session-title').textContent=session.title||t('session.new');$('#session-subtitle').textContent=t('interaction.localSession');$('#session-menu').hidden=false;$('#message-input').value=state.drafts.get(id)||'';resizeInput();renderModelOptions();updateModeDescription();renderSessions();renderClipboard();renderMessages({forceFollow:switching});state.navigation?.go({route:'harness',screen:'session',sessionId:id,panel:null,action:null},{replace:replaceDraft});
+  return session;
 }
 async function pageHistory(direction){
   if(direction==='older')conversationFollow().pause();
@@ -236,19 +257,34 @@ async function resumeRun(){
 }
 async function sendMessage(event,textOverride=null,modeOverride=null) {
   event.preventDefault();if(!getBrowserCompatibility().supportedForHarness){renderPlatform();return;}const text=(textOverride===null?$('#message-input').value:textOverride).trim();if(!text||state.running||state.submitting||(state.current&&state.sessionActions?.isDeleting(state.current.id)))return;
+  const draftGeneration=state.current?null:state.sessionOpenGeneration;
   const sharing=capture.active||!deviceSessionAvailable()||!selectedProvider()?Promise.resolve():capture.start();
-  state.submitting=true;let resolveCompletion;state.runCompletion=new Promise(resolve=>{resolveCompletion=resolve;});let generation=null,sessionId=null,controller=null;
+  if(state.composerDraftActive)rememberComposerDraft();state.submitting=true;renderRunControls();let resolveCompletion;state.runCompletion=new Promise(resolve=>{resolveCompletion=resolve;});let generation=null,sessionId=null,controller=null,firstMessageId=null,firstSendGeneration=draftGeneration;
+  const startupCurrent=()=>draftGeneration===null||(firstSendGeneration===state.sessionOpenGeneration&&(sessionId?state.current?.id===sessionId:!state.current));
   try{
-    await sharing;const ready=await state.devicePanel?.ensureReady?.();if(!state.current&&!ready){await showDevices();toast(t('device.startHint'));return;}
+    await sharing;if(!startupCurrent())return;const ready=await state.devicePanel?.ensureReady?.();if(!startupCurrent())return;if(!state.current&&!ready){await showDevices();toast(t('device.startHint'));return;}
     if(!selectedProvider()){await showSettings('accounts');toast(t('status.configureModel'));return;}
+    if(!state.current&&(draftGeneration!==state.sessionOpenGeneration||!capture.active)){if(draftGeneration===state.sessionOpenGeneration)toast(t('interaction.startSharing'));return;}
     const mode='auto',modelId=$('#model-select').value;
-    if(!state.current)await newSession({fromSubmit:true});if(!state.current)return;
-    sessionId=state.current.id;if(state.hasNewer)await showLatestConversation();conversationFollow().follow();await state.store.updateSession(sessionId,{mode,modelId});
+    if(!state.current){
+      const draft=state.composerDraft||{reasoningEfforts:{}};
+      const created=await state.store.createSessionWithMessage({title:t('session.new'),titleState:'pending',mode,modelId,reasoningEfforts:{...draft.reasoningEfforts}},text);
+      // The first message already exists durably. Remember its session before
+      // any view/storage work that can fail; retry must never create it again.
+      sessionId=created.session.id;firstMessageId=created.message.id;state.current=created.session;state.composerDraftActive=false;state.composerDraft=null;state.archived=false;clearComposerDraft();state.messages=[created.message];state.hasOlder=state.hasNewer=false;
+      const remaining=textOverride===null&&$('#message-input').value.trim()!==text?$('#message-input').value:'';$('#message-input').value=remaining;state.drafts.set(sessionId,remaining);resizeInput();
+      if(draftGeneration!==state.sessionOpenGeneration){await refreshSessions();return;}
+      const opening=openSession(sessionId,{fromSubmit:true,replaceDraft:true});firstSendGeneration=state.sessionOpenGeneration;
+      const opened=await opening;if(opened?.id!==sessionId||!startupCurrent())return;
+      await refreshSessions();if(!startupCurrent())return;
+    }
+    if(!state.current||!startupCurrent())return;
+    sessionId=state.current.id;if(state.hasNewer){await showLatestConversation();if(!startupCurrent())return;}conversationFollow().follow();await state.store.updateSession(sessionId,{mode,modelId});if(!startupCurrent())return;
     state.capturePaused=false;generation=++state.runGeneration;controller=new AbortController();state.abort=controller;state.lastError=null;state.lastErrorProfile={name:selectedProvider()?.name||selectedProvider()?.id||'',model:selectionParts($('#model-select').value).modelId};state.pending=null;setRunning(true);$('#run-status').textContent=t('status.preparing');
-    if(textOverride===null){$('#message-input').value='';state.drafts.delete(sessionId);resizeInput();}
-    await state.skillSync;await state.harness.run({sessionId,text,mode,modelId,signal:controller.signal});
+    if(textOverride===null&&$('#message-input').value.trim()===text){$('#message-input').value='';state.drafts.delete(sessionId);resizeInput();}
+    await state.skillSync;if(!startupCurrent())return;await state.harness.run({sessionId,text,mode,modelId,...(firstMessageId?{firstMessageId}:{}),signal:controller.signal});
   }catch(error){
-    if(generation!==null&&generation===state.runGeneration)state.lastError=error;
+    if(generation!==null&&generation===state.runGeneration||firstMessageId&&startupCurrent()){state.lastError=error;if(generation===null){$('#session-title').textContent=state.current.title;$('#session-menu').hidden=false;state.navigation?.go({route:'harness',screen:'session',sessionId,panel:null,action:null},{replace:true});await refreshSessions().catch(report);if(startupCurrent())renderMessages();}}
     else report(error);
   }finally{
     try{
@@ -514,7 +550,7 @@ function validateSkill(skill) { if(!skill||typeof skill!=='object'||Array.isArra
 function viewSkill(skill) {
   const metadata=skillMetadata(skill);
   state.nextPanelView={kind:'skill-view',id:skill.id};panel(metadata.name,metadata.description,`<div class="quiet-note"><span data-no-i18n>${escapeHTML(skill.version||'local')}</span> · <span data-no-i18n>${escapeHTML(skill.id)}</span><br>${sourceLabel(skill)}</div><pre class="diagnostic-json" data-no-i18n>${escapeHTML(skill.content||skill.instructions||skill.body||'')}</pre><div class="panel-actions"><button id="back-skills" class="secondary-button">${t('skills.back')}</button>${ownedSkill(skill)?`<button id="edit-viewed-skill" class="secondary-button">${t('common.edit')}</button>${getBrowserCompatibility().supportedForHarness?`<button id="refine-viewed-skill" class="secondary-button">${t('skills.refineChat')}</button>`:''}`:''}</div>`,{titleKey:metadata.nameKey,subtitleKey:metadata.descriptionKey});
-  $('#back-skills').onclick=guard(returnFromSkillPanel);if($('#edit-viewed-skill'))$('#edit-viewed-skill').onclick=guard(()=>showSkillEditor(skill));if($('#refine-viewed-skill'))$('#refine-viewed-skill').onclick=guard(async()=>{$('#panel-dialog').close();navigate('harness');const created=await newSession();if(!created)return;await state.store.updateSession(state.current.id,{mode:'auto'});$('#message-input').value=t('skills.refineDraft',{name:skill.name,id:skill.id});resizeInput();});
+  $('#back-skills').onclick=guard(returnFromSkillPanel);if($('#edit-viewed-skill'))$('#edit-viewed-skill').onclick=guard(()=>showSkillEditor(skill));if($('#refine-viewed-skill'))$('#refine-viewed-skill').onclick=guard(async()=>{$('#panel-dialog').close();navigate('harness');const created=await newSession();if(!created)return;$('#message-input').value=t('skills.refineDraft',{name:skill.name,id:skill.id});resizeInput();rememberComposerDraft();});
 }
 function shareSkill(skill) {
   const owned=ownedSkill(skill),endpoint=communityEndpoint();
@@ -606,14 +642,17 @@ function canonicalizeLocation(){
   if(url.pathname!==pathname||url.hash!==location.hash){url.pathname=pathname;history.replaceState({...history.state,route},'',url);}
   return route;
 }
-function navigationURL(view){const url=new URL(routeHref(view.route||'harness'),location.origin),fixture=new URLSearchParams(location.search).get('fixture');if(fixture)url.searchParams.set('fixture',fixture);if(view.route==='harness'&&view.screen==='session'&&view.sessionId)url.searchParams.set('session',view.sessionId);return url;}
+function navigationURL(view){const url=new URL(routeHref(view.route||'harness'),location.origin),fixture=new URLSearchParams(location.search).get('fixture');if(fixture)url.searchParams.set('fixture',fixture);if(view.route==='harness'&&view.screen==='session'&&view.sessionId)url.searchParams.set('session',view.sessionId);if(view.route==='harness'&&view.screen==='draft')url.searchParams.set('draft','1');return url;}
 function closeNavigationDialog(dialog){if(dialog?.open){dialog.navigationClosing=true;dialog.close();}}
 async function applyNavigationView(view,{isCurrent=()=>true}={}){
-  state.panelGeneration=(state.panelGeneration||0)+1;state.sessionOpenGeneration=(state.sessionOpenGeneration||0)+1;
+  state.panelGeneration=(state.panelGeneration||0)+1;state.sessionOpenGeneration=(state.sessionOpenGeneration||0)+1;state.draftOpening=null;
   if(!view.panel)closeNavigationDialog($('#panel-dialog'));if(!view.action)closeNavigationDialog($('#action-dialog'));
   renderPlatform();if(!isCurrent())return;
   if(view.route==='harness'){
-    if(view.screen==='session'&&view.sessionId){
+    if(view.screen==='draft'){
+      if(state.running||state.submitting){toast(t('session.stopBeforeImport'));return {screen:state.current?'session':'list',sessionId:state.current?.id||null,panel:null,action:null};}
+      openComposerDraft({navigation:false});
+    }else if(view.screen==='session'&&view.sessionId){
       if((state.running||state.submitting)&&state.current?.id!==view.sessionId){$('#app').classList.remove('in-conversation');toast(t('session.stopBeforeImport'));return {screen:'list',sessionId:null,panel:null,action:null};}
       if(state.current?.id===view.sessionId)$('#app').classList.add('in-conversation');else {await openSession(view.sessionId);if(!isCurrent())return;if(state.current?.id!==view.sessionId)return {screen:'list',sessionId:null,panel:null,action:null};}
     }else $('#app').classList.remove('in-conversation');
@@ -636,11 +675,11 @@ async function applyNavigationView(view,{isCurrent=()=>true}={}){
   else if(view.action?.kind==='rename'){const session=await state.store.getSession(view.action.sessionId||state.current?.id);if(session&&isCurrent())showRenameDialog(session,{fromList:!!view.action.fromList});}
 }
 function refreshBridgeAfterNavigation(){void state.devicePanel?.refreshConnection?.().catch(report);renderDeviceStatus();}
-function rememberRouteDraft(){if(state.current)state.drafts.set(state.current.id,$('#message-input').value);}
+function rememberRouteDraft(){if(state.current)state.drafts.set(state.current.id,$('#message-input').value);else rememberComposerDraft();}
 function navigate(route,{replace=false}={}){
   if(!Object.hasOwn(canonicalRoutes,route))return;
   if(state.flashing){toast(t('flash.runningNavigation'));return;}
-  rememberRouteDraft();const url=new URL(routeHref(route),location.origin);
+  rememberRouteDraft();state.sessionOpenGeneration=(state.sessionOpenGeneration||0)+1;state.draftOpening=null;const url=new URL(routeHref(route),location.origin);
   if(state.navigation){state.navigation.go({route,panel:null,action:null},{replace});closeNavigationDialog($('#panel-dialog'));closeNavigationDialog($('#action-dialog'));}else if(url.href!==location.href)history[replace?'replaceState':'pushState']({route},'',url);
   renderPlatform();refreshBridgeAfterNavigation();
 }
@@ -761,16 +800,16 @@ async function boot() {
   $('#conversation-device').onclick=guard(showDevices);$('#open-settings').onclick=guard(showSettings);$('#open-devices').onclick=guard(showDevices);
   $('#conversation-latest').onclick=guard(showLatestConversation);
   $('#resume-run').onclick=guard(resumeRun);capture.subscribe(event=>{state.deviceStatus=state.devicePanel?.getState?.();updateModeDescription();renderDeviceStatus();if(event.type==='stopped'&&state.running){$('#run-status').textContent=t('interaction.shareStopped');}renderRunControls();});
-  $('#composer').onsubmit=guard(sendMessage);$('#message-input').oninput=resizeInput;$('#stop-run').onclick=()=>{state.harness.stop();state.abort?.abort();$('#run-status').textContent='正在停止…';};
-  $('#reasoning-select').onchange=guard(async()=>{const profile=selectedProvider();if(!profile)return;const model=selectionParts($('#model-select').value).modelId||profile.model,key=profile.id+'::'+model,value=normalizeReasoningEffort({...profile,model},$('#reasoning-select').value);if(state.current){const id=state.current.id,reasoningEfforts={...state.current.reasoningEfforts,[key]:value};await state.store.updateSession(id,{reasoningEfforts});if(state.current?.id===id)state.current.reasoningEfforts=reasoningEfforts;}else state.settings=await state.store.saveSettings({reasoningEfforts:{...state.settings.reasoningEfforts,[key]:value}});renderReasoningOptions();});
-  $('#model-select').onchange=guard(async()=>{const selection=$('#model-select').value,resolved=selectedProvider();$('#model-select').title=resolved?`${resolved.name} · ${selectionParts(selection).modelId}`:t('provider.chooseAccountModel');renderReasoningOptions();if(state.current){const id=state.current.id;await state.store.updateSession(id,{modelId:selection});if(state.current?.id===id)state.current.modelId=selection;}});
+  $('#composer').onsubmit=guard(sendMessage);$('#message-input').oninput=()=>{resizeInput();rememberComposerDraft();};$('#stop-run').onclick=()=>{state.harness.stop();state.abort?.abort();$('#run-status').textContent='正在停止…';};
+  $('#reasoning-select').onchange=guard(changeReasoningSelection);
+  $('#model-select').onchange=guard(changeModelSelection);
   $('#panel-dialog').addEventListener('close',()=>{const historyClose=$('#panel-dialog').navigationClosing;$('#panel-dialog').navigationClosing=false;if($('#panel-dialog').open)return;if(!historyClose&&state.navigation&&!state.navigation.restoring)void state.navigation.dismissPanel().catch(report);state.panelGeneration=(state.panelGeneration||0)+1;state.devicePanel?.dispose();discardProviderDraft();state.codexAbort?.abort();state.modelsAbort?.abort();state.mcpPanel?.disposeView();});
   $('#action-dialog').addEventListener('close',()=>{if($('#action-dialog').navigationClosing){$('#action-dialog').navigationClosing=false;return;}if($('#action-dialog').open)return;if(state.navigation&&!state.navigation.restoring)void state.navigation.dismissAction().catch(report);});
   $$('dialog').forEach(dialog=>dialog.addEventListener('close',()=>{if(dialog.contains(toastNode))hideToast(toastNode);}));
   $$('dialog').forEach(dialog=>dialog.addEventListener('click',event=>{if(event.target===dialog){const rect=dialog.getBoundingClientRect();if(event.clientX<rect.left||event.clientX>rect.right||event.clientY<rect.top||event.clientY>rect.bottom)dialog.close();}}));
   mountViewport();const followLayout=()=>state.conversationFollow?.afterRender();window.addEventListener('resize',followLayout);window.visualViewport?.addEventListener('resize',followLayout);
   renderDeviceStatus();renderModelOptions();renderMessages();await refreshSessions();$('#app').inert=false;localizeView();renderPlatform();
-  const params=new URLSearchParams(location.search);const sessionId=params.get('session');if(sessionId)await openSession(sessionId);state.navigation=createViewNavigation({history,location,urlForView:navigationURL,applyView:applyNavigationView,initialView:{route:routeForPath(location.pathname)||'main',screen:sessionId?'session':'list',sessionId:sessionId||null,panel:null,action:null}});if(pendingDeviceSetup)await showDevices();else if(state.navigation.current.panel||state.navigation.current.action)await state.navigation.restoreCurrent();
-  window.addEventListener('pageshow',event=>{refreshBridgeAfterNavigation();if(event.persisted&&pendingDeviceSetupReturn({consume:true}))void showDevices().catch(report);});window.addEventListener('focus',refreshBridgeAfterNavigation);document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')refreshBridgeAfterNavigation();});
+  const params=new URLSearchParams(location.search);const sessionId=params.get('session'),draftRequested=!sessionId&&(params.get('draft')==='1'||history.state?.iahView?.screen==='draft');if(sessionId)await openSession(sessionId);else if(draftRequested)openComposerDraft({navigation:false});state.navigation=createViewNavigation({history,location,urlForView:navigationURL,applyView:applyNavigationView,initialView:{route:routeForPath(location.pathname)||'main',screen:sessionId?'session':draftRequested?'draft':'list',sessionId:sessionId||null,panel:null,action:null}});if(pendingDeviceSetup)await showDevices();else if(state.navigation.current.panel||state.navigation.current.action)await state.navigation.restoreCurrent();
+  window.addEventListener('pagehide',rememberRouteDraft);window.addEventListener('pageshow',event=>{refreshBridgeAfterNavigation();if(event.persisted&&pendingDeviceSetupReturn({consume:true}))void showDevices().catch(report);});window.addEventListener('focus',refreshBridgeAfterNavigation);document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')refreshBridgeAfterNavigation();});
 }
 boot().catch(error=>{console.error(error);state.bootError=error;$('#app').inert=true;renderPlatform();toast(localizeError(error));});

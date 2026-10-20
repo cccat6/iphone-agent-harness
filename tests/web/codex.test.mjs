@@ -135,3 +135,27 @@ test('aborting a pending response read cancels and unlocks the reader',async()=>
 test('subscription HTTP and SSE context-window failures carry the recovery code without raw server text',async()=>{
  register();for(const fetchImpl of [async()=>Response.json({error:{code:'context_length_exceeded',message:'raw sensitive request text'}},{status:400}),async()=>response([{type:'response.failed',response:{error:{code:'context_length_exceeded',message:'raw sensitive request text'}}}])])await assert.rejects(callCodexModel({provider,messages:[],fetchImpl}),e=>e.code==='CONTEXT_WINDOW_EXCEEDED'&&!e.message.includes('sensitive'));
 });
+
+test('Codex catalog GET uses only JSON accept and account-scoped authorization headers',async()=>{
+ register('a');register('b');const original=getCodexAccount('b').exportTokens();
+ const result=await discoverCodexModels({accountId:'b',clientVersion:'0.1.0',fetchImpl:async(url,options)=>{
+  assert.equal(new URL(url).origin,'https://chatgpt.com');assert.equal(new URL(url).pathname,'/backend-api/codex/models');assert.equal(new URL(url).searchParams.get('client_version'),'0.1.0');
+  assert.equal(options.method||'GET','GET');assert.equal(options.body,undefined);assert.equal(options.credentials,'omit');
+  assert.deepEqual(options.headers,{authorization:'Bearer '+token('b'),accept:'application/json','chatgpt-account-id':'b'});
+  return Response.json({models:[{slug:'older-unlabelled',display_name:'Older model'},{slug:'hidden',visibility:'hide'},{slug:'listed',visibility:'list',context_window:100000}]});
+ }});
+ assert.deepEqual(result.map(item=>item.id),['older-unlabelled','listed']);assert.equal(result[1].contextWindowTokens,100000);assert.deepEqual(getCodexAccount('b').exportTokens(),original);
+});
+
+test('ChatGPT plan catalog keeps only list-visible models in server order without Codex inference headers',async()=>{
+ registerCodexAccount('plan-catalog',{access_token:'fixture-plan-access',flow:'chatgpt-plan',clientId:'oaiapp_fixture',identityVerified:true,scopes:['chatgpt.tokens.use.direct'],expires_in:3600});
+ const result=await discoverCodexModels({accountId:'plan-catalog',fetchImpl:async(url,options)=>{
+  assert.equal(url,CODEX_ENDPOINTS.planModels);assert.deepEqual(options.headers,{authorization:'Bearer fixture-plan-access',accept:'application/json'});
+  return Response.json({models:[{slug:'second',display_name:'Second listed model',visibility:'list'},{slug:'hidden',visibility:'hide'},{slug:'unlabelled'},{slug:'first',visibility:'list'},{slug:'unknown-visibility',visibility:'other'},null,{visibility:'list'}]});
+ }});
+ assert.deepEqual(result.map(item=>item.id),['second','first']);assert.equal(result[0].name,'Second listed model');assert.ok(result.every(item=>item.catalogOnly));assert.equal(getCodexAccount('plan-catalog').flow,'chatgpt-plan');
+});
+
+test('legacy Codex data-array catalogs without visibility remain usable',async()=>{
+ register('a');const result=await discoverCodexModels({accountId:'a',fetchImpl:async()=>Response.json({data:[{id:'old-a'},{id:'old-b',visibility:'list'},{id:'hidden',visibility:'hide'}]})});assert.deepEqual(result.map(item=>item.id),['old-a','old-b']);assert.equal(getCodexAccount('a').flow,'codex');
+});
