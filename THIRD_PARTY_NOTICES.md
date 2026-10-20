@@ -15,4 +15,4 @@ Firmware uses the pinned upstream toolchain. The complete RTC TLS family is reta
 
 This project does not redistribute Claude Code or Cursor internal source. Vendor code retains its upstream license and is not relicensed by the root project license.
 
-The four interface icons `new-session.svg`, `settings.svg`, `search.svg`, and `skills.svg` come from [Lucide](https://github.com/lucide-icons/lucide), under the ISC license retained at `apps/web/icons/LUCIDE-LICENSE`.
+Navigation, settings, and action icons come from [Lucide](https://github.com/lucide-icons/lucide), under the ISC license, with MIT notices for Feather-derived icons, retained at `apps/web/icons/LUCIDE-LICENSE`.

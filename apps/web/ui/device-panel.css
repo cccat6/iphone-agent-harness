@@ -37,3 +37,10 @@
 .device-test-success strong{font-size:1rem;overflow-wrap:anywhere}
 .device-test-success-icon{display:grid;place-items:center;flex:0 0 28px;width:28px;height:28px;border-radius:50%;background:#187144;color:#fff;font-size:18px;font-weight:700}
 @media(prefers-color-scheme:dark){.device-test-success{background:#123426;border-color:#367759;color:#b9f0cf}.device-test-success-icon{background:#80ddb0;color:#103b27}}
+
+.device-step{background:#fff;border-color:#e0e7e2;border-radius:16px;box-shadow:0 2px 8px #173e3603;padding:18px}
+.device-step h3{font-size:15px;font-weight:650;color:#304b3d;margin-bottom:14px}
+.device-info-step{border-color:#c5dace;background:#fbfdfb}.device-step[data-unavailable="true"]{border-style:solid;background:#f9fbfa}
+.device-settings-link{margin-top:4px;text-decoration:none}.device-step .panel-actions{margin-top:14px}
+.device-configuration>summary{font-size:13px}.device-step .quiet-note{color:#68796f}
+@media(max-width:430px){.device-step{padding:16px}}
