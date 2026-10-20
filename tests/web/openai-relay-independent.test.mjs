@@ -56,3 +56,12 @@ test('independent relay: request abort releases an idle upstream reader immediat
  controller.abort();await wait(0);
  try{assert.equal(cancels,1);assert.equal(upstream.locked,false);}finally{await response.body.cancel();}
 });
+test('independent relay: main service binding forwards the original request and streaming response',async()=>{
+ const {default:main}=await import('../../apps/web/worker.js');
+ for(const [path,method]of [['models','GET'],['responses','POST']]){
+  const input=new Request('https://igent.cc/api/openai/'+path,{method,headers:{origin,authorization:'Bearer fixture-access',...(method==='POST'?{'content-type':'application/json'}:{})},...(method==='POST'?{body:'{"input":"synthetic"}'}:{})});
+  const upstream=new Response(new ReadableStream({start(c){c.enqueue(new Uint8Array([1,2,3]));c.close();}}));let seen;
+  const env=new Proxy({OPENAI_RELAY:{fetch:async received=>{seen=received;return upstream;}}},{get(target,key){if(key==='OPENAI_RELAY')return target[key];throw Error('Unrelated binding accessed');}});
+  const result=await main.fetch(input,env,{});assert.equal(seen,input);assert.equal(input.bodyUsed,false);assert.equal(result,upstream);assert.deepEqual(new Uint8Array(await result.arrayBuffer()),new Uint8Array([1,2,3]));
+ }
+});

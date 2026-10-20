@@ -68,7 +68,7 @@
 
 ChatGPT 订阅的高级设置 **高级连接设置 → 自建转发地址** 默认为 `https://igent.cc/api/openai`，也可填写自建服务的地址前缀。保存账号不要求先取得模型列表，之后可以再获取。
 
-仅自建转发服务时，在 `wrangler.relay.jsonc` 中将 `ALLOWED_ORIGINS` 设为网页来源（多个来源用逗号分隔），执行 `npx wrangler deploy --config wrangler.relay.jsonc`，再把部署地址加上 `/api/openai` 填入 **高级连接设置 → 自建转发地址**。服务仅提供 `GET /api/openai/models` 和 `POST /api/openai/responses`，无需配置 OpenAI 密钥、数据库或 KV，也可搭配官方托管的 Harness。
+仅自建转发服务时，在 `wrangler.relay.jsonc` 中将 `ALLOWED_ORIGINS` 设为网页来源（多个来源用逗号分隔），执行 `npx wrangler deploy --config wrangler.relay.jsonc`，再把部署地址加上 `/api/openai` 填入 **高级连接设置 → 自建转发地址**。服务仅提供 `GET /api/openai/models` 和 `POST /api/openai/responses`，无需配置 OpenAI 密钥、数据库或 KV，也可搭配官方托管的 Harness。 自建转发服务默认在 `aws:us-east-1` 执行，可在配置中按上游服务支持的区域调整。
 
 ### 定位
 

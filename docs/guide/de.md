@@ -68,7 +68,7 @@ Sitzungen, Screenshots und Zugangsdaten werden im Browser gespeichert. Normale A
 
 In den erweiterten ChatGPT-Einstellungen ist **Erweiterte Verbindungseinstellungen → Eigene Vermittlungs-URL** standardmäßig `https://igent.cc/api/openai`. Du kannst die URL-Basis deines eigenen Relays eintragen. Das Konto lässt sich auch ohne Modellliste speichern; die Liste kannst du später abrufen.
 
-Für einen eigenen Relay trage deinen Website-Origin in `ALLOWED_ORIGINS` in `wrangler.relay.jsonc` ein (mehrere durch Kommas getrennt), führe `npx wrangler deploy --config wrangler.relay.jsonc` aus und trage die veröffentlichte URL mit `/api/openai` als **Erweiterte Verbindungseinstellungen → Eigene Vermittlungs-URL** ein. Unterstützt werden nur `GET /api/openai/models` und `POST /api/openai/responses`. OpenAI-Schlüssel, Datenbank oder KV sind nicht nötig; auch der gehostete Harness funktioniert damit.
+Für einen eigenen Relay trage deinen Website-Origin in `ALLOWED_ORIGINS` in `wrangler.relay.jsonc` ein (mehrere durch Kommas getrennt), führe `npx wrangler deploy --config wrangler.relay.jsonc` aus und trage die veröffentlichte URL mit `/api/openai` als **Erweiterte Verbindungseinstellungen → Eigene Vermittlungs-URL** ein. Unterstützt werden nur `GET /api/openai/models` und `POST /api/openai/responses`. OpenAI-Schlüssel, Datenbank oder KV sind nicht nötig; auch der gehostete Harness funktioniert damit. Der Relay wird standardmäßig in `aws:us-east-1` ausgeführt; passe die Region in der Konfiguration an den vorgelagerten Dienst an.
 
 ### Standort
 

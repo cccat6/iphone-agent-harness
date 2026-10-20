@@ -7,7 +7,7 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     if(url.pathname==='/api/openai/jwks')return serveOpenAIPublicKeys(request,{keyCache:env.OPENAI_PUBLIC_KEYS,context:ctx});
-    if(url.pathname==='/api/openai/models'||url.pathname==='/api/openai/responses')return serveOpenAIRelay(request,{allowedOrigins:env.ALLOWED_ORIGINS});
+    if(url.pathname==='/api/openai/models'||url.pathname==='/api/openai/responses')return env.OPENAI_RELAY?env.OPENAI_RELAY.fetch(request):serveOpenAIRelay(request,{allowedOrigins:env.ALLOWED_ORIGINS});
     if (url.pathname === '/api' || url.pathname.startsWith('/api/')) {
       url.pathname = url.pathname.slice(4) || '/';
       return community.fetch(new Request(url, request), env, ctx);

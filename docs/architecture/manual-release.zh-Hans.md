@@ -12,14 +12,14 @@
 4. 校验源码来源、依赖、烧录地址、分区范围、大小及 SHA-256。
 5. 构建网站，包含所选固件和烧录清单。
 6. 发布 `firmware-<完整输入SHA256>`。每个 Release 包含 28 个二进制分区文件、烧录清单、编译报告、输入记录、完整归档和 `SHA256SUMS`。草稿上传可续传，已发布且匹配的版本直接复用。发布文件校验通过后，将该版本设为 GitHub Latest。
-7. 更新社区数据库结构，将 Worker 和网站部署到 `igent.cc`。
+7. 更新社区数据库结构，先使用 `wrangler.relay.production.jsonc` 部署区域转发 Worker，再将网站 Worker 部署到 `igent.cc`。网站通过 `OPENAI_RELAY` 服务绑定调用转发 Worker，转发 Worker 不开放公共路由，也不绑定存储。
 8. 读取线上文件，与构建文件逐一比较哈希，将校验报告保存为 Actions 产物。
 
 只修改网页时，重新构建网站并复用现有固件。网站部署失败后再次运行，也会复用已经发布且匹配的固件。
 
 ## 部署凭据
 
-在 [GitHub Actions Secrets](https://github.com/cccat6/iphone-agent-harness/settings/secrets/actions) 设置 `CLOUDFLARE_API_TOKEN`。令牌使用当前账号和 `igent.cc` 区域，具有 Workers Scripts 编辑、Workers Routes 编辑、Zone 读取及 D1 编辑权限。账号、Worker、域名和数据库配置见 [wrangler.jsonc](../../wrangler.jsonc)。
+在 [GitHub Actions Secrets](https://github.com/cccat6/iphone-agent-harness/settings/secrets/actions) 设置 `CLOUDFLARE_API_TOKEN`。令牌使用当前账号和 `igent.cc` 区域，具有 Workers Scripts 编辑、Workers Routes 编辑、Zone 读取及 D1 编辑权限。网站、服务绑定、数据库和公共公钥缓存配置见 [wrangler.jsonc](../../wrangler.jsonc)；区域转发配置见 [wrangler.relay.production.jsonc](../../wrangler.relay.production.jsonc)，默认执行区域为 `aws:us-east-1`。
 
 ## 维护命令
 
@@ -28,6 +28,7 @@ python3 tools/firmware_release.py plan --offline
 python3 tools/firmware_release.py verify
 python3 tools/firmware_release_test.py
 npm run build
+npx wrangler deploy --config wrangler.relay.production.jsonc --dry-run
 npx wrangler deploy --dry-run
 ```
 

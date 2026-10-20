@@ -68,7 +68,7 @@
 
 ChatGPT 訂閱的進階設定 **進階連線設定 → 自建轉送位址** 預設為 `https://igent.cc/api/openai`，也可填入自行架設服務的網址前綴。儲存帳號不必先取得模型清單，之後可再取得。
 
-只架設轉送服務時，在 `wrangler.relay.jsonc` 將 `ALLOWED_ORIGINS` 設為網頁來源（多個來源以逗號分隔），執行 `npx wrangler deploy --config wrangler.relay.jsonc`，再將部署網址加上 `/api/openai` 填入 **進階連線設定 → 自建轉送位址**。服務只提供 `GET /api/openai/models` 與 `POST /api/openai/responses`，不需 OpenAI 金鑰、資料庫或 KV，也可搭配官方託管的 Harness。
+只架設轉送服務時，在 `wrangler.relay.jsonc` 將 `ALLOWED_ORIGINS` 設為網頁來源（多個來源以逗號分隔），執行 `npx wrangler deploy --config wrangler.relay.jsonc`，再將部署網址加上 `/api/openai` 填入 **進階連線設定 → 自建轉送位址**。服務只提供 `GET /api/openai/models` 與 `POST /api/openai/responses`，不需 OpenAI 金鑰、資料庫或 KV，也可搭配官方託管的 Harness。 自建轉送服務預設在 `aws:us-east-1` 執行，可依上游服務支援的區域調整設定。
 
 ### 定位
 

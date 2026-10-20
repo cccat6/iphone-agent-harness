@@ -68,7 +68,7 @@ Bluetooth передаёт нажатия телефону. Подключени
 
 В расширенных настройках ChatGPT параметр **Дополнительные настройки подключения → URL своего ретранслятора** по умолчанию равен `https://igent.cc/api/openai`. Можно указать префикс своего ретранслятора. Аккаунт можно сохранить без списка моделей и получить его позже.
 
-Для своего ретранслятора задайте origin сайта в `ALLOWED_ORIGINS` файла `wrangler.relay.jsonc` (несколько — через запятую), выполните `npx wrangler deploy --config wrangler.relay.jsonc` и впишите адрес Worker с `/api/openai` в **Дополнительные настройки подключения → URL своего ретранслятора**. Доступны только `GET /api/openai/models` и `POST /api/openai/responses`. Ключ OpenAI, БД и KV не нужны; можно использовать размещённый Harness.
+Для своего ретранслятора задайте origin сайта в `ALLOWED_ORIGINS` файла `wrangler.relay.jsonc` (несколько — через запятую), выполните `npx wrangler deploy --config wrangler.relay.jsonc` и впишите адрес Worker с `/api/openai` в **Дополнительные настройки подключения → URL своего ретранслятора**. Доступны только `GET /api/openai/models` и `POST /api/openai/responses`. Ключ OpenAI, БД и KV не нужны; можно использовать размещённый Harness. По умолчанию ретранслятор выполняется в `aws:us-east-1`; регион можно изменить в конфигурации с учётом сервиса OpenAI.
 
 ### Местоположение
 

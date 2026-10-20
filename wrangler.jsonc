@@ -46,5 +46,11 @@
   ],
   "vars": {
     "ALLOWED_ORIGINS": "https://igent.cc"
-  }
+  },
+  "services": [
+    {
+      "binding": "OPENAI_RELAY",
+      "service": "igent-openai-relay"
+    }
+  ]
 }

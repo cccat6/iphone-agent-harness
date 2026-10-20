@@ -68,7 +68,7 @@ Las sesiones, capturas y credenciales se guardan en el navegador. Las API normal
 
 En las opciones avanzadas de ChatGPT, **Configuración de conexión avanzada → URL de tu servicio de reenvío** usa por defecto `https://igent.cc/api/openai`. Puedes indicar el prefijo de tu propio relé. Puedes guardar la cuenta sin obtener la lista de modelos y consultarla después.
 
-Para alojar solo el relé, configura `ALLOWED_ORIGINS` en `wrangler.relay.jsonc` con el origen web (varios separados por comas), ejecuta `npx wrangler deploy --config wrangler.relay.jsonc` e introduce la URL publicada seguida de `/api/openai` en **Configuración de conexión avanzada → URL de tu servicio de reenvío**. Solo ofrece `GET /api/openai/models` y `POST /api/openai/responses`. No necesita clave OpenAI, base de datos ni KV y funciona también con Harness alojado.
+Para alojar solo el relé, configura `ALLOWED_ORIGINS` en `wrangler.relay.jsonc` con el origen web (varios separados por comas), ejecuta `npx wrangler deploy --config wrangler.relay.jsonc` e introduce la URL publicada seguida de `/api/openai` en **Configuración de conexión avanzada → URL de tu servicio de reenvío**. Solo ofrece `GET /api/openai/models` y `POST /api/openai/responses`. No necesita clave OpenAI, base de datos ni KV y funciona también con Harness alojado. El relé se ejecuta por defecto en `aws:us-east-1`; puedes ajustar la región en su configuración según el servicio de destino.
 
 ### Ubicación
 

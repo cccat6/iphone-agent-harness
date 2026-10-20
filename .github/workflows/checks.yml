@@ -11,6 +11,7 @@ concurrency:
 
 env:
   CLOUDFLARE_SEND_METRICS: 'false'
+  CLOUDFLARE_ACCOUNT_ID: '930fbb0ded7a94817e4b30b0e9e43739'
 
 jobs:
   release:
@@ -91,11 +92,16 @@ jobs:
       - name: Build website with the selected firmware binaries
         run: |
           npm run build
+          ./node_modules/.bin/wrangler deploy --config wrangler.relay.production.jsonc --dry-run --outdir build/relay-worker-dry-run
           ./node_modules/.bin/wrangler deploy --dry-run --outdir build/worker-dry-run
       - name: Publish or reuse immutable firmware Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: python3 tools/firmware_release.py publish
+      - name: Deploy the regional subscription relay
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: ./node_modules/.bin/wrangler deploy --config wrangler.relay.production.jsonc
       - name: Deploy website and firmware together to Cloudflare
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

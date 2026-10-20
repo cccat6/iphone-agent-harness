@@ -2,8 +2,15 @@
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "iphone-agent-subscription-relay",
   "main": "apps/web/api/openai-relay-worker.js",
-  "compatibility_date": "2026-10-21",
+  "compatibility_date": "2026-10-20",
   "workers_dev": true,
-  "observability": { "enabled": false },
-  "vars": { "ALLOWED_ORIGINS": "https://igent.cc" }
+  "observability": {
+    "enabled": false
+  },
+  "vars": {
+    "ALLOWED_ORIGINS": "https://igent.cc"
+  },
+  "placement": {
+    "region": "aws:us-east-1"
+  }
 }

@@ -68,7 +68,7 @@ Harnessで「ChatGPT サブスクリプション」を選び、「ChatGPT で続
 
 ChatGPTの詳細設定 **接続の詳細設定 → 独自の中継 URL** は既定で `https://igent.cc/api/openai` です。自分の中継URLプレフィックスにも変更できます。モデル一覧を取得できなくてもアカウントを保存し、後で取得できます。
 
-中継だけを設置する場合、`wrangler.relay.jsonc` の `ALLOWED_ORIGINS` をウェブサイトのオリジンに設定し（複数はカンマ区切り）、`npx wrangler deploy --config wrangler.relay.jsonc` を実行します。公開URLに `/api/openai` を付けて **接続の詳細設定 → 独自の中継 URL** に入力してください。対応は `GET /api/openai/models` と `POST /api/openai/responses` のみで、OpenAIキー・DB・KVは不要です。公開版Harnessからも使えます。
+中継だけを設置する場合、`wrangler.relay.jsonc` の `ALLOWED_ORIGINS` をウェブサイトのオリジンに設定し（複数はカンマ区切り）、`npx wrangler deploy --config wrangler.relay.jsonc` を実行します。公開URLに `/api/openai` を付けて **接続の詳細設定 → 独自の中継 URL** に入力してください。対応は `GET /api/openai/models` と `POST /api/openai/responses` のみで、OpenAIキー・DB・KVは不要です。公開版Harnessからも使えます。 中継の実行リージョンは既定で `aws:us-east-1` です。接続先サービスに合わせて設定を変更できます。
 
 ### 位置情報
 

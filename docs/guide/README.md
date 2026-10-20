@@ -68,7 +68,7 @@ Sessions, screenshots and credentials are saved persistently in your browser. Or
 
 For ChatGPT subscriptions, the advanced **Advanced connection settings → Custom relay URL** defaults to `https://igent.cc/api/openai`. You can replace it with your own relay prefix. Saving an account does not require a model list; you can fetch models later.
 
-To host only the relay, set `ALLOWED_ORIGINS` in `wrangler.relay.jsonc` to your web origin (comma-separated for several), then run `npx wrangler deploy --config wrangler.relay.jsonc`. Enter the deployed URL followed by `/api/openai` as **Advanced connection settings → Custom relay URL**. It serves only `GET /api/openai/models` and `POST /api/openai/responses`, needs no OpenAI secret, database or KV, and also works with the hosted Harness.
+To host only the relay, set `ALLOWED_ORIGINS` in `wrangler.relay.jsonc` to your web origin (comma-separated for several), then run `npx wrangler deploy --config wrangler.relay.jsonc`. Enter the deployed URL followed by `/api/openai` as **Advanced connection settings → Custom relay URL**. It serves only `GET /api/openai/models` and `POST /api/openai/responses`, needs no OpenAI secret, database or KV, and also works with the hosted Harness. The relay defaults to execution in `aws:us-east-1`; adjust the region in its configuration for the upstream service.
 
 ### Location
 

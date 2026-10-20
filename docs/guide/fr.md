@@ -68,7 +68,7 @@ Les sessions, captures et identifiants sont enregistrés dans le navigateur. Les
 
 Dans les options avancées de ChatGPT, **Paramètres de connexion avancés → URL de votre relais** vaut par défaut `https://igent.cc/api/openai`. Vous pouvez saisir le préfixe de votre relais. Le compte peut être enregistré sans liste de modèles, puis la récupérer plus tard.
 
-Pour héberger uniquement le relais, indiquez l’origine du site dans `ALLOWED_ORIGINS` de `wrangler.relay.jsonc` (plusieurs séparées par des virgules), lancez `npx wrangler deploy --config wrangler.relay.jsonc`, puis saisissez l’URL publiée suivie de `/api/openai` dans **Paramètres de connexion avancés → URL de votre relais**. Seuls `GET /api/openai/models` et `POST /api/openai/responses` sont disponibles. Aucune clé OpenAI, base de données ou KV n’est nécessaire ; le Harness hébergé peut aussi l’utiliser.
+Pour héberger uniquement le relais, indiquez l’origine du site dans `ALLOWED_ORIGINS` de `wrangler.relay.jsonc` (plusieurs séparées par des virgules), lancez `npx wrangler deploy --config wrangler.relay.jsonc`, puis saisissez l’URL publiée suivie de `/api/openai` dans **Paramètres de connexion avancés → URL de votre relais**. Seuls `GET /api/openai/models` et `POST /api/openai/responses` sont disponibles. Aucune clé OpenAI, base de données ou KV n’est nécessaire ; le Harness hébergé peut aussi l’utiliser. Le relais s’exécute par défaut dans `aws:us-east-1` ; adaptez la région dans sa configuration au service en amont.
 
 ### Localisation
 
