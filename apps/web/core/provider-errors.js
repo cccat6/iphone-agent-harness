@@ -10,6 +10,7 @@ export function contextOverflowError(data){
 }
 export async function readProviderFailure(response,{signal}={}){
  let data;try{data=JSON.parse(await readText(response,{maxBytes:64000,signal}));}catch{if(signal?.aborted)throw signal.reason||new DOMException('Aborted','AbortError');}
+ if(response.status===403&&data?.error?.code==='unsupported_country_region_territory')return Object.assign(new Error('PROVIDER_REGION_UNSUPPORTED (HTTP 403)'),{code:'PROVIDER_REGION_UNSUPPORTED',status:403});
  const code=response.status===401?'PROVIDER_AUTH_REJECTED':response.status===402?'PROVIDER_PAYMENT_REQUIRED':response.status===403?'PROVIDER_ACCESS_DENIED':'PROVIDER_HTTP_ERROR';
  return contextOverflowError(data)||Object.assign(new Error(`${code} (HTTP ${response.status})`),{code,status:response.status});
 }
