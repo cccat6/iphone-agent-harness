@@ -7,7 +7,7 @@ const key={kid:'test-key',kty:'RSA',n:'a'.repeat(342),e:'AQAB',alg:'RS256',use:'
 test('public key endpoint fetches only the fixed official URL without forwarding browser data',async()=>{
  let call;const result=await serveOpenAIPublicKeys(new Request(endpoint,{headers:{Origin:'https://selfhost.example','X-Extra':'ignored'}}),{fetchImpl:async(url,options)=>{call={url,options};return Response.json({keys:[{...key,key_ops:['verify'],extra:'not forwarded'}]});}});
  assert.equal(result.status,200);assert.equal(result.headers.get('access-control-allow-origin'),'*');assert.equal(result.headers.get('cache-control'),'no-store');
- assert.equal(call.url,'https://auth.openai.com/.well-known/jwks.json');assert.deepEqual(call.options.headers,{Accept:'application/json'});assert.equal(call.options.credentials,'omit');assert.equal(call.options.redirect,'error');assert.equal(call.options.body,undefined);
+ assert.equal(call.url,'https://auth.openai.com/.well-known/jwks.json');assert.deepEqual(call.options.headers,{Accept:'application/json'});assert.equal(call.options.credentials,'omit');assert.equal(call.options.redirect,'manual');assert.equal(call.options.body,undefined);
  assert.deepEqual(await result.json(),{keys:[key]});
 });
 test('account credentials, caller URLs and POST bodies are rejected without any upstream call',async()=>{
@@ -19,7 +19,7 @@ test('account credentials, caller URLs and POST bodies are rejected without any 
 });
 test('malformed, private, duplicate and excessive key sets fail without echoing upstream content',async()=>{
  for(const value of [{keys:[]},{keys:[{...key,d:'private-material'}]},{keys:[key,key]},{keys:[{...key,alg:'none'}]},{keys:[{...key,n:'short'}]}, {keys:Array(33).fill(key)}]){
-  const result=await serveOpenAIPublicKeys(new Request(endpoint),{fetchImpl:async()=>Response.json(value)});assert.equal(result.status,502);assert.deepEqual(await result.json(),{error:'public_keys_unavailable'});
+  const result=await serveOpenAIPublicKeys(new Request(endpoint),{fetchImpl:async()=>Response.json(value)});assert.equal(result.status,502);assert.deepEqual(await result.json(),{error:'public_keys_unavailable',phase:'body',upstreamStatus:200});
  }
  const failed=await serveOpenAIPublicKeys(new Request(endpoint),{fetchImpl:async()=>new Response('upstream private diagnostic',{status:503})});assert.equal(failed.status,502);assert.doesNotMatch(await failed.text(),/private diagnostic/);
 });
@@ -27,6 +27,16 @@ test('streaming public-key responses are bounded even without Content-Length',as
  let cancelled=false;const response=new Response(new ReadableStream({pull(controller){controller.enqueue(new Uint8Array(40000));},cancel(){cancelled=true;}}));
  const result=await serveOpenAIPublicKeys(new Request(endpoint),{fetchImpl:async()=>response});assert.equal(result.status,502);assert.equal(cancelled,true);
  const announced=await serveOpenAIPublicKeys(new Request(endpoint),{fetchImpl:async()=>new Response('{}',{headers:{'Content-Length':'1000000'}})});assert.equal(announced.status,502);
+});
+test('public key redirects are rejected without following their destination',async()=>{
+ for(const status of [302,307]){
+  let calls=0;
+  const result=await serveOpenAIPublicKeys(new Request(endpoint),{fetchImpl:async(url,options)=>{
+   calls++;assert.equal(url,'https://auth.openai.com/.well-known/jwks.json');assert.equal(options.redirect,'manual');
+   return new Response(null,{status,headers:{Location:'https://elsewhere.example/keys'}});
+  }});
+  assert.equal(calls,1);assert.equal(result.status,502);assert.deepEqual(await result.json(),{error:'public_keys_unavailable',phase:'upstream',upstreamStatus:status});
+ }
 });
 test('public-key route is independent of community storage and static assets',async t=>{
  let calls=0;t.mock.method(globalThis,'fetch',async()=>{calls++;return Response.json({keys:[key]});});

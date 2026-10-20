@@ -29,9 +29,12 @@ export async function serveOpenAIPublicKeys(request,{fetchImpl=globalThis.fetch}
  if(new URL(request.url).search||request.headers.has('authorization')||request.headers.has('cookie'))return response({error:'public_keys_only'},400);
  if(request.method==='OPTIONS')return new Response(null,{status:204,headers:{'Access-Control-Allow-Origin':'*','Access-Control-Allow-Methods':'GET, OPTIONS','Cache-Control':'no-store'}});
  if(request.method!=='GET')return new Response(null,{status:405,headers:{Allow:'GET, OPTIONS','Access-Control-Allow-Origin':'*','Cache-Control':'no-store'}});
+ let phase='fetch',upstreamStatus=0;
  try{
-  const upstream=await fetchImpl(KEY_URL,{method:'GET',headers:{Accept:'application/json'},credentials:'omit',redirect:'error',cache:'no-store',signal:AbortSignal.timeout(8000)});
+  const upstream=await fetchImpl.call(globalThis,KEY_URL,{method:'GET',headers:{Accept:'application/json'},credentials:'omit',redirect:'manual',cache:'no-store',signal:AbortSignal.timeout(8000)});
+  phase='upstream';upstreamStatus=upstream.status;
   if(upstream.status!==200){await upstream.body?.cancel();throw new Error('key_service_unavailable');}
+  phase='body';
   return response(await readKeys(upstream));
- }catch{return response({error:'public_keys_unavailable'},502);}
+ }catch{return response({error:'public_keys_unavailable',phase,...(upstreamStatus?{upstreamStatus}:{})},502);}
 }
