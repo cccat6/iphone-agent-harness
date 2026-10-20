@@ -368,10 +368,10 @@ async function showSettings(section='home') {
 <div id="panel-status" class="status-box" hidden></div>`);
   const accountsGeneration=state.panelGeneration;
   $('#add-provider').onclick=()=>renderProviderForm();
-  $$('[data-provider-edit]').forEach(button=>button.onclick=()=>renderProviderForm(list.find(provider=>provider.id===button.dataset.providerEdit)));
+  $$('[data-provider-edit]').forEach(button=>button.onclick=()=>renderProviderForm(providers().find(provider=>provider.id===button.dataset.providerEdit)));
   $$('[data-provider-refresh]').forEach(button=>button.onclick=guard(async()=>{
     if(button.disabled)return;state.modelsAbort?.abort();const controller=new AbortController();state.modelsAbort=controller;
-    const id=button.dataset.providerRefresh,profile=list.find(item=>item.id===id),card=button.closest('.provider-card'),status=card.querySelector('[data-provider-status]');
+    const id=button.dataset.providerRefresh,profile=providers().find(item=>item.id===id),card=button.closest('.provider-card'),status=card.querySelector('[data-provider-status]');
     const current=()=>accountsGeneration===state.panelGeneration&&button.isConnected&&$('#panel-dialog').open&&!controller.signal.aborted;
     button.disabled=true;setLocalizedText(status,()=>t('provider.modelsLoading'));
     try{
