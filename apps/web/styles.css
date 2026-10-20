@@ -204,3 +204,15 @@ body.harness-surface{position:fixed;inset:0;overflow:hidden}
 .provider-model-picker:focus-within{outline:2px solid #4b8775;outline-offset:2px;border-radius:9px}
 .provider-model-picker input:focus{outline:0}
 .provider-model-picker:has(select:disabled) .provider-model-arrow{opacity:.35}
+
+/* Mobile settings are pages, with a single native scrolling surface. */
+body.panel-route{position:static;inset:auto;overflow:visible;min-height:100svh;background:#fff;overscroll-behavior-y:none}
+.panel-route #app,.panel-route #site{display:none!important}
+.panel-route .panel-dialog[open]{display:block;position:relative;inset:auto;transform:none;width:100%;max-width:none;height:auto;max-height:none;min-height:100svh;margin:0;padding:0;border:0;border-radius:0;box-shadow:none;overflow:visible;touch-action:pan-x pan-y}
+.panel-route #panel-content{display:block;height:auto;max-height:none;overflow:visible}
+.panel-route .panel-dialog .panel-header{position:sticky;top:0;z-index:2;min-height:64px;padding:calc(10px + env(safe-area-inset-top,0px)) max(14px,env(safe-area-inset-right,0px)) 10px max(14px,env(safe-area-inset-left,0px));background:#fff}
+.panel-route .panel-body{overflow:visible;max-height:none;padding:16px max(20px,env(safe-area-inset-right,0px)) calc(24px + env(safe-area-inset-bottom,0px)) max(20px,env(safe-area-inset-left,0px))}
+.panel-route .panel-body{max-width:720px;margin:0 auto}
+.quiet-note:empty,.topbar p:empty{display:none}
+
+.provider-form>.field:first-child{margin-top:0}

@@ -10,7 +10,7 @@ export const COPY={
       "When the text is ready, tap “Copy with Shortcuts”. Allow access to the bridge if iOS asks.",
       "After copying, return to Harness so the agent can paste into the intended field."
     ],
-    "streaming": "Keep screen sharing running while the text transfers. Harness sends the text through the bridge in small chunks, and the shortcut copies the complete text to your clipboard.",
+    "streaming": "Keep screen sharing active while copying.",
     "back": "Return to Harness",
     "pending": "",
     "failure": ""
@@ -25,7 +25,7 @@ export const COPY={
       "文字准备好后，点“用快捷指令复制”。系统询问是否允许访问桥时，选择允许。",
       "复制后回到 Harness，让智能体粘贴到目标输入框。"
     ],
-    "streaming": "文字传输期间保持屏幕共享运行。Harness 将文字分块经过桥传输，快捷指令收到完整文字后复制到剪贴板。",
+    "streaming": "复制期间保持屏幕共享。",
     "back": "返回 Harness",
     "pending": "",
     "failure": ""
@@ -40,7 +40,7 @@ export const COPY={
       "文字準備好後，點選「用捷徑拷貝」。系統詢問是否允許存取橋時，選擇允許。",
       "拷貝後回到 Harness，讓智慧體貼入目標欄位。"
     ],
-    "streaming": "文字傳送期間保持螢幕共享運作。Harness 將文字分塊經過橋傳送，捷徑收到完整文字後拷貝到剪貼簿。",
+    "streaming": "拷貝期間保持螢幕分享。",
     "back": "返回 Harness",
     "pending": "",
     "failure": ""
@@ -55,7 +55,7 @@ export const COPY={
       "テキストの準備後に「ショートカットでコピー」を押します。ブリッジへのアクセスを求められたら許可します。",
       "コピー後にHarnessへ戻ると、エージェントが目的の欄へ貼り付けます。"
     ],
-    "streaming": "転送中は画面共有を続けてください。Harnessがブリッジ経由でテキストを小分けに送り、ショートカットが全文をクリップボードにコピーします。",
+    "streaming": "コピー中は画面共有を続けてください。",
     "back": "Harnessに戻る",
     "pending": "",
     "failure": ""
@@ -70,7 +70,7 @@ export const COPY={
       "Когда текст готов, нажмите «Копировать через „Команды“». Разрешите доступ к мосту, если iOS спросит.",
       "После копирования вернитесь в Harness, чтобы агент вставил текст в нужное поле."
     ],
-    "streaming": "Оставьте трансляцию экрана включённой на время передачи. Harness отправляет текст через мост небольшими частями, а команда копирует полный текст в буфер обмена.",
+    "streaming": "Оставьте трансляцию экрана включённой во время копирования.",
     "back": "Вернуться в Harness",
     "pending": "",
     "failure": ""
@@ -85,7 +85,7 @@ export const COPY={
       "Tippe bei vorbereitetem Text auf „Mit Kurzbefehle kopieren“. Erlaube den Zugriff auf die Bridge, wenn iOS fragt.",
       "Kehre nach dem Kopieren zum Harness zurück, damit der Agent den Text ins gewünschte Feld einfügt."
     ],
-    "streaming": "Lass die Bildschirmfreigabe während der Übertragung laufen. Harness sendet den Text in kleinen Teilen über die Bridge; der Kurzbefehl kopiert den vollständigen Text in die Zwischenablage.",
+    "streaming": "Lass die Bildschirmfreigabe während des Kopierens aktiv.",
     "back": "Zurück zu Harness",
     "pending": "",
     "failure": ""
@@ -100,7 +100,7 @@ export const COPY={
       "Lorsque le texte est prêt, touchez « Copier avec Raccourcis ». Autorisez l’accès au pont si iOS le demande.",
       "Revenez dans Harness après la copie pour que l’agent colle le texte dans le champ choisi."
     ],
-    "streaming": "Gardez le partage d’écran actif pendant le transfert. Harness transmet le texte par petits blocs via le pont, puis le raccourci copie le texte complet dans le presse-papiers.",
+    "streaming": "Gardez le partage d’écran actif pendant la copie.",
     "back": "Revenir à Harness",
     "pending": "",
     "failure": ""
@@ -115,7 +115,7 @@ export const COPY={
       "Cuando el texto esté listo, pulsa «Copiar con Atajos». Permite el acceso al puente si iOS lo solicita.",
       "Vuelve a Harness tras copiar para que el agente pegue el texto en el campo elegido."
     ],
-    "streaming": "Mantén la pantalla compartida durante la transferencia. Harness envía el texto en pequeños bloques por el puente y el atajo copia el texto completo al portapapeles.",
+    "streaming": "Mantén activa la pantalla compartida mientras copias.",
     "back": "Volver a Harness",
     "pending": "",
     "failure": ""

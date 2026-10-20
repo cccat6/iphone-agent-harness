@@ -39,7 +39,7 @@ test('provider editor uses one editable model selector and no new credential unl
  assert.match(editor,/name="model"/);assert.match(editor,/id="provider-model-choice"/);assert.doesNotMatch(editor,/<datalist/);assert.ok(!editor.includes('id="discovered-models"'));assert.ok(!editor.includes('name="encrypt"'));
  assert.match(editor,/credentialVault\?\.\[provider.id\].*<details class="provider-legacy">/);
  assert.match(editor,/querySelector\('#close-panel'\)/);
- for(const dictionary of Object.values(messages))for(const key of ['endpoint','openaiHint','anthropicHint','defaultModel','allModels','developer','localHelp'])assert.ok(dictionary['providerRefinement.'+key]);
+ for(const dictionary of Object.values(messages))for(const key of ['endpoint','openaiHint','anthropicHint','defaultModel','developer','save','refreshModels'])assert.ok(dictionary['providerRefinement.'+key]);
 });
 
 test('provider form prevents native credential submission even if later editor initialization fails',async()=>{

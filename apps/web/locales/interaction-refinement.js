@@ -13,7 +13,6 @@ const rows={
  'interaction.latest':['Jump to latest','回到最新','回到最新','最新のメッセージへ','К последним сообщениям','Zur neuesten Nachricht','Aller au plus récent','Ir al más reciente'],
  'interaction.ready':['Ready','已完成','已完成','完了','Готово','Erledigt','Terminé','Completado'],
  'interaction.assistant':['Assistant','助手','助理','アシスタント','Ассистент','Assistent','Assistant','Asistente'],
- 'interaction.localSession':['Saved in this browser','保存在此浏览器','儲存在此瀏覽器','このブラウザに保存','Сохранено в этом браузере','In diesem Browser gespeichert','Enregistré dans ce navigateur','Guardado en este navegador'],
  'interaction.welcome':['What would you like to do?','你想做些什么？','你想做些什麼？','何をしましょうか？','Что вы хотите сделать?','Was möchtest du tun?','Que souhaitez-vous faire ?','¿Qué quieres hacer?'],
  'interaction.welcomeHelp':['Ask a question, make a plan, or ask me to act on your phone.','可以提问、讨论计划，也可以直接让我操作手机。','可以提問、討論計畫，也可以直接請我操作手機。','質問、計画の相談、端末の操作を依頼できます。','Задайте вопрос, составьте план или попросите выполнить действие на телефоне.','Stelle eine Frage, plane etwas oder bitte mich, dein Telefon zu bedienen.','Posez une question, préparez un plan ou demandez une action sur votre téléphone.','Haz una pregunta, prepara un plan o pídeme que actúe en tu teléfono.'],
  'interaction.observed':['Screen observed','已查看屏幕','已查看螢幕','画面を確認しました','Экран просмотрен','Bildschirm geprüft','Écran observé','Pantalla observada'],
