@@ -148,7 +148,7 @@ test('model discovery has its own 20-second deadline for network and JSON waits'
  for(const stalledBody of [false,true]){
   const deadline=new AbortController();let entered,cancels=0;const ready=new Promise(resolve=>entered=resolve),body=new ReadableStream({pull(){if(body.locked)entered();},cancel(){cancels++;}});
   const timeout=t.mock.method(AbortSignal,'timeout',ms=>{assert.equal(ms,20000);return deadline.signal;});
-  const pending=discoverCodexModels({accountId:'plan',fetchImpl:async(url,options)=>{assert.equal(url,CODEX_ENDPOINTS.planModels);assert.equal(options.redirect,'error');if(stalledBody)return new Response(body);entered();return new Promise(()=>{});}});await ready;deadline.abort(new DOMException('Catalog deadline','TimeoutError'));await assert.rejects(pending,{name:'TimeoutError',code:'SUBSCRIPTION_TIMEOUT'});if(stalledBody){assert.equal(cancels,1);assert.equal(body.locked,false);}assert.deepEqual(getCodexAccount('plan').exportTokens(),saved);timeout.mock.restore();
+  const pending=discoverCodexModels({accountId:'plan',fetchImpl:async(url,options)=>{assert.equal(url,CODEX_ENDPOINTS.planModels);assert.equal(options.redirect,'manual');if(stalledBody)return new Response(body);entered();return new Promise(()=>{});}});await ready;deadline.abort(new DOMException('Catalog deadline','TimeoutError'));await assert.rejects(pending,{name:'TimeoutError',code:'SUBSCRIPTION_TIMEOUT'});if(stalledBody){assert.equal(cancels,1);assert.equal(body.locked,false);}assert.deepEqual(getCodexAccount('plan').exportTokens(),saved);timeout.mock.restore();
  }
 });
 

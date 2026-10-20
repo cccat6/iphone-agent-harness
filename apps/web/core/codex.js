@@ -22,7 +22,7 @@ function identityFailure(code,message='登录身份签名或账号验证失败')
 function failure(message,status){const e=new Error(message+(status?`（HTTP ${status}）`:''));if(status)e.status=status;return e;}
 const subscriptionTimeout=()=>Object.assign(new Error('订阅请求超时，请重试'),{name:'TimeoutError',code:'SUBSCRIPTION_TIMEOUT'});
 async function withSubscriptionDeadline(milliseconds,signal,work){const timeout=AbortSignal.timeout(milliseconds),active=signal?AbortSignal.any([signal,timeout]):timeout;try{return await work(active);}catch(cause){check(signal);if(timeout.aborted)throw subscriptionTimeout();throw cause;}}
-async function request(url,{fetchImpl=fetch,signal,...init}={}){check(signal);try{const pending=Promise.resolve(fetchImpl.call(globalThis,safeURL(url),{...init,signal,credentials:'omit',referrerPolicy:'no-referrer',cache:'no-store',redirect:'error'})).then(response=>{if(signal?.aborted){void response.body?.cancel().catch(()=>{});check(signal);}return response;});return await awaitWithSignal(pending,signal);}catch{check(signal);throw failure('订阅连接失败；请检查浏览器 CORS、网络或服务可用性');}}
+async function request(url,{fetchImpl=fetch,signal,redirectMode='error',...init}={}){check(signal);try{const pending=Promise.resolve(fetchImpl.call(globalThis,safeURL(url),{...init,signal,credentials:'omit',referrerPolicy:'no-referrer',cache:'no-store',redirect:redirectMode==='manual'?'manual':'error'})).then(response=>{if(signal?.aborted){void response.body?.cancel().catch(()=>{});check(signal);}return response;});return await awaitWithSignal(pending,signal);}catch{check(signal);throw Object.assign(failure('订阅连接失败；请检查浏览器 CORS、网络或服务可用性'),{code:'SUBSCRIPTION_NETWORK'});}}
 async function post(url,body,options={},form=false){return request(url,{...options,method:'POST',headers:{'content-type':form?'application/x-www-form-urlencoded':'application/json'},body:form?new URLSearchParams(body):JSON.stringify(body)});}
 async function json(r,label,{signal}={}){
  check(signal);if(!r.ok)throw failure(label,r.status);const reader=r.body?.getReader();if(!reader)throw failure(label+'：响应格式无效');let total=0;const chunks=[];
@@ -207,10 +207,32 @@ export async function completeCodexLogin(login,{accountId=crypto.randomUUID(),ca
 }
 function headers(a,token,{sessionId}={}){const h={'authorization':'Bearer '+token,'content-type':'application/json','accept':'text/event-stream'};if(a.flow==='codex'){h.originator='iphone_automation_harness';h['chatgpt-account-id']=a.accountId;h['OpenAI-Beta']='responses=experimental';if(sessionId)h['session-id']=sessionId;}return h;}
 function catalogHeaders(a,token){return {authorization:'Bearer '+token,accept:'application/json',...(a.flow==='codex'?{'chatgpt-account-id':a.accountId}:{})};}
+const modelsFailure=(code,diagnostics)=>Object.assign(new Error('浏览器未能读取订阅模型目录响应 ['+code+']'),{code,...(diagnostics?{diagnostics}:{})});
+const catalogRedirect=response=>response?.type==='opaqueredirect'||response?.status>=300&&response?.status<400;
+function discardCatalogBody(response){try{Promise.resolve(response?.body?.cancel()).catch(()=>{});}catch{}}
+async function diagnosePlanCatalog({signal,fetchImpl}){
+ const probe=async bearer=>{
+  const active=AbortSignal.any([signal,AbortSignal.timeout(3000)]);
+  try{
+   const response=await request(CODEX_ENDPOINTS.planModels,{headers:{accept:'application/json',...(bearer?{authorization:'Bearer iah-intentionally-invalid-catalog-probe'}:{})},signal:active,fetchImpl,redirectMode:'manual'});
+   discardCatalogBody(response);
+   if(catalogRedirect(response))return {kind:'redirect'};
+   return response.status>=200&&response.status<=599?{kind:'http',status:response.status}:{kind:'unreadable'};
+  }catch{check(signal);return {kind:'unreadable'};}
+ };
+ const [anonymous,bearer]=await Promise.all([probe(false),probe(true)]);check(signal);
+ const code=anonymous.kind==='redirect'||bearer.kind==='redirect'?'SIWC_MODELS_REDIRECT':bearer.kind==='http'?'SIWC_MODELS_AUTH_RESPONSE':anonymous.kind==='http'?'SIWC_MODELS_PREFLIGHT':'SIWC_MODELS_NETWORK';
+ return modelsFailure(code,{anonymous,bearer});
+}
 export async function discoverCodexModels({accountId=activeId,signal,fetchImpl=fetch,clientVersion='0.1.0'}={}){
  return withSubscriptionDeadline(20000,signal,async signal=>{
  const a=accounts.get(accountId);if(!a)throw new Error('请先选择已登录的订阅账号');const token=await accessToken(accountId,{signal,fetchImpl});const url=new URL(a.flow==='codex'?CODEX_ENDPOINTS.models:CODEX_ENDPOINTS.planModels);if(a.flow==='codex')url.searchParams.set('client_version',clientVersion);
- const response=await request(url,{headers:catalogHeaders(a,token),signal,fetchImpl});const data=await json(response,'订阅模型目录不可用',{signal});const items=data.models||data.data;if(!Array.isArray(items))throw new Error('模型目录格式无效');
+ let response;
+ try{response=await request(url,{headers:catalogHeaders(a,token),signal,fetchImpl,redirectMode:a.flow==='chatgpt-plan'?'manual':'error'});}
+ catch(error){check(signal);if(error?.code!=='SUBSCRIPTION_NETWORK')throw error;if(a.flow!=='chatgpt-plan')throw modelsFailure('CODEX_MODELS_NETWORK');throw await diagnosePlanCatalog({signal,fetchImpl});}
+ if(a.flow==='chatgpt-plan'&&catalogRedirect(response)){discardCatalogBody(response);throw modelsFailure('SIWC_MODELS_REDIRECT');}
+ if(a.flow==='chatgpt-plan'&&response.status===0){discardCatalogBody(response);throw await diagnosePlanCatalog({signal,fetchImpl});}
+ const data=await json(response,'订阅模型目录不可用',{signal});const items=data.models||data.data;if(!Array.isArray(items))throw new Error('模型目录格式无效');
  // The plan catalog explicitly marks picker entries; older Codex lists omit visibility.
  return items.filter(m=>m&&typeof m==='object'&&(m.visibility==='list'||(a.flow==='codex'&&m.visibility===undefined))).map(m=>({id:m.slug||m.id,name:m.display_name||m.name||m.slug||m.id,description:m.description||'',catalogOnly:true,...modelContextMetadata(m),...modelReasoningMetadata(m)})).filter(m=>typeof m.id==='string'&&m.id);
  });
