@@ -85,6 +85,25 @@ test('pure callback validation allows scope and future fields without consuming 
  assert.equal((await finish(login,{callbackUrl:url})).identityVerified,true);
 });
 
+test('Safari scheme-less loopback callbacks validate and exchange with the original redirect URI',async()=>{
+ for(const redirectUri of ['http://127.0.0.1:1455/auth/callback','http://127.0.0.1:54321/auth/callback','http://127.0.0.1/auth/callback']){
+  const login=await begin({redirectUri}),url=callback(login).replace(/^http:\/\//,'');
+  assert.deepEqual(validateCodexCallback(login,'  '+url+'  '),{clientId:'oaiapp_fixture'});
+  assert.equal((await finish(login,{callbackUrl:url})).identityVerified,true);
+  clearCodexAccounts();
+ }
+});
+test('malformed pasted callbacks hide authorization text and remain correctable before exchange',async()=>{
+ const login=await begin(),valid=callback(login),bare=valid.replace(/^http:\/\//,'');
+ for(const url of ['not-a-url?code=fixture-private-code',bare.replace(':1455',':1456'),bare.replace('127.0.0.1','127.0.0.1.evil.invalid'),bare.replace('/auth/callback','/other'),bare+'&state=again',bare.replace(login.state,'wrong-state')]){
+  let calls=0;
+  assert.throws(()=>validateCodexCallback(login,url),error=>!error.message.includes('fixture-private-code')&&!error.message.includes('fixture-authorization-code')&&!error.message.includes(login.state));
+  await assert.rejects(completeCodexLogin(login,{callbackUrl:url,fetchImpl:async()=>{calls++;}}));
+  assert.equal(calls,0);
+ }
+ assert.equal((await finish(login,{callbackUrl:bare})).identityVerified,true);
+});
+
 async function expiredPlan(){await finish(await begin());const saved=getCodexAccount('plan').exportTokens();registerCodexAccount('plan',{...saved,expiresAt:0});return getCodexAccount('plan');}
 test('plan refresh verifies a newly issued ID token without requiring the original authorization nonce',async()=>{
  const account=await expiredPlan(),{idToken,jwk}=await signed(await begin(),{claims:{nonce:undefined}}),events=[],off=setCodexTokenObserver(event=>events.push(event));

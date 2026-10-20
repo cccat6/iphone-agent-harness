@@ -82,7 +82,10 @@ function loopbackURI(value){
 }
 function callbackFields(login,value){
  if(typeof value!=='string'||value.length>16384||/[\u0000-\u001f\u007f]/.test(value))throw new Error('登录回调地址无效');
- const callback=new URL(value.trim()),expected=loopbackURI(login.redirectUri);
+ // Safari may copy the loopback address without its HTTP scheme.
+ const pasted=value.trim(),normalized=/^127\.0\.0\.1(?::[1-9]\d{0,4})?\/auth\/callback(?:\?|$)/.test(pasted)?'http://'+pasted:pasted;
+ let callback;try{callback=new URL(normalized);}catch{throw new Error('登录回调地址无效');}
+ const expected=loopbackURI(login.redirectUri);
  if(callback.username||callback.password||callback.hash||callback.origin!==expected.origin||callback.pathname!==expected.pathname)throw new Error('登录回调地址或 state 不匹配');
  const seen=new Set(),unique=new Set(['code','state','client_id','error']);for(const [key,value]of callback.searchParams){if(/[\u0000-\u001f\u007f]/.test(key+value))throw new Error('登录回调地址无效');if(unique.has(key)&&seen.has(key))throw new Error('登录回调包含重复字段');seen.add(key);}
  if(!login.state||callback.searchParams.get('state')!==login.state)throw new Error('登录回调地址或 state 不匹配');
