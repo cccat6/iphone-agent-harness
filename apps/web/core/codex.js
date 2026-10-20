@@ -268,24 +268,39 @@ export async function callCodexModel({provider,messages,tools=[],signal,onDelta=
   Object.assign(payload,reasoningParameters({...provider,protocol:'codex'}));
   const response=await request(endpoint,{method:'POST',headers:headers(a,token,{sessionId:sessionId||provider.sessionId}),body:JSON.stringify(payload),signal:active,fetchImpl,...(a.flow==='chatgpt-plan'?{relayEndpoint:endpoint}:{})}).catch(error=>{check(active);if(a.flow==='chatgpt-plan'&&error?.code==='SUBSCRIPTION_NETWORK')throw relayFailure();throw error;});
   if(!response.ok){const error=await readProviderFailure(response,{signal:active});if(['CONTEXT_WINDOW_EXCEEDED','PROVIDER_REGION_UNSUPPORTED'].includes(error.code))throw error;throw failure(response.status===401?'订阅登录失效，请刷新或重新登录':response.status===429?'订阅额度或速率达到限制':'订阅模型请求失败',response.status);}if(!response.body)throw new Error('订阅后端未返回响应流');
-  let text='',terminal=null;const calls=new Map();const emit=value=>{try{Promise.resolve(onDelta(value)).catch(()=>{});}catch{}};
-  function saveCall(key,value){if(typeof value.arguments!=='string'||value.arguments.length>CODEX_LIMITS.toolArgumentChars)throw new Error('工具参数超过容量限制');if(!calls.has(key)&&calls.size>=CODEX_LIMITS.toolCalls)throw new Error('工具调用超过数量限制');calls.set(key,value);}
+  let text='',terminal=null;const calls=new Map(),finishedItems=new Map(),finishedArguments=new Set();const emit=value=>{try{Promise.resolve(onDelta(value)).catch(()=>{});}catch{}};
+  const itemKey=(item,index)=>item?.id??index;
+  const sameCall=(left,right)=>['call_id','name','namespace'].every(key=>left[key]===right[key]);
+  function saveCall(key,value){if(key===undefined||key===null)throw new Error('工具调用缺少事件标识');if(typeof value.arguments!=='string'||value.arguments.length>CODEX_LIMITS.toolArgumentChars)throw new Error('工具参数超过容量限制');const previous=calls.get(key);if(previous&&(!sameCall(previous,value)||finishedArguments.has(key)&&previous.arguments!==value.arguments))throw new Error('工具调用完成信息冲突');if(!previous&&calls.size>=CODEX_LIMITS.toolCalls)throw new Error('工具调用超过数量限制');calls.set(key,value);}
+  function finishItem(item,index){
+   if(!item||!['reasoning','message','function_call'].includes(item.type))return;
+   const key=itemKey(item,index);if(key===undefined||key===null||item.status!==undefined&&item.status!=='completed')throw new Error('订阅响应条目未完成');
+   if(finishedItems.has(key)){if(JSON.stringify(finishedItems.get(key).item)!==JSON.stringify(item))throw new Error('订阅响应条目完成信息冲突');return;}
+   if(finishedItems.size>=CODEX_LIMITS.outputItems)throw new Error('订阅协议状态超过容量限制');
+   if(item.type==='function_call'){saveCall(key,item);finishedArguments.add(key);}
+   finishedItems.set(key,{item,index:Number.isSafeInteger(index)&&index>=0?index:finishedItems.size});
+   if(JSON.stringify([...finishedItems.values()].map(entry=>entry.item)).length>CODEX_LIMITS.stateChars)throw new Error('订阅协议状态超过容量限制');
+  }
   for await(const e of events(response.body,active)){
    check(active);if(e.type==='error'||e.type==='response.failed'||e.type==='response.incomplete'||e.type==='response.cancelled')throw contextOverflowError(e)||new Error('订阅响应未成功完成；未执行操作');
    if(e.type==='response.output_text.delta'){if(typeof e.delta!=='string'||text.length+e.delta.length>CODEX_LIMITS.textChars)throw new Error('订阅响应文本超过容量限制');text+=e.delta;emit(e.delta);}
-   if(e.type==='response.output_item.added'&&e.item?.type==='function_call')saveCall(e.item.id||e.output_index,{...e.item,arguments:e.item.arguments||''});
-   if(e.type==='response.function_call_arguments.delta'){const key=e.item_id??e.output_index,c=calls.get(key);if(!c)throw new Error('工具参数缺少起始事件');if(typeof e.delta!=='string'||c.arguments.length+e.delta.length>CODEX_LIMITS.toolArgumentChars)throw new Error('工具参数超过容量限制');c.arguments+=e.delta;}
-   if(e.type==='response.function_call_arguments.done'){const c=calls.get(e.item_id??e.output_index);if(!c)throw new Error('工具参数缺少起始事件');if(typeof e.arguments!=='string'||e.arguments.length>CODEX_LIMITS.toolArgumentChars)throw new Error('工具参数超过容量限制');c.arguments=e.arguments;}
-   if(e.type==='response.output_item.done'&&e.item?.type==='function_call')saveCall(e.item.id||e.output_index,e.item);
+   if(e.type==='response.output_item.added'&&e.item?.type==='function_call')saveCall(itemKey(e.item,e.output_index),{...e.item,arguments:e.item.arguments||''});
+   if(e.type==='response.function_call_arguments.delta'){const key=e.item_id??e.output_index,c=calls.get(key);if(!c)throw new Error('工具参数缺少起始事件');if(finishedArguments.has(key)||finishedItems.has(key))throw new Error('工具参数在完成后发生变化');if(typeof e.delta!=='string'||c.arguments.length+e.delta.length>CODEX_LIMITS.toolArgumentChars)throw new Error('工具参数超过容量限制');c.arguments+=e.delta;}
+   if(e.type==='response.function_call_arguments.done'){const c=calls.get(e.item_id??e.output_index);if(!c)throw new Error('工具参数缺少起始事件');if(typeof e.arguments!=='string'||e.arguments.length>CODEX_LIMITS.toolArgumentChars)throw new Error('工具参数超过容量限制');const key=e.item_id??e.output_index;if(finishedArguments.has(key)&&c.arguments!==e.arguments)throw new Error('工具调用完成信息冲突');c.arguments=e.arguments;finishedArguments.add(key);}
+   if(e.type==='response.output_item.done')finishItem(e.item,e.output_index);
    if(e.type==='response.completed'||e.type==='response.done'){terminal=e.response;if(!terminal||terminal.status!=='completed')throw new Error('订阅响应结束状态非 completed');break;}
   }
   check(active);if(!terminal)throw new Error('订阅响应缺少 completed 事件；未执行操作');
   if(terminal.output!==undefined&&(!Array.isArray(terminal.output)||terminal.output.length>CODEX_LIMITS.outputItems||JSON.stringify(terminal.output).length>CODEX_LIMITS.stateChars))throw new Error('订阅协议状态超过容量限制');
-  if((terminal.output||[]).some(i=>(i.content||[]).some(c=>c.type==='refusal')))throw new Error('订阅响应被拒绝；未执行操作');
-  const finalText=(terminal.output||[]).filter(i=>i.type==='message').flatMap(i=>i.content||[]).filter(c=>c.type==='output_text').map(c=>c.text||'').join('');if(finalText.length>CODEX_LIMITS.textChars)throw new Error('订阅响应文本超过容量限制');if(finalText){if(finalText.startsWith(text)&&finalText.length>text.length)emit(finalText.slice(text.length));text=finalText;}
-  const source=Array.isArray(terminal.output)?terminal.output.filter(i=>i.type==='function_call'):[...calls.values()],ids=new Set();if(calls.size&&!source.length)throw new Error('工具调用结束状态缺失');if(source.length>CODEX_LIMITS.toolCalls)throw new Error('工具调用超过数量限制');const toolCalls=source.map(c=>{if(!c.call_id||!c.name||ids.has(c.call_id)||!validToolNamespace(c,a.flow)||a.flow==='chatgpt-plan'&&!tools.some(tool=>tool.name===c.name))throw new Error('工具调用身份无效或重复');ids.add(c.call_id);if(typeof c.arguments!=='string'||c.arguments.length>CODEX_LIMITS.toolArgumentChars)throw new Error('工具参数超过容量限制');let args;try{args=JSON.parse(c.arguments||'{}');}catch{throw new Error('工具参数 JSON 不完整');}if(!args||typeof args!=='object'||Array.isArray(args))throw new Error('工具参数必须是对象');return {id:c.call_id,name:c.name,arguments:args};});
+  const rebuilt=!Array.isArray(terminal.output)||terminal.output.length===0;
+  if(rebuilt&&[...calls.keys()].some(key=>!finishedItems.has(key)))throw new Error('工具调用结束状态缺失');
+  const completedItems=rebuilt?[...finishedItems.values()].sort((a,b)=>a.index-b.index).map(entry=>entry.item):terminal.output;
+  if(!rebuilt)for(const [key,call]of calls){const matches=completedItems.filter(item=>item.type==='function_call'&&item.call_id===call.call_id);if(matches.length!==1||!sameCall(call,matches[0])||finishedArguments.has(key)&&call.arguments!==matches[0].arguments)throw new Error('工具调用完成信息冲突');}
+  if(completedItems.some(i=>(i.content||[]).some(c=>c.type==='refusal')))throw new Error('订阅响应被拒绝；未执行操作');
+  const finalText=completedItems.filter(i=>i.type==='message').flatMap(i=>i.content||[]).filter(c=>c.type==='output_text').map(c=>c.text||'').join('');if(finalText.length>CODEX_LIMITS.textChars)throw new Error('订阅响应文本超过容量限制');if(finalText){if(finalText.startsWith(text)&&finalText.length>text.length)emit(finalText.slice(text.length));text=finalText;}
+  const source=completedItems.filter(i=>i.type==='function_call'),ids=new Set();if(calls.size&&!source.length)throw new Error('工具调用结束状态缺失');if(source.length>CODEX_LIMITS.toolCalls)throw new Error('工具调用超过数量限制');const toolCalls=source.map(c=>{if(!c.call_id||!c.name||ids.has(c.call_id)||!validToolNamespace(c,a.flow)||a.flow==='chatgpt-plan'&&!tools.some(tool=>tool.name===c.name))throw new Error('工具调用身份无效或重复');ids.add(c.call_id);if(typeof c.arguments!=='string'||c.arguments.length>CODEX_LIMITS.toolArgumentChars)throw new Error('工具参数超过容量限制');let args;try{args=JSON.parse(c.arguments||'{}');}catch{throw new Error('工具参数 JSON 不完整');}if(!args||typeof args!=='object'||Array.isArray(args))throw new Error('工具参数必须是对象');return {id:c.call_id,name:c.name,arguments:args};});
   if(!text&&!toolCalls.length)throw new Error('订阅响应为空；未执行操作');
-  const items=copy((terminal.output||[]).filter(i=>['reasoning','message','function_call'].includes(i.type)));
+  const items=copy(completedItems.filter(i=>['reasoning','message','function_call'].includes(i.type)));
   const providerState={kind:'codex-responses/1',...stateScope,items};
   return {text,toolCalls,finish:toolCalls.length?'tool_calls':'stop',usage:terminal.usage||null,responseId:terminal.id||null,providerState};
  }catch(e){check(active);if(e.status||e.code==='CONTEXT_WINDOW_EXCEEDED'||e.code?.startsWith('SIWC_RELAY_'))throw e;throw new Error(['订阅响应','订阅协议','工具','请选择','请求前','订阅账号','登录'].some(p=>e.message?.startsWith(p))?e.message:'订阅通信失败；请检查登录、CORS 与网络');}
