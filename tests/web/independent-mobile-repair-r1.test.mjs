@@ -40,23 +40,28 @@ test('production newSession performs live readiness check, rejecting stale ready
 test('existing session remains conversational after its live readiness check fails',async()=>{const h=appHarness({ready:true,liveReady:false,current:{id:'existing'}});await h.context.sendMessage({preventDefault(){}});assert.equal(h.counts.model,1);assert.equal(h.counts.openedDevice,0);});
 test('production existing conversation remains readable while device is offline',async()=>{const h=appHarness();vm.runInContext(appFunction('openSession'),h.context);await h.context.openSession('existing');assert.equal(h.state.current.id,'existing');assert.equal(h.counts.model,0);assert.equal(h.counts.openedDevice,0);});
 
-function accountEditorHarness(){
+function accountEditorHarness({codex=false}={}){
  const start=app.indexOf("$('#provider-form').onsubmit=guard("),end=app.indexOf('\n  const header=',start);assert.ok(start>=0&&end>start);
  const release=deferred(),entered=deferred(),counts={saved:0,reopened:0,credential:0};let active=true;
- const fields=new Map([['name','Example API'],['protocol','openai'],['baseUrl','https://model.example/v1'],['model','m'],['secret','synthetic-key'],['encrypt','on'],['passphrase','synthetic-passphrase']]);
+ const fields=new Map([['name','Example API'],['protocol',codex?'codex':'openai'],['baseUrl','https://model.example/v1'],['model',codex?'':'m'],['secret','synthetic-key'],['encrypt','on'],['passphrase','synthetic-passphrase']]);
  const submit={disabled:false},form={elements:{secret:{value:'synthetic-key'},passphrase:{value:'synthetic-passphrase'}},querySelector:()=>submit},state={settings:{providers:[]},providerModels:[],providerEdit:null};
- state.store={async getLocalCredential(){entered.resolve();await release.promise;return null;},async saveSettings(patch){counts.saved++;return patch;}};
- const sandbox=vm.createContext({state,provider:{id:'',name:'',protocol:'openai',models:[]},$:()=>form,guard:fn=>fn,FormData:class{get(k){return fields.get(k);}has(k){return fields.has(k);}},shortId:()=> 'new-account',safeURL:x=>x,normalizeProviderEndpoint:x=>x,getCodexAccount:()=>null,saveProviderCredential:async()=>{counts.credential++;},removeProviderCredential:async()=>{},t:k=>k,profileModels:p=>[{id:p.model}],providers:()=>[],setCredential(){counts.credential++;},getCredential:()=> 'synthetic-key',vaultPassphrases:new Map(),async sealCredentials(){entered.resolve();await release.promise;return {encrypted:'synthetic'};},renderModelOptions(){},async showSettings(){counts.reopened++;active=false;},toast(){},editorActive:()=>active,editorToken:'editor-1',editorForm:form});
+ state.store={async saveProvider(profile,credential,{signal}){entered.resolve();await release.promise;if(signal.aborted)throw signal.reason;counts.saved++;assert.equal(credential.kind,codex?'codex':'api');return {providers:[profile],activeProviderId:profile.id};}};
+ const sandbox=vm.createContext({state,provider:{id:'',name:'',protocol:'openai',models:[]},$:()=>form,guard:fn=>fn,FormData:class{get(k){return fields.get(k);}has(k){return fields.has(k);}},shortId:()=> 'new-account',safeURL:x=>x,normalizeProviderEndpoint:x=>x,getCodexAccount:()=>codex?{flow:'chatgpt-plan',clientId:'oaiapp-synthetic',exportTokens:()=>({access_token:'synthetic-only'})}:null,AbortController,saveProviderCredential:async()=>{counts.credential++;},removeProviderCredential:async()=>{},t:k=>k,profileModels:p=>[{id:p.model}],providers:()=>[],setCredential(){counts.credential++;},getCredential:()=> 'synthetic-key',vaultPassphrases:new Map(),async sealCredentials(){entered.resolve();await release.promise;return {encrypted:'synthetic'};},renderModelOptions(){},async showSettings(){counts.reopened++;active=false;},toast(){},editorActive:()=>active,editorToken:'editor-1',editorForm:form});
  vm.runInContext(app.slice(start,end),sandbox);
- return {submit:()=>form.onsubmit({preventDefault(){},target:form}),cancel(){active=false;},counts,release,entered,state,button:submit};
+ return {submit:()=>form.onsubmit({preventDefault(){},target:form}),cancel(){active=false;state.providerSaveAbort?.abort();},counts,release,entered,state,button:submit};
 }
-test('cancelling an account editor while credential read is pending does not save the abandoned draft',async()=>{
+test('cancelling an account editor while atomic save is pending does not save the abandoned draft',async()=>{
  const h=accountEditorHarness(),save=h.submit();await h.entered.promise;h.cancel();h.release.resolve();await save;
  assert.equal(h.counts.saved,0);assert.equal(h.counts.reopened,0);assert.equal(h.counts.credential,0);
 });
 test('account save is single-flight and successfully stores exactly one requested profile',async()=>{
  const h=accountEditorHarness(),save=h.submit();await h.entered.promise;assert.equal(h.button.disabled,true);await h.submit();h.release.resolve();await save;
  assert.equal(h.counts.saved,1);assert.equal(h.counts.reopened,1);assert.equal(h.counts.credential,1);assert.equal(h.state.settings.providers.length,1);assert.equal(h.state.settings.providers[0].name,'Example API');assert.equal(h.state.providerSavingToken,null);
+});
+
+test('a signed-in subscription saves with an empty model and no successful directory request',async()=>{
+ const h=accountEditorHarness({codex:true}),save=h.submit();await h.entered.promise;h.release.resolve();await save;
+ assert.equal(h.counts.saved,1);assert.equal(h.counts.reopened,1);assert.equal(h.state.settings.providers[0].model,'');assert.equal(h.state.settings.providers[0].flow,'chatgpt-plan');assert.equal(h.state.providerSaveAbort,null);
 });
 
 test('opening MCP settings while startup reconnection is in flight does not cancel restoration',async()=>{

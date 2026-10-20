@@ -144,6 +144,40 @@ export async function openStore({memory=false,name=DB_NAME}={}){
       });
     },
     saveSettings:patch=>transaction(['settings'],'readwrite',async s=>{const old=(await s.settings.get('settings'))?.value||{},value={...old,...safeSettings(clone(patch))};await s.settings.put({id:'settings',value});return value;}),
+    // Profile and credential commit together. Read the latest provider list in
+    // the transaction so delayed model discovery or another tab cannot erase it.
+    async saveProvider(profile,credential,{signal}={}){
+      if(!profile||typeof profile.id!=='string'||!profile.id||profile.id.length>80||!['openai','anthropic','codex'].includes(profile.protocol))throw new Error('Invalid provider profile');
+      if(credential&&(!['api','codex'].includes(credential.kind)||(profile.protocol==='codex')!==(credential.kind==='codex')))throw new Error('Invalid provider credential');
+      const fields=['id','name','protocol','baseUrl','model','models','reasoningEffort','stream','accountId','flow','clientId'];
+      const saved=safeSettings(clone(Object.fromEntries(fields.filter(key=>Object.hasOwn(profile,key)).map(key=>[key,profile[key]]))));
+      const secret=credential?clone(credential):null;
+      return transaction(['settings'],'readwrite',async s=>{
+        const old=(await s.settings.get('settings'))?.value||{},list=Array.isArray(old.providers)?[...old.providers]:[],index=list.findIndex(item=>item.id===saved.id);
+        if(index<0)list.push(saved);else list[index]=saved;
+        const value={...old,providers:list,activeProviderId:list.some(item=>item.id===old.activeProviderId)?old.activeProviderId:saved.id};
+        if(secret)await s.settings.put({id:localCredentialId('provider:'+saved.id),value:secret});
+        await s.settings.put({id:'settings',value});return value;
+      },{signal});
+    },
+    async updateProviderModels(id,models){
+      if(typeof id!=='string'||!Array.isArray(models))throw new Error('Invalid provider models');
+      const saved=safeSettings(clone(models));
+      return transaction(['settings'],'readwrite',async s=>{
+        const old=(await s.settings.get('settings'))?.value||{},list=Array.isArray(old.providers)?old.providers:[],index=list.findIndex(item=>item.id===id);
+        if(index<0)return old;
+        const providers=[...list],profile=list[index];providers[index]={...profile,models:saved,model:profile.model||saved[0]?.id||''};
+        const value={...old,providers};await s.settings.put({id:'settings',value});return value;
+      });
+    },
+    async removeProvider(id){
+      if(typeof id!=='string'||!id)throw new Error('Invalid provider ID');
+      return transaction(['settings'],'readwrite',async s=>{
+        const old=(await s.settings.get('settings'))?.value||{},providers=(Array.isArray(old.providers)?old.providers:[]).filter(profile=>profile.id!==id),credentialVault={...old.credentialVault};delete credentialVault[id];
+        const value={...old,providers,credentialVault,activeProviderId:old.activeProviderId===id?providers[0]?.id||'':old.activeProviderId||''};
+        await s.settings.delete(localCredentialId('provider:'+id));await s.settings.put({id:'settings',value});return value;
+      });
+    },
     async saveFrame(sessionId,frame,metadata={}){const row=frameRecord(sessionId,frame,metadata);await transaction(['frames',...(metadata.runId?['sessions','events']:[])],'readwrite',async s=>{await s.frames.put(row);if(metadata.runId){const session=await s.sessions.get(sessionId);if(!session)throw new Error('对话不存在');await s.events.put({id:'frame-evidence:'+metadata.runId+':'+row.frameId,sessionId,runId:metadata.runId,seq:(session.eventSeq||0)+1,type:'frame.evidence',payload:{frameId:row.frameId,assetRef:row.assetRef,targetId:row.targetId,orientationEpoch:row.orientationEpoch},createdAt:Date.now()});session.eventSeq=(session.eventSeq||0)+1;await s.sessions.put(session);}});const {blob,dataUrl,...meta}=row;return meta;},
     async getRunFrameEvidence(sessionId,runId,frameId){return transaction(['events'],'readonly',async s=>{const row=await s.events.get('frame-evidence:'+runId+':'+frameId);return row?.sessionId===sessionId&&row.runId===runId?row.payload:null;});},
     async hasRunFrame(sessionId,runId,frameId){return Boolean(await store.getRunFrameEvidence(sessionId,runId,frameId));},

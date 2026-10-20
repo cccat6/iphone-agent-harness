@@ -6,7 +6,7 @@ import {SIWC_MESSAGES} from '../../apps/web/locales/siwc.js';
 import {messages} from '../../apps/web/locales/messages.js';
 const deferred=()=>{let resolve,reject;const promise=new Promise((yes,no)=>{resolve=yes;reject=no;});return {promise,resolve,reject};};
 function fixture(t,options={}){
- const previous=new Map(['document','localStorage','sessionStorage'].map(key=>[key,Object.getOwnPropertyDescriptor(globalThis,key)])),local=new Map(),session=new Map(),fields=new Map(),calls={start:[],complete:[],success:[],status:[]};let active=true,controller,profile={id:'new-account',name:'Personal',protocol:'codex'};
+ const previous=new Map(['document','localStorage','sessionStorage'].map(key=>[key,Object.getOwnPropertyDescriptor(globalThis,key)])),local=new Map(),session=new Map(),fields=new Map(),calls={start:[],complete:[],success:[],status:[]};let active=true,controller,profile=options.profile||{id:'new-account',name:'Personal',protocol:'codex'};
  const element=()=>({value:'',textContent:'',hidden:false,disabled:false,children:[],append(...children){this.children.push(...children);},replaceChildren(...children){this.children=[...children];}}),field=id=>{if(!fields.has(id))fields.set(id,element());return fields.get(id);};
  for(const[key,value]of Object.entries({document:{createElement:element},localStorage:{getItem:k=>local.get(k)||null,setItem:(k,v)=>local.set(k,v),removeItem:k=>local.delete(k)},sessionStorage:{getItem:k=>session.get(k)||null,setItem:(k,v)=>session.set(k,v),removeItem:k=>session.delete(k)}}))Object.defineProperty(globalThis,key,{configurable:true,value});
  const translate=(key,args={})=>Object.entries(args).reduce((value,[name,text])=>value.replaceAll('{'+name+'}',text),SIWC_MESSAGES.en[key]||key);
@@ -65,4 +65,8 @@ test('expired or cancelled verification removes its retry button without persist
  const realSet=setTimeout,timers=[];t.mock.method(globalThis,'setTimeout',(fn,ms,...args)=>{if(ms>0&&ms<=60000){timers.push(fn);return {unref(){}};}return realSet(fn,ms,...args);});let cancelled=0;
  const f=fixture(t,{complete:async(login,options)=>{options.onVerificationPending({expiresAt:Date.now()+60000,cancel(){cancelled++;},retry:()=>assert.fail('expired retry')});throw Object.assign(Error('outage'),{code:'SIWC_KEYS_FETCH'});}});
  await f.field('start-codex-login').onclick();f.field('codex-callback').value=f.callback();await f.field('complete-codex-login').onclick();timers.at(-1)();assert.equal(cancelled,1);assert.equal(f.ui.pending(),false);assert.equal(f.field('complete-codex-login').hidden,true);assert.equal(f.field('cancel-codex-login').hidden,true);assert.equal(f.session.size,0);
+});
+
+test('an unsaved provider without an id and without pending login finishes mounting',t=>{
+ const f=fixture(t,{profile:{name:'ChatGPT',protocol:'codex'}});assert.equal(loadPendingCodexLogin(),null);assert.equal(f.ui.pending(),false);assert.equal(f.field('complete-codex-login').hidden,true);assert.equal(f.field('cancel-codex-login').hidden,true);assert.equal(f.field('start-codex-login').disabled,false);assert.equal(typeof f.field('start-codex-login').onclick,'function');assert.equal(typeof f.ui.dispose,'function');
 });

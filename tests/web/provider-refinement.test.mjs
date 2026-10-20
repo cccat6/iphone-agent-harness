@@ -41,3 +41,24 @@ test('provider editor uses one editable model selector and no new credential unl
  assert.match(editor,/querySelector\('#close-panel'\)/);
  for(const dictionary of Object.values(messages))for(const key of ['endpoint','openaiHint','anthropicHint','defaultModel','allModels','developer','localHelp'])assert.ok(dictionary['providerRefinement.'+key]);
 });
+
+test('provider form prevents native credential submission even if later editor initialization fails',async()=>{
+ const source=await readFile(new URL('../../apps/web/app.js',import.meta.url),'utf8'),start=source.indexOf("  const editorForm=$('#provider-form');"),end=source.indexOf('const editorActive=',start);assert.ok(start>=0&&end>start);
+ const {default:vm}=await import('node:vm'),form=new EventTarget();
+ const ctx=vm.createContext({$:()=>form});vm.runInContext(source.slice(start,end),ctx);
+ // No async submit handler is installed when a later initializer throws.
+ const submit=new Event('submit',{cancelable:true});assert.equal(form.dispatchEvent(submit),false);assert.equal(submit.defaultPrevented,true);
+ let saved=0;form.addEventListener('submit',()=>saved++);form.dispatchEvent(new Event('submit',{cancelable:true}));assert.equal(saved,1);
+});
+
+test('a late catalog result cannot erase an empty-model subscription while its first save is pending',async()=>{
+ const {default:vm}=await import('node:vm'),source=await readFile(new URL('../../apps/web/app.js',import.meta.url),'utf8');
+ const applyStart=source.indexOf('  const applyModels=async list=>{'),applyEnd=source.indexOf("  $('#discover-models').onclick=",applyStart),saveStart=source.indexOf("  $('#provider-form').onsubmit=",applyEnd),saveEnd=source.indexOf("  const header=$('.panel-header')",saveStart);assert.ok(applyStart>=0&&saveEnd>saveStart);
+ const store=await openStore({memory:true});let release,entered;const blocked=new Promise(resolve=>release=resolve),ready=new Promise(resolve=>entered=resolve),atomicSave=store.saveProvider.bind(store);let active=true;
+ const form={elements:{protocol:{value:'codex'},baseUrl:{value:''},model:{value:''},secret:{value:''}},querySelector:()=>({disabled:false})},nodes={'#provider-form':form,'#provider-models':{innerHTML:''}},state={settings:{providers:[]},providerModels:[],providerEdit:'new-plan',providerDraftId:'new-plan',store:{...store,async saveProvider(...args){entered();await blocked;return atomicSave(...args);},saveSettings(){assert.fail('must not save a stale account-list snapshot');},updateProviderModels(){assert.fail('unsaved catalog must not mutate stored accounts');}}};
+ const fields={name:'ChatGPT',protocol:'codex',model:'',secret:''},tokens={access_token:'synthetic-save-access',refresh_token:'synthetic-save-refresh',flow:'chatgpt-plan',clientId:'oaiapp_synthetic',identityVerified:true,scopes:['chatgpt.tokens.use.direct'],expiresAt:Date.now()+3600000};
+ const ctx=vm.createContext({state,provider:{id:'new-plan',protocol:'codex'},modelSequence:0,editorToken:'editor',editorForm:form,editorActive:()=>active,isCodex:()=>true,providers:()=>state.settings.providers||[],$:selector=>nodes[selector],guard:fn=>fn,modelContextMetadata:()=>({}),modelReasoningMetadata:()=>({}),profileModels:()=>[],normalizeProviderEndpoint:x=>x,modelsStatus(){},renderModelOptions(){},getCredential:()=>'',getCodexAccount:()=>({flow:'chatgpt-plan',clientId:'oaiapp_synthetic',exportTokens:()=>tokens}),shortId:()=>assert.fail('must keep login ID'),FormData:class{get(k){return fields[k];}has(k){return !!fields[k];}},showSettings:async()=>{active=false;},toast(){},t:x=>x,escapeHTML:String,AbortController,setCredential(){assert.fail('subscription does not use API key memory');}});
+ vm.runInContext(source.slice(applyStart,applyEnd)+source.slice(saveStart,saveEnd)+'\nthis.applyModels=applyModels;',ctx);
+ const saving=form.onsubmit({preventDefault(){},target:form});await ready;await ctx.applyModels([{id:'late-catalog-model'}]);release();await saving;
+ const saved=await store.getSettings();assert.equal(saved.providers.length,1);assert.equal(saved.providers[0].id,'new-plan');assert.equal(saved.providers[0].model,'');assert.equal((await store.getLocalCredential('provider:new-plan')).tokens.refresh_token,tokens.refresh_token);assert.equal(state.providerDraftId,null);store.close();
+});

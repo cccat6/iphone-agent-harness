@@ -70,6 +70,6 @@ export function mountCodexLogin({root,getProvider,prepareProvider,start,validate
   catch(error){if(current===generation&&isActive()&&!controller.signal.aborted){working=false;render();status(t(pendingVerification?'siwc.verificationRetry':'siwc.failedRestart',{detail:explain(error)}));}}
  };
  cancel.onclick=()=>cancelAttempt();
- const pending=loadPendingCodexLogin();if(pending?.provider.id===getProvider().id){login=pending.login;controller=new AbortController();onController(controller);tell('restored');}
+ const pending=loadPendingCodexLogin();if(pending&&pending.provider.id===getProvider().id){login=pending.login;controller=new AbortController();onController(controller);tell('restored');}
  render();return {cancel:cancelAttempt,dispose(){generation++;controller?.abort();clearVerification();callback.value='';},pending:()=>!!login||!!pendingVerification};
 }
