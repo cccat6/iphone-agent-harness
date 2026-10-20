@@ -17,6 +17,22 @@ std::vector<std::string> frames(const std::string& request,uint32_t n=1,const st
 bool feedRpc(Rpc& rpc,const std::string& s){return rpc.input(reinterpret_cast<const uint8_t*>(s.data()),s.size(),10);}
 std::string request(size_t bodySize=0){JsonDocument d;d["method"]="POST";d["path"]="/v1/test";d["headers"].to<JsonObject>();d["body"]=std::string(bodySize,'a');std::string s;serializeJson(d,s);return s;}
 int main(){
+ // A single task scratch can be overwritten between peers: reordered SCTP
+ // fragments and incomplete RPC requests must already own their bytes.
+ {Fixture a,b;a.init(100);b.init(200);Rpc one,two;std::string gotA,gotB;
+  one.dispatch([&](const std::string& text){gotA=text;return std::string("{\"status\":200,\"body\":\"{}\"}");});
+  two.dispatch([&](const std::string& text){gotB=text;return std::string("{\"status\":200,\"body\":\"{}\"}");});
+  a.s.callbacks([&](const uint8_t* p,size_t n){a.sent.emplace_back(p,p+n);return true;},[&](const uint8_t* p,size_t n){assert(one.input(p,n,10));},[]{});
+  b.s.callbacks([&](const uint8_t* p,size_t n){b.sent.emplace_back(p,p+n);return true;},[&](const uint8_t* p,size_t n){assert(two.input(p,n,10));},[]{});
+  const auto textA=request(600),textB=request(601);const auto framesA=frames(textA),framesB=frames(textB);
+  std::array<uint8_t,2048> scratch{};
+  const auto feed=[&](Sctp& peer,const Bytes& bytes){assert(bytes.size()<=scratch.size());std::copy(bytes.begin(),bytes.end(),scratch.begin());peer.input(scratch.data(),bytes.size(),10);scratch.fill(0xdd);};
+  feed(a.s,data(101,1,framesA[1]));feed(b.s,data(201,1,framesB[1]));
+  feed(a.s,data(100,0,framesA[0]));feed(b.s,data(200,0,framesB[0]));
+  for(size_t i=2;i<framesA.size();i++){feed(a.s,data(100+i,i,framesA[i]));feed(b.s,data(200+i,i,framesB[i]));}
+  assert(gotA==textA&&gotB==textB&&one.completed()==1&&two.completed()==1);
+ }
+
  {uint8_t zeros[32]{};assert(Sctp::crc(zeros,32)==0x8a9136aa);}
  {Fixture f;f.init();f.feed(data(101,1,"second"));assert(f.messages.empty());auto sack=f.sent.back();assert(Sctp::read32(sack.data()+16)==99);assert(Sctp::read16(sack.data()+24)==1);assert(Sctp::read16(sack.data()+28)==2);f.feed(data(100,0,"first"));assert((f.messages==std::vector<std::string>{"first","second"}));assert(f.s.cumulative()==101);f.feed(data(100,0,"first"));assert(f.messages.size()==2);assert(Sctp::read16(f.sent.back().data()+26)==1);}
  {Fixture f;f.init();auto p=data(100,0,"once");p[8]^=1;f.feed(p);assert(f.messages.empty());p=data(100,0,"once");Sctp::write32(p.data()+4,778);Sctp::checksum(p.data(),p.size());f.feed(p);assert(f.messages.empty());f.feed(data(108,8,"far"));assert(f.messages.empty()&&f.s.cumulative()==99);}

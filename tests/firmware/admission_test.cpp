@@ -4,9 +4,9 @@
 #include <map>
 using namespace iah;
 struct BindingSink:Sink {
- size_t sent=0,releases=0;
- bool submit(uint16_t,const Event&)override{sent++;return true;}
- bool release(uint16_t,const Input&)override{releases++;return true;}
+ size_t sent=0,releases=0;bool healthy=true;
+ bool submit(uint16_t,const Event&)override{sent++;return healthy;}
+ bool release(uint16_t,const Input&)override{releases++;return healthy;}
 };
 struct BindingFixture {
  BindingSink sink;Core core{"board","boot",sink};Admission auth;
@@ -69,5 +69,12 @@ int main(){size_t cases=0;
  {BindingFixture f;assert(f.auth.install("new-browser",std::string(64,'c'),"https://igent.cc"));assert(f.bind("new-browser","phone-a")==Code::Accepted);assert(f.core.lease("phone-a","new-browser","new-browser-lease",1000,101)==Code::Accepted);assert(f.auth.client("owner-a")->targetId=="phone-a");cases++;}
  {BindingFixture f;f.core.disconnect(11,10);assert(f.bind("owner-a","phone-b")==Code::Accepted);assert(f.auth.client("owner-a")->targetId=="phone-b");assert(f.core.lease("phone-a","owner-a","offline-old-route",1000,101)==Code::Unauthorized);cases++;}
  {Admission a;assert(a.install("owner",std::string(64,'a'),"https://igent.cc"));assert(a.install("other",std::string(64,'b'),"https://igent.cc"));assert(a.begin("owner","phone-a","test","12345678",100));assert(!a.cancelChallenge("other","phone-a",101));assert(!a.cancelChallenge("owner","phone-b",101));assert(a.ownsChallenge("owner","phone-a",101));assert(a.cancelChallenge("owner","phone-a",102));assert(!a.active(102));assert(a.cancelChallenge("owner","phone-a",103));cases++;}
+ // A missing initial neutral report never fences an idle browser onto that
+ // unavailable phone; changing targets does not make the old phone ready.
+ {BindingFixture f;f.core.disconnect(11,10);assert(f.core.connect("bond-a",11,true,true,false,2)==Code::NotReady);auto previous=f.core.target("phone-a");assert(previous->releasePending&&!previous->releaseUncertain&&!previous->input.held());assert(f.bind("owner-a","phone-b")==Code::Accepted);assert(previous->releasePending&&!previous->subscribed);assert(f.auth.client("owner-a")->targetId=="phone-b");cases++;}
+ // Any attempted real input, including a failed submission, retains an unknown
+ // release fence even after the input cache is cleared by failure cleanup.
+ {BindingFixture f;assert(f.core.lease("phone-a","owner-a","input-lease",1000,100)==Code::Accepted);Segment segment;segment.boardId="board";segment.bootId="boot";segment.targetId="phone-a";segment.clientId="owner-a";segment.leaseId="input-lease";segment.segmentId="failed-input";segment.planId="plan";segment.payloadHash=std::string(64,'a');segment.ttlMs=500;segment.count=2;segment.events[0].kind=segment.events[1].kind=Kind::Keyboard;segment.events[0].count=1;segment.events[0].usages[0]=4;segment.events[1].atMs=1;assert(f.core.accept(segment,100)==Code::Accepted);f.sink.healthy=false;f.core.tick(100);auto old=f.core.target("phone-a");assert(old->releasePending&&old->releaseUncertain&&!old->input.held());f.core.cancel("phone-a","owner-a",101);assert(old->lease.id.empty()&&old->releaseUncertain);assert(f.bind("owner-a","phone-b",102)==Code::Busy);f.sink.healthy=true;assert(f.core.connect("bond-a",11,true,true,true)==Code::Accepted);assert(!old->releasePending&&!old->releaseUncertain);assert(f.bind("owner-a","phone-b",104)==Code::Accepted);cases++;}
+ {BindingFixture f;auto old=f.core.target("phone-a");old->releasePending=true;old->releaseUncertain=true;assert(f.bind("owner-a","phone-b")==Code::Busy);f.core.disconnect(11,101);assert(f.bind("owner-a","phone-b",102)==Code::Busy);cases++;}
  std::cout<<cases<<" admission scenarios passed\n";
 }

@@ -32,3 +32,8 @@
 .device-error-details>summary{font-weight:400;font-size:inherit;cursor:pointer}
 .device-error-details>pre{margin:8px 0 0;font-size:.75rem;line-height:1.5}
 @media(max-width:600px){.device-onboarding{gap:14px}.device-step h3{line-height:1.45}.device-info-step .panel-actions{gap:8px}}
+
+.device-test-success{display:flex;align-items:center;gap:12px;margin:0 0 14px;padding:14px 16px;border:1px solid #99d6b5;border-radius:12px;background:#eaf8f0;color:#145b37;line-height:1.45}
+.device-test-success strong{font-size:1rem;overflow-wrap:anywhere}
+.device-test-success-icon{display:grid;place-items:center;flex:0 0 28px;width:28px;height:28px;border-radius:50%;background:#187144;color:#fff;font-size:18px;font-weight:700}
+@media(prefers-color-scheme:dark){.device-test-success{background:#123426;border-color:#367759;color:#b9f0cf}.device-test-success-icon{background:#80ddb0;color:#103b27}}

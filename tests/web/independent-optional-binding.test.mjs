@@ -71,3 +71,15 @@ test('explicit dropdown change moves the selected phone; a failed change returns
  f.state.bindError=Object.assign(new Error('DEVICE_TARGET_BUSY'),{code:'DEVICE_TARGET_BUSY',status:409,serverCode:'target_busy'});f.field('[data-target]').value='phone-a';await f.field('[data-target]').onchange();
  assert.equal(f.panel.getState().ready,true);assert.equal(f.panel.getState().targetId,'phone-b');assert.equal(f.field('[data-target]').value,'phone-b');assert.deepEqual(f.calls,['bind:phone-b','bind:phone-a']);
 });
+
+test('green connection-test confirmation requires current physical proof and disappears on disconnect or target change',async t=>{
+ const f=await fixture(t,{bound:'phone-a',targets:['phone-a','phone-b']});
+ const success=()=>f.field('[data-test-success]');
+ assert.equal(f.panel.getState().ready,true);assert.equal(success().hidden,true,'binding alone is not a passed test');
+ const verify=async()=>{const done=f.field('[data-start-challenge]').onclick();await settle();for(const digit of '12345678'){f.key('keydown',digit);f.key('keyup',digit);}await done;assert.equal(f.panel.getState().inputVerified,true);assert.equal(success().hidden,false);};
+ await verify();f.state.targets[0].connected=false;await f.field('[data-refresh]').onclick();assert.equal(success().hidden,true);
+ f.state.targets[0].connected=true;await f.field('[data-refresh]').onclick();assert.equal(success().hidden,true,'Bluetooth reconnect does not revive stale proof');
+ await verify();f.field('[data-target]').value='phone-b';await f.field('[data-target]').onchange();assert.equal(success().hidden,true,'a different phone needs its own proof');
+ await verify();const retry=f.field('[data-start-challenge]').onclick();await settle();assert.equal(success().hidden,true,'a new test clears the previous result');f.field('[data-nonce]').listeners.blur();await retry;assert.equal(success().hidden,true,'an interrupted test cannot display success');
+ await verify();await f.field('[data-disconnect]').onclick();assert.equal(success().hidden,true);
+});

@@ -15,6 +15,7 @@ def method(signature):
   end+=1
  return service[start:end]
 methods='\n'.join(method(signature)for signature in [' void releaseChallenge(){',' void invalidateChallenge(){',' void expireChallenge(){',' template<class Action> esp_err_t lockedReply(',' void rtcDisconnected('])
+methods+='\n void tickChallenge(){'+method('  if(auth_.typing(now())){')+'}\n'
 program=r'''
 #include <cassert>
 #include <cstdio>
@@ -29,8 +30,9 @@ using esp_err_t=int;
 uint64_t clockMs=10;
 struct SinkMock:Sink {
  std::vector<uint16_t> released;
- bool submit(uint16_t,const Event&)override{return true;}
- bool release(uint16_t handle,const Input&)override{released.push_back(handle);return true;}
+ bool submitOk=true,releaseOk=true;bool* uncertaintyAtSubmit=nullptr;
+ bool submit(uint16_t,const Event&)override{if(uncertaintyAtSubmit)assert(*uncertaintyAtSubmit);return submitOk;}
+ bool release(uint16_t handle,const Input&)override{released.push_back(handle);return releaseOk;}
 };
 struct CoreLock {int* depth;explicit CoreLock(int* value):depth(value){++*depth;}~CoreLock(){--*depth;}};
 struct Harness {
@@ -69,6 +71,11 @@ int main(){
  {Harness h;h.claim(0,"phone-a","client-a","lease-a");h.challenge(1,"client-b","phone-b");h.clipboardPeer_=1;h.rtcDisconnected(0);assert(h.sink_.released==std::vector<uint16_t>{11});assert(h.auth_.active(clockMs)&&h.rtcChallengePeer_==1&&h.challengeHandle_==22);assert(h.clipboardClears==0&&h.clipboardPeer_==1);}
  // An expired challenge with no newer lease still receives its final release.
  {Harness h;h.challenge(0,"client-a","phone-a");clockMs=30011;h.clipboardPeer_=0;h.rtcDisconnected(0);assert(h.sink_.released==std::vector<uint16_t>{11});h.cleared();assert(h.clipboardClears==1);h.rtcDisconnected(0);assert(h.sink_.released.size()==1&&h.clipboardClears==1);}
+ // The actual nonce submit path marks uncertainty before entering the sink. A
+ // failed submission and failed release cannot be escaped by changing phones.
+ {Harness h;h.challenge(0,"client-a","phone-a");h.challengeNext_=clockMs;h.challengeEvent_=0;auto old=h.core_.target("phone-a");h.sink_.uncertaintyAtSubmit=&old->releaseUncertain;h.sink_.submitOk=h.sink_.releaseOk=false;h.tickChallenge();assert(old->releaseUncertain&&old->releasePending);assert(h.auth_.associate(h.core_,"client-a","phone-b",clockMs,[](const Grant&){return true;})==Code::Busy);h.sink_.releaseOk=true;assert(h.core_.connect("identity-a",11,true,true,true)==Code::Accepted);assert(!old->releaseUncertain&&!old->releasePending);assert(h.auth_.associate(h.core_,"client-a","phone-b",clockMs,[](const Grant&){return true;})==Code::Accepted);}
+ // The final nonce release clears the fence only on a positive sink receipt.
+ for(bool released:{false,true}){Harness h;h.challenge(0,"client-a","phone-a");h.challengeNext_=clockMs;h.challengeEvent_=15;auto old=h.core_.target("phone-a");h.sink_.uncertaintyAtSubmit=&old->releaseUncertain;h.sink_.releaseOk=released;h.tickChallenge();assert(old->releaseUncertain==!released&&old->releasePending==!released);}
  std::puts("RTC challenge isolation: expired/active cleanup, request-before-claim ordering, stale-slot lease protection and independent clipboard/challenge owners passed");
 }
 '''.replace('METHODS',methods).replace('ADMISSION',str(root/'firmware/IPhoneAutomationHarness/src/Admission.h')).replace('OWNERS',str(root/'firmware/IPhoneAutomationHarness/src/RtcPeerOwnership.h'))

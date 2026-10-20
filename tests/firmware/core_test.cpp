@@ -21,7 +21,7 @@ int main(){size_t cases=0;
  {Fake sink;Core core{"settings-board","settings-boot",sink};assert(!core.configurationBusy(0));
   assert(core.registerBond("phone","id-phone")==Code::Accepted);assert(core.target("phone")->releasePending);assert(!core.configurationBusy(0));
   assert(core.connect("id-phone",11,true,true,true)==Code::Accepted);assert(!core.configurationBusy(0));
-  core.target("phone")->releasePending=true;assert(core.configurationBusy(0));core.target("phone")->releasePending=false;
+  core.target("phone")->releasePending=true;assert(!core.configurationBusy(0));core.target("phone")->releaseUncertain=true;assert(core.configurationBusy(0));core.target("phone")->releaseUncertain=false;core.target("phone")->releasePending=false;
   assert(core.bindClient("client","phone")==Code::Accepted);assert(core.lease("phone","client","lease",1000,0)==Code::Accepted);assert(core.configurationBusy(999));assert(!core.configurationBusy(1000));
   core.target("phone")->running=true;assert(core.configurationBusy(1000));core.target("phone")->running=false;
   core.disconnect(11,1001);assert(core.target("phone")->releasePending);assert(!core.configurationBusy(1001));

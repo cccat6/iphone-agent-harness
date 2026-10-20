@@ -57,7 +57,9 @@ struct Lease {std::string clientId,id; uint64_t expiresAt=0;};
 struct Target {
   // bondIdentity is BLE stack-resolved identity address + type, never peer OTA/RPA.
   std::string id,bondIdentity; uint16_t connHandle=InvalidHandle;
-  uint32_t connEpoch=0;bool encrypted=false,bonded=false,subscribed=false,releasePending=true;
+  // Initial neutral-report setup can be pending without any input having been
+  // attempted. Actual input remains fenced until a release is confirmed.
+  uint32_t connEpoch=0;bool encrypted=false,bonded=false,subscribed=false,releasePending=true,releaseUncertain=false;
   Lease lease; Input input; bool running=false; Segment segment; Result result;
   size_t cursor=0; uint64_t deadline=0;
 };
@@ -91,7 +93,8 @@ class Core {
  bool ready(const Target& t)const{return t.connHandle!=InvalidHandle&&t.encrypted&&t.bonded&&t.subscribed&&!t.releasePending;}
  void finish(Target& t,Status status,uint64_t now){
    t.result.status=status;
-   t.result.releaseSubmitted=t.connHandle!=InvalidHandle&&sink_.release(t.connHandle,t.input);
+   t.releaseUncertain=t.releaseUncertain||t.input.held();t.result.releaseSubmitted=t.connHandle!=InvalidHandle&&sink_.release(t.connHandle,t.input);
+   if(t.result.releaseSubmitted)t.releaseUncertain=false;
    t.result.endedAt=std::max(now,sink_.currentTime(now));t.releasePending=!t.result.releaseSubmitted;auto x=t.input.x,y=t.input.y;t.input=Input{};t.input.x=x;t.input.y=y;t.running=false;
    results_[resultAt_++%MaxResults]=t.result;
  }
@@ -157,7 +160,7 @@ class Core {
   if(!validId(id)||!validId(targetId))return Code::Invalid;
   auto destination=target(targetId);if(!destination||!ready(*destination))return Code::NotReady;
   auto slot=client(id);auto previous=slot?target(slot->targetId):nullptr;
-  auto occupied=[now](const Target* t){return t&&(t->running||t->lease.expiresAt>now||(t->connHandle!=InvalidHandle&&(t->releasePending||t->input.held())));};
+  auto occupied=[now](const Target* t){return t&&(t->running||t->lease.expiresAt>now||t->releaseUncertain||t->input.held());};
   if(occupied(destination)||occupied(previous))return Code::Busy;
   bool duplicate=slot&&slot->targetId==targetId;
   if(!slot)for(auto& entry:clients_)if(!entry.active){slot=&entry;break;}
@@ -174,7 +177,7 @@ class Core {
    for(const auto& other:targets_)if(other.id!=t.id&&other.connHandle==handle)return Code::Busy;
    t.connHandle=handle;t.connEpoch=epoch;t.encrypted=encrypted;t.bonded=bonded;t.subscribed=subscribed;
    if(!sink_.bindConnection(handle,t.bondIdentity,epoch)){t.releasePending=true;return Code::NotReady;}
-   if(encrypted&&bonded&&subscribed&&t.releasePending){t.releasePending=!sink_.release(handle,t.input);t.input=Input{};}
+   if(encrypted&&bonded&&subscribed&&t.releasePending){t.releaseUncertain=t.releaseUncertain||t.input.held();t.releasePending=!sink_.release(handle,t.input);if(!t.releasePending)t.releaseUncertain=false;t.input=Input{};}
    return ready(t)?Code::Accepted:Code::NotReady;
   }
   return Code::Missing;
@@ -227,6 +230,7 @@ class Core {
   while(t.cursor<t.segment.count){const auto& e=t.segment.events[t.cursor];auto due=t.result.startedAt+e.atMs;if(now<due)break;
    auto late=static_cast<uint32_t>(now-due);t.result.maxLatenessMs=std::max(t.result.maxLatenessMs,late);
    if(late>MaxLatenessMs){finish(t,Status::TimingMiss,now);break;}
+   t.releaseUncertain=true;
    if(!sink_.submitTimed(t.connHandle,e,std::min({due+MaxLatenessMs,t.deadline-1,t.lease.expiresAt-1}))){finish(t,Status::TransportFailed,sink_.currentTime(now));break;}
    auto submittedAt=sink_.submissionTime(now);t.result.maxLatenessMs=std::max(t.result.maxLatenessMs,static_cast<uint32_t>(submittedAt>due?submittedAt-due:0));
    if(e.kind==Kind::Pointer){t.input.x=e.x;t.input.y=e.y;t.input.buttons=e.buttons;}
@@ -240,12 +244,12 @@ class Core {
   auto t=target(targetId);if(!t)return Code::Missing;if(!authorized(clientId,targetId))return Code::Unauthorized;
   if(t->lease.clientId!=clientId)return Code::Unauthorized;
   if(t->running)finish(*t,Status::Cancelled,now);
-  else{t->releasePending=!(t->connHandle!=InvalidHandle&&sink_.release(t->connHandle,t->input));auto x=t->input.x,y=t->input.y;t->input=Input{};t->input.x=x;t->input.y=y;}
+  else{t->releaseUncertain=t->releaseUncertain||t->input.held();t->releasePending=!(t->connHandle!=InvalidHandle&&sink_.release(t->connHandle,t->input));if(!t->releasePending)t->releaseUncertain=false;auto x=t->input.x,y=t->input.y;t->input=Input{};t->input.x=x;t->input.y=y;}
   t->lease=Lease{};return Code::Accepted;
  }
  bool busy()const{for(const auto& t:targets_)if(t.running)return true;return false;}
- // Empty slots start releasePending=true; offline phones cannot receive a release.
- // Neither should prevent local settings or an idle restart.
- bool configurationBusy(uint64_t now)const{for(const auto& t:targets_)if(!t.id.empty()&&(t.running||t.lease.expiresAt>now||(t.connHandle!=InvalidHandle&&t.releasePending)))return true;return false;}
+ // Initial neutral reports do not imply pending user input. Real attempted or
+ // held input stays fenced, including while its phone is temporarily offline.
+ bool configurationBusy(uint64_t now)const{for(const auto& t:targets_)if(!t.id.empty()&&(t.running||t.lease.expiresAt>now||t.releaseUncertain||t.input.held()))return true;return false;}
 };
 }

@@ -23,3 +23,4 @@ fi
 "$rtc_binary"
 
 python3 "$rtc_root/tests/firmware/rtc/bridge_slots_test.py"
+ARDUINOJSON_INCLUDE="$rtc_json" python3 "$rtc_root/tests/firmware/rtc/rpc_allocation_test.py"

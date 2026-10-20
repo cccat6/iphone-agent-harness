@@ -41,7 +41,7 @@ static_assert(iah::MaxEvents==128,"board report storage must match LAN limit");
 namespace {
 using namespace iah;
 NimBLECharacteristic *mouseReport=nullptr,*keyboardReport=nullptr,*consumerReport=nullptr;
-struct Peer {uint16_t handle=InvalidHandle;uint32_t epoch=0;bool encrypted=false,bonded=false;uint8_t reports=0;char identity[32]{};uint16_t pointerX=5000,pointerY=5000;bool pointerKnown=false;};
+struct Peer {uint16_t handle=InvalidHandle;uint32_t epoch=0;bool encrypted=false,bonded=false,connectSeen=false;uint8_t reports=0;char identity[32]{};uint16_t pointerX=5000,pointerY=5000;bool pointerKnown=false;};
 Peer peers[MaxTargets];portMUX_TYPE peersMux=portMUX_INITIALIZER_UNLOCKED;uint32_t nextPeerEpoch=0;std::atomic_bool bondStateDirty{true};
 // Diagnostics contain transient connection handles and flags only: never peer
 // addresses, bonding material, or credentials. Callbacks write this fixed ring;
@@ -139,6 +139,7 @@ Core* core=nullptr;
 SemaphoreHandle_t coreMutex=nullptr;
 iah::SecureService* secureService=nullptr;
 constexpr size_t RtcPeerSlots=2;
+iah::RtcBridge::WireBuffer rtcWire;
 iah::RtcBridge* rtcBridges[RtcPeerSlots]{};TaskHandle_t rtcTaskHandle=nullptr;
 void rtcTask(void*){
  bool initialized[RtcPeerSlots]{};uint64_t retryAt[RtcPeerSlots]{};
@@ -183,7 +184,10 @@ void updatePeer(NimBLEConnInfo& info,bool newConnection=false) {
  portENTER_CRITICAL(&peersMux);
  Peer* slot=nullptr;for(auto& peer:peers)if(peer.handle==info.getConnHandle())slot=&peer;
  if(!slot)for(auto& peer:peers)if(peer.handle==InvalidHandle){slot=&peer;break;}
- if(slot){if(newConnection||slot->handle==InvalidHandle){slot->epoch=++nextPeerEpoch;if(!slot->epoch)slot->epoch=++nextPeerEpoch;slot->reports=0;slot->pointerKnown=false;slot->pointerX=slot->pointerY=5000;}slot->handle=info.getConnHandle();slot->encrypted=info.isEncrypted();slot->bonded=info.isBonded();snprintf(slot->identity,sizeof(slot->identity),"%s",stable.c_str());}
+ // Restored encryption and CCCD callbacks may arrive before onConnect. Those
+ // callbacks already own this epoch; its first connect event must retain them.
+ // A later connect on an established slot still starts a fresh connection.
+ if(slot){if(slot->handle==InvalidHandle||(newConnection&&slot->connectSeen)){slot->epoch=++nextPeerEpoch;if(!slot->epoch)slot->epoch=++nextPeerEpoch;slot->reports=0;slot->connectSeen=false;slot->pointerKnown=false;slot->pointerX=slot->pointerY=5000;}if(newConnection)slot->connectSeen=true;slot->handle=info.getConnHandle();slot->encrypted=info.isEncrypted();slot->bonded=info.isBonded();snprintf(slot->identity,sizeof(slot->identity),"%s",stable.c_str());}
  portEXIT_CRITICAL(&peersMux);
 }
 class ServerCallbacks:public NimBLEServerCallbacks {
@@ -415,7 +419,7 @@ void setup(){
  if(ssid.length()){WiFi.mode(WIFI_STA);WiFi.setAutoReconnect(true);applySavedPower();WiFi.begin(ssid.c_str(),password.c_str());}
  startBle();sink.beginRouting();
  secureService=new SecureService(*core,sink,preferences,coreMutex,boardId,bootId,hostname,wifiGotIps);secureService->begin(ssid.isEmpty());
- for(size_t slot=0;slot<RtcPeerSlots;slot++){rtcBridges[slot]=new(std::nothrow) iah::RtcBridge(iah::RtcBridge::port()+slot);if(!rtcBridges[slot])Serial.printf("{\"event\":\"rtc_peer_allocation_failed\",\"slot\":%u}\n",unsigned(slot));}
+ for(size_t slot=0;slot<RtcPeerSlots;slot++){rtcBridges[slot]=new(std::nothrow) iah::RtcBridge(rtcWire,iah::RtcBridge::port()+slot);if(!rtcBridges[slot])Serial.printf("{\"event\":\"rtc_peer_allocation_failed\",\"slot\":%u}\n",unsigned(slot));}
  if(xTaskCreatePinnedToCore(rtcTask,"iah-rtc",8192,nullptr,1,&rtcTaskHandle,0)!=pdPASS)Serial.println("{\"event\":\"rtc_task_failed\"}");
 JsonDocument boot;iah::firmware::addIdentity(boot);serializeJson(boot,Serial);Serial.println();
 }

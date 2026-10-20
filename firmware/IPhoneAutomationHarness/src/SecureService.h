@@ -335,7 +335,7 @@ class SecureService {
   }
   return error(r,404,"not_found");
  }
- void releaseChallenge(){auto target=core_.target(auth_.target());if(target&&target->connHandle==challengeHandle_&&challengeHandle_!=InvalidHandle&&!target->running&&target->lease.expiresAt<=now())target->releasePending=!sink_.release(challengeHandle_,target->input);}
+ void releaseChallenge(){auto target=core_.target(auth_.target());if(target&&target->connHandle==challengeHandle_&&challengeHandle_!=InvalidHandle&&!target->running&&target->lease.expiresAt<=now()){target->releasePending=!sink_.release(challengeHandle_,target->input);if(!target->releasePending)target->releaseUncertain=false;}}
  void invalidateChallenge(){auth_.invalidate();rtcChallengePeer_=-1;challengeHandle_=InvalidHandle;challengeNext_=0;challengeEvent_=0;}
  void expireChallenge(){if(auth_.expiresAt()&&now()>=auth_.expiresAt()){releaseChallenge();invalidateChallenge();}}
  bool hasNetworkAddress()const{auto ip=WiFi.localIP();return WiFi.status()==WL_CONNECTED&&ip[0]>0&&ip[0]<224&&ip[0]!=127;}
@@ -467,8 +467,8 @@ class SecureService {
    auto t=core_.target(auth_.target());if(!t||t->connHandle!=challengeHandle_||!t->encrypted||!t->subscribed){releaseChallenge();invalidateChallenge();return;}
    if(now()<challengeNext_)return;if(now()>challengeNext_+100){releaseChallenge();invalidateChallenge();return;}
    Event e;e.kind=Kind::Keyboard;if(challengeEvent_%2==0){char digit=auth_.digit(challengeEvent_/2);e.count=1;e.usages[0]=digit=='0'?39:29+(digit-'0');}
-   if(!sink_.submit(challengeHandle_,e)){releaseChallenge();invalidateChallenge();return;}challengeEvent_++;challengeNext_=now()+30;
-   if(challengeEvent_>=16){bool released=sink_.release(challengeHandle_,t->input);t->releasePending=!released;if(released)auth_.typed();else invalidateChallenge();}
+   t->releaseUncertain=true;if(!sink_.submit(challengeHandle_,e)){releaseChallenge();invalidateChallenge();return;}challengeEvent_++;challengeNext_=now()+30;
+   if(challengeEvent_>=16){bool released=sink_.release(challengeHandle_,t->input);t->releasePending=!released;if(released){t->releaseUncertain=false;auth_.typed();}else invalidateChallenge();}
   }
  }
 };

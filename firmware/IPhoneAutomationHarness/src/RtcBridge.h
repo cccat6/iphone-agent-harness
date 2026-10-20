@@ -26,7 +26,8 @@ class RtcBridge {
   using Dispatch=std::function<String(String)>;
   using Disconnect=std::function<void()>;
   using CanReplace=std::function<bool()>;
-  explicit RtcBridge(uint16_t localPort=RtcIdentity::port):localPort_(localPort){}
+  using WireBuffer=std::array<uint8_t,2048>;
+  explicit RtcBridge(WireBuffer& wire,uint16_t localPort=RtcIdentity::port):localPort_(localPort),wire_(wire){}
   RtcBridge(const RtcBridge&)=delete;RtcBridge& operator=(const RtcBridge&)=delete;
   static const char* fingerprint(){return RtcIdentity::fingerprint;}
   static uint16_t port(){return RtcIdentity::port;}
@@ -137,6 +138,8 @@ class RtcBridge {
   Dispatch dispatch_;Disconnect disconnected_;CanReplace canReplace_;std::atomic<bool>ready_{false},connected_{false};std::atomic<bool>dtlsReady_{false};bool initialized_=false,tlsConfigured_=false,peerKnown_=false,replacementPending_=false,closePending_=false;
   std::atomic<int>lastError_{0},lastChunk_{-1},lastAbort_{0};std::atomic<unsigned>completedRequests_{0},maxSctpBytes_{0},dataFlagsSeen_{0};int udp_=-1;sockaddr_in peer_{},nextPeer_{};char password_[257]{},nextPassword_[257]{};uint32_t lastPeerActivity_=0,handshakeStarted_=0,dtlsStarted_=0,timerStart_=0,timerIntermediate_=0,timerFinal_=0;
   mbedtls_ssl_context ssl_{};mbedtls_ssl_config conf_{};mbedtls_ssl_cookie_ctx cookie_{};mbedtls_entropy_context entropy_{};mbedtls_ctr_drbg_context rng_{};mbedtls_x509_crt cert_{};mbedtls_pk_context key_{};
-  std::array<uint8_t,2048>wire_{};rtc::Sctp sctp_;rtc::Rpc rpc_;
+  // Both slots are serviced serially by the same task. Input callbacks copy
+  // complete frames into their own SCTP/RPC state before the next loop call.
+  WireBuffer& wire_;rtc::Sctp sctp_;rtc::Rpc rpc_;
 };
 }

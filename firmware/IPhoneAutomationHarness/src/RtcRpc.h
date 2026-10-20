@@ -25,6 +25,9 @@ class Rpc {
    if(state_==State::Idle){if(seq!=0||lastCompleted_==0x7fffffff||n!=lastCompleted_+1)return false;id_.assign(id.c_str(),id.size());n_=n;sequence_=0;started_=now;state_=State::Collecting;}
    if(n!=n_||id_!=std::string(id.c_str(),id.size())||seq!=sequence_||request_.size()+length>RequestLimit)return false;
    request_.append(reinterpret_cast<const char*>(decoded.data()),length);++sequence_;if(!end)return true;
+   // id/data JsonString views have been consumed. Release this frame's parser
+   // storage before validating and dispatching the complete request.
+   frame.clear();
    // Consume the monotonic request number BEFORE dispatch. No old number can
    // invoke a mutation again, including after an application error response.
    lastCompleted_=n_;
