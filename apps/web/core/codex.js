@@ -281,7 +281,7 @@ export async function callCodexModel({provider,messages,tools=[],signal,onDelta=
   const connectionStarted=networkNow(),requestOptions={method:'POST',headers:headers(a,token,{sessionId:sessionId||provider.sessionId}),body:JSON.stringify(payload),signal:active,fetchImpl,...(a.flow==='chatgpt-plan'?{relayEndpoint:endpoint}:{})};
   const retryDelays=[500,1000,2000,4000,8000];let response,connectionAttempts=0,recoveredNetwork=null;
   while(true){
-   try{connectionAttempts++;response=await request(endpoint,requestOptions);break;}
+   try{connectionAttempts++;response=await request(endpoint,requestOptions);if(previousResponseId&&response.status>=400&&response.status<500&&[400,404].includes(response.status)){try{await response.body?.cancel();}catch{}delete payload.previous_response_id;payload.input=toInput(messages,stateScope);requestOptions.body=JSON.stringify(payload);response=await request(endpoint,requestOptions);}break;}
    catch(error){
     check(active);if(a.flow!=='chatgpt-plan'||error?.code!=='SUBSCRIPTION_NETWORK')throw error;
     const facts=safeNetworkDiagnostics({...error.networkDiagnostics,attempts:connectionAttempts,durationMs:Math.max(0,Math.min(3600000,networkNow()-connectionStarted))});
