@@ -3,6 +3,7 @@ import {readText} from './http.js';
 import {modelContextMetadata} from './models.js';
 import {modelReasoningMetadata,reasoningParameters} from './reasoning.js';
 import {contextOverflowError,readProviderFailure} from './provider-errors.js';
+import {safeNetworkDiagnostics} from './network-diagnostics.js';
 // Subscription transport. Tokens stay in this module's memory unless the caller
 // explicitly saves them in the browser-local credential store. Never reads Codex auth.json.
 export const CODEX_LIMITS=Object.freeze({eventChars:2000000,textChars:1000000,toolArgumentChars:64000,stateChars:1000000,toolCalls:8,outputItems:256,jsonBytes:2000000});
@@ -22,7 +23,9 @@ function identityFailure(code,message='登录身份签名或账号验证失败')
 function failure(message,status){const e=new Error(message+(status?`（HTTP ${status}）`:''));if(status)e.status=status;return e;}
 const subscriptionTimeout=()=>Object.assign(new Error('订阅请求超时，请重试'),{name:'TimeoutError',code:'SUBSCRIPTION_TIMEOUT'});
 async function withSubscriptionDeadline(milliseconds,signal,work){const timeout=AbortSignal.timeout(milliseconds),active=signal?AbortSignal.any([signal,timeout]):timeout;try{return await work(active);}catch(cause){check(signal);if(timeout.aborted)throw subscriptionTimeout();throw cause;}}
-async function request(url,{fetchImpl=fetch,signal,redirectMode='error',relayEndpoint,...init}={}){check(signal);try{const pending=Promise.resolve(fetchImpl.call(globalThis,relayEndpoint===String(url)?relayEndpoint:safeURL(url),{...init,signal,credentials:'omit',referrerPolicy:'no-referrer',cache:'no-store',redirect:redirectMode==='manual'?'manual':'error'})).then(response=>{if(signal?.aborted){void response.body?.cancel().catch(()=>{});check(signal);}return response;});return await awaitWithSignal(pending,signal);}catch{check(signal);throw Object.assign(failure('订阅连接失败；请检查浏览器 CORS、网络或服务可用性'),{code:'SUBSCRIPTION_NETWORK'});}}
+const networkNow=()=>performance.now();
+function networkFacts(phase,started,error,attempts=1,extra={}){let online=null,visibility='unknown';try{if(typeof globalThis.navigator?.onLine==='boolean')online=globalThis.navigator.onLine;}catch{}try{if(['visible','hidden','prerender'].includes(globalThis.document?.visibilityState))visibility=globalThis.document.visibilityState;}catch{}return safeNetworkDiagnostics({phase,attempts,durationMs:Math.max(0,Math.min(3600000,networkNow()-started)),errorName:error instanceof TypeError?'TypeError':error?.name==='NetworkError'?'NetworkError':'Error',online,visibility,...extra});}
+async function request(url,{fetchImpl=fetch,signal,redirectMode='error',relayEndpoint,...init}={}){check(signal);const started=networkNow();try{const pending=Promise.resolve(fetchImpl.call(globalThis,relayEndpoint===String(url)?relayEndpoint:safeURL(url),{...init,signal,credentials:'omit',referrerPolicy:'no-referrer',cache:'no-store',redirect:redirectMode==='manual'?'manual':'error'})).then(response=>{if(signal?.aborted){void response.body?.cancel().catch(()=>{});check(signal);}return response;});return await awaitWithSignal(pending,signal);}catch(error){check(signal);throw Object.assign(failure('订阅连接失败；请检查网络或服务可用性'),{code:'SUBSCRIPTION_NETWORK',networkDiagnostics:networkFacts('awaiting_response_headers',started,error),beforeHeadersTypeError:error instanceof TypeError});}}
 async function post(url,body,options={},form=false){return request(url,{...options,method:'POST',headers:{'content-type':form?'application/x-www-form-urlencoded':'application/json'},body:form?new URLSearchParams(body):JSON.stringify(body)});}
 async function json(r,label,{signal}={}){
  check(signal);if(!r.ok){if(r.status===403){const error=await readProviderFailure(r,{signal});if(error.code==='PROVIDER_REGION_UNSUPPORTED')throw error;}throw failure(label,r.status);}const reader=r.body?.getReader();if(!reader)throw failure(label+'：响应格式无效');let total=0;const chunks=[];
@@ -213,7 +216,8 @@ export function normalizeSubscriptionRelay(value){
  if(url.protocol!=='https:'||url.username||url.password||url.search||url.hash)throw Object.assign(new Error('订阅转发地址需要 HTTPS 且不能包含查询参数或片段'),{code:'SIWC_RELAY_ADDRESS'});
  return url.href.replace(/\/+$/,'');
 }
-const relayFailure=()=>Object.assign(new Error('浏览器未能读取订阅转发服务响应'),{code:'SIWC_RELAY_NETWORK'});
+const relayFailure=networkDiagnostics=>Object.assign(new Error('订阅服务连接中断，尚未收到响应，请重试。'),{code:'SIWC_RELAY_NETWORK',...(safeNetworkDiagnostics(networkDiagnostics)?{networkDiagnostics:safeNetworkDiagnostics(networkDiagnostics)}:{})});
+const relayStreamFailure=networkDiagnostics=>Object.assign(new Error('订阅回复传输中断，本次回复中的操作尚未执行，请重试。'),{code:'SIWC_RELAY_STREAM',networkDiagnostics});
 const catalogRedirect=response=>response?.type==='opaqueredirect'||response?.status>=300&&response?.status<400;
 function discardCatalogBody(response){try{Promise.resolve(response?.body?.cancel()).catch(()=>{});}catch{}}
 export async function discoverCodexModels({accountId=activeId,signal,fetchImpl=fetch,clientVersion='0.1.0',relayUrl}={}){
@@ -221,7 +225,7 @@ export async function discoverCodexModels({accountId=activeId,signal,fetchImpl=f
  const a=accounts.get(accountId);if(!a)throw new Error('请先选择已登录的订阅账号');const endpoint=a.flow==='codex'?CODEX_ENDPOINTS.models:normalizeSubscriptionRelay(relayUrl)+'/models';const token=await accessToken(accountId,{signal,fetchImpl});const url=new URL(endpoint);if(a.flow==='codex')url.searchParams.set('client_version',clientVersion);
  let response;
  try{response=await request(url,{headers:catalogHeaders(a,token),signal,fetchImpl,...(a.flow==='chatgpt-plan'?{relayEndpoint:endpoint}:{})});}
- catch(error){check(signal);if(error?.code!=='SUBSCRIPTION_NETWORK')throw error;if(a.flow!=='chatgpt-plan')throw Object.assign(error,{code:'CODEX_MODELS_NETWORK'});throw relayFailure();}
+ catch(error){check(signal);if(error?.code!=='SUBSCRIPTION_NETWORK')throw error;if(a.flow!=='chatgpt-plan')throw Object.assign(error,{code:'CODEX_MODELS_NETWORK'});throw relayFailure(error.networkDiagnostics);}
  if(a.flow==='chatgpt-plan'&&catalogRedirect(response)){discardCatalogBody(response);throw Object.assign(new Error('订阅转发服务返回了重定向'),{code:'SIWC_RELAY_REDIRECT'});}
  if(a.flow==='chatgpt-plan'&&response.status===0){discardCatalogBody(response);throw relayFailure();}
  const data=await json(response,'订阅模型目录不可用',{signal});const items=data.models||data.data;if(!Array.isArray(items))throw new Error('模型目录格式无效');
@@ -254,8 +258,8 @@ function toInput(messages,scope){
  }
  if(images.length)out.push({role:'user',content:images});return out;
 }
-async function* events(body,signal){const reader=body.getReader(),decoder=new TextDecoder('utf-8',{fatal:true});let pending='',ended=false;try{while(true){check(signal);const {done,value}=await awaitWithSignal(reader.read(),signal);pending+=done?decoder.decode():decoder.decode(value,{stream:true});if(pending.length>CODEX_LIMITS.eventChars)throw new Error('订阅响应事件超过容量限制');let match;while((match=/\r?\n\r?\n/.exec(pending))){const block=pending.slice(0,match.index);pending=pending.slice(match.index+match[0].length);const data=block.split(/\r?\n/).filter(l=>l.startsWith('data:')).map(l=>l.slice(5).replace(/^ /,'')).join('\n');if(data&&data!=='[DONE]'){try{yield JSON.parse(data);}catch(e){if(e instanceof SyntaxError)throw new Error('订阅响应事件格式无效');throw e;}}}if(done){ended=true;if(pending.trim()&&!pending.trim().startsWith(':'))throw new Error('订阅响应流被截断');return;}}}finally{if(!ended)try{await reader.cancel();}catch{}reader.releaseLock();}}
-export async function callCodexModel({provider,messages,tools=[],signal,onDelta=()=>{},fetchImpl=fetch,sessionId}={}){
+async function* events(body,signal,onReadError){const reader=body.getReader(),decoder=new TextDecoder('utf-8',{fatal:true});let pending='',ended=false;try{while(true){check(signal);let chunk;try{chunk=await awaitWithSignal(reader.read(),signal);}catch(error){check(signal);throw onReadError?onReadError(error):error;}const {done,value}=chunk;pending+=done?decoder.decode():decoder.decode(value,{stream:true});if(pending.length>CODEX_LIMITS.eventChars)throw new Error('订阅响应事件超过容量限制');let match;while((match=/\r?\n\r?\n/.exec(pending))){const block=pending.slice(0,match.index);pending=pending.slice(match.index+match[0].length);const data=block.split(/\r?\n/).filter(l=>l.startsWith('data:')).map(l=>l.slice(5).replace(/^ /,'')).join('\n');if(data&&data!=='[DONE]'){try{yield JSON.parse(data);}catch(e){if(e instanceof SyntaxError)throw new Error('订阅响应事件格式无效');throw e;}}}if(done){ended=true;if(pending.trim()&&!pending.trim().startsWith(':'))throw new Error('订阅响应流被截断');return;}}}finally{if(!ended)try{await reader.cancel();}catch{}reader.releaseLock();}}
+export async function callCodexModel({provider,messages,tools=[],signal,onDelta=()=>{},onRetry=()=>{},fetchImpl=fetch,sessionId}={}){
  const id=provider?.accountId||provider?.codexAccountId||activeId,a=accounts.get(id);if(!a)throw new Error('请选择已登录的订阅账号');if(!provider?.model)throw new Error('请选择订阅模型');
  const controller=new AbortController(),abort=()=>controller.abort(signal?.reason);signal?.addEventListener('abort',abort,{once:true});if(signal?.aborted)abort();const timer=setTimeout(()=>controller.abort(new Error('订阅模型请求超时')),provider.timeoutMs||180000);const active=controller.signal;
  try{
@@ -266,8 +270,20 @@ export async function callCodexModel({provider,messages,tools=[],signal,onDelta=
   const wireTools=a.flow==='chatgpt-plan'&&functionTools.length?[{type:'namespace',name:CODEX_TOOL_NAMESPACE,description:'Tools for this Harness conversation.',tools:functionTools}]:functionTools;
   const payload={model:provider.model,store:false,stream:true,include:['reasoning.encrypted_content'],instructions:messages.filter(m=>m.role==='system').map(m=>m.text).join('\n\n')||'You are a helpful assistant.',input:toInput(messages,stateScope),tools:wireTools,tool_choice:tools.length?'auto':'none',parallel_tool_calls:true};
   Object.assign(payload,reasoningParameters({...provider,protocol:'codex'}));
-  const response=await request(endpoint,{method:'POST',headers:headers(a,token,{sessionId:sessionId||provider.sessionId}),body:JSON.stringify(payload),signal:active,fetchImpl,...(a.flow==='chatgpt-plan'?{relayEndpoint:endpoint}:{})}).catch(error=>{check(active);if(a.flow==='chatgpt-plan'&&error?.code==='SUBSCRIPTION_NETWORK')throw relayFailure();throw error;});
-  if(!response.ok){const error=await readProviderFailure(response,{signal:active});if(['CONTEXT_WINDOW_EXCEEDED','PROVIDER_REGION_UNSUPPORTED'].includes(error.code))throw error;throw failure(response.status===401?'订阅登录失效，请刷新或重新登录':response.status===429?'订阅额度或速率达到限制':'订阅模型请求失败',response.status);}if(!response.body)throw new Error('订阅后端未返回响应流');
+  const connectionStarted=networkNow(),requestOptions={method:'POST',headers:headers(a,token,{sessionId:sessionId||provider.sessionId}),body:JSON.stringify(payload),signal:active,fetchImpl,...(a.flow==='chatgpt-plan'?{relayEndpoint:endpoint}:{})};
+  const retryDelays=[500,1000,2000,4000,8000];let response,connectionAttempts=0,recoveredNetwork=null;
+  while(true){
+   try{connectionAttempts++;response=await request(endpoint,requestOptions);break;}
+   catch(error){
+    check(active);if(a.flow!=='chatgpt-plan'||error?.code!=='SUBSCRIPTION_NETWORK')throw error;
+    const facts=safeNetworkDiagnostics({...error.networkDiagnostics,attempts:connectionAttempts,durationMs:Math.max(0,Math.min(3600000,networkNow()-connectionStarted))});
+    if(connectionAttempts<=retryDelays.length&&error.beforeHeadersTypeError===true){recoveredNetwork=facts;check(active);if(accounts.get(id)!==a)throw new Error('请求前账号已更换');const delayMs=retryDelays[connectionAttempts-1];try{Promise.resolve(onRetry({attempt:connectionAttempts,maxRetries:retryDelays.length,delayMs})).catch(()=>{});}catch{}await wait(delayMs,active);check(active);if(accounts.get(id)!==a)throw new Error('请求前账号已更换');continue;}
+    throw relayFailure(facts);
+   }
+  }
+  if(recoveredNetwork)recoveredNetwork=safeNetworkDiagnostics({...recoveredNetwork,attempts:connectionAttempts,durationMs:Math.max(0,Math.min(3600000,networkNow()-connectionStarted)),recovered:true});
+  const streamError=error=>relayStreamFailure(networkFacts('reading_response_stream',connectionStarted,error,connectionAttempts));
+  if(!response.ok){const error=await readProviderFailure(response,{signal:active});if(['CONTEXT_WINDOW_EXCEEDED','PROVIDER_REGION_UNSUPPORTED'].includes(error.code))throw error;throw failure(response.status===401?'订阅登录失效，请刷新或重新登录':response.status===429?'订阅额度或速率达到限制':'订阅模型请求失败',response.status);}if(!response.body)throw a.flow==='chatgpt-plan'?streamError(new Error('missing stream')):new Error('订阅后端未返回响应流');
   let text='',terminal=null;const calls=new Map(),finishedItems=new Map(),finishedArguments=new Set();const emit=value=>{try{Promise.resolve(onDelta(value)).catch(()=>{});}catch{}};
   const itemKey=(item,index)=>item?.id??index;
   const sameCall=(left,right)=>['call_id','name','namespace'].every(key=>left[key]===right[key]);
@@ -281,7 +297,7 @@ export async function callCodexModel({provider,messages,tools=[],signal,onDelta=
    finishedItems.set(key,{item,index:Number.isSafeInteger(index)&&index>=0?index:finishedItems.size});
    if(JSON.stringify([...finishedItems.values()].map(entry=>entry.item)).length>CODEX_LIMITS.stateChars)throw new Error('订阅协议状态超过容量限制');
   }
-  for await(const e of events(response.body,active)){
+  for await(const e of events(response.body,active,a.flow==='chatgpt-plan'?streamError:undefined)){
    check(active);if(e.type==='error'||e.type==='response.failed'||e.type==='response.incomplete'||e.type==='response.cancelled')throw contextOverflowError(e)||new Error('订阅响应未成功完成；未执行操作');
    if(e.type==='response.output_text.delta'){if(typeof e.delta!=='string'||text.length+e.delta.length>CODEX_LIMITS.textChars)throw new Error('订阅响应文本超过容量限制');text+=e.delta;emit(e.delta);}
    if(e.type==='response.output_item.added'&&e.item?.type==='function_call')saveCall(itemKey(e.item,e.output_index),{...e.item,arguments:e.item.arguments||''});
@@ -290,7 +306,7 @@ export async function callCodexModel({provider,messages,tools=[],signal,onDelta=
    if(e.type==='response.output_item.done')finishItem(e.item,e.output_index);
    if(e.type==='response.completed'||e.type==='response.done'){terminal=e.response;if(!terminal||terminal.status!=='completed')throw new Error('订阅响应结束状态非 completed');break;}
   }
-  check(active);if(!terminal)throw new Error('订阅响应缺少 completed 事件；未执行操作');
+  check(active);if(!terminal)throw a.flow==='chatgpt-plan'?streamError(new Error('incomplete stream')):new Error('订阅响应缺少 completed 事件；未执行操作');
   if(terminal.output!==undefined&&(!Array.isArray(terminal.output)||terminal.output.length>CODEX_LIMITS.outputItems||JSON.stringify(terminal.output).length>CODEX_LIMITS.stateChars))throw new Error('订阅协议状态超过容量限制');
   const rebuilt=!Array.isArray(terminal.output)||terminal.output.length===0;
   if(rebuilt&&[...calls.keys()].some(key=>!finishedItems.has(key)))throw new Error('工具调用结束状态缺失');
@@ -302,7 +318,7 @@ export async function callCodexModel({provider,messages,tools=[],signal,onDelta=
   if(!text&&!toolCalls.length)throw new Error('订阅响应为空；未执行操作');
   const items=copy(completedItems.filter(i=>['reasoning','message','function_call'].includes(i.type)));
   const providerState={kind:'codex-responses/1',...stateScope,items};
-  return {text,toolCalls,finish:toolCalls.length?'tool_calls':'stop',usage:terminal.usage||null,responseId:terminal.id||null,providerState};
+  return {text,toolCalls,finish:toolCalls.length?'tool_calls':'stop',usage:terminal.usage||null,responseId:terminal.id||null,providerState,...(recoveredNetwork?{transportDiagnostics:recoveredNetwork}:{})};
  }catch(e){check(active);if(e.status||e.code==='CONTEXT_WINDOW_EXCEEDED'||e.code?.startsWith('SIWC_RELAY_'))throw e;throw new Error(['订阅响应','订阅协议','工具','请选择','请求前','订阅账号','登录'].some(p=>e.message?.startsWith(p))?e.message:'订阅通信失败；请检查登录、CORS 与网络');}
  finally{clearTimeout(timer);signal?.removeEventListener('abort',abort);}
 }

@@ -68,8 +68,8 @@ export async function discoverModels({protocol,baseUrl,credential='',accountId,f
   const models=[];let pages=0;
   while(true){const r=await fetchImpl(url,{headers,credentials:'omit',referrerPolicy:'no-referrer',signal:signal?AbortSignal.any([signal,AbortSignal.timeout(20000)]):AbortSignal.timeout(20000)});checkAbort(signal);if(!r.ok){if([401,402,403].includes(r.status))throw await readProviderFailure(r,{signal});throw Object.assign(new Error(`PROVIDER_MODELS_HTTP (HTTP ${r.status})`),{code:'PROVIDER_MODELS_HTTP',status:r.status});}const data=JSON.parse(await readText(r,{maxBytes:2000000,signal}));checkAbort(signal);const entries=data.data||data.models;if(!Array.isArray(entries))throw new Error('模型目录没有返回有效列表');for(const m of entries)if(typeof m.id==='string'&&!models.some(v=>v.id===m.id))models.push({id:m.id,name:m.display_name||m.name||m.id,...modelContextMetadata(m),...modelReasoningMetadata(m)});if(models.length>2000)throw new Error('模型目录超过限额');if(!data.has_more)return models;if(!data.last_id||++pages>=20)throw new Error('模型目录分页不完整');url.searchParams.set('after_id',data.last_id);}
 }
-export async function callModel({provider,credential,messages,tools=[],signal,onDelta=()=>{},fetchImpl=fetch}) {
-  if(provider?.protocol==='codex')return callCodexModel({provider,messages,tools,signal,onDelta,fetchImpl});
+export async function callModel({provider,credential,messages,tools=[],signal,onDelta=()=>{},onRetry=()=>{},fetchImpl=fetch}) {
+  if(provider?.protocol==='codex')return callCodexModel({provider,messages,tools,signal,onDelta,onRetry,fetchImpl});
   if(!provider?.baseUrl||!provider?.model)throw new Error('请先配置后端地址和模型');
   if(!['openai','anthropic'].includes(provider.protocol))throw new Error('不支持的后端协议');
   const base=new URL(provider.baseUrl);

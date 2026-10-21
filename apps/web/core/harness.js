@@ -16,6 +16,7 @@ import {imageData} from './attachments.js';
 import {generateSessionTitle} from './session-title.js';
 import {bridgeStatus,phoneInputError,assertBridgePresent} from './bridge-status.js';
 import {assertClipboardPasteReady,runtimeClipboard} from './clipboard-plan.js';
+import {safeNetworkDiagnostics} from './network-diagnostics.js';
 
 const userText=text=>ERROR_CATALOG[text]?.[getLocale()]||text;
 const object=(properties={},required=[])=>({type:'object',properties,required,additionalProperties:false});
@@ -197,13 +198,14 @@ export function createHarness({store,onEvent=()=>{},capture=screenCapture,invoke
             emit({type:'context',status:'ready',sessionId,modelId:contextModelId,snapshot:contextSnapshot(projected.metrics,provider,{sessionId,modelId:contextModelId})});
             await journal('model.started',{step:stepCount,context:projected.metrics,retry:attempt});emit({type:'status',status:'awaiting_model'});
             try{
-              reply=await abortable(invoke({provider,credential,messages,tools:available,signal:runSignal,onDelta:delta=>{if(!runSignal.aborted){emitted=true;emit({type:'delta',text:delta});}}}),runSignal);await guard();break;
+              reply=await abortable(invoke({provider,credential,messages,tools:available,signal:runSignal,onRetry:retry=>{if(!runSignal.aborted&&active===run&&!run.finished&&Number.isInteger(retry?.attempt)&&retry.attempt>=1&&retry.attempt<=5&&retry.maxRetries===5&&[500,1000,2000,4000,8000].includes(retry.delayMs))emit({type:'status',status:'retrying_model',attempt:retry.attempt,maxRetries:retry.maxRetries,delayMs:retry.delayMs});},onDelta:delta=>{if(!runSignal.aborted){emitted=true;emit({type:'delta',text:delta});}}}),runSignal);await guard();break;
             }catch(error){
               if(attempt||emitted||error?.code!=='CONTEXT_WINDOW_EXCEEDED'||settings.context?.autoCompact===false)throw error;
               await guard();projected=await prepareContext({...contextOptions,force:true});
               if(!projected.compacted)throw error;
             }
           }
+          const recoveredNetwork=safeNetworkDiagnostics(reply.transportDiagnostics);if(recoveredNetwork?.recovered===true)await journal('model.network_recovered',{network:recoveredNetwork});
           if(reply.usage){await journal('model.usage',{step:stepCount,usage:reply.usage,cache:reply.cache});const usage=requestContextUsage(reply.usage,provider,projected.metrics.lastSeq);if(usage)emit({type:'context',status:'usage',sessionId,modelId:contextModelId,snapshot:usage});}
           const calls=callsFrom(reply);
           if(stepCount===0)void generateSessionTitle({store,sessionId,provider,credential,invoke:titleInvoke,locale:getLocale(),signal:runSignal,onEvent:emit}).catch(()=>{});
@@ -287,7 +289,7 @@ export function createHarness({store,onEvent=()=>{},capture=screenCapture,invoke
           run.pending=[];if(terminal){if(await beginAttentionReturn(terminal)){terminal=null;continue;}if(attentionReturn)terminal=attentionTerminal();status=terminal.status;const explanation=terminal.question||(terminal.explain||!answer.text.trim()?terminal.summary:undefined)||(status==='unknown'?'操作结果尚未核对，后续步骤已停止。':undefined);if(explanation){answer=await store.addMessage(sessionId,{role:'assistant',text:userText(explanation)});emit({type:'message',message:answer});}break;}
         }
         if(stepCount>=maxSteps){status='budget_exhausted';await journal('run.budget_exhausted',{maxSteps});answer=await store.addMessage(sessionId,{role:'assistant',text:userText('达到本轮步骤预算，进度已保存；尚未确认任务完成。')});emit({type:'message',message:answer});}
-      }catch(error){failure=error;status=run.pauseReason?'paused':runSignal.aborted?'cancelled':'failed';}
+      }catch(error){failure=error;status=run.pauseReason?'paused':runSignal.aborted?'cancelled':'failed';const network=safeNetworkDiagnostics(error?.networkDiagnostics);if(claimed&&!runSignal.aborted&&network&&['SIWC_RELAY_NETWORK','SIWC_RELAY_STREAM'].includes(error.code))try{await journal('model.network_failed',{code:error.code,network});}catch{}}
       finally{
         run.finished=true;if(typeof unsubscribeCapture==='function')try{unsubscribeCapture();}catch{}run.lifecycleController.abort();clearTimeout(timer);clearInterval(run.ownershipTimer);clearInterval(run.heartbeatTimer);run.heartbeatController.abort();
         if(mode!=='chat'&&device?.endRun){const cleanup=new AbortController(),cleanupTimer=setTimeout(()=>cleanup.abort(),1000);try{await abortable(Promise.resolve(device.endRun({writerId:run.id,signal:cleanup.signal})),cleanup.signal);}catch{emit({type:'device-lease',status:'release_unconfirmed'});}finally{clearTimeout(cleanupTimer);}}
@@ -305,7 +307,7 @@ export function createHarness({store,onEvent=()=>{},capture=screenCapture,invoke
       if(attentionReturn?.phase==='return_for_attention'){answer=await store.addMessage(sessionId,{role:'assistant',text:userText('HARNESS_ATTENTION_RETURN_PENDING')+'\n'+(attentionReturn.terminal.question||attentionReturn.terminal.summary||'')});emit({type:'message',message:answer});}
       emit({type:'status',status});
       if(status==='paused'){emit({type:'paused',reason:'capture_stopped',sessionId});return {status:'paused',reason:'capture_stopped',sessionId};}
-      if(failure){const message=status==='cancelled'?userText('任务已停止；已提交的输入不会自动撤销'):safeError(failure,credential);emit({type:'error',message});throw Object.assign(new Error(message),{cause:failure,status});}
+      if(failure){const relayCode=['SIWC_RELAY_NETWORK','SIWC_RELAY_STREAM'].includes(failure.code)?failure.code:null,message=status==='cancelled'?userText('任务已停止；已提交的输入不会自动撤销'):safeError(relayCode?userText(relayCode):failure,credential);emit({type:'error',message});throw Object.assign(new Error(message),{cause:failure,status,...(relayCode?{code:relayCode}:{})});}
       return answer;
     },
   };
