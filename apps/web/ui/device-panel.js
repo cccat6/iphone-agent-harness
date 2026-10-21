@@ -73,6 +73,25 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
     const progress=node('[data-connection-progress]');if(progress){progress.hidden=!working&&statusKey!=='operationFailed';node('[data-progress-message]').textContent=message;node('[data-progress-elapsed]').textContent=working?copy('progressElapsed',{seconds:Math.floor((Date.now()-progressStarted)/1000)}):'';}
     const details=node('[data-connection-error-details]');if(details){const text=statusKey==='operationFailed'&&!working?deviceErrorDetails(statusDetail):'';details.hidden=!text;node('[data-connection-error-content]').textContent=text;details.open=Boolean(text);}
   }
+  function renderAvailability(state=getState()){
+    if(!mounted())return;
+    const busy=working||isBusy(),connected=state.connected,selected=targets.find(target=>target.targetId===targetId),available=selected&&usableTarget(selected);
+    for(const [selector,disabled]of [
+      ['[data-target]',busy||!connected||!targets.some(usableTarget)],['[data-disconnect]',busy||!connected],['[data-address]',busy],
+      ['[data-pair]',busy||!information()],['[data-refresh]',busy||!connected],['[data-start-challenge]',busy||!connected||!available],
+      ['[data-start-sharing]',busy||!state.ready||capture.active],['[data-stop-sharing]',busy||!capture.active],['[data-control-check]',busy||!state.ready]
+    ])node(selector).disabled=Boolean(disabled);
+  }
+  function refreshUI(){
+    if(disposed||!mounted())return;
+    // External task/submission state may change without a device event. Only
+    // update availability here; keep the selected target and focused nonce intact.
+    renderAvailability();
+    if(working||isBusy()||informationSaving||importError||!pendingSetup?.rtc)return;
+    const edit=informationEdit,currentOperation=operation,value=pendingSetup;
+    const current=()=>!disposed&&mounted()&&operation===currentOperation&&informationEdit===edit&&!working&&!isBusy();
+    void saveInformation(value,{current}).then(saved=>{if(!current())return;if(saved)statusKey='infoSaved';renderState();}).catch(error=>{if(!current())return;importError=error;statusKey='importInvalid';renderState();});
+  }
   function renderState(){
     if(!mounted())return;
     const heading=root.closest('#panel-content')?.querySelector('.panel-header');if(heading){for(const [selector,key] of [['h2','title']]){const element=heading.querySelector(selector);if(element){element.dataset.noI18n='';element.textContent=copy(key);}}}
@@ -92,15 +111,7 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
     node('[data-target]').replaceChildren(...targets.map(target=>{const option=document.createElement('option');option.value=target.targetId;option.textContent=copy('targetLabel',{id:target.targetId})+' · '+copy(target.connected&&target.encrypted&&target.hidSubscribed?'targetReady':'targetUnavailable');option.disabled=!(target.connected&&target.encrypted&&target.hidSubscribed);return option;}));
     if(!targets.length){const option=document.createElement('option');option.value='';option.textContent=copy(connected?'noTargets':'bridgeRequired');node('[data-target]').append(option);}
     node('[data-target]').value=targetId;
-    node('[data-target]').disabled=working||isBusy()||!connected||!targets.some(usableTarget);
-    const selected=targets.find(target=>target.targetId===targetId),available=selected?.connected&&selected.encrypted&&selected.hidSubscribed;
-    node('[data-disconnect]').disabled=working||isBusy()||!connected;
-    node('[data-address]').disabled=working||isBusy();
-    node('[data-pair]').textContent=copy(connected?'reconnect':'pair');node('[data-pair]').disabled=working||isBusy()||!information();node('[data-refresh]').disabled=working||isBusy()||!connected;
-    node('[data-start-challenge]').disabled=working||isBusy()||!connected||!available;
-    node('[data-start-sharing]').disabled=working||isBusy()||!ready||capture.active;
-    node('[data-stop-sharing]').disabled=working||isBusy()||!capture.active;
-    node('[data-control-check]').disabled=working||isBusy()||!ready;
+    node('[data-pair]').textContent=copy(connected?'reconnect':'pair');renderAvailability(state);
     node('[data-sharing-state]').textContent=copy(capture.active?'sharingReady':'sharingOff');
     node('[data-binding-state]').textContent=copy(verified?'bound':!connected?'bridgeRequired':state.targetBound?'inputTestOptional':legacyBinding?'legacyInputTest':state.bluetoothConnected?'phoneSelect':'noTargets');
     node('[data-test-success]').hidden=!verified;node('[data-binding-state]').hidden=verified||state.targetBound;
@@ -207,7 +218,7 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
   }
   async function open({isCurrent=()=>true}={}){
     receiveSetupLink();
-    close();const opening=operation;settings=await store.getSettings();if(opening!==operation||!isCurrent())return null;
+    close();const opening=operation,loadedSettings=await store.getSettings();if(opening!==operation||!isCurrent())return null;settings=loadedSettings;
     legacyEndpoint=settings.deviceEndpoint&&defaultBridgeEndpoint(settings.deviceEndpoint)!==settings.deviceEndpoint?settings.deviceEndpoint:'';
     if(pendingSetup&&!isBusy()){const edit=informationEdit;try{await saveInformation(pendingSetup,{current:()=>edit===informationEdit&&opening===operation&&isCurrent()&&!isBusy()});}catch(error){if(edit===informationEdit)importError=error;}}
     if(opening!==operation||!isCurrent())return null;
@@ -336,5 +347,5 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
   function destroy(){disposed=true;stopMonitor();connectionEpoch++;globalThis.document?.removeEventListener?.('visibilitychange',foreground);globalThis.removeEventListener?.('pagehide',suspend);close();transport?.close();transport=null;connectionActive=false;targets=[];invalidateProof();}
   function suspend(){stopMonitor();connectionEpoch++;close();const previous=transport;transport=null;previous?.close();connectionActive=false;targets=[];invalidateProof();}
   globalThis.addEventListener?.('pagehide',suspend);
-  return {open,dispose:close,destroy,receiveSetupLink,hasPendingSetup:()=>Boolean(pendingSetup||importError),getDevice:()=>getState().ready?client:null,getState,ensureReady,refreshConnection};
+  return {open,dispose:close,destroy,receiveSetupLink,hasPendingSetup:()=>Boolean(pendingSetup||importError),getDevice:()=>getState().ready?client:null,getState,ensureReady,refreshConnection,refreshUI};
 }

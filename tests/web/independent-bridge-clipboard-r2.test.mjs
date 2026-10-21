@@ -4,24 +4,24 @@ import {readFile} from 'node:fs/promises';
 import vm from 'node:vm';
 import {createHistoryWindow} from '../../apps/web/core/history-window.js';
 const app=await readFile(new URL('../../apps/web/app.js',import.meta.url),'utf8');
-function fixture(existing,{failure=null}={}){
+function fixture(existing,{failure=null,ready=false}={}){
  const calls=[],nodes=new Map();
  const $=selector=>{if(!nodes.has(selector))nodes.set(selector,{value:selector==='#message-input'?'Can you explain this?':selector==='#mode-select'?'chat':'provider::chosen-model',textContent:'',hidden:false});return nodes.get(selector);};
- const state={settings:{activeProviderId:'different-settings-default'},current:existing?{id:'s',mode:'chat'}:null,drafts:new Map(),runGeneration:0,devicePanel:{ensureReady:async()=>false},store:{updateSession:async()=>{},getMessages:async()=>[],getSession:async()=>({id:'s',title:'S'})},harness:{run:async x=>{calls.push(x);if(failure)throw failure;}}};
- const sandbox={conversationFollow:()=>({follow(){}}),capture:{active:true},createHistoryWindow,state,$,getBrowserCompatibility:()=>({supportedForHarness:true}),selectedProvider:()=>({id:'provider',name:'Selected personal API'}),showDevices:async()=>calls.push('devices'),toast:()=>{},t:x=>x,setRunning:value=>{state.running=value;},AbortController,resizeInput(){},refreshSessions:async()=>{},renderMessages(){},renderRunControls(){},renderReasoningOptions(){},report:error=>{throw error;}};
+ const state={settings:{activeProviderId:'different-settings-default'},submitting:false,running:false,current:existing?{id:'s',mode:'chat'}:null,drafts:new Map(),runGeneration:0,devicePanel:{ensureReady:async()=>ready},store:{updateSession:async()=>{},getMessages:async()=>[],getSession:async()=>({id:'s',title:'S'})},harness:{run:async x=>{calls.push(x);if(failure)throw failure;}}};
+ const sandbox={deviceSessionAvailable:()=>ready,conversationFollow:()=>({follow(){}}),capture:{active:true},createHistoryWindow,state,$,getBrowserCompatibility:()=>({supportedForHarness:true}),selectedProvider:()=>({id:'provider',name:'Selected personal API'}),showDevices:async()=>calls.push('devices'),toast:()=>{},t:x=>x,setRunning:value=>{state.running=value;},AbortController,resizeInput(){},refreshSessions:async()=>{},renderMessages(){},renderRunControls(){},renderReasoningOptions(){},report:error=>{throw error;}};
  vm.runInNewContext(app.slice(app.indexOf('function historyWindow()'),app.indexOf('async function openSession(')),sandbox);
  vm.runInNewContext(app.slice(app.indexOf('function selectionParts('),app.indexOf('function profileModels(')),sandbox);
  vm.runInNewContext(app.slice(app.indexOf('async function sendMessage('),app.indexOf('function renderClipboard()')),sandbox);
  return {state,calls,send:()=>sandbox.sendMessage({preventDefault(){}})};
 }
-test('existing conversations can reach the model while the ESP32 bridge is absent',async()=>{
- const f=fixture(true);await f.send();assert.equal(f.calls.length,1);assert.equal(f.calls[0].sessionId,'s');assert.equal(f.calls[0].mode,'auto');assert.equal(f.state.running,false);assert.equal(f.state.submitting,false);
+test('existing conversations route to connection before sending when the bridge is absent',async()=>{
+ const f=fixture(true);await f.send();assert.equal(f.calls.length,1);assert.equal(f.calls[0],'devices');assert.equal(f.state.running,false);assert.equal(f.state.submitting,false);
 });
 test('starting a new conversation without a bridge routes to connection before a model call',async()=>{
  const f=fixture(false);await f.send();assert.deepEqual(f.calls,['devices']);assert.equal(f.state.submitting,false);
 });
 test('a credential error identifies the actual selected API and model rather than a different settings default',async()=>{
- const failure=Object.assign(new Error('PROVIDER_CREDENTIAL_MISSING'),{code:'PROVIDER_CREDENTIAL_MISSING'}),f=fixture(true,{failure});await f.send();
+ const failure=Object.assign(new Error('PROVIDER_CREDENTIAL_MISSING'),{code:'PROVIDER_CREDENTIAL_MISSING'}),f=fixture(true,{failure,ready:true});await f.send();
  assert.equal(f.state.lastError,failure);assert.equal(f.state.lastErrorProfile.name,'Selected personal API');assert.equal(f.state.lastErrorProfile.model,'chosen-model');
  assert.equal(f.calls[0].modelId,'provider::chosen-model');assert.equal(f.state.settings.activeProviderId,'different-settings-default');assert.equal(f.state.submitting,false);
 });

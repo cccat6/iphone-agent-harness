@@ -20,9 +20,8 @@ function appHarness({ready=false,current=null,liveReady=ready}={}){
  return {context,state,counts};
 }
 test('production newSession gate never creates an offline session',async()=>{const h=appHarness();await h.context.newSession();assert.equal(h.counts.created,0);assert.equal(h.counts.openedDevice,1);});
-// Current requirement: an existing session can explain a disconnected bridge.
-// Physical input rejection is covered by bridge-runtime-awareness.test.mjs.
-test('existing offline session can still ask the model without creating a new session',async()=>{const h=appHarness({current:{id:'existing'}});await h.context.sendMessage({preventDefault(){}});assert.equal(h.counts.model,1);assert.equal(h.counts.created,0);assert.equal(h.counts.openedDevice,0);});
+// Sending requires the bridge for both saved conversations and new drafts; history remains readable.
+test('existing offline session preserves the draft without calling the model',async()=>{const h=appHarness({current:{id:'existing'}});await h.context.sendMessage({preventDefault(){}});assert.equal(h.counts.model,0);assert.equal(h.counts.created,0);assert.equal(h.counts.openedDevice,1);});
 
 for(const operation of ['select','enable'])test(`MCP ${operation} during local credential restoration keeps the saved token`,async()=>{
  const store=await openStore({memory:true}),access=createMCPAccess({fetchImpl:async(url,o)=>{const rpc=JSON.parse(o.body);if(rpc.method==='notifications/initialized')return new Response(null,{status:202});return Response.json({jsonrpc:'2.0',id:rpc.id,result:rpc.method==='initialize'?{protocolVersion:'2025-11-25'}:{tools:['lookup','search'].map(name=>({name,inputSchema:{type:'object'}}))}});}});
@@ -37,7 +36,7 @@ for(const operation of ['select','enable'])test(`MCP ${operation} during local c
 // The stale UI may still display ready until the next status poll. The action
 // itself must require a fresh board response before mutating/sending anything.
 test('production newSession performs live readiness check, rejecting stale ready state',async()=>{const h=appHarness({ready:true,liveReady:false});await h.context.newSession();assert.equal(h.counts.created,0);});
-test('existing session remains conversational after its live readiness check fails',async()=>{const h=appHarness({ready:true,liveReady:false,current:{id:'existing'}});await h.context.sendMessage({preventDefault(){}});assert.equal(h.counts.model,1);assert.equal(h.counts.openedDevice,0);});
+test('existing session refuses to send after its live readiness check fails',async()=>{const h=appHarness({ready:true,liveReady:false,current:{id:'existing'}});await h.context.sendMessage({preventDefault(){}});assert.equal(h.counts.model,0);assert.equal(h.counts.openedDevice,1);});
 test('production existing conversation remains readable while device is offline',async()=>{const h=appHarness();vm.runInContext(appFunction('openSession'),h.context);await h.context.openSession('existing');assert.equal(h.state.current.id,'existing');assert.equal(h.counts.model,0);assert.equal(h.counts.openedDevice,0);});
 
 function accountEditorHarness({codex=false}={}){

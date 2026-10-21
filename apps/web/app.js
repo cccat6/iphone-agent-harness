@@ -111,7 +111,7 @@ function renderDeviceStatus(){
   const value=state.devicePanel?.getState?.()||state.deviceStatus||{},ready=value.ready??value.inputVerified,key=value.status==='connecting'?'connecting':value.checking?'checking':!value.connected?'offline':value.bluetoothConnected===false?'phone':value.phoneInputReady===false?'input':!ready?'target':value.sharing?'sharing':'ready';
   $('#home-device-status').textContent=t('device.state.'+key);$('#home-device-detail').textContent=t(value.connected?'device.manage':'device.connectHint');$('#device-indicator').classList.toggle('verified',Boolean(ready));
   $('#conversation-device').textContent=t('device.state.'+(key==='sharing'?'ready':key));$('#conversation-device').classList.toggle('connected',Boolean(ready));
-  $('#new-session').setAttribute('aria-label',t('session.new'));$('#new-session').setAttribute('aria-describedby','home-device-status');
+  $('#new-session').setAttribute('aria-label',t('session.new'));$('#new-session').setAttribute('aria-describedby','home-device-status');renderRunControls();
 }
 async function refreshSessions() { state.sessionListCursors=[];state.sessionListBefore=null;const request=state.sessionListGeneration=(state.sessionListGeneration||0)+1;const sessions=await state.store.listSessions({archived:state.archived,search:$('#session-search').value,limit:81});if(request!==state.sessionListGeneration)return;state.sessions=sessions.slice(0,80);state.libraryCommittedArchived=state.archived;state.sessionListMore=sessions.length>80;renderSessions(); }
 async function switchSessionLibrary(value){if(state.libraryCommittedArchived===undefined)state.libraryCommittedArchived=state.archived;const previous=state.libraryCommittedArchived,generation=state.libraryGeneration=(state.libraryGeneration||0)+1;state.archived=value==='archived';$('#sessions').setAttribute('aria-busy','true');try{await refreshSessions();if(generation===state.libraryGeneration)state.libraryCommittedArchived=state.archived;}catch(error){if(generation===state.libraryGeneration){state.archived=previous;renderSessions();}throw error;}finally{if(generation===state.libraryGeneration)$('#sessions').setAttribute('aria-busy','false');}}
@@ -242,7 +242,7 @@ function renderMessages({scrollToEnd=true,forceFollow=false}={}) {
   if(scrollToEnd&&!state.hasNewer)follow.afterRender();renderLatestControl();
   state.historyImages=createHistoryImages({store:state.store,root:region,onImageReady:()=>{if(!state.hasNewer)follow.afterRender();}});state.historyImages.mount();renderRunControls();
 }
-function renderRunControls(){const deleting=!!state.current&&!!state.sessionActions?.isDeleting(state.current.id);$('#send-message').disabled=state.submitting||deleting||state.contextCompacting===true;for(const action of $$('[data-execute-plan]'))action.disabled=state.running||state.submitting||deleting;const paused=Boolean(state.current?.promptState?.runResume||(!!state.current?.id&&state.capturePaused===state.current.id));const button=$('#resume-run');button.hidden=state.running||!paused;button.disabled=state.submitting||deleting||state.contextCompacting===true;button.textContent=t(capture.active?'interaction.resume':'interaction.startSharing');$('#run-status').hidden=!state.running&&!paused;if(!state.running&&paused)$('#run-status').textContent=t('interaction.paused');updateModeDescription();state.contextMeter?.setContext(contextMeterState());}
+function renderRunControls(){state.devicePanel?.refreshUI?.();const unavailable=!deviceSessionAvailable();const deleting=!!state.current&&!!state.sessionActions?.isDeleting(state.current.id);$('#send-message').disabled=unavailable||state.submitting||deleting||state.contextCompacting===true;$('#send-message').title=unavailable?t('device.startHint'):!capture.active?t('interaction.startSharing'):'';for(const action of $$('[data-execute-plan]'))action.disabled=unavailable||state.running||state.submitting||deleting;const paused=Boolean(state.current?.promptState?.runResume||(!!state.current?.id&&state.capturePaused===state.current.id));const button=$('#resume-run');button.hidden=state.running||!paused;button.disabled=unavailable||state.submitting||deleting||state.contextCompacting===true;button.textContent=t(capture.active?'interaction.resume':'interaction.startSharing');$('#run-status').hidden=!state.running&&!paused;if(!state.running&&paused)$('#run-status').textContent=t('interaction.paused');updateModeDescription();state.contextMeter?.setContext(contextMeterState());}
 function setRunning(running) { state.running=running;if($('#reasoning-select'))$('#reasoning-select').disabled=running||state.submitting; $('#send-message').hidden=running; $('#stop-run').hidden=!running; $('#model-select').disabled=running; if(!running)$('#run-status').textContent='';renderRunControls(); }
 function onHarnessEvent(event) {
   if(event.type==='context'){state.contextMeter?.accept(event);return;}
@@ -255,21 +255,25 @@ function onHarnessEvent(event) {
 }
 async function resumeRun(){
   if(state.running||state.submitting||state.contextCompacting||!state.current||state.sessionActions?.isDeleting(state.current.id))return;
+  if(!deviceSessionAvailable()){await showDevices();toast(t('device.startHint'));return;}
   // Start capture directly from this trusted click before storage/network awaits.
   const sharing=capture.active?Promise.resolve():capture.start();
   state.submitting=true;let resolveCompletion;state.runCompletion=new Promise(resolve=>{resolveCompletion=resolve;});let generation=null;const sessionId=state.current.id;
-  try{await sharing;if(!await state.devicePanel.ensureReady()){await showDevices();return;}generation=++state.runGeneration;state.abort=new AbortController();state.lastError=null;state.capturePaused=false;setRunning(true);await state.harness.resume({sessionId,modelId:$('#model-select').value,signal:state.abort.signal});}
+  try{await sharing;if(!await state.devicePanel.ensureReady()||!deviceSessionAvailable()){await showDevices();return;}if(!capture.active){toast(t('interaction.startSharing'));return;}generation=++state.runGeneration;state.abort=new AbortController();state.lastError=null;state.capturePaused=false;setRunning(true);await state.harness.resume({sessionId,modelId:$('#model-select').value,signal:state.abort.signal});}
   catch(error){state.lastError=error;}
   finally{try{if(generation===null||generation===state.runGeneration){const session=await state.store.getSession(sessionId);if((generation===null||generation===state.runGeneration)&&state.current?.id===sessionId){state.current=session;applyHistory(historyWindow().snapshot());renderMessages();}}}finally{if(generation===null||generation===state.runGeneration){state.abort=null;state.submitting=false;setRunning(false);}renderRunControls();renderReasoningOptions();resolveCompletion?.();}}
 }
 async function sendMessage(event,textOverride=null,modeOverride=null) {
   event.preventDefault();if(!getBrowserCompatibility().supportedForHarness){renderPlatform();return;}const text=(textOverride===null?$('#message-input').value:textOverride).trim();if(!text||state.running||state.submitting||state.contextCompacting||(state.current&&state.sessionActions?.isDeleting(state.current.id)))return;
   const draftGeneration=state.current?null:state.sessionOpenGeneration;
-  const sharing=capture.active||!deviceSessionAvailable()||!selectedProvider()?Promise.resolve():capture.start();
+  if(!deviceSessionAvailable()){await showDevices();toast(t('device.startHint'));return;}
+  if(!selectedProvider()){await showSettings('accounts');toast(t('status.configureModel'));return;}
+  const sharing=capture.active?Promise.resolve():capture.start();
   if(state.composerDraftActive)rememberComposerDraft();state.submitting=true;renderRunControls();let resolveCompletion;state.runCompletion=new Promise(resolve=>{resolveCompletion=resolve;});let generation=null,sessionId=null,controller=null,firstMessageId=null,firstSendGeneration=draftGeneration;
   const startupCurrent=()=>draftGeneration===null||(firstSendGeneration===state.sessionOpenGeneration&&(sessionId?state.current?.id===sessionId:!state.current));
   try{
-    await sharing;if(!startupCurrent())return;const ready=await state.devicePanel?.ensureReady?.();if(!startupCurrent())return;if(!state.current&&!ready){await showDevices();toast(t('device.startHint'));return;}
+    await sharing;if(!startupCurrent())return;const ready=await state.devicePanel?.ensureReady?.();if(!startupCurrent())return;if(!ready){await showDevices();toast(t('device.startHint'));return;}
+    if(!capture.active){toast(t('interaction.startSharing'));return;}
     if(!selectedProvider()){await showSettings('accounts');toast(t('status.configureModel'));return;}
     if(!state.current&&(draftGeneration!==state.sessionOpenGeneration||!capture.active)){if(draftGeneration===state.sessionOpenGeneration)toast(t('interaction.startSharing'));return;}
     const mode='auto',modelId=$('#model-select').value;
@@ -288,8 +292,11 @@ async function sendMessage(event,textOverride=null,modeOverride=null) {
     if(!state.current||!startupCurrent())return;
     sessionId=state.current.id;if(state.hasNewer){await showLatestConversation();if(!startupCurrent())return;}conversationFollow().follow();await state.store.updateSession(sessionId,{mode,modelId});if(!startupCurrent())return;
     state.capturePaused=false;generation=++state.runGeneration;controller=new AbortController();state.abort=controller;state.lastError=null;state.lastErrorProfile={name:selectedProvider()?.name||selectedProvider()?.id||'',model:selectionParts($('#model-select').value).modelId};state.pending=null;setRunning(true);$('#run-status').textContent=t('status.preparing');
+    await state.skillSync;if(!startupCurrent())return;
+    if(!deviceSessionAvailable())throw new Error(t('device.startHint'));
+    if(!capture.active)throw new Error(t('interaction.startSharing'));
     if(textOverride===null&&$('#message-input').value.trim()===text){$('#message-input').value='';state.drafts.delete(sessionId);resizeInput();}
-    await state.skillSync;if(!startupCurrent())return;await state.harness.run({sessionId,text,mode,modelId,...(firstMessageId?{firstMessageId}:{}),signal:controller.signal});
+    await state.harness.run({sessionId,text,mode,modelId,...(firstMessageId?{firstMessageId}:{}),signal:controller.signal});
   }catch(error){
     if(generation!==null&&generation===state.runGeneration||firstMessageId&&startupCurrent()){state.lastError=error;if(generation===null){$('#session-title').textContent=state.current.title;$('#session-menu').hidden=false;state.navigation?.go({route:'harness',screen:'session',sessionId,panel:null,action:null},{replace:true});await refreshSessions().catch(report);if(startupCurrent())renderMessages();}}
     else report(error);

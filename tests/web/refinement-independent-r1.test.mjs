@@ -13,7 +13,7 @@ function controlsContext(){
  const nodes=new Map(),$=key=>{if(!nodes.has(key))nodes.set(key,{value:'p::model',textContent:'',hidden:false,disabled:false});return nodes.get(key);};
  const actions=[{disabled:true}];
  const state={running:false,submitting:false,current:{id:'session'},runGeneration:0,drafts:new Map()};
- const context=vm.createContext({state,$,$$:selector=>selector==='[data-execute-plan]'?actions:[],capture:{active:false},t:key=>key,renderReasoningOptions(){},updateModeDescription(){}});
+ const context=vm.createContext({state,$,$$:selector=>selector==='[data-execute-plan]'?actions:[],capture:{active:false},deviceSessionAvailable:()=>true,t:key=>key,renderReasoningOptions(){},updateModeDescription(){}});
  vm.runInContext(section('function renderRunControls()', '\nfunction setRunning('),context);
  return {state,$,context,actions};
 }
@@ -112,4 +112,10 @@ test('developer history arguments participate in its bounded resident window',as
  const page=await createHistoryWindow(store,{includeInternal:true,pageSize:12,maxMessages:12,maxTextBytes:2500}).load(session.id);
  const resident=page.messages.reduce((sum,m)=>sum+2*(m.text.length+JSON.stringify(m.toolCalls||[]).length),0);
  assert.ok(resident<=2500||page.messages.length===1,`Diagnostic arguments must be budgeted; resident bytes ${resident}`);
+});
+
+test('connection changes immediately gate send, resume and proposal controls, and refresh an open device panel',()=>{
+ const {state,$,context,actions}=controlsContext();let ready=false,refreshes=0;context.deviceSessionAvailable=()=>ready;state.devicePanel={refreshUI:()=>refreshes++};
+ context.renderRunControls();assert.equal($('#send-message').disabled,true);assert.equal($('#resume-run').disabled,true);assert.equal(actions[0].disabled,true);
+ ready=true;context.renderRunControls();assert.equal($('#send-message').disabled,false);assert.equal($('#send-message').title,'interaction.startSharing');assert.equal(actions[0].disabled,false);assert.equal(refreshes,2);
 });

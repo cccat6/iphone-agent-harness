@@ -16,7 +16,7 @@ async function fixture(t){
  const capture={active:true,start(){this.active=true;return Promise.resolve();}},provider={id:'test',name:'Test',model:'flash'};
  const context={state,capture,$:field,$$:()=>[],t:key=>key,loadComposerDraft,saveComposerDraft,clearComposerDraft,clipboard:{clear(){}},historyWindow:()=>({clear(){},load:async id=>({messages:await store.getMessages(id,{includeImages:false}),hasOlder:false,hasNewer:false}),snapshot:()=>({messages:state.messages,hasOlder:false,hasNewer:false})}),applyHistory:page=>{if(page)state.messages=page.messages;},providers:()=>state.settings.providers,selectedProvider:()=>provider,selectionParts:value=>({providerId:value.split('::')[0],modelId:value.split('::')[1]}),normalizeReasoningEffort:(p,v)=>v,renderModelOptions(){if(state.composerDraftActive)field('#model-select').value=state.composerDraft.modelId;},renderReasoningOptions(){},updateModeDescription(){},resizeInput(){},renderSessions(){},renderClipboard(){},renderMessages(){},renderRunControls(){},setRunning:value=>state.running=value,refreshSessions:async()=>{state.sessions=await store.listSessions();},showDevices:async()=>calls.devices++,showSettings:async()=>calls.settings++,toast(){},report:error=>calls.reports.push(error),conversationFollow:()=>({follow(){}}),getBrowserCompatibility:()=>({supportedForHarness:true}),renderPlatform(){},deviceSessionAvailable:()=>true,showLatestConversation:async()=>{},AbortController,URL,URLSearchParams,location:new URL('https://igent.cc/'),routeHref:route=>route==='harness'?'/':'/'+route,closeNavigationDialog(){},refreshBridgeAfterNavigation(){}};
  context.canonicalRoutes={harness:'',main:'main',skills:'skills',flash:'flash'};
- vm.createContext(context);vm.runInContext(segment('async function changeReasoningSelection','function historyWindow()')+segment('async function openSession(','async function pageHistory(')+segment('async function sendMessage(','function renderClipboard(')+segment('function navigationURL(','function refreshBridgeAfterNavigation(')+segment('function rememberRouteDraft(','function onNavigationClick('),context);
+ vm.createContext(context);vm.runInContext(segment('async function changeReasoningSelection','function historyWindow()')+segment('async function openSession(','async function pageHistory(')+segment('async function resumeRun(','async function sendMessage(')+segment('async function sendMessage(','function renderClipboard(')+segment('function navigationURL(','function refreshBridgeAfterNavigation(')+segment('function rememberRouteDraft(','function onNavigationClick('),context);
  return {state,store,field,calls,context,capture,saved};
 }
 test('new conversation opens one unsaved draft, preserves its text and has no conversation menu',async t=>{
@@ -80,4 +80,33 @@ test('returning after navigation starts a fresh draft-opening request instead of
 });
 test('tab-local draft serialization stays bounded and does not copy unrelated fields',async t=>{
  await fixture(t);saveComposerDraft({text:'unsent',modelId:'test::flash',reasoningEfforts:{'test::flash':'high'},credential:'must-not-be-saved',token:'must-not-be-saved'});assert.deepEqual(loadComposerDraft(),{text:'unsent',modelId:'test::flash',reasoningEfforts:{'test::flash':'high'}});clearComposerDraft();saveComposerDraft({text:'x'.repeat(100001)});assert.equal(loadComposerDraft(),null);
+});
+
+for(const saved of [false,true])for(const failure of ['offline','live-check','capture-denied','capture-stopped'])test(`${saved?'saved conversation':'draft'} does not submit when ${failure}`,async t=>{
+ const f=await fixture(t);if(saved)f.state.current=await f.store.createSession({title:'Existing'});else f.context.openComposerDraft();
+ f.field('#message-input').value='keep my unsent request';let captureRequests=0;
+ if(failure==='offline'){f.context.deviceSessionAvailable=()=>false;f.capture.active=false;f.capture.start=()=>{captureRequests++;throw Error('must not request capture');};}
+ if(failure==='live-check')f.state.devicePanel.ensureReady=async()=>false;
+ if(failure==='capture-denied'){f.capture.active=false;f.capture.start=()=>{captureRequests++;return Promise.reject(new Error('Permission denied'));};}
+ if(failure==='capture-stopped')f.state.devicePanel.ensureReady=async()=>{f.capture.active=false;return true;};
+ await f.context.sendMessage({preventDefault(){}});
+ assert.equal(f.calls.run.length,0);assert.equal(f.calls.created,0);assert.equal(f.field('#message-input').value,'keep my unsent request');assert.equal(f.state.submitting,false);
+ if(saved)assert.equal((await f.store.getMessages(f.state.current.id)).length,0);
+ if(failure==='offline')assert.equal(captureRequests,0);
+});
+test('existing session requests capture inside the send gesture and waits for approval',async t=>{
+ const f=await fixture(t),gate=deferred();f.state.current=await f.store.createSession({title:'Existing'});f.field('#message-input').value='new request';f.capture.active=false;let started=false;
+ f.capture.start=()=>{started=true;return gate.promise.then(()=>{f.capture.active=true;});};
+ const sending=f.context.sendMessage({preventDefault(){}});assert.equal(started,true);assert.equal(f.calls.bridge,0);assert.equal(f.calls.run.length,0);gate.resolve();await sending;assert.equal(f.calls.run.length,1);
+});
+for(const resource of ['bridge','capture'])test(`losing ${resource} during startup prevents the model request and preserves existing-session input`,async t=>{
+ const f=await fixture(t),entered=deferred(),gate=deferred();f.state.current=await f.store.createSession({title:'Existing'});f.field('#message-input').value='not submitted';f.state.skillSync=gate.promise;
+ const running=f.context.setRunning;f.context.setRunning=value=>{running(value);if(value)entered.resolve();};
+ const sending=f.context.sendMessage({preventDefault(){}});await entered.promise;if(resource==='bridge')f.context.deviceSessionAvailable=()=>false;else f.capture.active=false;gate.resolve();await sending;
+ assert.equal(f.calls.run.length,0);assert.equal(f.field('#message-input').value,'not submitted');assert.equal((await f.store.getMessages(f.state.current.id)).length,0);assert.equal(f.state.submitting,false);
+});
+
+test('resume rejects a bridge disconnect between the readiness response and its continuation',async t=>{
+ const f=await fixture(t);f.state.current=await f.store.createSession({title:'Paused'});let ready=true,resumed=0;f.context.deviceSessionAvailable=()=>ready;f.state.harness.resume=async()=>resumed++;
+ f.state.devicePanel.ensureReady=async()=>{queueMicrotask(()=>{ready=false;});return true;};await f.context.resumeRun();assert.equal(resumed,0);assert.equal(f.calls.devices,1);assert.equal(f.state.submitting,false);
 });

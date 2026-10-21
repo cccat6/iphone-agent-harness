@@ -22,7 +22,7 @@ export const messages = {
     "device.state.sharing": "Screen sharing active",
     "device.connectHint": "Connect iPhone Agent Bridge",
     "device.manage": "Manage connection",
-    "device.startHint": "Connect your device and complete the input test to start a session.",
+    "device.startHint": "Connect the ESP32 bridge first.",
 
     "session.importSuffix": " (imported)",
     "session.importFallback": "Conversation",
@@ -366,7 +366,7 @@ export const messages = {
     "device.state.sharing": "正在共享屏幕",
     "device.connectHint": "连接 iPhone Agent Bridge",
     "device.manage": "管理设备连接",
-    "device.startHint": "连接设备并完成输入测试后，即可开始会话。",
+    "device.startHint": "请先连接 ESP32 桥。",
 
     "session.importSuffix": "（导入）",
     "session.importFallback": "对话",
@@ -710,7 +710,7 @@ export const messages = {
     "device.state.sharing": "正在分享螢幕",
     "device.connectHint": "連線 iPhone Agent Bridge",
     "device.manage": "管理裝置連線",
-    "device.startHint": "連線裝置並完成輸入測試後，即可開始對話。",
+    "device.startHint": "請先連線 ESP32 橋接器。",
 
     "session.importSuffix": "（匯入）",
     "session.importFallback": "對話",
@@ -1054,7 +1054,7 @@ export const messages = {
     "device.state.sharing": "画面を共有中",
     "device.connectHint": "iPhone Agent Bridge に接続",
     "device.manage": "接続を管理",
-    "device.startHint": "デバイスに接続し、入力テストを完了してからセッションを開始してください。",
+    "device.startHint": "先に ESP32 ブリッジに接続してください。",
 
     "session.importSuffix": "（インポート）",
     "session.importFallback": "会話",
@@ -1398,7 +1398,7 @@ export const messages = {
     "device.state.sharing": "Экран транслируется",
     "device.connectHint": "Подключить iPhone Agent Bridge",
     "device.manage": "Управление подключением",
-    "device.startHint": "Подключите устройство и проверьте ввод, чтобы начать сеанс.",
+    "device.startHint": "Сначала подключите мост ESP32.",
 
     "session.importSuffix": " (импорт)",
     "session.importFallback": "Чат",
@@ -1742,7 +1742,7 @@ export const messages = {
     "device.state.sharing": "Bildschirmfreigabe aktiv",
     "device.connectHint": "iPhone Agent Bridge verbinden",
     "device.manage": "Verbindung verwalten",
-    "device.startHint": "Verbinde dein Gerät und prüfe die Eingabe, bevor du eine Sitzung startest.",
+    "device.startHint": "Verbinde zuerst die ESP32-Bridge.",
 
     "session.importSuffix": " (importiert)",
     "session.importFallback": "Unterhaltung",
@@ -2086,7 +2086,7 @@ export const messages = {
     "device.state.sharing": "Partage d’écran actif",
     "device.connectHint": "Connecter iPhone Agent Bridge",
     "device.manage": "Gérer la connexion",
-    "device.startHint": "Connectez votre appareil et testez la saisie pour démarrer une conversation.",
+    "device.startHint": "Connectez d’abord le pont ESP32.",
 
     "session.importSuffix": " (importée)",
     "session.importFallback": "Conversation",
@@ -2430,7 +2430,7 @@ export const messages = {
     "device.state.sharing": "Pantalla compartida",
     "device.connectHint": "Conectar iPhone Agent Bridge",
     "device.manage": "Gestionar conexión",
-    "device.startHint": "Conecta el dispositivo y comprueba la entrada para iniciar una conversación.",
+    "device.startHint": "Conecta primero el puente ESP32.",
 
     "session.importSuffix": " (importada)",
     "session.importFallback": "Conversación",

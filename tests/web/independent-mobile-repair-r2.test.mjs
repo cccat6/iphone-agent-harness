@@ -7,7 +7,7 @@ const start=app.indexOf('function renderDeviceStatus()');
 const end=app.indexOf('\nasync function refreshSessions',start);
 function render(summary){
  const nodes=new Map(); const $=selector=>{if(!nodes.has(selector))nodes.set(selector,{textContent:'',classList:{toggle(){}},setAttribute(){}});return nodes.get(selector);};
- const context=vm.createContext({state:{deviceStatus:summary},$,t:key=>key});vm.runInContext(app.slice(start,end),context);context.renderDeviceStatus();return $('#home-device-status').textContent;
+ const context=vm.createContext({renderRunControls(){},state:{deviceStatus:summary},$,t:key=>key});vm.runInContext(app.slice(start,end),context);context.renderDeviceStatus();return $('#home-device-status').textContent;
 }
 test('screen sharing does not conceal a lost LAN connection on home',()=>{assert.equal(render({connected:false,inputVerified:false,sharing:true,status:'disconnected'}),'device.state.offline');});
 test('screen sharing does not conceal a disconnected Bluetooth phone',()=>{assert.equal(render({connected:true,bluetoothConnected:false,ready:false,targetBound:false,inputVerified:false,sharing:true,status:'needs-target'}),'device.state.phone');});
