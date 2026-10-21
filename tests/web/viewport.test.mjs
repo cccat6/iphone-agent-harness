@@ -50,3 +50,16 @@ test('Safari pinch prevention is scoped to application, excluding image viewer a
 });
 
 test('keyboard occlusion remains detectable after browser zoom outside the app',()=>{const r=viewportGeometry({layoutWidth:390,layoutHeight:844,width:195,height:220,scale:2,editing:true,top:100});assert.equal(r.width,390);assert.equal(r.height,440);assert.equal(r.keyboard,true);assert.equal(r.top,0);assert.equal(r.short,false);});
+
+test('Safari keyboard shrinks innerHeight but retains layout height and a 331px pan',()=>{
+ const f=fixture();f.doc.documentElement.clientWidth=402;f.doc.documentElement.clientHeight=714;
+ f.win.innerWidth=402;f.win.innerHeight=383;f.doc.activeElement={tagName:'TEXTAREA'};
+ Object.assign(f.view,{width:402,height:383,offsetTop:331});f.view.dispatchEvent(new Event('resize'));f.flush();
+ assert.equal(f.styles.get('--viewport-height'),'383px');assert.equal(f.styles.get('--viewport-top'),'331px');
+ assert.ok(f.classes.has('keyboard-visible'));assert.ok(!f.classes.has('short-viewport'));
+ // The fixed app is translated by Safari's 331px pan; its top is now visible.
+ assert.equal(Number.parseInt(f.styles.get('--viewport-top'))-331,0);
+ f.doc.activeElement=null;f.win.innerHeight=714;Object.assign(f.view,{height:714,offsetTop:0});
+ f.view.dispatchEvent(new Event('resize'));f.flush();assert.equal(f.styles.get('--viewport-top'),'0px');assert.equal(f.styles.get('--viewport-height'),'714px');assert.ok(!f.classes.has('keyboard-visible'));
+ f.doc.documentElement.clientWidth=874;f.doc.documentElement.clientHeight=342;f.win.innerWidth=874;f.win.innerHeight=342;Object.assign(f.view,{width:874,height:342});f.win.dispatchEvent(new Event('orientationchange'));f.flush();assert.equal(f.styles.get('--viewport-width'),'874px');assert.equal(f.styles.get('--viewport-height'),'342px');f.dispose();
+});

@@ -1,3 +1,4 @@
+import {projectToolActivity} from './tool-activity.js';
 import {validateMessageMetadata} from './message-metadata.js';
 import {createDeviceURL} from './device.js';
 import {imageData} from './attachments.js';
@@ -13,7 +14,7 @@ function publicSession(value){if(!value)return value;const {[SESSION_LIST_KEY]:k
 function sessionSummary(value){const {id,title,mode,modelId,pinned,archived,createdAt,updatedAt}=value;return {id,title,mode,modelId,pinned,archived,createdAt,updatedAt};}
 function compareSessionKeys(a,b){for(let i=0;i<a.length;i++){if(a[i]<b[i])return -1;if(a[i]>b[i])return 1;}return 0;}
 function sessionListOptions({archived=false,search='',limit=100,before=null}={}){return {archived:Boolean(archived),search:String(search).toLowerCase(),limit:Number.isFinite(limit)?Math.max(1,Math.min(500,Math.floor(limit))):100,before:before?sessionListKey({...before,archived}):null};}
-function messageView(value,{includeDebug=false}={}){const {id,sessionId,seq,createdAt,role,text,frameRefs,status,internal,toolName,taskPlan,toolCalls}=value;return {id,sessionId,seq,createdAt,role,toolName,taskPlan,...(includeDebug&&toolCalls?.length?{toolCalls}:{}),text:String(text||'').slice(0,32768),textLength:String(text||'').length,textOffset:0,frameRefs:frameRefs?.length?frameRefs:Array.isArray(value.images)?value.images.map((_,index)=>`local-message:${id}:${index}`):undefined,status,internal};}
+function messageView(value,{includeDebug=false}={}){const {id,sessionId,seq,createdAt,role,text,frameRefs,status,internal,toolName,taskPlan,toolCalls}=value;return {id,sessionId,seq,createdAt,role,toolName,taskPlan,...(toolCalls?.length?{toolActivity:projectToolActivity(toolCalls)}:{}),...(includeDebug&&toolCalls?.length?{toolCalls}:{}),text:String(text||'').slice(0,32768),textLength:String(text||'').length,textOffset:0,frameRefs:frameRefs?.length?frameRefs:Array.isArray(value.images)?value.images.map((_,index)=>`local-message:${id}:${index}`):undefined,status,internal};}
 const modes=new Set(['auto','chat','plan','task']);
 const secretKey=/^(apiKey|api_key|key|token|access_token|refresh_token|password|authorization)$/i;
 function localCredentialId(id){if(typeof id!=='string'||!id.length||id.length>512||/[\u0000-\u001f]/.test(id))throw new Error('Invalid local credential ID');return 'local-credential:'+id;}

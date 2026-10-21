@@ -1,8 +1,19 @@
+import {toolActivityForMessage} from '../core/tool-activity.js';
 // Presentation is derived from stored records; original protocol data stays intact.
 export function messagePresentation(message,{developerMode=false,t=key=>key}={}){
  const refs=message.frameRefs||[];
  if(message.internal&&!developerMode)return null;
- if(message.role!=='tool')return {text:message.taskPlan?'':message.text||'',frameRefs:refs,plan:message.taskPlan||null,kind:message.internal?'debug':'message',detail:developerMode&&message.toolCalls?.length?JSON.stringify(message.toolCalls,null,2):''};
+ if(message.role!=='tool'){
+  let text=message.taskPlan?'':message.text||'';
+  if(message.role==='assistant'&&!message.taskPlan){const summary=toolActivityForMessage(message).map(activity=>{
+   if(activity.kind!=='execute')return t('interaction.activity.'+activity.kind);
+   const actions=(activity.actions||[]).map(action=>{let label=t('interaction.operation.'+(action.op==='key'?action.key||'input':action.op));if(action.phases?.length)label+=' ('+action.phases.map(phase=>t('interaction.pointer.'+phase)).join(', ')+')';if(action.direction)label+=' · '+t('interaction.direction.'+action.direction);if(action.point)label+=` (${action.point.x}%, ${action.point.y}%)`;if(action.durationMs!==undefined)label+=` · ${action.durationMs} ms`;return label;});
+   return t('interaction.activity.execute')+(actions.length?': '+actions.join(' → '):'')+(activity.more?' · '+t('interaction.moreActions',{count:activity.more}):'');
+  }).join('\n');if(summary)text+=(text.trim()?'\n\n':'')+summary;
+  }
+  if(!text.trim()&&!refs.length&&!message.taskPlan&&!developerMode)return null;
+  return {text,frameRefs:refs,plan:message.taskPlan||null,kind:message.internal?'debug':'message',detail:developerMode&&message.toolCalls?.length?JSON.stringify(message.toolCalls,null,2):''};
+ }
  let value;try{value=JSON.parse(message.text);}catch{}
  const status=value?.status,name=message.toolName||'';
  let text='';
@@ -13,7 +24,7 @@ export function messagePresentation(message,{developerMode=false,t=key=>key}={})
  else if(name==='user_request_input')text=value?.question||'';
  else if(['captured','observed'].includes(status)||refs.length)text=t('interaction.observed');
  else if(['completed','submitted','released','accepted'].includes(status))text=t('interaction.actionComplete');
- else if(['failed','rejected','not_executed'].includes(status))text=t('interaction.actionAdjust');
+ else if(['failed','rejected','not_executed','error'].includes(status))text=t('interaction.actionAdjust');
  else if(['unknown','unconfirmed'].includes(status))text=t('interaction.actionUnconfirmed');
  else if(['created','updated'].includes(status))text=t('interaction.skillSaved');
  else if(name.startsWith('skills_')||name==='session_search'||name==='mcp_list_tools')text='';

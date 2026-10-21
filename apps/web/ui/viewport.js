@@ -21,7 +21,9 @@ export function mountViewport({window:win=globalThis.window,document:doc=globalT
     pending=null;if(disposed)return;
     const active=doc.activeElement;
     const editing=!!active&&(active.isContentEditable||/^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName));
-    const geometry=viewportGeometry({width:view?.width,height:view?.height,top:view?.offsetTop,scale:view?.scale,layoutWidth:root.clientWidth||win.innerWidth,layoutHeight:win.innerHeight,userAgent:win.navigator?.userAgent,editing});
+    // Safari can shrink innerHeight to the keyboard-visible area while keeping
+    // a taller layout viewport and panning it. Clamp against the layout height.
+    const geometry=viewportGeometry({width:view?.width,height:view?.height,top:view?.offsetTop,scale:view?.scale,layoutWidth:root.clientWidth||win.innerWidth,layoutHeight:root.clientHeight||win.innerHeight,userAgent:win.navigator?.userAgent,editing});
     let changed=false;
     for(const key of ['width','height','top','left'])if(previous?.[key]!==geometry[key]){root.style.setProperty('--viewport-'+key,geometry[key]+'px');changed=true;}
     for(const [key,name]of [['compact','compact-viewport'],['short','short-viewport'],['keyboard','keyboard-visible']])if(previous?.[key]!==geometry[key]){doc.body.classList.toggle(name,geometry[key]);changed=true;}
