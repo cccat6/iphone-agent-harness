@@ -28,7 +28,7 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
   let client=null,proof=null,targets=[],targetId='',root=null,dialog=null,controller=null,operation=0,working=false;
   let challenge=null,nonce='',armed=false,challengeTimer=null,testWait=null,unsubscribe=null,settings={},statusKey='notPaired',statusDetail='',checkedAt=null;
   let legacyBinding=false,challengeCancellation=Promise.resolve(),bindingError=null,verifiedRTC=null,challengeMayExist=false,challengeRetryController=null;
-  let connectionActive=false,pendingSetup=null,connectionEpoch=0,monitorTimer=null,refreshTask=null,disposed=false,lastRefreshStarted=0;
+  let connectionActive=false,pendingSetup=null,connectionEpoch=0,monitorTimer=null,refreshTask=null,disposed=false,lastRefreshStarted=0,reconnectTimer=null;
   let importError=null,progressTimer=null,progressStarted=0,informationEdit=0,informationSaving=null,pendingSetupSource='';
   function receiveSetupLink(){
     const source=globalThis.location?.href;if(!source||!new URLSearchParams(globalThis.location.hash?.slice(1)||'').has('device'))return false;
@@ -248,7 +248,15 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
       resetChallenge();stopMonitor();legacyBinding=false;bindingError=null;verifiedRTC=null;connectionEpoch++;connectionActive=false;invalidateProof();
       const previous=transport;transport=null;previous?.close();challengeCancellation=Promise.resolve();
       setStatus('rtcOpening');
-      const bridge=bridgeFactory({baseUrl:configuration.baseUrl,rtc:configuration.rtc,onProgress:value=>{if(working){const stages={configuration:'rtcOpening',network:'rtcNetwork',handshake:'rtcHandshake',channel:'rtcChannel',ready:'rtcReading'};setStatus(stages[value.phase]||'rtcOpening');}},onDisconnect:error=>{if(transport!==bridge)return;stopMonitor();connectionEpoch++;connectionActive=false;targets=[];invalidateProof();resetChallenge();setStatus('operationFailed',error||componentError('rtcDisconnected'));renderState();}});
+      const bridge=bridgeFactory({baseUrl:configuration.baseUrl,rtc:configuration.rtc,onProgress:value=>{if(working){const stages={configuration:'rtcOpening',network:'rtcNetwork',handshake:'rtcHandshake',channel:'rtcChannel',ready:'rtcReading'};setStatus(stages[value.phase]||'rtcOpening');}},onDisconnect:error=>{if(transport!==bridge)return;stopMonitor();connectionEpoch++;connectionActive=false;targets=[];invalidateProof();resetChallenge();setStatus('operationFailed',error||componentError('rtcDisconnected'));renderState();
+        // A protocol error during a passive refresh can leave one browser RTC
+        // transport stale while the board and its second port remain healthy.
+        // Rebuild the transport once when no phone mutation is running; never
+        // reconnect or replay while an input result could be uncertain.
+        if(error?.code==='DEVICE_RTC_PROTOCOL_ERROR'&&!working&&!isBusy()&&!disposed&&!reconnectTimer){
+          reconnectTimer=setTimeout(()=>{reconnectTimer=null;if(!disposed&&!working&&!isBusy()&&information())void connect().catch(()=>{});},350);
+        }
+      }});
       const ready=bridge.open({signal});ready.catch(()=>{});return {bridge,ready};
     }
     node('[data-disconnect]').onclick=()=>{if(working||isBusy())return;stopMonitor();connectionEpoch++;const previous=transport;transport=null;previous?.close();connectionActive=false;client?.clearCredentials();client=null;targets=[];targetId='';resetChallenge();invalidateProof();setStatus('notPaired');renderState();};
