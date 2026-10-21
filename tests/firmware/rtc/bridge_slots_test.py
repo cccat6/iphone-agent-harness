@@ -14,6 +14,8 @@ assert 'iah::RtcBridge::WireBuffer rtcWire;' in source
 assert 'local.sin_port=htons(localPort_)' in bridge
 assert 'const uint16_t localPort_;' in bridge
 assert 'new(std::nothrow) iah::RtcBridge(rtcWire,iah::RtcBridge::port()+slot)' in source
+assert 'Do not use application traffic as a second idle timeout' in bridge
+assert 'lastPeerActivity_)>60000' not in bridge
 scheduler=source[source.index('void rtcTask(void*){'):source.index('\nvoid rtcDiagnostic(',source.index('void rtcTask(void*){'))]
 program=r'''
 #include <array>

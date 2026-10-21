@@ -82,7 +82,12 @@ class RtcBridge {
     connected_=sctp_.established();if(!closePending_){sctp_.tick(millis());if(!rpc_.tick(sctp_,millis())){lastError_=-100003;closePending_=true;}}
     if(!sctp_.established()&&now-dtlsStarted_>20000)closePending_=true;
    }
-   if(int32_t(millis()-lastPeerActivity_)>60000)closePending_=true;
+   // SCTP owns liveness for an established peer. Its heartbeat is emitted
+   // every 15 seconds and closes the association after missed acknowledgements.
+   // Do not use application traffic as a second idle timeout: Safari may spend
+   // minutes waiting for a model response while the RTC/SCTP heartbeat keeps
+   // the connection healthy. The old 60-second check closed exactly those
+   // otherwise healthy browser sessions.
    if(closePending_)clearPeer();
   }
   void stop(){
