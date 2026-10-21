@@ -85,8 +85,8 @@ test('stream growth follows the bottom until the user scrolls up, then resumes a
  const events={},queue=[];const region={scrollHeight:1000,scrollTop:500,clientHeight:500,addEventListener:(name,fn)=>events[name]=fn,removeEventListener(){}};
  const follow=createConversationFollow({region,requestFrame:fn=>{queue.push(fn);return queue.length;}});
  follow.beforeRender();region.scrollHeight=1300;follow.afterRender();queue.shift()();assert.equal(region.scrollTop,1300);
- region.scrollTop=500;events.wheel({type:'wheel',deltaY:-200});follow.beforeRender();region.scrollHeight=1500;follow.afterRender();assert.equal(queue.length,0);
- region.scrollTop=1000;events.scroll();assert.equal(follow.following,false);events.wheel({type:'wheel',deltaY:200});events.scroll();assert.equal(follow.following,true);queue.shift()();assert.equal(region.scrollTop,1500);follow.destroy();
+ region.scrollTop=500;events.wheel({type:'wheel',deltaY:-200});events.scroll();follow.beforeRender();region.scrollHeight=1500;follow.afterRender();assert.equal(queue.length,0);
+ region.scrollTop=930;events.scroll();assert.equal(follow.following,true);assert.equal(region.scrollTop,930);assert.equal(queue.length,0);follow.afterRender();queue.shift()();assert.equal(region.scrollTop,1500);follow.destroy();
 });
 
 test('two growing renders before the next animation frame still follow the latest message',()=>{

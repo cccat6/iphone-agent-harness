@@ -5,6 +5,11 @@ import {fileURLToPath} from 'node:url';
 import {messages} from '../apps/web/locales/messages.js';
 export async function syncAssets(root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..')) {
   const read=rel=>readFile(path.join(root,rel),'utf8');
+  const index=await read('apps/web/index.html');
+  const icons=(await readdir(path.join(root,'apps/web/icons'))).filter(name=>name.endsWith('.svg')&&!['icon.svg','favicon.svg','maskable.svg'].includes(name)).sort();
+  const preload='  <!-- ui-icon-preloads -->\n'+icons.map(name=>`  <link rel="preload" as="image" type="image/svg+xml" href="./icons/${name}">`).join('\n')+'\n  <!-- /ui-icon-preloads -->';
+  const iconIndex=index.replace(/  <!-- ui-icon-preloads -->[\s\S]*?  <!-- \/ui-icon-preloads -->/,preload);
+  if(iconIndex!==index)await writeFile(path.join(root,'apps/web/index.html'),iconIndex);
   // Keep the classic old-browser page aligned with the same product copy.
   const bootstrap=await read('apps/web/bootstrap.js'),copyMatch=bootstrap.match(/  var COPY = (.+);\n/);
   if(!copyMatch)throw new Error('Classic bootstrap locale table missing');
