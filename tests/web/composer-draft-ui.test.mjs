@@ -110,3 +110,8 @@ test('resume rejects a bridge disconnect between the readiness response and its 
  const f=await fixture(t);f.state.current=await f.store.createSession({title:'Paused'});let ready=true,resumed=0;f.context.deviceSessionAvailable=()=>ready;f.state.harness.resume=async()=>resumed++;
  f.state.devicePanel.ensureReady=async()=>{queueMicrotask(()=>{ready=false;});return true;};await f.context.resumeRun();assert.equal(resumed,0);assert.equal(f.calls.devices,1);assert.equal(f.state.submitting,false);
 });
+for(const action of ['send','resume'])test(`a stalled native capture restarts sharing synchronously on ${action}`,async t=>{
+ const f=await fixture(t),gate=deferred();f.state.current=await f.store.createSession({title:'Existing'});f.field('#message-input').value='continue';f.capture.active=true;f.capture.needsRestart=true;let started=0,resumed=0;
+ f.capture.start=()=>{started++;return gate.promise.then(()=>{f.capture.needsRestart=false;});};f.state.harness.resume=async()=>resumed++;
+ const pending=action==='send'?f.context.sendMessage({preventDefault(){}}):f.context.resumeRun();assert.equal(started,1);assert.equal(f.calls.run.length,0);assert.equal(resumed,0);gate.resolve();await pending;assert.equal(action==='send'?f.calls.run.length:resumed,1);
+});

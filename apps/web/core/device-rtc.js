@@ -23,6 +23,11 @@ export function allowedRTCRequest(method,path){
  if(method==='POST')return path==='/v1/pair'||new RegExp(`^/v1/targets/${target}/(bind|segments|release|cancel|clipboard|clipboard/${target}/(cancel|chunks)|challenge/(start|confirm|cancel)|leases/(claim|renew))$`).test(path);
  return false;
 }
+// These requests cannot introduce a new held input. An aborted caller may leave
+// their response to drain, but input mutations must still fail closed.
+function canDrainCancelledRequest({method,path}){
+ return method==='GET'||method==='POST'&&/^\/v1\/targets\/[A-Za-z0-9][A-Za-z0-9._:-]{0,79}\/(release|cancel|leases\/renew)$/.test(path);
+}
 function base64(bytes){let binary='';for(const value of bytes)binary+=String.fromCharCode(value);return btoa(binary);}
 export function encodeRTCFrames(id,value,type='req',n=1){
  if(!UUID.test(id)||!['req','res'].includes(type)||!Number.isInteger(n)||n<1||n>2147483647)throw error('DEVICE_INVALID_ARGUMENT');const bytes=encoder.encode(JSON.stringify(value));
@@ -81,7 +86,7 @@ class SinglePortDeviceRTCTransport{
    if(frame.n!==entry.n||frame.seq!==entry.seq||(!frame.end&&frame.bytes.length!==CHUNK))throw error('DEVICE_RTC_PROTOCOL_ERROR');entry.seq++;entry.size+=frame.bytes.length;if(entry.size>MAX_RESPONSE)throw error('DEVICE_RTC_PROTOCOL_ERROR');entry.chunks.push(frame.bytes);if(!frame.end)return;
    const bytes=new Uint8Array(entry.size);let offset=0;for(const part of entry.chunks){bytes.set(part,offset);offset+=part.length;}let value;try{value=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes));}catch{throw error('DEVICE_RTC_PROTOCOL_ERROR');}
    if(!Number.isInteger(value?.status)||value.status<200||value.status>599||typeof value.body!=='string')throw error('DEVICE_RTC_PROTOCOL_ERROR');
-   const response=new Response(value.status===204?null:value.body,{status:value.status,headers:{'content-type':'application/json'}});this.active=null;clearTimeout(entry.timer);entry.signal?.removeEventListener('abort',entry.abort);entry.resolve(response);this.drain();
+   const response=entry.abandoned?null:new Response(value.status===204?null:value.body,{status:value.status,headers:{'content-type':'application/json'}});this.active=null;clearTimeout(entry.timer);entry.signal?.removeEventListener('abort',entry.abort);if(!entry.abandoned)entry.resolve(response);this.drain();
   }catch(cause){this.close(cause);}
  }
  fetch(url,options={}){
@@ -90,7 +95,7 @@ class SinglePortDeviceRTCTransport{
    id=crypto.randomUUID();envelope={method,path:target.pathname,headers,body:options.body||''};encodeRTCFrames(id,envelope,'req',2147483647);
   }catch(cause){return Promise.reject(cause);}
   if(options.signal?.aborted)return Promise.reject(error('DEVICE_REQUEST_CANCELLED'));if(this.queue.length>=8)return Promise.reject(error('DEVICE_RTC_BUSY'));
-  return new Promise((resolve,reject)=>{const entry={id,envelope,resolve,reject,signal:options.signal,seq:0,size:0,chunks:[]};entry.abort=()=>{if(this.active===entry){this.close(error('DEVICE_REQUEST_CANCELLED'));return;}const index=this.queue.indexOf(entry);if(index>=0){this.queue.splice(index,1);entry.signal?.removeEventListener('abort',entry.abort);reject(error('DEVICE_REQUEST_CANCELLED'));}};entry.signal?.addEventListener('abort',entry.abort,{once:true});this.queue.push(entry);this.drain();});
+  return new Promise((resolve,reject)=>{const entry={id,envelope,resolve,reject,signal:options.signal,seq:0,size:0,chunks:[]};entry.abort=()=>{if(this.active===entry){if(canDrainCancelledRequest(envelope)){entry.abandoned=true;entry.signal?.removeEventListener('abort',entry.abort);reject(error('DEVICE_REQUEST_CANCELLED'));}else this.close(error('DEVICE_REQUEST_CANCELLED'));return;}const index=this.queue.indexOf(entry);if(index>=0){this.queue.splice(index,1);entry.signal?.removeEventListener('abort',entry.abort);reject(error('DEVICE_REQUEST_CANCELLED'));}};entry.signal?.addEventListener('abort',entry.abort,{once:true});this.queue.push(entry);this.drain();});
  }
  drain(){
   if(this.closed||this.active||!this.queue.length)return;const entry=this.queue.shift();this.active=entry;entry.timer=setTimeout(()=>this.close(error('DEVICE_RTC_TIMEOUT')),this.timeoutMs);

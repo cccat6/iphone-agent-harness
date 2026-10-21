@@ -1,3 +1,4 @@
+import {boundedCaptureStage,captureTimeout} from './capture.js';
 import {assertBridgePresent} from './bridge-status.js';
 // Host-side phone plans. Device and capture adapters must be supplied by trusted
 // application code; model output can never enable execution or verify a target.
@@ -259,11 +260,13 @@ export async function executePhonePlan(input,{device,capture,context,signal,onEv
   const cancel=()=>{failureCode='cancelled';controller.abort();};
   if(signal?.aborted)cancel();else signal?.addEventListener('abort',cancel,{once:true});
   const deadlineTimer=setTimeout(()=>{failureCode='failed';controller.abort();},Math.max(0,deadline-now()));
-  async function check(){
+  async function check(checkSignal=controller.signal){
+    if(checkSignal.aborted)throw checkSignal.reason||abortError();
     if(controller.signal.aborted)fail(failureCode==='cancelled'?'Phone plan cancelled':'Plan execution deadline exceeded',failureCode||'cancelled');
     if(now()>=deadline)fail('Plan execution deadline exceeded');
-    const current=typeof context.getState==='function'?await abortable(Promise.resolve(context.getState()),controller.signal):context;
+    const current=typeof context.getState==='function'?await abortable(Promise.resolve(context.getState({signal:checkSignal})),checkSignal):context;
     if(controller.signal.aborted)fail(failureCode==='cancelled'?'Phone plan cancelled':'Plan execution deadline exceeded',failureCode||'cancelled');
+    if(checkSignal.aborted)throw checkSignal.reason||abortError();
     if(changes)assertBridgePresent(current);
     for(const key of BASE_KEYS)if(current[key]!==baseline[key])fail(`Execution context changed: ${key}`,'unknown');
     if(context.mode!==initialMode||(current.mode!==undefined&&current.mode!==initialMode))fail('Execution mode changed');
@@ -299,28 +302,32 @@ export async function executePhonePlan(input,{device,capture,context,signal,onEv
   }
   async function collectFrames(step){
     const output=[],groupStart=now(),groupDeadline=Math.min(deadline,groupStart+step.frames.timeoutMs);
-    const sampler=new AbortController();const abortSampler=()=>sampler.abort();controller.signal.addEventListener('abort',abortSampler,{once:true});
-    const timer=setTimeout(()=>sampler.abort(),Math.max(0,groupDeadline-now()));
+    const sampler=new AbortController();const abortSampler=()=>sampler.abort(controller.signal.reason);controller.signal.addEventListener('abort',abortSampler,{once:true});
+    let phase='context_before';const timer=setTimeout(()=>sampler.abort(captureTimeout(phase)),Math.max(0,groupDeadline-now()));
+    const sampled=async(stage,operation)=>{phase=stage;return boundedCaptureStage(operation,{signal:sampler.signal,deadlineAtMs:performance.now()+Math.max(0,groupDeadline-now()),stage,onDiagnostic:value=>capture.diagnose?.({...value,groupId:step.id})});};
     try{
       for(let i=0;i<step.frames.count;i++){
-        await check();const delay=groupStart+i*step.frames.intervalMs-now();if(delay>0)await abortable(sleep(delay,sampler.signal),controller.signal);
-        if(now()>=groupDeadline)fail('Frame sampling timed out');
-        const frame=await abortable(capture.grab({targetId:baseline.targetId,orientationEpoch:baseline.orientationEpoch,groupId:step.id,index:i,signal:sampler.signal}),sampler.signal);await check();
+        await sampled('context_before',()=>check(sampler.signal));const delay=groupStart+i*step.frames.intervalMs-now();if(delay>0)await abortable(sleep(delay,sampler.signal),controller.signal);
+        if(now()>=groupDeadline)throw captureTimeout(phase);
+        const options={targetId:baseline.targetId,orientationEpoch:baseline.orientationEpoch,groupId:step.id,index:i,signal:sampler.signal,deadlineAtMs:performance.now()+Math.max(0,groupDeadline-now())};
+        const frame=await sampled('capture',()=>capture.grab(options));await sampled('context_after',()=>check(sampler.signal));
         const metadata=frameMetadata(frame,step,baseline);let assetRef=frame.assetRef;
         if(!assetRef){
           if(typeof capture.save!=='function')fail('Capture persistence adapter is not connected');
-          const saved=await abortable(capture.save(frame,metadata),sampler.signal);await check();assetRef=typeof saved==='string'?saved:saved?.assetRef;
+          const saved=await sampled('save',()=>capture.save(frame,metadata,{signal:sampler.signal}));await sampled('context_after_save',()=>check(sampler.signal));assetRef=typeof saved==='string'?saved:saved?.assetRef;
         }
         if(typeof assetRef!=='string'||!/^local-asset:[A-Za-z0-9._:-]+$/.test(assetRef))fail('Frame was not saved to local attachment storage');
         const value={...metadata,assetRef};output.push(value);result.frames.push(value);emit(onEvent,{type:'frame',frame:value});
       }
       return output;
-    }catch(e){if(!controller.signal.aborted&&sampler.signal.aborted)fail('Frame sampling timed out');throw e;}
+    }catch(e){if(controller.signal.aborted&&failureCode==='failed'){failureCode='CAPTURE_TIMEOUT';throw captureTimeout(e.stage||phase);}if(!controller.signal.aborted&&sampler.signal.aborted)throw captureTimeout(e.stage||phase);throw e;}
     finally{clearTimeout(timer);controller.signal.removeEventListener('abort',abortSampler);}
   }
   async function cleanupRelease(){
     if(!dispatched)return;
-    const releaseController=new AbortController();const timer=setTimeout(()=>releaseController.abort(),1000);
+    // Cleanup owns a fresh transport-sized budget after the plan/capture signal
+    // has expired. A normal bridge round trip must not lose its release receipt.
+    const releaseController=new AbortController();const timer=setTimeout(()=>releaseController.abort(),8000);
     try{
       const reply=await abortable(device.release({...baseline,planId:plan.planId,cancelPending:true,invalidateLease:true},{signal:releaseController.signal}),releaseController.signal);
       if(reply?.boardId===baseline.boardId&&reply.bootId===baseline.bootId&&reply.targetId===baseline.targetId&&(reply.status==='released'||reply.releaseSubmitted===true)&&reply.leaseInvalidated===true)inputState='released';
@@ -343,15 +350,15 @@ export async function executePhonePlan(input,{device,capture,context,signal,onEv
     }
   }catch(e){
     const code=String(failureCode||e.code||'failed').slice(0,100);failureCode=code;controller.abort();
-    result.code=code;if(e.deviceFailure)result.deviceFailure=e.deviceFailure;result.status=code==='cancelled'?'cancelled':code==='unknown'||(code==='DEVICE_BRIDGE_UNAVAILABLE'&&dispatched&&inputState==='unknown')?'unknown':'failed';result.outcome='insufficient_evidence';
+    result.code=code;if(e.code==='CAPTURE_TIMEOUT')result.captureStage=e.stage;if(e.deviceFailure)result.deviceFailure=e.deviceFailure;result.status=code==='cancelled'?'cancelled':code==='unknown'||(code==='DEVICE_BRIDGE_UNAVAILABLE'&&dispatched&&inputState==='unknown')?'unknown':'failed';result.outcome='insufficient_evidence';
     if(stepIndex<plan.steps.length)result.steps.push({id:plan.steps[stepIndex].id,status:result.status==='cancelled'?'cancelled':result.status==='unknown'?'unknown':'failed',detail:String(e.message).slice(0,500)});
     for(let i=stepIndex+1;i<plan.steps.length;i++)result.steps.push({id:plan.steps[i].id,status:'skipped',detail:'Stopped after prior failure or cancellation.'});
     await cleanupRelease();
   }finally{clearTimeout(deadlineTimer);signal?.removeEventListener('abort',cancel);}
   result.inputState=inputState;
   if(result.status!=='completed'){
-    const code=result.code||'failed';
-    const action=code==='cancelled'?'none':code==='DEVICE_BRIDGE_UNAVAILABLE'?'reconnect':['CAPTURE_UNAVAILABLE','CAPTURE_REQUIRED','SCREEN_SHARING_REQUIRED','CAPTURE_STOPPED'].includes(code)?'resume_sharing':result.status==='unknown'||inputState!=='released'?'reconcile_before_replan':'observe_then_replan';
+    const code=result.code||'failed',restartRequired=code==='CAPTURE_RESTART_REQUIRED'||capture?.needsRestart===true;if(restartRequired)result.captureNeedsRestart=true;
+    const action=code==='cancelled'?'none':restartRequired?'resume_sharing':code==='DEVICE_BRIDGE_UNAVAILABLE'?'reconnect':['CAPTURE_UNAVAILABLE','CAPTURE_REQUIRED','SCREEN_SHARING_REQUIRED','CAPTURE_STOPPED'].includes(code)?'resume_sharing':result.status==='unknown'||inputState!=='released'?'reconcile_before_replan':'observe_then_replan';
     result.recovery={action,automatic:action==='observe_then_replan',reasonCode:code};
   }
   return result;
