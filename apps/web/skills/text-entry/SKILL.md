@@ -1,7 +1,7 @@
 ---
 name: text-entry
 description: Enter and verify text through supported HID keys or user-confirmed clipboard preparation, respecting Safari foreground requirements and target focus.
-version: 0.5.1
+version: 0.5.2
 ---
 
 # text-entry
@@ -22,9 +22,9 @@ Fill a visible text field using verified HID keyboard usages, or prepare long/Un
 
 1. Observe the current screen, identify the exact field and any existing value. Check whether it is a password, search box, multi-line editor or form with consequential submission.
 2. When the user requests action, focus with one `tap` and a review capture. Confirm a caret, focus indication or expected keyboard response. A successful tap receipt alone does not establish focus.
-3. For an editable time/date number, first inspect whether tapping (or one reviewed double tap on the same number) exposes a numeric field. Confirm focus before replacing its value; do not type blindly into an unfocused wheel. Load `clock-and-time` for full verification.
+3. For an editable time/date number, first inspect whether tapping (or one reviewed double tap on the same number) exposes a numeric field. Confirm focus before replacing its value; do not type blindly into an unfocused wheel. Use `clock-and-time` for full verification; reuse its full same-version instructions when already present.
 4. Determine the keyboard layout and allowed text. Encode only characters with a verified HID mapping. Each `key` action includes usage, ordinary modifier bits and a short hold; the executor releases it. Do not invent Fn or vendor usages.
-5. Type a short bounded chunk, then observe the field. Keyboard layout, autocorrection, capitalization and IME state can change the result. If text is wrong, inspect before editing; do not blindly select-all/delete because focus might have moved.
+5. Group a short bounded chunk in one plan, then observe the field once. For a confirmed numeric time field, type all requested digits together rather than one model round per digit. Reuse the resulting review frame instead of immediately requesting the same screen again. Keyboard layout, autocorrection, capitalization and IME state can change the result. If text is wrong, inspect before editing; do not blindly select-all/delete because focus might have moved.
 6. Enter/Return can submit a form or create a newline. Treat it as a separate semantic decision based on the visible UI and user task, not an automatic terminator after typing.
 7. If requested text cannot be encoded reliably, state the missing input capability and request user entry or a supported alternative. Never replace requested Unicode with an approximate value without user direction.
 

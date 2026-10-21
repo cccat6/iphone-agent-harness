@@ -7,11 +7,11 @@ const makeContext=()=>({boardId:'board',bootId:'boot',targetId:'phone',clientId:
 const makePlan=steps=>({version:1,planId:'plan',sessionId:'session',boardId:'board',targetId:'phone',basedOnFrameId:'frame',orientationEpoch:1,ttlMs:15000,maxExecutionMs:15000,steps});
 function deviceFor(status,extra={}){const calls=[];return {calls,async submitSegment(s){calls.push(s);return {boardId:s.boardId,bootId:s.bootId,targetId:s.targetId,segmentId:s.segmentId,payloadHash:s.payloadHash,status,releaseSubmitted:true,...extra};},async getResult(){throw Error('not expected');},async release(q){return {...q,status:'released',leaseInvalidated:true,releaseSubmitted:true};}};}
 
-test('first press leaves a released positioning interval for the advertised 40 ms cadence',()=>{
+test('first press leaves a released positioning interval before button-down',()=>{
  const context=makeContext();
  for(const step of [tap,{id:'drag',op:'drag',path:[{x:800,y:900,tMs:0},{x:8000,y:9000,tMs:300}],endHoldMs:120},{id:'sequence',op:'pointer_sequence',events:[{phase:'down',x:1,y:2,atMs:0},{phase:'move',x:4,y:5,atMs:80},{phase:'up',x:4,y:5,atMs:120}]}]){
   const reports=compileGesture(step,context).events;
-  assert.equal(reports[0].buttons,0);assert.equal(reports[1].buttons,1);assert.equal(reports[1].atMs-reports[0].atMs,40);
+ assert.equal(reports[0].buttons,0);assert.equal(reports[1].buttons,1);assert.equal(reports[1].atMs-reports[0].atMs,100);
   assert.equal(reports[0].x,reports[1].x);assert.equal(reports[0].y,reports[1].y);
  }
  assert.equal(compileGesture(tap,{capabilities:{pointerSettleMs:80,reportIntervalMs:40}}).events[1].atMs,80);
@@ -22,7 +22,7 @@ test('a moving release has no endpoint pause while a precise drag keeps its expl
  const swipe=compileGesture(motion,makeContext()).events,drag=compileGesture({...motion,op:'drag',endHoldMs:120},makeContext()).events;
  assert.equal(swipe.at(-1).atMs,swipe.at(-2).atMs);assert.equal(swipe.at(-1).buttons,0);assert.notEqual(swipe.at(-3).y,swipe.at(-2).y);
  assert.equal(drag.at(-1).atMs-drag.at(-2).atMs,120);
- assert.deepEqual(swipe.at(-1),{atMs:340,kind:'pointer',buttons:0,x:5000,y:2000});
+ assert.deepEqual(swipe.at(-1),{atMs:400,kind:'pointer',buttons:0,x:5000,y:2000});
 });
 
 test('full-display coordinate references are independent of viewport, thumbnail and aspect ratio',()=>{

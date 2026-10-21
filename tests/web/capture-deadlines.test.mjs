@@ -52,8 +52,8 @@ test('phone_observe has one bounded frame deadline and writes metadata-only stag
  const h=createHarness({store,capture:{active:true,timeoutMs:25,grab:()=>{grabs++;return new Promise(()=>{});}},getContext:()=>ctx(),invoke:async()=>++turns===1?{text:'',toolCalls:[{id:'o',name:'phone_observe',arguments:{count:1}}]}:{text:'Please share again.',toolCalls:[]}});
  await h.run({sessionId:session.id,text:'Observe fixture'});assert.equal(grabs,1);const messages=await store.getMessages(session.id),result=JSON.parse(messages.find(m=>m.toolName==='phone_observe').text);assert.equal(result.code,'CAPTURE_TIMEOUT');const records=(await store.getEvents(session.id)).filter(e=>e.type==='capture.stage');assert.ok(records.some(e=>e.payload.status==='timeout'));assert.ok(records.every(e=>Object.keys(e.payload).every(key=>['stage','status','durationMs'].includes(key))));store.close();
 });
-test('the total plan deadline expiring during capture is a capture timeout, not an invalid plan',async()=>{
- const input=plan();input.maxExecutionMs=100;const value=await executePhonePlan(input,{context:ctx(),capture:{grab:()=>new Promise(()=>{}),save:async()=>{throw Error('not reached');}}});assert.equal(value.code,'CAPTURE_TIMEOUT');assert.equal(value.captureStage,'capture');
+test('the total plan deadline expiring during capture is reported separately from capture timeout',async()=>{
+ const input=plan();input.maxExecutionMs=100;const value=await executePhonePlan(input,{context:ctx(),capture:{grab:()=>new Promise(()=>{}),save:async()=>{throw Error('not reached');}}});assert.equal(value.code,'PLAN_DEADLINE_EXCEEDED');assert.equal(value.captureStage,undefined);assert.ok(value.timing.elapsedMs>=0);
 });
 test('an already submitted tap is never replayed when capture needs restarting',async()=>{
  const input=plan();input.steps.unshift({id:'tap',op:'tap',point:{x:5000,y:5000},holdMs:50});let submits=0;const device={submitSegment:async segment=>{submits++;return {...segment,status:'hid_submitted',releaseSubmitted:true};},getResult:async()=>{throw Error('not needed');},release:async query=>({...query,status:'released',leaseInvalidated:true})};

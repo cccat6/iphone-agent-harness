@@ -145,7 +145,7 @@ test('missing or failed release leaves input state unknown rather than claiming 
 });
 
 test('expired plans and missing injected device adapters do no physical work',async()=>{
- const a=adapters();await assert.rejects(executePhonePlan(plan([tap()]),{...a,context:context({now:()=>20000,planReceivedAtMs:0})}),/expired/);
+ const a=adapters();await assert.rejects(executePhonePlan(plan([tap()]),{...a,context:context({now:()=>20000,planReceivedAtMs:0})}),error=>error.code==='PLAN_DEADLINE_EXCEEDED');
  await assert.rejects(executePhonePlan(plan([tap()]),{capture:a.capture,context:context()}),/adapter/);assert.equal(a.segments.length,0);assert.equal(a.releases.length,0);
 });
 

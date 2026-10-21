@@ -1,7 +1,7 @@
 ---
 name: phone-navigation
 description: Navigate iPhone and iPad across apps using fresh full-display evidence, bounded taps and validated Home input.
-version: 0.3.1
+version: 0.3.2
 ---
 
 # phone-navigation
@@ -20,13 +20,13 @@ Open an app, change a known tab, go back through visible UI, dismiss an ordinary
 
 ## Procedure
 
-1. Call `phone_observe({})`. Identify the current app/screen, selected tab, modal, keyboard, and visible destination; anchor proposed coordinates to this frame.
+1. Use the latest fresh full-display review frame already in context; call `phone_observe({})` when there is no current usable frame. Identify the current app/screen, selected tab, modal, keyboard, and visible destination; anchor proposed coordinates to this frame.
 2. Choose the smallest supported operation. Prefer a visible back/button/tab. For Home, use the validated `home` operation, not Fn-H or a swipe from the screen edge.
 3. Batch only actions whose targets remain predictable. A transition that changes layout ends at a capture with `review:true`; do not use the pre-transition image to tap a newly revealed icon.
 4. After the plan completes, inspect the returned frame. If the destination has loaded and a distinctive title/content is visible, report that observation. If an overlay intercepts input, observe before trying another coordinate.
 5. For app launch via Home, first complete Home + review; only then locate the app icon in the new screenshot. Do not infer icon positions from a prior layout.
 6. Locate the center of the icon or control in the **entire image** and use its actual width/height for normalization. The screenshot may be larger than the Harness viewport or shown as a thumbnail; browser CSS pixels, safe-area insets, and the visible pointer ring are not the coordinate reference. Do not add a guessed vertical offset. If the wrong app opens, inspect that outcome and return through a fresh Home review before choosing the icon again.
-7. For alarms, dates, or time wheels, load `clock-and-time` before adjusting values. Precise numeric entry and verified selected values are preferable to guessing wheel positions.
+7. For alarms, dates, or time wheels, have the full `clock-and-time` instructions loaded before adjusting values. Reuse a same-version load already in context; load missing related Skills together when their need is already clear. Precise numeric entry and verified selected values are preferable to guessing wheel positions.
 
 ## Parameter example
 
