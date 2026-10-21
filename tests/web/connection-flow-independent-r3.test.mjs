@@ -69,7 +69,7 @@ test('refresh internal deadline reports a connection timeout rather than user ca
  t.mock.timers.tick(8000);await pending;assert.equal(f.panel.getState().connected,false);assert.equal(f.field('[data-connection-error-content]').textContent,'DEVICE_TIMEOUT');assert.doesNotMatch(f.field('[data-progress-message]').textContent,/cancelled|取消/i);assert.equal(f.field('[data-pair]').disabled,false);
 });
 
-test('closing the panel cancels a caller-owned refresh without a later timeout error',async t=>{
+test('closing the panel keeps a caller-owned refresh alive and preserves its error',async t=>{
  t.mock.timers.enable({apis:['setTimeout']});const f=await refreshFixture(t);f.stall();const pending=f.field('[data-refresh]').onclick();assert.equal(f.readSignal().aborted,false);
- f.panel.dispose();assert.equal(f.readSignal().aborted,true);await pending;t.mock.timers.tick(8000);await f.panel.open();assert.equal(f.field('[data-connection-error-details]').hidden,true);assert.equal(f.field('[data-connection-error-content]').textContent,'');assert.equal(f.field('[data-pair]').disabled,false);
+ f.panel.dispose();assert.equal(f.readSignal().aborted,false);t.mock.timers.tick(8000);await pending;await f.panel.open();assert.equal(f.field('[data-connection-error-details]').hidden,false);assert.equal(f.field('[data-connection-error-content]').textContent,'DEVICE_TIMEOUT');assert.equal(f.field('[data-pair]').disabled,false);
 });

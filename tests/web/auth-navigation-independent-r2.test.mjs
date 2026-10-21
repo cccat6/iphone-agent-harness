@@ -18,7 +18,7 @@ function closeHandlers(){
 test('queued old panel close cannot invalidate a newly reopened panel during rapid Back and Forward',()=>{
  const f=closeHandlers();f.handlers.panel();assert.equal(f.state.panelGeneration,8);assert.deepEqual(f.effects,[]);assert.equal(f.nodes['#panel-dialog'].navigationClosing,false);
  // A genuine later dismissal still cleans up the current view.
- f.nodes['#panel-dialog'].open=false;f.handlers.panel();assert.equal(f.state.panelGeneration,9);assert.ok(f.effects.includes('dispose-device'));assert.ok(f.effects.includes('dismiss-panel'));
+ f.nodes['#panel-dialog'].open=false;f.handlers.panel();assert.equal(f.state.panelGeneration,9);assert.equal(f.effects.includes('dispose-device'),false);assert.ok(f.effects.includes('dismiss-panel'));
 });
 test('queued old action close cannot go Back again after Forward has reopened the action menu',()=>{
  const f=closeHandlers();f.handlers.action();assert.deepEqual(f.effects,[]);

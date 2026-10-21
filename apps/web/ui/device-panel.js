@@ -42,7 +42,7 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
   const copy=(key,params={})=>Object.entries(params).reduce((text,[name,value])=>text.replaceAll('{'+name+'}',String(value)),(DEVICE_MESSAGES[getLocale()]||DEVICE_MESSAGES.en)[key]||key);
   const node=selector=>root?.querySelector(selector);
   const mounted=()=>Boolean(root?.isConnected&&getPanelRoot()?.contains(root));
-  const getState=()=>{const connected=Boolean(connectionActive&&client?.paired&&client.identityVerified),selected=targets.find(target=>target.targetId===(client?.targetId||targetId)),bluetoothConnected=Boolean(connected&&selected?.connected),phoneInputReady=Boolean(bluetoothConnected&&usableTarget(selected)),targetBound=Boolean(connected&&phoneInputReady&&client?.bindingVerified&&client.targetId===targetId),inputVerified=targetBound&&sameProof(proof,client),ready=targetBound;return {informationReady:!!information(),connected,bluetoothConnected,phoneInputReady,targetBound,inputVerified,ready,legacyInputTestRequired:Boolean(connected&&legacyBinding&&!targetBound),sharing:Boolean(capture.active),checking:Boolean(refreshTask?.visible),boardId:connected?client.boardId:null,targetId:ready?client.targetId:null,status:working?'connecting':ready?(capture.active?'sharing':'ready'):connected?'needs-target':'disconnected'};};
+  const getState=()=>{const connected=Boolean(connectionActive&&client?.paired&&client.identityVerified),selected=targets.find(target=>target.targetId===(client?.targetId||targetId)),bluetoothConnected=Boolean(connected&&selected?.connected),phoneInputReady=Boolean(bluetoothConnected&&usableTarget(selected)),targetBound=Boolean(connected&&phoneInputReady&&client?.bindingVerified&&client.targetId===targetId),inputVerified=targetBound&&sameProof(proof,client),ready=targetBound;return {informationReady:!!information(),connected,bluetoothConnected,phoneInputReady,targetBound,inputVerified,ready,legacyInputTestRequired:Boolean(connected&&legacyBinding&&!targetBound),sharing:Boolean(capture.active),checking:Boolean(refreshTask?.visible),boardId:connected?client.boardId:null,targetId:ready?client.targetId:null,status:working?'connecting':statusKey==='operationFailed'?'error':ready?(capture.active?'sharing':'ready'):connected?'needs-target':'disconnected'};};
   const publish=()=>onDeviceChange(getState().ready?client:null,getState());
   const setStatus=(key,detail='')=>{statusKey=key;statusDetail=detail;renderStatus();publish();};
   function invalidateProof(){proof=null;publish();}
@@ -126,9 +126,9 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
     return {...saved,expectedFingerprint:''};
   }
   function begin(){if(working||isBusy())throw componentError('busy');working=true;startProgress();publish();controller?.abort();controller=new AbortController();const current=++operation;renderState();return {signal:controller.signal,current};}
-  function valid(current){return mounted()&&current===operation&&!controller?.signal.aborted;}
-  async function action(work){let current;try{const started=begin();current=started.current;await work(started);if(valid(current))renderState();}catch(error){if(mounted()&&(current===undefined||current===operation)&&error.name!=='AbortError')setStatus('operationFailed',error);}finally{if(current===operation){working=false;stopProgress();publish();if(mounted())renderState();}}}
-  function close(){stopProgress();operation++;controller?.abort();controller=null;working=false;resetChallenge();unsubscribe?.();unsubscribe=null;dialog?.removeEventListener('close',close);root=null;dialog=null;publish();}
+  function valid(current){return !disposed&&current===operation&&!controller?.signal.aborted;}
+  async function action(work){let current;try{const started=begin();current=started.current;await work(started);if(valid(current))renderState();}catch(error){if((mounted()||current===operation)&&(current===undefined||current===operation)&&error.name!=='AbortError')setStatus('operationFailed',error);}finally{if(current===operation){working=false;stopProgress();publish();if(mounted())renderState();}}}
+  function close({abort=false}={}){const preserve=working&&!armed&&!abort;if(!preserve){stopProgress();operation++;controller?.abort();controller=null;working=false;resetChallenge();}unsubscribe?.();unsubscribe=null;dialog?.removeEventListener('close',close);root=null;dialog=null;publish();}
   const usableTarget=target=>target.connected&&target.encrypted&&target.hidSubscribed;
   function stopMonitor(){clearTimeout(monitorTimer);monitorTimer=null;}
   function startMonitor(){
@@ -224,7 +224,7 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
     legacyEndpoint=settings.deviceEndpoint&&defaultBridgeEndpoint(settings.deviceEndpoint)!==settings.deviceEndpoint?settings.deviceEndpoint:'';
     if(pendingSetup&&!isBusy()){const edit=informationEdit;try{await saveInformation(pendingSetup,{current:()=>edit===informationEdit&&opening===operation&&isCurrent()&&!isBusy()});}catch(error){if(edit===informationEdit)importError=error;}}
     if(opening!==operation||!isCurrent())return null;
-    statusKey=importError?'importInvalid':getState().ready?'bound':getState().connected?'paired':information()?'infoSaved':'infoRequired';
+    statusKey=statusKey==='operationFailed'?'operationFailed':importError?'importInvalid':getState().ready?'bound':getState().connected?'paired':information()?'infoSaved':'infoRequired';
     if(!document.querySelector('link[data-device-panel-style]')){const style=document.createElement('link');style.rel='stylesheet';style.href=new URL('./device-panel.css',import.meta.url).href;style.dataset.devicePanelStyle='';document.head.append(style);}
     openPanel(copy('title'),'',`<div class="device-onboarding" data-no-i18n>
       <section class="device-step device-info-step" data-info-step><h3 data-device-text="infoTitle"></h3><p class="device-information-complete" data-information-complete hidden></p><a class="primary device-settings-link" data-import-connection data-device-text="importConnection"></a><p class="quiet-note" data-import-help data-device-text="importConnectionHelp"></p></section>
@@ -354,7 +354,7 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
     });
     renderState();if(getState().connected)void checkConnection();return root;
   }
-  function destroy(){disposed=true;stopMonitor();connectionEpoch++;globalThis.document?.removeEventListener?.('visibilitychange',foreground);globalThis.removeEventListener?.('pagehide',suspend);close();transport?.close();transport=null;connectionActive=false;targets=[];invalidateProof();}
+  function destroy(){disposed=true;stopMonitor();connectionEpoch++;globalThis.document?.removeEventListener?.('visibilitychange',foreground);globalThis.removeEventListener?.('pagehide',suspend);close({abort:true});transport?.close();transport=null;connectionActive=false;targets=[];invalidateProof();}
   function suspend(){stopMonitor();connectionEpoch++;close();const previous=transport;transport=null;previous?.close();connectionActive=false;targets=[];invalidateProof();}
   globalThis.addEventListener?.('pagehide',suspend);
   return {open,dispose:close,destroy,receiveSetupLink,hasPendingSetup:()=>Boolean(pendingSetup||importError),getDevice:()=>getState().ready?client:null,getState,ensureReady,refreshConnection,refreshUI};
