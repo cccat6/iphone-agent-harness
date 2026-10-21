@@ -10,6 +10,12 @@
 #define CONFIG_BT_NIMBLE_MAX_BONDS 2
 #undef CONFIG_NIMBLE_MAX_BONDS
 #define CONFIG_NIMBLE_MAX_BONDS 2
+// Each phone can retain three HID reports, battery notifications and Service
+// Changed indications. Keep two spare descriptors without evicting either bond.
+#undef CONFIG_BT_NIMBLE_MAX_CCCDS
+#define CONFIG_BT_NIMBLE_MAX_CCCDS 12
+#undef CONFIG_NIMBLE_MAX_CCCDS
+#define CONFIG_NIMBLE_MAX_CCCDS 12
 #undef CONFIG_NIMBLE_ROLE_CENTRAL
 #undef CONFIG_BT_NIMBLE_ROLE_CENTRAL
 #define CONFIG_BT_NIMBLE_ROLE_CENTRAL 0

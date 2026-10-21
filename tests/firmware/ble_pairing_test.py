@@ -37,7 +37,7 @@ UPDATE_PEER
 int updates=0,newConnections=0;void updatePeer(NimBLEConnInfo& info,bool fresh=false){updates++;if(fresh)newConnections++;updatePeerState(info,fresh);}
 struct NimBLEServer;
 struct NimBLEServerCallbacks{virtual ~NimBLEServerCallbacks()=default;virtual void onConnect(NimBLEServer*,NimBLEConnInfo&){};virtual void onAuthenticationComplete(NimBLEConnInfo&){};virtual void onIdentity(NimBLEConnInfo&){};virtual void onDisconnect(NimBLEServer*,NimBLEConnInfo&,int){}};
-struct NimBLECharacteristic{void setCallbacks(void*){}};NimBLECharacteristic *mouseReport=nullptr,*keyboardReport=nullptr,*consumerReport=nullptr;
+struct NimBLECharacteristic{void setCallbacks(void*){}void setValue(const uint8_t*,size_t){}};NimBLECharacteristic *mouseReport=nullptr,*keyboardReport=nullptr,*consumerReport=nullptr;
 struct NimBLECharacteristicCallbacks{virtual ~NimBLECharacteristicCallbacks()=default;virtual void onSubscribe(NimBLECharacteristic*,NimBLEConnInfo&,uint16_t){}};
 REPORT_CALLBACKS
 struct Advertising{bool scan=false;int advBytes=3,scanBytes=0,starts=0;std::string name;void setAppearance(int){advBytes+=4;}void addServiceUUID(int){advBytes+=4;}void enableScanResponse(bool value){scan=value;}bool setName(const char* value){name=value;(scan?scanBytes:advBytes)+=name.size()+2;return advBytes<=31&&scanBytes<=31;}bool start(){assert(advBytes<=31&&scanBytes<=31);starts++;return true;}};
@@ -46,7 +46,7 @@ NimBLEServer server;Advertising advertising;
 struct DeviceCallbacks{};
 struct NimBLEDevice{static void setDeviceCallbacks(DeviceCallbacks*){}static inline std::string name;static void init(const char* value){name=value;}static void setSecurityAuth(bool bond,bool mitm,bool sc){assert(bond&&!mitm&&sc);}static void setSecurityIOCap(int){}static NimBLEServer* createServer(){return &server;}static NimBLEServer* getServer(){return &server;}static Advertising* getAdvertising(){return &advertising;}};
 struct Service{int getUUID(){return 0x1812;}};
-struct NimBLEHIDDevice{explicit NimBLEHIDDevice(NimBLEServer*){}NimBLECharacteristic* getInputReport(int){return new NimBLECharacteristic;}void getOutputReport(int){}void setManufacturer(const char*){}void setPnp(int,int,int,int){}void setHidInfo(int,int){}void setReportMap(const uint8_t*,size_t){}void setBatteryLevel(int){}Service* getHidService(){static Service service;return &service;}};
+struct NimBLEHIDDevice{explicit NimBLEHIDDevice(NimBLEServer*){}NimBLECharacteristic* getInputReport(int){return new NimBLECharacteristic;}void getOutputReport(int){}void setManufacturer(const char*){}void setPnp(int,int,int,int){}void setHidInfo(int,int){}NimBLECharacteristic* getReportMap(){static NimBLECharacteristic report;return &report;}void setBatteryLevel(int){}Service* getHidService(){static Service service;return &service;}};
 namespace iah{constexpr uint8_t reportMap[]={0};}
 CALLBACKS
 START

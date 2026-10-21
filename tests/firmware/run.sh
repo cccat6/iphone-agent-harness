@@ -35,6 +35,9 @@ compile_test "$project_root/tests/firmware/core_external_test.cpp"
 
 compile_test "$project_root/tests/firmware/setup_state_test.cpp"
 "$binary_path"
+compile_test "$project_root/tests/firmware/storage_migration_test.cpp"
+"$binary_path"
+python3 "$project_root/tests/firmware/wifi_recovery_test.py"
 compile_test "$project_root/tests/firmware/mdns_lifecycle_test.cpp"
 "$binary_path"
 
@@ -48,6 +51,8 @@ python3 "$project_root/tests/firmware/clipboard_shortcut_test.py"
 json_include=${ARDUINOJSON_INCLUDE:-"$HOME/Documents/Arduino/libraries/ArduinoJson/src"}
 compile_test "$project_root/tests/firmware/strict_json_test.cpp" -I "$json_include"
 "$binary_path"
+ARDUINOJSON_INCLUDE="$json_include" python3 "$project_root/tests/firmware/rtc_dispatch_memory_test.py"
+ARDUINOJSON_INCLUDE="$json_include" python3 "$project_root/tests/firmware/credential_storage_test.py"
 compile_test "$project_root/tests/firmware/clipboard_wire_test.cpp" -I "$json_include"
 "$binary_path"
 compile_test "$project_root/tests/firmware/http_html_response_test.cpp" -I "$json_include"

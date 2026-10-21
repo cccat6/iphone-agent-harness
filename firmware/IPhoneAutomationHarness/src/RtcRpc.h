@@ -3,6 +3,7 @@
 #include <array>
 #include <cstdint>
 #include <cstring>
+#include <cstdio>
 #include <functional>
 #include <string>
 #include <utility>
@@ -23,7 +24,7 @@ class Rpc {
    if(!uuid(id.c_str(),id.size())||!n||n>0x7fffffff||seq>=48)return false;
    std::array<uint8_t,Chunk> decoded{};size_t length=0;if(!decode(encoded.c_str(),encoded.size(),decoded.data(),length)||!length||(!end&&length!=Chunk))return false;
    if(state_==State::Idle){if(seq!=0||lastCompleted_==0x7fffffff||n!=lastCompleted_+1)return false;id_.assign(id.c_str(),id.size());n_=n;sequence_=0;started_=now;state_=State::Collecting;}
-   if(n!=n_||id_!=std::string(id.c_str(),id.size())||seq!=sequence_||request_.size()+length>RequestLimit)return false;
+   if(n!=n_||id_.size()!=id.size()||std::memcmp(id_.data(),id.c_str(),id.size())||seq!=sequence_||request_.size()+length>RequestLimit)return false;
    request_.append(reinterpret_cast<const char*>(decoded.data()),length);++sequence_;if(!end)return true;
    // id/data JsonString views have been consumed. Release this frame's parser
    // storage before validating and dispatching the complete request.
@@ -43,9 +44,13 @@ class Rpc {
    if(state_==State::Collecting)return true;
    if(waiting_){if(sctp.pending())return true;waiting_=false;}
    if(!sctp.idleToSend())return true;
-   size_t size=reply_.size()-offset_;if(size>Chunk)size=Chunk;std::string encoded=encode(reinterpret_cast<const uint8_t*>(reply_.data()+offset_),size);
-   JsonDocument frame;frame["v"]=1;frame["type"]="res";frame["id"]=id_;frame["n"]=n_;frame["seq"]=sequence_;frame["end"]=offset_+size==reply_.size();frame["data"]=encoded;
-   char bytes[513];size_t length=serializeJson(frame,bytes,sizeof(bytes));if(length>512||length!=measureJson(frame))return false;
+   size_t size=reply_.size()-offset_;if(size>Chunk)size=Chunk;
+   // UUID and counters are already validated; base64 contains no JSON escapes.
+   // Build into the same bounded frame without a temporary string/document.
+   char bytes[513];const int prefix=std::snprintf(bytes,sizeof(bytes),"{\"v\":1,\"type\":\"res\",\"id\":\"%s\",\"n\":%lu,\"seq\":%u,\"end\":%s,\"data\":\"",id_.c_str(),static_cast<unsigned long>(n_),sequence_,offset_+size==reply_.size()?"true":"false");
+   if(prefix<0||static_cast<size_t>(prefix)+2>512)return false;
+   const size_t encoded=encodeInto(reinterpret_cast<const uint8_t*>(reply_.data()+offset_),size,bytes+prefix,512-static_cast<size_t>(prefix)-2);if(!encoded)return false;
+   const size_t length=static_cast<size_t>(prefix)+encoded+2;std::memcpy(bytes+length-2,"\"}",2);bytes[length]=0;
    if(sctp.sendText(reinterpret_cast<uint8_t*>(bytes),length,now)){
     offset_+=size;++sequence_;
     // SCTP owns a byte-for-byte retransmission copy now. Once the final frame
@@ -66,6 +71,7 @@ class Rpc {
   }
  private:
   enum class State{Idle,Collecting,Sending};
+  static size_t encodeInto(const uint8_t* p,size_t size,char* out,size_t capacity){static const char chars[]="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";const size_t required=(size+2)/3*4;if(required>capacity)return 0;size_t at=0;for(size_t i=0;i<size;i+=3){unsigned v=unsigned(p[i])<<16;if(i+1<size)v|=unsigned(p[i+1])<<8;if(i+2<size)v|=p[i+2];out[at++]=chars[v>>18];out[at++]=chars[v>>12&63];out[at++]=i+1<size?chars[v>>6&63]:'=';out[at++]=i+2<size?chars[v&63]:'=';}return at;}
   static bool uuid(const char* p,size_t n){if(n!=36)return false;for(size_t i=0;i<n;i++){if(i==8||i==13||i==18||i==23){if(p[i]!='-')return false;}else if(!((p[i]>='0'&&p[i]<='9')||(p[i]>='a'&&p[i]<='f')))return false;}return true;}
   static bool validRequest(const std::string& text){if(text.empty()||text.find('\0')!=std::string::npos)return false;JsonDocument d;if(deserializeJson(d,text)||!d.is<JsonObject>()||d.size()!=4||!d["method"].is<const char*>()||!d["path"].is<const char*>()||!d["headers"].is<JsonObject>()||!d["body"].is<const char*>())return false;for(JsonPairConst h:d["headers"].as<JsonObjectConst>())if(!h.value().is<const char*>())return false;return true;}
   static bool validResponse(const std::string& text){JsonDocument d;return !deserializeJson(d,text)&&d.is<JsonObject>()&&d.size()==2&&d["status"].is<int>()&&d["status"].as<int>()>=100&&d["status"].as<int>()<=599&&d["body"].is<const char*>();}

@@ -222,6 +222,8 @@ class FirmwareReleaseTests(unittest.TestCase):
             self.assertIn('--latest',calls[-1])
             self.assertIn('--draft', calls[0])
             self.assertIn('--target', calls[0])
+            self.assertEqual(calls[0][calls[0].index('--title')+1], 'Firmware '+release.builder.firmware_version())
+            self.assertEqual(calls[2][calls[2].index('--title')+1], 'Firmware '+release.builder.firmware_version())
             self.assertIn('--clobber', calls[1])
             self.assertIn('--draft=false', calls[2])
             calls.clear()
@@ -230,6 +232,7 @@ class FirmwareReleaseTests(unittest.TestCase):
                 restore.assert_called_once()
             self.assertEqual([c[1] for c in calls],['edit'])
             self.assertIn('--latest',calls[0])
+            self.assertEqual(calls[0][calls[0].index('--title')+1], 'Firmware '+release.builder.firmware_version())
 
     def test_failed_published_verification_never_promotes_latest(self):
         for existing in [None, {'draft':False}]:

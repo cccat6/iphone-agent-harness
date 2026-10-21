@@ -254,10 +254,11 @@ def publish(repository, commit):
     folder = pack()
     fingerprint = key(inputs())
     tag = 'firmware-' + fingerprint
+    title = 'Firmware ' + builder.firmware_version()
     current = release(repository, tag)
     if current and not current['draft']:
         restore(repository, tag, 'iphone-agent-firmware-' + fingerprint[:16] + '.tar.gz', current)
-        gh('release', 'edit', tag, '--repo', repository, '--latest')
+        gh('release', 'edit', tag, '--repo', repository, '--title', title, '--latest')
         print('Reusing verified published firmware Release: ' + tag)
         return
     notes = ROOT / 'build/firmware-release-notes.md'
@@ -268,9 +269,9 @@ def publish(repository, commit):
                      'The browser installer uses these same firmware files.\n')
     if not current:
         gh('release', 'create', tag, '--repo', repository, '--target', commit, '--draft', '--latest=false',
-           '--title', 'Firmware ' + fingerprint[:12], '--notes-file', str(notes))
+           '--title', title, '--notes-file', str(notes))
     gh('release', 'upload', tag, '--repo', repository, '--clobber', *[str(p) for p in sorted(folder.iterdir())])
-    gh('release', 'edit', tag, '--repo', repository, '--draft=false', '--latest=false')
+    gh('release', 'edit', tag, '--repo', repository, '--title', title, '--draft=false', '--latest=false')
     published = release(repository, tag)
     if not published or published.get('draft'):
         raise RuntimeError('Firmware Release was not published')

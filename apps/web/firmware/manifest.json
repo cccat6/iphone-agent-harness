@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "firmwareVersion": "0.5.4-rtc-direct",
-  "buildId": "39089fb25006c859",
+  "firmwareVersion": "0.5.5",
+  "buildId": "e43f5be8088d5255",
   "executionEnabled": true,
   "requiresManualTrust": false,
   "profiles": [
@@ -35,8 +35,8 @@
         {
           "path": "esp32c3/application.bin",
           "offset": 65536,
-          "sha256": "99ef3c571a5f6cf1abe56f654a1ee0ed35d9d4b6f400cf9d1228e15059698772",
-          "size": 1571360
+          "sha256": "15d65d579d61816088ebfd0e06a6f5d40a3423367a6cd0e6336ca3a3acc4ae2a",
+          "size": 1572192
         }
       ]
     },
@@ -70,8 +70,8 @@
         {
           "path": "esp32s3/application.bin",
           "offset": 65536,
-          "sha256": "380251bd89b5388b97232f8bd23771830b08d28bea1cbade4ec6e4dbec012827",
-          "size": 1413728
+          "sha256": "468d8fc863d17d30ef1e4137805ae3ef72675aed065a833dbe986d3889371ed9",
+          "size": 1414720
         }
       ]
     },
@@ -105,8 +105,8 @@
         {
           "path": "esp32c2/application.bin",
           "offset": 65536,
-          "sha256": "b61ca739a12b8f22fc9e94de5cc2a49a7df8320d8d3206c6871d3882b784dbc1",
-          "size": 1306816
+          "sha256": "6aa2895b02fdf7ece0b6c3e2c53eddfa3ef798c4cd70fa87b5303916f02f87c9",
+          "size": 1307792
         }
       ],
       "xtalMHz": 26
@@ -141,8 +141,8 @@
         {
           "path": "esp32c2-40/application.bin",
           "offset": 65536,
-          "sha256": "01db0aac7d0319d624bb3ca0cf2c4bb4558905ad083cce61f2c51835a3df0337",
-          "size": 1306752
+          "sha256": "4ae7fb88ff1610251f7d055fc148b7b71df09ace739120ce4ad2f00f23a021d8",
+          "size": 1307728
         }
       ],
       "xtalMHz": 40
@@ -177,8 +177,8 @@
         {
           "path": "esp32c5/application.bin",
           "offset": 65536,
-          "sha256": "cd83490c2ad22a422924921bb5b87fabcd9a2b8d518c133914601396d5edf170",
-          "size": 1781232
+          "sha256": "64dc8b540d997745438e09b8217bcb4e09b61a4320bd547ebe24a59a116f0af9",
+          "size": 1782128
         }
       ]
     },
@@ -212,8 +212,8 @@
         {
           "path": "esp32c6/application.bin",
           "offset": 65536,
-          "sha256": "e0d0d978a4c80d3eeb1678141c8c2bd3eeba8a0fd23083d4442396168f83542b",
-          "size": 1732640
+          "sha256": "e1f67bb6e7861d6280ca924dfced2ed356e2a0c5c2487189fbfefe2dc83e90d1",
+          "size": 1733520
         }
       ]
     },
@@ -247,8 +247,8 @@
         {
           "path": "esp32/application.bin",
           "offset": 65536,
-          "sha256": "32775f80e45c61c1e95b881cf30b4170c8138d249cb97249554d74b8285bc084",
-          "size": 1493152
+          "sha256": "d550ba6daa6c56c8f1ea37ce2d3c075701e303a3eba9d0acb54f8baa5177b2b9",
+          "size": 1494128
         }
       ]
     }

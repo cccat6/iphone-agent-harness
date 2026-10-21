@@ -3,6 +3,7 @@
 #include <new>
 #include <ArduinoJson.h>
 #include <Preferences.h>
+#include <nvs.h>
 #include <WiFi.h>
 #include <WebServer.h>
 #include <ESPmDNS.h>
@@ -30,6 +31,7 @@
 #include "src/RtcBridge.h"
 #include "src/FirmwareVersion.h"
 #include "src/MdnsLifecycle.h"
+#include "src/StorageMigration.h"
 
 SET_LOOP_TASK_STACK_SIZE(6144);
 static_assert(CONFIG_BT_NIMBLE_MAX_CONNECTIONS==2&&CONFIG_BT_NIMBLE_MAX_BONDS==2,"Arduino build_opt.h must configure the actual NimBLE host");
@@ -217,11 +219,13 @@ class DeviceCallbacks:public NimBLEDeviceCallbacks {
  int onStoreStatus(ble_store_status_event* event,void*)override{
   if(event->event_code==BLE_STORE_EVENT_FULL)return 0;
   if(event->event_code!=BLE_STORE_EVENT_OVERFLOW||!event->overflow.value)return BLE_HS_EUNKNOWN;
+  // Notification settings exhausting their own table must never erase a
+  // phone's pairing keys. Bond replacement is a separate admission decision.
+  if(event->overflow.obj_type==BLE_STORE_OBJ_TYPE_CCCD)return BLE_HS_ESTORE_CAP;
   const auto& value=*event->overflow.value;NimBLEAddress incoming;
   switch(event->overflow.obj_type){
    case BLE_STORE_OBJ_TYPE_OUR_SEC:case BLE_STORE_OBJ_TYPE_PEER_SEC:incoming=NimBLEAddress(value.sec.peer_addr);break;
    case BLE_STORE_OBJ_TYPE_PEER_ADDR:incoming=NimBLEAddress(value.rpa_rec.peer_addr);break;
-   case BLE_STORE_OBJ_TYPE_CCCD:incoming=NimBLEAddress(value.cccd.peer_addr);break;
    case BLE_STORE_OBJ_TYPE_CSFC:incoming=NimBLEAddress(value.csfc.peer_addr);break;
    default:return BLE_HS_EUNKNOWN;
   }
@@ -307,7 +311,7 @@ void startBle(){
  auto server=NimBLEDevice::createServer();server->setCallbacks(new ServerCallbacks());server->advertiseOnDisconnect(true);
  auto hid=new NimBLEHIDDevice(server);mouseReport=hid->getInputReport(1);keyboardReport=hid->getInputReport(2);consumerReport=hid->getInputReport(3);hid->getOutputReport(2);
  mouseReport->setCallbacks(new ReportCallbacks(1));keyboardReport->setCallbacks(new ReportCallbacks(2));consumerReport->setCallbacks(new ReportCallbacks(3));
- hid->setManufacturer("iPhone Agent Harness");hid->setPnp(2,0x303A,0x1001,0x0103);hid->setHidInfo(0,1);hid->setReportMap(iah::reportMap,sizeof(iah::reportMap));hid->setBatteryLevel(100);server->start();
+ hid->setManufacturer("iPhone Agent Harness");hid->setPnp(2,0x303A,0x1001,0x0103);hid->setHidInfo(0,1);hid->getReportMap()->setValue(iah::reportMap,sizeof(iah::reportMap));hid->setBatteryLevel(100);server->start();
  auto advertising=NimBLEDevice::getAdvertising();advertising->setAppearance(HID_MOUSE);advertising->addServiceUUID(hid->getHidService()->getUUID());advertising->enableScanResponse(true);advertising->setName("iPhone Agent Bridge");advertising->start();
 }
 // Wi-Fi callbacks publish counters only; no credentials, NVS or Core mutex.
@@ -373,8 +377,12 @@ void bleDiagnostic(){
  }
  Serial.print("IAH_BLE ");serializeJson(out,Serial);Serial.println();
 }
+void nvsDiagnostic(JsonDocument& out){
+ nvs_stats_t stats{};const esp_err_t error=nvs_get_stats(nullptr,&stats);auto view=out["nvs"].to<JsonObject>();view["ready"]=error==ESP_OK;view["status"]=static_cast<int>(error);if(error!=ESP_OK)return;
+ view["usedEntries"]=stats.used_entries;view["freeEntries"]=stats.free_entries;view["availableEntries"]=stats.available_entries;view["totalEntries"]=stats.total_entries;view["namespaceCount"]=stats.namespace_count;
+}
 void wifiDiagnostic(){
- String ssid,password;savedNetwork(ssid,password);JsonDocument out;out["format"]="iah-wifi-diagnostic/1";out["wifiConfigured"]=!ssid.isEmpty();out["wifiConnected"]=WiFi.status()==WL_CONNECTED;out["wifiStatus"]=(int)WiFi.status();out["wifiMode"]=(int)WiFi.getMode();out["configuredSsidBytes"]=ssid.length();out["configuredPasswordBytes"]=password.length();out["attemptedSsidMatchesStored"]=WiFi.SSID()==ssid;out["lastDisconnectReason"]=wifiLastReason.load();out["disconnectCount"]=wifiDisconnects.load();out["connectionCount"]=wifiConnections.load();out["gotIpCount"]=wifiGotIps.load();out["lastEvent"]=wifiLastEvent.load();out["lastEventAtMs"]=wifiLastEventMs.load();out["txPowerQuarterDbm"]=(int)WiFi.getTxPower();out["savedTxPowerQuarterDbm"]=preferences.getInt("rfPower",-1);out["freeHeap"]=ESP.getFreeHeap();out["largestFreeBlock"]=heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT);out["loopStackHighWaterBytes"]=uxTaskGetStackHighWaterMark(nullptr);out["nimbleHostMaxConnections"]=CONFIG_BT_NIMBLE_MAX_CONNECTIONS;out["nimbleHostMaxBonds"]=CONFIG_BT_NIMBLE_MAX_BONDS;out["coreMaxEvents"]=MaxEvents;out["replayTombstoneBytes"]=SeenBytes;out["replayStorage"]="rtc";out["nimblePreferredMtu"]=CONFIG_BT_NIMBLE_ATT_PREFERRED_MTU;out["nimbleMsys1Blocks"]=CONFIG_BT_NIMBLE_MSYS_1_BLOCK_COUNT;out["nimbleMsys2Blocks"]=CONFIG_BT_NIMBLE_MSYS_2_BLOCK_COUNT;out["maxRequestBytes"]=WireMaxRequestBytes;out["httpReady"]=secureService->networkReady();out["mdnsReady"]=mdnsLifecycle.active();out["mdnsStarts"]=mdnsLifecycle.starts();out["mdnsAnnouncements"]=mdnsLifecycle.announcements();out["mdnsConsecutiveFailures"]=mdnsLifecycle.consecutiveFailures();out["mdnsLastError"]=mdnsLastError;out["mdnsLastAnnouncedAtMs"]=mdnsLifecycle.lastAnnouncedAt();out["mdnsNextAtMs"]=mdnsLifecycle.nextAt();rtcDiagnostic(out);if(WiFi.status()==WL_CONNECTED){out["rssi"]=WiFi.RSSI();out["localIp"]=WiFi.localIP().toString();}Serial.print("IAH_WIFI ");serializeJson(out,Serial);Serial.println();
+ String ssid,password;savedNetwork(ssid,password);JsonDocument out;out["format"]="iah-wifi-diagnostic/1";out["wifiConfigured"]=!ssid.isEmpty();out["wifiConnected"]=WiFi.status()==WL_CONNECTED;out["wifiStatus"]=(int)WiFi.status();out["wifiMode"]=(int)WiFi.getMode();out["configuredSsidBytes"]=ssid.length();out["configuredPasswordBytes"]=password.length();out["attemptedSsidMatchesStored"]=WiFi.SSID()==ssid;out["lastDisconnectReason"]=wifiLastReason.load();out["disconnectCount"]=wifiDisconnects.load();out["connectionCount"]=wifiConnections.load();out["gotIpCount"]=wifiGotIps.load();out["lastEvent"]=wifiLastEvent.load();out["lastEventAtMs"]=wifiLastEventMs.load();out["txPowerQuarterDbm"]=(int)WiFi.getTxPower();out["savedTxPowerQuarterDbm"]=preferences.getInt("rfPower",-1);out["freeHeap"]=ESP.getFreeHeap();out["largestFreeBlock"]=heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT);out["loopStackHighWaterBytes"]=uxTaskGetStackHighWaterMark(nullptr);out["nimbleHostMaxConnections"]=CONFIG_BT_NIMBLE_MAX_CONNECTIONS;out["nimbleHostMaxBonds"]=CONFIG_BT_NIMBLE_MAX_BONDS;out["coreMaxEvents"]=MaxEvents;out["replayTombstoneBytes"]=SeenBytes;out["replayStorage"]="rtc";out["nimblePreferredMtu"]=CONFIG_BT_NIMBLE_ATT_PREFERRED_MTU;out["nimbleMsys1Blocks"]=CONFIG_BT_NIMBLE_MSYS_1_BLOCK_COUNT;out["nimbleMsys2Blocks"]=CONFIG_BT_NIMBLE_MSYS_2_BLOCK_COUNT;out["maxRequestBytes"]=WireMaxRequestBytes;out["httpReady"]=secureService->networkReady();out["networkRetryAttempts"]=secureService->networkRetryAttempts();out["networkRetryNextAtMs"]=secureService->networkRetryNextAtMs();out["networkRetryIntervalMs"]=secureService->networkRetryIntervalMs();out["networkCandidateFailed"]=secureService->networkCandidateFailed();out["mdnsReady"]=mdnsLifecycle.active();out["mdnsStarts"]=mdnsLifecycle.starts();out["mdnsAnnouncements"]=mdnsLifecycle.announcements();out["mdnsConsecutiveFailures"]=mdnsLifecycle.consecutiveFailures();out["mdnsLastError"]=mdnsLastError;out["mdnsLastAnnouncedAtMs"]=mdnsLifecycle.lastAnnouncedAt();out["mdnsNextAtMs"]=mdnsLifecycle.nextAt();nvsDiagnostic(out);rtcDiagnostic(out);if(WiFi.status()==WL_CONNECTED){out["rssi"]=WiFi.RSSI();out["localIp"]=WiFi.localIP().toString();}Serial.print("IAH_WIFI ");serializeJson(out,Serial);Serial.println();
 }
 bool radioMaintenanceAllowed(){CoreLock lock(coreMutex);return !core->busy()&&!secureService->networkReady();}
 void wifiPower(JsonDocument& d){
@@ -409,16 +417,17 @@ void configureSerial(){
 }
 }
 void setup(){
- Serial.begin(115200);preferences.begin("iah-product",false);coreMutex=xSemaphoreCreateMutex();
+ Serial.begin(115200);preferences.begin("iah-product",false);const auto migration=iah::removeObsoleteTlsStorage(preferences);if(migration.removed||!migration.complete)Serial.printf("{\"event\":\"obsolete_tls_storage_cleanup\",\"removed\":%u,\"complete\":%s}\n",unsigned(migration.removed),migration.complete?"true":"false");coreMutex=xSemaphoreCreateMutex();
  char id[32];snprintf(id,sizeof(id),"iah-%012llx",(unsigned long long)ESP.getEfuseMac());boardId=id;
  snprintf(id,sizeof(id),"boot-%08lx%08lx",(unsigned long)esp_random(),(unsigned long)esp_random());bootId=id;hostname=readBridgeSettings(preferences.getString("bridgeSettings", "").c_str()).hostname.c_str();
  core=new iah::Core(boardId.c_str(),bootId.c_str(),sink,replayStorage);
  for(size_t i=0;i<iah::MaxTargets;i++){String a="bond"+String(i),b="target"+String(i);auto identity=preferences.getString(a.c_str(),""),target=preferences.getString(b.c_str(),"");if(identity.length()&&target.length())core->registerBond(target.c_str(),identity.c_str());}
  WiFi.onEvent(wifiEvent);
+ WiFi.persistent(false);
  String ssid,password;savedNetwork(ssid,password);
  if(ssid.length()){WiFi.mode(WIFI_STA);WiFi.setAutoReconnect(true);applySavedPower();WiFi.begin(ssid.c_str(),password.c_str());}
  startBle();sink.beginRouting();
- secureService=new SecureService(*core,sink,preferences,coreMutex,boardId,bootId,hostname,wifiGotIps);secureService->begin(ssid.isEmpty());
+ secureService=new SecureService(*core,sink,preferences,coreMutex,boardId,bootId,hostname,wifiGotIps,savedNetwork);secureService->begin(ssid.isEmpty());
  for(size_t slot=0;slot<RtcPeerSlots;slot++){rtcBridges[slot]=new(std::nothrow) iah::RtcBridge(rtcWire,iah::RtcBridge::port()+slot);if(!rtcBridges[slot])Serial.printf("{\"event\":\"rtc_peer_allocation_failed\",\"slot\":%u}\n",unsigned(slot));}
  if(xTaskCreatePinnedToCore(rtcTask,"iah-rtc",8192,nullptr,1,&rtcTaskHandle,0)!=pdPASS)Serial.println("{\"event\":\"rtc_task_failed\"}");
 JsonDocument boot;iah::firmware::addIdentity(boot);serializeJson(boot,Serial);Serial.println();
