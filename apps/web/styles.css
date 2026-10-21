@@ -78,6 +78,9 @@ body.harness-surface{position:fixed;inset:0;overflow:hidden}
 .sidebar-footer .primary img{filter:invert(1);opacity:.9}.sidebar-footer .primary span{font-size:15px;margin:0}
 .conversation-status{display:flex;align-items:center;justify-content:space-between;gap:12px;flex:none;min-height:38px;padding:0 16px;border-bottom:1px solid var(--line);background:#fbf8f6}
 .capture-status{display:flex;align-items:center;gap:6px;min-width:0;margin:0;font-size:12px;line-height:1.4;color:var(--muted)}
+.capture-status-button{border:0;background:transparent;padding:0;text-align:left;font:inherit;cursor:pointer}
+.capture-status-button:disabled{cursor:default;opacity:1}
+.capture-status-button:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:4px}
 .capture-status::before{content:"";width:6px;height:6px;flex:0 0 6px;border-radius:50%;background:#a59b9f}
 .capture-status.sharing::before{background:#3f9076}
 .conversation-device{flex:0 1 auto;max-width:58%;min-width:0;border:0;background:transparent;color:var(--muted);font-size:12px;text-align:right;padding:9px 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
