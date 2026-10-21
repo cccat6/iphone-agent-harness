@@ -9,19 +9,21 @@
   <meta name="apple-mobile-web-app-title" content="iPhone Agent Harness">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>iPhone Agent Harness</title>
-  <link rel="icon" href="./icons/icon.svg" type="image/svg+xml">
+  <link rel="icon" href="./favicon.ico" sizes="16x16 32x32 48x48 64x64">
+  <link rel="icon" href="./icons/favicon.svg" type="image/svg+xml" sizes="any">
+  <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" sizes="180x180">
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="stylesheet" href="./styles.css">
   <link rel="stylesheet" href="./bootstrap.css">
 </head>
 <body>
   <section id="site" class="site-shell" hidden>
-    <header class="site-header"><a class="site-brand" href="/main"><img src="./icons/icon.svg" alt="" width="34" height="34"><span>iPhone Agent Harness</span></a><nav aria-label="Site"><a href="/main" data-route="main">主页</a><a href="/" data-route="harness" hidden data-i18n="home.openHarness">打开 Harness</a><a href="/skills" data-route="skills">Skill 社区</a><a href="/flash" data-route="flash">烧录设备</a><a class="repository-link" href="https://github.com/cccat6/iphone-agent-harness" target="_blank" rel="noopener noreferrer" data-no-i18n>GitHub ↗</a></nav><button id="site-language" class="secondary-button" aria-label="语言">语言</button></header>
+    <header class="site-header"><a class="site-brand" href="/main"><img src="./icons/logo.svg" alt="" width="34" height="34"><span>iPhone Agent Harness</span></a><nav aria-label="Site"><a href="/main" data-route="main">主页</a><a href="/" data-route="harness" hidden data-i18n="home.openHarness">打开 Harness</a><a href="/skills" data-route="skills">Skill 社区</a><a href="/flash" data-route="flash">烧录设备</a><a class="repository-link" href="https://github.com/cccat6/iphone-agent-harness" target="_blank" rel="noopener noreferrer" data-no-i18n>GitHub ↗</a></nav><button id="site-language" class="secondary-button" aria-label="语言">语言</button></header>
     <div id="site-notice" class="error-notice" role="status" hidden></div><main id="site-main"></main><footer class="site-footer"><span>iPhone Agent Harness</span><a class="repository-link" href="https://github.com/cccat6/iphone-agent-harness" target="_blank" rel="noopener noreferrer" data-no-i18n>GitHub ↗</a></footer>
   </section>
   <div id="app" class="app-shell" hidden inert>
     <aside class="sidebar" aria-label="会话列表">
-      <header class="session-home-header"><a class="brand" href="/main" aria-label="iPhone Agent Harness 首页"><img class="brand-icon" src="./icons/icon.svg" alt="" width="28" height="28"><span class="brand-name" data-no-i18n>iPhone Agent Harness</span></a><button id="open-settings" class="icon-button" aria-label="设置"><img src="./icons/settings.svg" alt="" width="21" height="21"></button></header>
+      <header class="session-home-header"><a class="brand" href="/main" aria-label="iPhone Agent Harness 首页"><img class="brand-icon" src="./icons/logo.svg" alt="" width="28" height="28"><span class="brand-name" data-no-i18n>iPhone Agent Harness</span></a><button id="open-settings" class="icon-button" aria-label="设置"><img src="./icons/settings.svg" alt="" width="21" height="21"></button></header>
       <div class="session-library-heading"><h1 class="session-list-title"><span id="session-list-caption" data-no-i18n aria-hidden="true">会话</span><select id="list-label" data-no-i18n aria-label="会话列表"><option value="active">会话</option><option value="archived">已归档</option></select><span class="ui-icon ui-icon-down" aria-hidden="true"></span></h1><button id="open-devices" class="device-status-row"><i id="device-indicator" aria-hidden="true"></i><span><strong id="home-device-status" data-no-i18n></strong><small id="home-device-detail" data-no-i18n></small></span><span class="ui-icon ui-icon-next" aria-hidden="true"></span></button><button id="toggle-session-search" class="icon-button" aria-label="搜索会话" aria-expanded="false" aria-controls="session-search-wrap"><img src="./icons/search.svg" width="20" height="20" alt=""></button></div>
       <div id="session-search-wrap" class="session-search-wrap" hidden><label class="search-field"><img src="./icons/search.svg" width="18" height="18" alt=""><input id="session-search" type="search" placeholder="搜索会话" aria-label="搜索会话" autocomplete="off"></label><button id="cancel-session-search" class="text-button" data-i18n="common.cancel">取消</button></div>
       <nav id="sessions" class="sessions" aria-label="已保存的会话"></nav>
@@ -42,7 +44,7 @@
   <dialog id="action-dialog" class="action-dialog"><div id="action-content"></div></dialog>
   <section id="compatibility-gate" class="compatibility-gate" role="alertdialog" aria-modal="true" aria-labelledby="compatibility-title" aria-describedby="compatibility-description compatibility-reason" data-compatibility-gate hidden>
     <div class="compatibility-card">
-      <svg width="48" height="48" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192"><rect width="192" height="192" rx="44" fill="#173e36"/><rect x="61" y="32" width="70" height="128" rx="18" fill="none" stroke="#f4f7ee" stroke-width="9"/><path d="M84 47h24M87 144h18M43 77h19m68 0h19M43 114h19m68 0h19" stroke="#a5d5b9" stroke-width="8" stroke-linecap="round"/><path d="m81 95 11 11 22-24" fill="none" stroke="#a5d5b9" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <img class="compatibility-logo" src="./icons/logo.svg" width="64" height="64" alt="">
       <p class="eyebrow" data-no-i18n>IPHONE AGENT HARNESS</p>
       <h1 id="compatibility-title" data-compatibility-copy data-no-i18n>Harness is not available in this browser</h1>
       <p id="compatibility-description" data-compatibility-copy data-no-i18n>Use Safari on an iPhone or iPad running iOS or iPadOS 27 or later.</p>

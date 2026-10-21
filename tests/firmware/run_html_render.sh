@@ -53,3 +53,4 @@ for(const name of ['setup']){
 JS
 
 node "$project_root/tests/firmware/bridge_settings_page_test.mjs" "$render_path/settings.html"
+node "$project_root/tests/firmware/branding_test.mjs" "$render_path"

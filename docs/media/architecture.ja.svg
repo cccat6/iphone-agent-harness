@@ -1,15 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720" role="img" aria-labelledby="title desc" lang="ja" xml:lang="ja">
 <title id="title">iPhone Agent Harnessの構成</title><desc id="desc">会話・画像・認証情報はブラウザーに保存します。APIは直接接続し、ChatGPTサブスクリプションは選択した情報・画像・出力・短期アクセストークンをステートレス中継に通します。中継は保存せず、本文や認証情報も記録しません。ログインと更新はOpenAIへ直接接続します。</desc>
-<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="m0 0 10 5-10 5z" fill="#356556" /></marker><style>text{font-family:system-ui,-apple-system,sans-serif;fill:#203a31}.title{font-size:25px;font-weight:700}.head{font-size:21px;font-weight:650}.body{font-size:17px}.small{font-size:15px;fill:#536b61}.box{fill:#fff;stroke:#bdcec5;stroke-width:1.5}.line{fill:none;stroke:#356556;stroke-width:2;marker-end:url(#arrow)}.both{marker-start:url(#arrow)}</style></defs>
-<rect width="1200" height="720" rx="24" fill="#f7faf8" />
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="m0 0 10 5-10 5z" fill="#cf4a2b" /></marker><style>text{font-family:system-ui,-apple-system,sans-serif;fill:#332330}.title{font-size:25px;font-weight:700}.head{font-size:21px;font-weight:650}.body{font-size:17px}.small{font-size:15px;fill:#746365}.box{fill:#fff;stroke:#e5c6bb;stroke-width:1.5}.line{fill:none;stroke:#cf4a2b;stroke-width:2;marker-end:url(#arrow)}.both{marker-start:url(#arrow)}</style></defs>
+<rect width="1200" height="720" rx="24" fill="#fffaf7" />
 <text x="40" y="46" class="title">iPhone Agent Harness</text><text x="40" y="75" class="small">ブラウザーで推論 · ローカル操作 · モデルを選択</text>
-<rect x="412" y="110" width="746" height="545" rx="22" fill="#edf5f0" stroke="#aec6b7" stroke-dasharray="6 6" />
+<rect x="412" y="110" width="746" height="545" rx="22" fill="#fff0e9" stroke="#e3b7a7" stroke-dasharray="6 6" />
 <text x="440" y="145" class="small">同じLAN Wi-Fi · 電話は普段のネットワークを使用</text>
-<rect x="440" y="173" width="376" height="443" rx="25" fill="#fff" stroke="#456858" stroke-width="2" />
+<rect x="440" y="173" width="376" height="443" rx="25" fill="#fff" stroke="#b2573d" stroke-width="2" />
 <text x="466" y="209" class="head">iPhone / iPad</text>
-<rect x="466" y="237" width="324" height="154" rx="14" fill="#eaf1ee" />
+<rect x="466" y="237" width="324" height="154" rx="14" fill="#fff0e9" />
 <text x="486" y="269" class="head">Safari · Web Harness</text><text x="486" y="301" class="body">Agentループ・指示・スキル</text><text x="486" y="330" class="body">会話・画像・キーはローカル</text><text x="486" y="359" class="small" style="font-size:13px">IndexedDB · 端末に永続保存</text>
-<rect x="466" y="468" width="324" height="112" rx="14" fill="#f4f6f5" stroke="#ccd8d1" />
+<rect x="466" y="468" width="324" height="112" rx="14" fill="#fbf6f3" stroke="#e6d6cd" />
 <text x="486" y="501" class="head">iOS画面とほかのアプリ</text><text x="486" y="532" class="body" style="font-size:15px">アプリ・操作部品・クリップボード</text><text x="486" y="558" class="small" style="font-size:12px">AssistiveTouchがポインター入力を受信</text>
 <path class="line" d="M537 466v-66" /><text x="548" y="429" class="small">画面共有</text><text x="548" y="449" class="small">ローカルで観察</text>
 <rect x="48" y="144" width="295" height="157" rx="17" class="box" />

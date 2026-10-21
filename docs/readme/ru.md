@@ -1,3 +1,5 @@
+<p align="center"><img src="../media/logo.svg" width="128" height="128" alt="iPhone Agent Harness"></p>
+
 <h1 align="center">iPhone Agent Harness</h1>
 
 <p align="center"><strong>Поручите ИИ управлять вашим iPhone.</strong></p>
@@ -10,7 +12,7 @@
   <a href="https://github.com/cccat6/iphone-agent-harness/actions/workflows/checks.yml"><img src="https://github.com/cccat6/iphone-agent-harness/actions/workflows/checks.yml/badge.svg" alt="CI"></a>
   <a href="../../LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="MIT License"></a>
   <img src="https://img.shields.io/badge/iOS%20%2F%20iPadOS-27%2B-111827" alt="iOS / iPadOS 27+">
-  <img src="https://img.shields.io/badge/ESP32-C2%20%C2%B7%20C3%20%C2%B7%20C5%20%C2%B7%20C6%20%C2%B7%20S3%20%C2%B7%20Classic-0e7490" alt="ESP32 C2, C3, C5, C6, S3, Classic">
+  <img src="https://img.shields.io/badge/ESP32-C2%20%C2%B7%20C3%20%C2%B7%20C5%20%C2%B7%20C6%20%C2%B7%20S3%20%C2%B7%20Classic-cf4a2b" alt="ESP32 C2, C3, C5, C6, S3, Classic">
 </p>
 
 <p align="center">

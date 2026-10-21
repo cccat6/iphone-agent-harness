@@ -62,14 +62,14 @@
     root.className = route === 'harness' ? 'legacy-gate' : 'legacy-site';
     if (route === 'harness') {
       root.setAttribute('role','alertdialog'); root.setAttribute('aria-modal','true'); root.setAttribute('aria-labelledby','legacy-title'); root.setAttribute('aria-describedby','legacy-description legacy-reason');
-      root.innerHTML = '<div class="legacy-card"><p class="legacy-brand">IPHONE AGENT HARNESS</p><h1 id="legacy-title">' + escapeHTML(text('compat.title')) + '</h1><p id="legacy-description">' + escapeHTML(text('compat.description')) + '</p><p id="legacy-reason" class="legacy-note">' + escapeHTML(text('compat.REQUIRED_FEATURES_MISSING')) + '</p><button type="button" id="legacy-home">' + escapeHTML(text('compat.goHome')) + '</button></div>';
+      root.innerHTML = '<div class="legacy-card"><img class="legacy-logo" src="' + basePath + 'icons/icon-192.png" width="56" height="56" alt=""><p class="legacy-brand">IPHONE AGENT HARNESS</p><h1 id="legacy-title">' + escapeHTML(text('compat.title')) + '</h1><p id="legacy-description">' + escapeHTML(text('compat.description')) + '</p><p id="legacy-reason" class="legacy-note">' + escapeHTML(text('compat.REQUIRED_FEATURES_MISSING')) + '</p><button type="button" id="legacy-home">' + escapeHTML(text('compat.goHome')) + '</button></div>';
       document.body.style.overflow = 'hidden';
       byId('legacy-home').onclick = function () { window.location.href = basePath + 'main'; };
       byId('legacy-home').focus();
       return;
     }
     document.body.style.overflow = ''; root.removeAttribute('role'); root.removeAttribute('aria-modal'); root.removeAttribute('aria-labelledby'); root.removeAttribute('aria-describedby');
-    html = '<header><strong>iPhone Agent Harness</strong><nav aria-label="Site"><a href="' + basePath + 'main">' + escapeHTML(text('nav.home')) + '</a><a href="' + basePath + 'skills">' + escapeHTML(text('nav.community')) + '</a><a href="' + basePath + 'flash">' + escapeHTML(text('nav.flash')) + '</a><a href="https://github.com/cccat6/iphone-agent-harness" rel="noopener noreferrer">GitHub</a></nav><select id="legacy-language" aria-label="Language">';
+    html = '<header><img class="legacy-logo" src="' + basePath + 'icons/icon-192.png" width="40" height="40" alt=""><strong>iPhone Agent Harness</strong><nav aria-label="Site"><a href="' + basePath + 'main">' + escapeHTML(text('nav.home')) + '</a><a href="' + basePath + 'skills">' + escapeHTML(text('nav.community')) + '</a><a href="' + basePath + 'flash">' + escapeHTML(text('nav.flash')) + '</a><a href="https://github.com/cccat6/iphone-agent-harness" rel="noopener noreferrer">GitHub</a></nav><select id="legacy-language" aria-label="Language">';
     for (i = 0; i < LOCALES.length; i++) html += '<option value="' + LOCALES[i] + '"' + (LOCALES[i] === locale ? ' selected' : '') + '>' + LANG_NAMES[i] + '</option>';
     html += '</select></header><main><p class="legacy-note">' + escapeHTML(text('legacy.notice')) + '</p>';
     if (route === 'skills') html += '<h1>' + escapeHTML(text('community.title')) + '</h1><p>' + escapeHTML(text('community.description')) + '</p><p>' + escapeHTML(text('home.featureSkillsDescription')) + '</p><p>' + escapeHTML(text('legacy.skills')) + '</p>';
