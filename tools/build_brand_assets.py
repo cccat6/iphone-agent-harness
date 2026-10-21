@@ -27,6 +27,7 @@ def build():
             '<title>iPhone Agent Harness</title>'
             f'<rect width="512" height="512" rx="{96 if rounded else 0}" fill="#fffaf7"/>'
             f'<svg x="{padding}" y="{padding}" width="{size}" height="{size}" viewBox="128 58 410 410">{body}</svg></svg>\n')
+    (ROOT/'docs/media/logo-card.svg').write_text(plate(32, rounded=True))
     (ICONS/'favicon.svg').write_text(plate(24, rounded=True))
     (ICONS/'maskable.svg').write_text(plate(64))
     with tempfile.TemporaryDirectory(prefix='iah-brand-') as temp:

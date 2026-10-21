@@ -1,4 +1,4 @@
-<p align="center"><img src="../media/logo.svg" width="128" height="128" alt="iPhone Agent Harness"></p>
+<p align="center"><img src="../media/logo-card.svg" width="128" height="128" alt="iPhone Agent Harness"></p>
 
 <h1 align="center">iPhone Agent Harness</h1>
 
