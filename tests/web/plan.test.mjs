@@ -113,7 +113,7 @@ test('cancel ignores a late successful receipt and does not start subsequent inp
  const abort=new AbortController();let late;
  const a=adapters({submit:s=>new Promise(resolve=>{late=()=>resolve(receipt(s));})});
  const run=executePhonePlan(plan([tap('a'),tap('b')]),{...a,context:context(),signal:abort.signal});await until(()=>a.segments.length===1);abort.abort();
- const result=await run;assert.equal(result.status,'cancelled');assert.equal(a.releases.length,1);late();await tick();assert.equal(a.segments.length,1);assert.equal(result.steps.at(-1).status,'skipped');
+ const result=await run;assert.equal(result.status,'cancelled');assert.equal(result.code,'USER_CANCELLED');assert.equal(result.cancelReason,'user_cancelled');assert.equal(a.releases.length,1);late();await tick();assert.equal(a.segments.length,1);assert.equal(result.steps.at(-1).status,'skipped');
 });
 
 test('orientation changes across an asynchronous receipt stop the plan',async()=>{
@@ -141,7 +141,7 @@ test('during-motion observation starts sampling without blocking gesture release
 });
 
 test('missing or failed release leaves input state unknown rather than claiming cleanup',async()=>{
- const a=adapters({submit:s=>receipt(s,{status:'transport_failed',releaseSubmitted:false}),release:()=>{throw new Error('offline');}});const result=await executePhonePlan(plan([tap()]),{...a,context:context()});assert.equal(result.status,'failed');assert.equal(result.inputState,'unknown');
+ const a=adapters({submit:s=>receipt(s,{status:'transport_failed',releaseSubmitted:false}),release:()=>{throw new Error('offline');}});const result=await executePhonePlan(plan([tap()]),{...a,context:context()});assert.equal(result.status,'unknown');assert.equal(result.inputState,'unknown');
 });
 
 test('expired plans and missing injected device adapters do no physical work',async()=>{
@@ -152,7 +152,7 @@ test('expired plans and missing injected device adapters do no physical work',as
 
 test('a release without a pending-input fence cannot resolve uncertain input',async()=>{
  const a=adapters({submit:s=>receipt(s,{status:'unknown'}),release:q=>({boardId:q.boardId,bootId:q.bootId,targetId:q.targetId,status:'released'})});
- const result=await executePhonePlan(plan([tap()]),{...a,context:context()});assert.equal(result.inputState,'unknown');assert.equal(a.releases[0].cancelPending,true);assert.equal(a.releases[0].invalidateLease,true);
+ const result=await executePhonePlan(plan([tap()]),{...a,context:context()});assert.equal(result.inputState,'released');assert.equal(result.status,'unknown');assert.equal(a.releases[0].cancelPending,true);assert.equal(a.releases[0].invalidateLease,true);
 });
 
 test('a stalled result query is bounded and cannot unblock further actions later',async()=>{

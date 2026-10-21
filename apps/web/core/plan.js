@@ -200,7 +200,7 @@ async function hashSegment(segment) {
   return [...new Uint8Array(bytes)].map(v=>v.toString(16).padStart(2,'0')).join('');
 }
 const defaultNow=()=>performance.now();
-function abortError(){const e=new Error('Phone plan cancelled');e.code='cancelled';return e;}
+function abortError(){const e=new Error('Phone plan cancelled by the caller');e.code='USER_CANCELLED';e.cancelReason='user_cancelled';return e;}
 const abortReason=signal=>signal.reason instanceof Error?signal.reason:abortError();
 function deadlineError(){return Object.assign(new Error('Phone plan execution deadline exceeded'),{code:'PLAN_DEADLINE_EXCEEDED'});}
 function abortable(promise,signal) {
@@ -266,21 +266,23 @@ export async function executePhonePlan(input,{device,capture,context,signal,onEv
   if(!finite(start)||!finite(acceptedAt)||acceptedAt>start)fail('Invalid trusted monotonic clock');
   const deadline=Math.min(start+plan.maxExecutionMs,acceptedAt+plan.ttlMs);
   if(deadline<=start)throw deadlineError();
-  let failureCode=null,dispatched=false,inputState='released',stepIndex=0;
+  let failureCode=null,dispatched=false,inputState='released',stepIndex=0,deadlineExceeded=false,mandatoryStages=0;
   const result={version:1,planId:plan.planId,targetId:plan.targetId,status:'completed',outcome:'not_evaluated',inputState:'released',steps:[],frames:[]};
   const timing={contextMs:0,submitMs:0,resultQueryMs:0,settleMs:0,capturePipelineMs:0,saveMs:0};
   const measured=async(key,operation)=>{const at=now();try{return await operation();}finally{timing[key]+=Math.max(0,now()-at);}};
-  const expire=()=>{if(controller.signal.aborted)return;failureCode='PLAN_DEADLINE_EXCEEDED';controller.abort(deadlineError());};
-  const cancel=()=>{if(controller.signal.aborted)return;failureCode='cancelled';controller.abort(abortError());};
+  const expire=()=>{if(deadlineExceeded)return;deadlineExceeded=true;failureCode='PLAN_DEADLINE_EXCEEDED';if(!mandatoryStages&&!controller.signal.aborted)controller.abort(deadlineError());};
+  const cancel=()=>{if(controller.signal.aborted)return;failureCode='USER_CANCELLED';controller.abort(abortError());};
   if(signal?.aborted)cancel();else signal?.addEventListener('abort',cancel,{once:true});
   const deadlineTimer=setTimeout(expire,Math.max(0,deadline-now()));
   async function check(checkSignal=controller.signal){
     if(controller.signal.aborted)throw abortReason(controller.signal);
-    if(now()>=deadline){expire();throw abortReason(controller.signal);}
+    if(deadlineExceeded&&!mandatoryStages)throw deadlineError();
+    if(now()>=deadline){expire();if(!mandatoryStages)throw deadlineError();}
     if(checkSignal.aborted)throw abortReason(checkSignal);
     const current=typeof context.getState==='function'?await measured('contextMs',()=>abortable(Promise.resolve(context.getState({signal:checkSignal})),checkSignal)):context;
     if(controller.signal.aborted)throw abortReason(controller.signal);
-    if(now()>=deadline){expire();throw abortReason(controller.signal);}
+    if(deadlineExceeded&&!mandatoryStages)throw deadlineError();
+    if(now()>=deadline){expire();if(!mandatoryStages)throw deadlineError();}
     if(checkSignal.aborted)throw abortReason(checkSignal);
     if(changes)assertBridgePresent(current);
     for(const key of BASE_KEYS)if(current[key]!==baseline[key])fail(`Execution context changed: ${key}`,'unknown');
@@ -290,7 +292,7 @@ export async function executePhonePlan(input,{device,capture,context,signal,onEv
   }
   const wait=async ms=>{await check();await measured('settleMs',()=>sleep(ms,controller.signal));await check();};
   async function within(promise,endAt){
-    let timer;const timeout=new Promise((_,reject)=>{timer=setTimeout(()=>{const e=new Error('Device result timed out');e.code='unknown';reject(e);},Math.max(0,endAt-now()));});
+    let timer;const timeout=new Promise((_,reject)=>{timer=setTimeout(()=>{const e=new Error('Device result timed out');e.code='DEVICE_RESULT_TIMEOUT';e.cancelReason='device_result_timeout';reject(e);},Math.max(0,endAt-now()));});
     try{return await abortable(Promise.race([promise,timeout]),controller.signal);}finally{clearTimeout(timer);}
   }
   async function runGesture(step,index){
@@ -299,31 +301,35 @@ export async function executePhonePlan(input,{device,capture,context,signal,onEv
     segment.payloadHash=await hashSegment(segment);const latest=await check(),latestCaps=latest.capabilities||context.capabilities;operationAllowed(step.op,{capabilities:latestCaps});checkGestureLimits(segment.events,compiled.durationMs,latestCaps);checkRequestBytes(segment,latestCaps);
     if(!dispatched){const batch=validatePlan(plan,{...context,capabilities:latestCaps});if(!batch.valid)fail(batch.errors.join('; '));}
     context.validateSegment?.(segment);
-    let receipt;dispatched=true;inputState='unknown';
+    let receipt;dispatched=true;inputState='unknown';mandatoryStages++;
     emit(onEvent,{type:'segment',phase:'submitting',segment});
-    try{receipt=await measured('submitMs',()=>within(device.submitSegment(segment,{signal:controller.signal}),Math.min(deadline,now()+8000)));await check();}
-    catch(e){if(e.code==='CLIPBOARD_COPY_REQUIRED'&&e.sent===false){inputState='released';throw e;}await check();emit(onEvent,{type:'segment',phase:'submission_uncertain',segmentId:segment.segmentId,message:String(e.message)});}
-    const receiptDeadline=Math.min(deadline,now()+(integer(context.resultTimeoutMs,100,15000)?context.resultTimeoutMs:8000));
-    const query={boardId:segment.boardId,bootId:segment.bootId,targetId:segment.targetId,clientId:segment.clientId,segmentId:segment.segmentId};
-    while(true){
-      await check();
-      if(receipt&&terminalReceipt(receipt,segment)){inputState='released';emit(onEvent,{type:'segment',phase:'completed',receipt});return receipt;}
-      if(now()>=receiptDeadline)fail('Device result unavailable; execution state unknown','unknown');
-      try{receipt=await measured('resultQueryMs',()=>within(device.getResult(query,{signal:controller.signal}),receiptDeadline));await check();}
-      catch(e){await check();if(e.code==='unknown'||e.code==='failed')throw e;fail('Device result query failed; no input was resent','unknown');}
-      if(receipt&&terminalReceipt(receipt,segment)){inputState='released';emit(onEvent,{type:'segment',phase:'completed',receipt});return receipt;}
-      await wait(integer(context.pollIntervalMs,0,1000)?context.pollIntervalMs:100);
-    }
+    try{
+      const requestTimeout=integer(context.resultTimeoutMs,100,15000)?context.resultTimeoutMs:8000;
+      const receiptDone=receipt=>{try{const done=terminalReceipt(receipt,segment);if(done)inputState='released';return done;}catch(e){if(e.deviceFailure?.releaseSubmitted===true)inputState='released';throw e;}};
+      try{receipt=await measured('submitMs',()=>within(device.submitSegment(segment,{signal:controller.signal}),now()+requestTimeout));await check();}
+      catch(e){if(e.code==='CLIPBOARD_COPY_REQUIRED'&&e.sent===false){inputState='released';throw e;}await check();emit(onEvent,{type:'segment',phase:'submission_uncertain',segmentId:segment.segmentId,message:String(e.message)});}
+      const receiptDeadline=now()+requestTimeout;
+      const query={boardId:segment.boardId,bootId:segment.bootId,targetId:segment.targetId,clientId:segment.clientId,segmentId:segment.segmentId};
+      while(true){
+        await check();
+        if(receipt&&receiptDone(receipt)){inputState='released';emit(onEvent,{type:'segment',phase:'completed',receipt});return receipt;}
+        if(now()>=receiptDeadline)fail('Device result unavailable; execution state unknown','DEVICE_RESULT_TIMEOUT');
+        try{receipt=await measured('resultQueryMs',()=>within(device.getResult(query,{signal:controller.signal}),receiptDeadline));await check();}
+        catch(e){await check();if(e.code==='DEVICE_RESULT_TIMEOUT'||e.code==='unknown'||e.code==='failed')throw e;fail('Device result query failed; no input was resent','DEVICE_RESULT_UNKNOWN');}
+        if(receipt&&receiptDone(receipt)){inputState='released';emit(onEvent,{type:'segment',phase:'completed',receipt});return receipt;}
+        await wait(integer(context.pollIntervalMs,0,1000)?context.pollIntervalMs:100);
+      }
+    }finally{mandatoryStages=Math.max(0,mandatoryStages-1);}
   }
   async function collectFrames(step){
-    const output=[],groupStart=now(),groupDeadline=Math.min(deadline,groupStart+step.frames.timeoutMs);
+    mandatoryStages++;const output=[],groupStart=now(),groupDeadline=groupStart+step.frames.timeoutMs;
     const sampler=new AbortController();const abortSampler=()=>sampler.abort(controller.signal.reason);controller.signal.addEventListener('abort',abortSampler,{once:true});
     let phase='context_before';const timer=setTimeout(()=>{if(now()>=deadline)expire();else sampler.abort(captureTimeout(phase));},Math.max(0,groupDeadline-now()));
     const sampled=async(stage,operation)=>{phase=stage;return boundedCaptureStage(operation,{signal:sampler.signal,deadlineAtMs:performance.now()+Math.max(0,groupDeadline-now()),stage,onDiagnostic:value=>capture.diagnose?.({...value,groupId:step.id})});};
     try{
       for(let i=0;i<step.frames.count;i++){
         await sampled('context_before',()=>check(sampler.signal));const delay=groupStart+i*step.frames.intervalMs-now();if(delay>0)await abortable(sleep(delay,sampler.signal),controller.signal);
-        if(now()>=deadline){expire();throw abortReason(controller.signal);}if(now()>=groupDeadline)throw captureTimeout(phase);
+        if(now()>=deadline)expire();if(now()>=groupDeadline)throw captureTimeout(phase);
         const options={targetId:baseline.targetId,orientationEpoch:baseline.orientationEpoch,groupId:step.id,index:i,signal:sampler.signal,deadlineAtMs:performance.now()+Math.max(0,groupDeadline-now())};
         const frame=await sampled('capture',()=>measured('capturePipelineMs',()=>capture.grab(options)));await sampled('context_after',()=>check(sampler.signal));
         const metadata=frameMetadata(frame,step,baseline);let assetRef=frame.assetRef;
@@ -335,8 +341,8 @@ export async function executePhonePlan(input,{device,capture,context,signal,onEv
         const value={...metadata,assetRef};output.push(value);result.frames.push(value);emit(onEvent,{type:'frame',frame:value});
       }
       return output;
-    }catch(e){if(controller.signal.aborted)throw abortReason(controller.signal);if(now()>=deadline){expire();throw abortReason(controller.signal);}if(sampler.signal.aborted)throw captureTimeout(e.stage||phase);throw e;}
-    finally{clearTimeout(timer);controller.signal.removeEventListener('abort',abortSampler);}
+    }catch(e){if(controller.signal.aborted)throw abortReason(controller.signal);if(now()>=groupDeadline)throw captureTimeout(e.stage||phase);if(sampler.signal.aborted)throw captureTimeout(e.stage||phase);throw e;}
+    finally{clearTimeout(timer);controller.signal.removeEventListener('abort',abortSampler);mandatoryStages=Math.max(0,mandatoryStages-1);}
   }
   async function cleanupRelease(){
     if(!dispatched)return;
@@ -367,7 +373,7 @@ export async function executePhonePlan(input,{device,capture,context,signal,onEv
   }catch(e){
     executionElapsedMs=Math.max(0,now()-start);
     const code=String(failureCode||e.code||'failed').slice(0,100);failureCode=code;controller.abort(e);
-    result.code=code;if(e.code==='CAPTURE_TIMEOUT')result.captureStage=e.stage;if(e.deviceFailure)result.deviceFailure=e.deviceFailure;result.status=code==='cancelled'?'cancelled':code==='unknown'||(code==='PLAN_DEADLINE_EXCEEDED'&&dispatched&&inputState==='unknown')||(code==='DEVICE_BRIDGE_UNAVAILABLE'&&dispatched&&inputState==='unknown')?'unknown':'failed';result.outcome='insufficient_evidence';
+    result.code=code;if(e.cancelReason)result.cancelReason=e.cancelReason;else if(code==='PLAN_DEADLINE_EXCEEDED')result.cancelReason='plan_deadline';else if(code==='DEVICE_RESULT_TIMEOUT')result.cancelReason='device_result_timeout';if(code==='CAPTURE_TIMEOUT')result.captureStage=e.stage;if(e.deviceFailure)result.deviceFailure=e.deviceFailure;result.status=code==='USER_CANCELLED'?'cancelled':code==='unknown'||(dispatched&&inputState==='unknown')||(code==='DEVICE_BRIDGE_UNAVAILABLE'&&dispatched&&inputState==='unknown')?'unknown':'failed';result.outcome='insufficient_evidence';
     if(stepIndex<plan.steps.length)result.steps.push({id:plan.steps[stepIndex].id,status:result.status==='cancelled'?'cancelled':result.status==='unknown'?'unknown':'failed',detail:String(e.message).slice(0,500)});
     for(let i=stepIndex+1;i<plan.steps.length;i++)result.steps.push({id:plan.steps[i].id,status:'skipped',detail:'Stopped after prior failure or cancellation.'});
     await cleanupRelease();
@@ -382,7 +388,7 @@ export async function executePhonePlan(input,{device,capture,context,signal,onEv
   result.inputState=inputState;
   if(result.status!=='completed'){
     const code=result.code||'failed',restartRequired=code==='CAPTURE_RESTART_REQUIRED'||capture?.needsRestart===true;if(restartRequired)result.captureNeedsRestart=true;
-    const action=code==='cancelled'?'none':restartRequired?'resume_sharing':code==='DEVICE_BRIDGE_UNAVAILABLE'?'reconnect':['CAPTURE_UNAVAILABLE','CAPTURE_REQUIRED','SCREEN_SHARING_REQUIRED','CAPTURE_STOPPED'].includes(code)?'resume_sharing':result.status==='unknown'||inputState!=='released'?'reconcile_before_replan':'observe_then_replan';
+    const action=code==='USER_CANCELLED'?'none':restartRequired?'resume_sharing':code==='DEVICE_BRIDGE_UNAVAILABLE'?'reconnect':['CAPTURE_UNAVAILABLE','CAPTURE_REQUIRED','SCREEN_SHARING_REQUIRED','CAPTURE_STOPPED'].includes(code)?'resume_sharing':result.status==='unknown'||inputState!=='released'?'reconcile_before_replan':'observe_then_replan';
     result.recovery={action,automatic:action==='observe_then_replan',reasonCode:code};
   }
   return result;
