@@ -16,7 +16,7 @@ function action(step){
 }
 export function projectToolActivity(calls){
  if(!Array.isArray(calls))return [];
- return calls.slice(0,8).map(call=>{const kind=kinds[call?.name]||'tool',out={kind};if(kind==='execute'){const steps=call.arguments?.plan?.steps;if(Array.isArray(steps)){out.actions=steps.slice(0,12).map(action);out.more=Math.max(0,Math.min(10000,steps.length-12));}}return out;});
+ return calls.slice(0,8).map(call=>{const kind=kinds[call?.name]||'tool',out={kind};if(kind==='skillsLoad'){out.skillId=typeof call.arguments?.id==='string'?call.arguments.id:'';out.skillPath=typeof call.arguments?.path==='string'?call.arguments.path:'SKILL.md';}if(kind==='execute'){const steps=call.arguments?.plan?.steps;if(Array.isArray(steps)){out.actions=steps.slice(0,12).map(action);out.more=Math.max(0,Math.min(10000,steps.length-12));}}return out;});
 }
 // Recheck incoming view records too: imports and callers may supply arbitrary data.
 export function toolActivityForMessage(message){

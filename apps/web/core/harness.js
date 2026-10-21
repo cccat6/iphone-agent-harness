@@ -167,7 +167,9 @@ export function createHarness({store,onEvent=()=>{},capture=screenCapture,invoke
         recoveryRequired=false;return {value:{status:'captured',groupId:crypto.randomUUID(),frames,requestedIntervalMs:interval},images,frameRefs:refs};
       }
       async function settle(call,value,extras={}){
-        const message=await store.addMessage(sessionId,{role:'tool',text:JSON.stringify(value),toolCallId:call.id,toolName:call.name,...extras});run.settled.add(call.id);emit({type:'message',message});
+        const skill=call.name==='skills_load'?skills.find(item=>item.id===call.arguments?.id):null;
+        const metadata=skill?{skillId:skill.id,skillName:skill.name||skill.id,skillPath:call.arguments?.path||'SKILL.md'}:{};
+        const message=await store.addMessage(sessionId,{role:'tool',text:JSON.stringify(value),toolCallId:call.id,toolName:call.name,...metadata,...extras});run.settled.add(call.id);emit({type:'message',message});
         const diagnostic=value&&['failed','error','cancelled','unknown'].includes(value.status)?{code:value.code||'tool_failed',message:String(value.message||'').slice(0,500),...(value.cancelReason?{cancelReason:value.cancelReason}:{}),...(value.reason?{reason:value.reason}:{}),...(value.timing&&typeof value.timing==='object'?{timing:value.timing}:{})}:undefined;
         await journal('tool.result',{callId:call.id,name:call.name,status:value?.status||'returned',...(diagnostic?{diagnostic}:{} )});return message;
       }
@@ -267,7 +269,7 @@ export function createHarness({store,onEvent=()=>{},capture=screenCapture,invoke
                 case 'skills_list':result={value:{skills:skills.map(s=>({id:s.id,description:s.description,version:s.version,requiredCapabilities:s.requiredCapabilities||[]}))}};break;
                 case 'skills_create':{const owner=await abortable(identity(),runSignal);await guard();const skill=await createAuthoredSkill({store,identity:owner,input:call.arguments});skills.push(skill);result={value:{status:'created',id:skill.id,version:skill.version,source:skill.source}};break;}
                 case 'skills_update':{const {id,...patch}=call.arguments;const owner=await abortable(identity(),runSignal);await guard();const skill=await updateAuthoredSkill({store,identity:owner,id,patch});skills=skills.map(s=>s.id===id?skill:s);loadedSkills=loadedSkills.filter(s=>s.id!==id);prefixSkillTail=prefixSkillTail.filter(s=>s.id!==id);result={value:{status:'updated',id:skill.id,version:skill.version,source:skill.source}};break;}
-                case 'skills_load':{const loaded=readSkill(skills,call.arguments.id,call.arguments.path);loadedSkills=[...loadedSkills.filter(s=>s.id!==loaded.id||s.path!==loaded.path),loaded];if(prefixSkillTail.some(s=>s.id===loaded.id))prefixSkillTail=[...prefixSkillTail.filter(s=>s.id!==loaded.id),loaded];result={value:loaded};break;}
+                case 'skills_load':{const requestedPath=call.arguments.path||'SKILL.md',existing=loadedSkills.find(s=>s.id===call.arguments.id&&s.path===requestedPath);if(existing){result={value:{status:'already_loaded',id:existing.id,name:existing.name||existing.id,version:existing.version,path:existing.path}};break;}const loaded=readSkill(skills,call.arguments.id,requestedPath);loadedSkills=[...loadedSkills.filter(s=>s.id!==loaded.id||s.path!==loaded.path),loaded];if(prefixSkillTail.some(s=>s.id===loaded.id))prefixSkillTail=[...prefixSkillTail.filter(s=>s.id!==loaded.id),loaded];result={value:{status:'loaded',...loaded,name:loaded.name||loaded.id}};break;}
                 case 'session_search':result={value:await store.searchMessages(sessionId,call.arguments.query)};break;
                 case 'user_request_input':terminal=attentionReturn?.phase==='return_for_attention'?attentionTerminal():{status:'needs_user',question:call.arguments.question};result={value:terminal};break;
                 case 'task_plan':{

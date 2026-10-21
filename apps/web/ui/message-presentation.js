@@ -6,6 +6,7 @@ export function messagePresentation(message,{developerMode=false,t=key=>key}={})
  if(message.role!=='tool'){
   let text=message.taskPlan?'':message.text||'';
   if(message.role==='assistant'&&!message.taskPlan){const summary=toolActivityForMessage(message).map(activity=>{
+   if(activity.kind==='skillsLoad')return t('interaction.skillLoadRequested',{name:activity.skillId||activity.skillPath||'Skill'});
    if(activity.kind!=='execute')return t('interaction.activity.'+activity.kind);
    const actions=(activity.actions||[]).map(action=>{let label=t('interaction.operation.'+(action.op==='key'?action.key||'input':action.op));if(action.phases?.length)label+=' ('+action.phases.map(phase=>t('interaction.pointer.'+phase)).join(', ')+')';if(action.direction)label+=' · '+t('interaction.direction.'+action.direction);if(action.point)label+=` (${action.point.x}%, ${action.point.y}%)`;if(action.durationMs!==undefined)label+=` · ${action.durationMs} ms`;return label;});
    return t('interaction.activity.execute')+(actions.length?': '+actions.join(' → '):'')+(activity.more?' · '+t('interaction.moreActions',{count:activity.more}):'');
@@ -17,7 +18,8 @@ export function messagePresentation(message,{developerMode=false,t=key=>key}={})
  let value;try{value=JSON.parse(message.text);}catch{}
  const status=value?.status,name=message.toolName||'';
  let text='';
- if(name==='phone_get_location'&&status==='located')text=t('location.located');
+ if(name==='skills_load'){const label=message.skillName||value?.name||value?.id||message.skillId||'Skill';text=t(value?.status==='already_loaded'?'interaction.skillAlreadyLoaded':'interaction.skillLoaded',{name:label});}
+ else if(name==='phone_get_location'&&status==='located')text=t('location.located');
  else if(name==='phone_remember_interaction')text=t('interaction.correctionSaved');
  else if(name==='task_plan')text=value?.summary||'';
  else if(name==='task_report')text=value?.summary||'';
