@@ -23,5 +23,6 @@ test('device onboarding has all eight locales with matching placeholders',()=>{
 test('only the previous automatic bridge hostname migrates to the shared default',()=>{
  assert.equal(defaultBridgeEndpoint(''),'http://igent.local');
  assert.equal(defaultBridgeEndpoint('http://harness-b0e4b4e05380.local'),'http://igent.local');
- for(const address of ['http://my-bridge.local','http://harness-abcdef.local','https://harness-b0e4b4e05380.local','http://192.168.0.125','http://harness-b0e4b4e05380.local:8080'])assert.equal(defaultBridgeEndpoint(address),address);
+ for(const address of ['http://my-bridge.local','http://harness-abcdef.local','https://harness-b0e4b4e05380.local','http://harness-b0e4b4e05380.local:8080'])assert.equal(defaultBridgeEndpoint(address),address);
+ assert.equal(defaultBridgeEndpoint('http://192.168.0.125'),'http://igent.local');
 });

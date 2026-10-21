@@ -5,7 +5,16 @@ import {getLocale, subscribe, localizeError} from '../i18n.js';
 import {DEVICE_MESSAGES} from '../locales/device.js';
 
 const DEFAULT_BRIDGE_URL='http://igent.local';
-export function defaultBridgeEndpoint(value){return !value||/^http:\/\/harness-[a-f0-9]{12}\.local$/.test(value)?DEFAULT_BRIDGE_URL:value;}
+export function defaultBridgeEndpoint(value){
+  if(!value||/^http:\/\/harness-[a-f0-9]{12}\.local$/.test(value))return DEFAULT_BRIDGE_URL;
+  try{
+    const url=new URL(value);
+    // The RTC payload contains a DHCP snapshot. Keep it for the data path,
+    // but never use it as the bridge discovery URL.
+    if(url.protocol==='http:'&&/^\d{1,3}(?:\.\d{1,3}){3}$/.test(url.hostname))return DEFAULT_BRIDGE_URL;
+  }catch{}
+  return value;
+}
 const escapeHTML=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 const sameProof=(proof,client)=>Boolean(proof&&client?.identityVerified&&client.bindingVerified&&['boardId','bootId','clientId','targetId'].every(key=>proof[key]===client[key]));
 /** Only native, focused key events can contribute to this page's input proof. */
@@ -28,7 +37,7 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
   let client=null,proof=null,targets=[],targetId='',root=null,dialog=null,controller=null,operation=0,working=false;
   let challenge=null,nonce='',armed=false,challengeTimer=null,testWait=null,unsubscribe=null,settings={},statusKey='notPaired',statusDetail='',checkedAt=null;
   let legacyBinding=false,challengeCancellation=Promise.resolve(),bindingError=null,verifiedRTC=null,challengeMayExist=false,challengeRetryController=null;
-  let connectionActive=false,pendingSetup=null,connectionEpoch=0,monitorTimer=null,refreshTask=null,disposed=false,lastRefreshStarted=0,reconnectTimer=null;
+  let connectionActive=false,pendingSetup=null,connectionEpoch=0,monitorTimer=null,refreshTask=null,disposed=false,lastRefreshStarted=0,reconnectTimer=null,reconnectAttempts=0,reconnecting=false;
   let importError=null,progressTimer=null,progressStarted=0,informationEdit=0,informationSaving=null,pendingSetupSource='';
   function receiveSetupLink(){
     const source=globalThis.location?.href;if(!source||!new URLSearchParams(globalThis.location.hash?.slice(1)||'').has('device'))return false;
@@ -39,10 +48,11 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
   }
   receiveSetupLink();
   const componentError=key=>Object.assign(new Error('DEVICE_UI_'+key),{deviceMessageKey:key});
+  const normalizedError=error=>error&&typeof error==='object'?error:Object.assign(new Error(String(error||'DEVICE_RTC_CONNECT_FAILED')),{code:String(error||'DEVICE_RTC_CONNECT_FAILED')});
   const copy=(key,params={})=>Object.entries(params).reduce((text,[name,value])=>text.replaceAll('{'+name+'}',String(value)),(DEVICE_MESSAGES[getLocale()]||DEVICE_MESSAGES.en)[key]||key);
   const node=selector=>root?.querySelector(selector);
   const mounted=()=>Boolean(root?.isConnected&&getPanelRoot()?.contains(root));
-  const getState=()=>{const connected=Boolean(connectionActive&&client?.paired&&client.identityVerified),selected=targets.find(target=>target.targetId===(client?.targetId||targetId)),bluetoothConnected=Boolean(connected&&selected?.connected),phoneInputReady=Boolean(bluetoothConnected&&usableTarget(selected)),targetBound=Boolean(connected&&phoneInputReady&&client?.bindingVerified&&client.targetId===targetId),inputVerified=targetBound&&sameProof(proof,client),ready=targetBound;return {informationReady:!!information(),connected,bluetoothConnected,phoneInputReady,targetBound,inputVerified,ready,legacyInputTestRequired:Boolean(connected&&legacyBinding&&!targetBound),sharing:Boolean(capture.active),checking:Boolean(refreshTask?.visible),boardId:connected?client.boardId:null,targetId:ready?client.targetId:null,status:working?'connecting':statusKey==='operationFailed'?'error':ready?(capture.active?'sharing':'ready'):connected?'needs-target':'disconnected'};};
+  const getState=()=>{const connected=Boolean(connectionActive&&client?.paired&&client.identityVerified),selected=targets.find(target=>target.targetId===(client?.targetId||targetId)),bluetoothConnected=Boolean(connected&&selected?.connected),phoneInputReady=Boolean(bluetoothConnected&&usableTarget(selected)),targetBound=Boolean(connected&&phoneInputReady&&client?.bindingVerified&&client.targetId===targetId),inputVerified=targetBound&&sameProof(proof,client),ready=targetBound;return {informationReady:!!information(),connected,bluetoothConnected,phoneInputReady,targetBound,inputVerified,ready,legacyInputTestRequired:Boolean(connected&&legacyBinding&&!targetBound),sharing:Boolean(capture.active),checking:Boolean(refreshTask?.visible),boardId:connected?client.boardId:null,targetId:ready?client.targetId:null,status:working||reconnecting?'connecting':statusKey==='operationFailed'?'error':ready?(capture.active?'sharing':'ready'):connected?'needs-target':'disconnected'};};
   const publish=()=>onDeviceChange(getState().ready?client:null,getState());
   const setStatus=(key,detail='')=>{statusKey=key;statusDetail=detail;renderStatus();publish();};
   function invalidateProof(){proof=null;publish();}
@@ -68,7 +78,7 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
   function startProgress(){stopProgress();progressStarted=Date.now();progressTimer=setInterval(()=>renderStatus(),1000);progressTimer?.unref?.();}
   function renderStatus(){
     if(!mounted())return;
-    const message=statusKey==='operationFailed'?copy('connectionFailed',{detail:statusDetail?.deviceMessageKey?copy(statusDetail.deviceMessageKey):localizeError(statusDetail)}):copy(statusKey,{count:nonce.length,seconds:statusDetail?.seconds||0});
+    const message=statusKey==='operationFailed'?copy('connectionFailed',{detail:statusDetail?.deviceMessageKey?copy(statusDetail.deviceMessageKey):localizeError(normalizedError(statusDetail))}):copy(statusKey,{count:nonce.length,seconds:statusDetail?.seconds||0});
     const output=node('[data-device-status]');output.textContent=message;output.hidden=working||statusKey==='operationFailed'||statusKey==='infoRequired'||statusKey==='infoSaved';output.classList.toggle('error',statusKey==='operationFailed');
     const progress=node('[data-connection-progress]');if(progress){progress.hidden=!working&&statusKey!=='operationFailed';node('[data-progress-message]').textContent=message;node('[data-progress-elapsed]').textContent=working?copy('progressElapsed',{seconds:Math.floor((Date.now()-progressStarted)/1000)}):'';}
     const details=node('[data-connection-error-details]');if(details){const text=statusKey==='operationFailed'&&!working?deviceErrorDetails(statusDetail):'';details.hidden=!text;node('[data-connection-error-content]').textContent=text;details.open=Boolean(text);}
@@ -102,10 +112,9 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
     node('[data-bridge-address]').textContent=connected?client.baseUrl.origin:defaultBridgeEndpoint(settings.deviceEndpoint);
     node('[data-bridge-settings]').hidden=!connected;node('[data-bridge-settings]').href=connected?client.baseUrl.origin+'/settings?lang='+encodeURIComponent(getLocale()):'#';
     const saved=information();node('[data-information-complete]').textContent=copy('infoSaved');node('[data-info-step]').hidden=false;node('[data-info-step]').dataset.complete=String(!!saved);node('[data-information-complete]').hidden=!saved;node('[data-import-help]').hidden=!!saved;node('[data-import-connection]').textContent=copy(saved?'infoReload':'importConnection');
-    let importOrigin=DEFAULT_BRIDGE_URL;try{const entered=node('[data-address]').value.trim(),origin=entered.includes('#device=')?parseDeviceSetupLink(entered).baseUrl:DeviceClient.createURL(entered);if(origin.startsWith('http:'))importOrigin=origin;}catch{}
     // Reacquire through the configured local name; rtc.ip is a DHCP snapshot
     // for the data channel, not a stable address for discovery or settings.
-    const url=bridgeImportURL(importOrigin,getLocale());node('[data-import-connection]').href=url;node('[data-reimport-connection]').href=url;
+    const url=bridgeImportURL(DEFAULT_BRIDGE_URL,getLocale());node('[data-import-connection]').href=url;node('[data-reimport-connection]').href=url;
     node('[data-information-state]').textContent=saved?'':copy('infoRequired');node('[data-information-state]').hidden=!!saved;node('[data-connect-step]').dataset.unavailable=String(!saved);
     node('[data-test-controls]').hidden=!connected;
     node('[data-target]').replaceChildren(...targets.map(target=>{const option=document.createElement('option');option.value=target.targetId;option.textContent=copy('targetLabel',{id:target.targetId})+' · '+copy(target.connected&&target.encrypted&&target.hidSubscribed?'targetReady':'targetUnavailable');option.disabled=!(target.connected&&target.encrypted&&target.hidSubscribed);return option;}));
@@ -119,7 +128,7 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
   }
   async function savePublicSettings(patch){settings=await store.saveSettings(patch);onSettingsChange(settings);}
   function values(){
-    const entered=node('[data-address]').value.trim();
+    const entered=node('[data-address]')?.value.trim()||defaultBridgeEndpoint(settings.deviceEndpoint)||DEFAULT_BRIDGE_URL;
     if(entered.includes('#device=')){try{return {...parseDeviceSetupLink(entered),expectedFingerprint:''};}catch{throw componentError('invalidAddress');}}
     let baseUrl;try{baseUrl=DeviceClient.createURL(entered);}catch{throw componentError('invalidAddress');}
     const saved=information();if(!saved||saved.baseUrl!==baseUrl)throw componentError('infoRequired');
@@ -127,8 +136,8 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
   }
   function begin(){if(working||isBusy())throw componentError('busy');working=true;startProgress();publish();controller?.abort();controller=new AbortController();const current=++operation;renderState();return {signal:controller.signal,current};}
   function valid(current){return !disposed&&current===operation&&!controller?.signal.aborted;}
-  async function action(work){let current;try{const started=begin();current=started.current;await work(started);if(valid(current))renderState();}catch(error){if((mounted()||current===operation)&&(current===undefined||current===operation)&&error.name!=='AbortError')setStatus('operationFailed',error);}finally{if(current===operation){working=false;stopProgress();publish();if(mounted())renderState();}}}
-  function close({abort=false}={}){const preserve=working&&!armed&&!abort;if(!preserve){stopProgress();operation++;controller?.abort();controller=null;working=false;resetChallenge();}unsubscribe?.();unsubscribe=null;dialog?.removeEventListener('close',close);root=null;dialog=null;publish();}
+  async function action(work){let current;try{const started=begin();current=started.current;await work(started);if(valid(current))renderState();}catch(rawError){const error=normalizedError(rawError);if((mounted()||current===operation)&&(current===undefined||current===operation)&&error.name!=='AbortError')setStatus('operationFailed',error);}finally{if(current===operation){working=false;stopProgress();publish();if(mounted())renderState();}}}
+  function close({abort=false}={}){const preserve=working&&!armed&&!abort,keepConnection=Boolean(client?.paired&&transport&&!transport.closed);if(!preserve){stopProgress();operation++;controller?.abort();controller=null;working=false;resetChallenge();}unsubscribe?.();unsubscribe=null;dialog?.removeEventListener('close',close);root=null;dialog=null;publish();if(keepConnection)startMonitor();}
   const usableTarget=target=>target.connected&&target.encrypted&&target.hidSubscribed;
   function stopMonitor(){clearTimeout(monitorTimer);monitorTimer=null;}
   function startMonitor(){
@@ -137,6 +146,21 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
     // a second periodic identity/binding read to the same serial RTC channel.
     monitorTimer=setTimeout(async()=>{monitorTimer=null;if(!isBusy())await checkConnection();startMonitor();},5000);
     monitorTimer?.unref?.();
+  }
+  function clearReconnect(){clearTimeout(reconnectTimer);reconnectTimer=null;reconnectAttempts=0;reconnecting=false;}
+  function scheduleReconnect(){
+    if(disposed||working||isBusy()||reconnectTimer||reconnectAttempts>=4||!information())return;
+    reconnecting=true;setStatus('rtcOpening');
+    const delay=[500,1200,2500,5000][reconnectAttempts++];
+    reconnectTimer=setTimeout(()=>{
+      reconnectTimer=null;
+      if(disposed||working||isBusy()||!information()){reconnecting=false;publish();return;}
+      Promise.resolve(connect({automatic:true})).then(()=>{
+        if(getState().connected){clearReconnect();startMonitor();}
+        else scheduleReconnect();
+      }).catch(()=>scheduleReconnect());
+    },delay);
+    reconnectTimer?.unref?.();
   }
   async function checkConnection(){
     // A connection test owns the focused input and its countdown until confirmed.
@@ -248,19 +272,16 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
       resetChallenge();stopMonitor();legacyBinding=false;bindingError=null;verifiedRTC=null;connectionEpoch++;connectionActive=false;invalidateProof();
       const previous=transport;transport=null;previous?.close();challengeCancellation=Promise.resolve();
       setStatus('rtcOpening');
-      const bridge=bridgeFactory({baseUrl:configuration.baseUrl,rtc:configuration.rtc,onProgress:value=>{if(working){const stages={configuration:'rtcOpening',network:'rtcNetwork',handshake:'rtcHandshake',channel:'rtcChannel',ready:'rtcReading'};setStatus(stages[value.phase]||'rtcOpening');}},onDisconnect:error=>{if(transport!==bridge)return;stopMonitor();connectionEpoch++;connectionActive=false;targets=[];invalidateProof();resetChallenge();setStatus('operationFailed',error||componentError('rtcDisconnected'));renderState();
-        // A protocol error during a passive refresh can leave one browser RTC
-        // transport stale while the board and its second port remain healthy.
-        // Rebuild the transport once when no phone mutation is running; never
-        // reconnect or replay while an input result could be uncertain.
-        if(error?.code==='DEVICE_RTC_PROTOCOL_ERROR'&&!working&&!isBusy()&&!disposed&&!reconnectTimer){
-          reconnectTimer=setTimeout(()=>{reconnectTimer=null;if(!disposed&&!working&&!isBusy()&&information())void connect().catch(()=>{});},350);
-        }
+      const bridge=bridgeFactory({baseUrl:configuration.baseUrl,rtc:configuration.rtc,onProgress:value=>{if(working){const stages={configuration:'rtcOpening',network:'rtcNetwork',handshake:'rtcHandshake',channel:'rtcChannel',ready:'rtcReading'};setStatus(stages[value.phase]||'rtcOpening');}},onDisconnect:rawError=>{if(transport!==bridge)return;const error=normalizedError(rawError||componentError('rtcDisconnected'));stopMonitor();connectionEpoch++;connectionActive=false;targets=[];invalidateProof();resetChallenge();setStatus('operationFailed',error);renderState();
+        // A lost RTC transport is recoverable while no phone mutation is in
+        // flight. Never replay an input operation or reconnect after an
+        // explicit user disconnect/cancel.
+        if(error?.code!=='DEVICE_REQUEST_CANCELLED'&&!working&&!isBusy()&&!disposed)scheduleReconnect();
       }});
       const ready=bridge.open({signal});ready.catch(()=>{});return {bridge,ready};
     }
-    node('[data-disconnect]').onclick=()=>{if(working||isBusy())return;stopMonitor();connectionEpoch++;const previous=transport;transport=null;previous?.close();connectionActive=false;client?.clearCredentials();client=null;targets=[];targetId='';resetChallenge();invalidateProof();setStatus('notPaired');renderState();};
-    const connect=()=>{if(working||isBusy())return;if(!node('[data-address]').value.trim()){node('[data-configuration]').open=true;node('[data-address]').focus();return;}return action(async({signal,current})=>{
+    node('[data-disconnect]').onclick=()=>{if(working||isBusy())return;clearReconnect();stopMonitor();connectionEpoch++;const previous=transport;transport=null;previous?.close();connectionActive=false;client?.clearCredentials();client=null;targets=[];targetId='';resetChallenge();invalidateProof();setStatus('notPaired');renderState();};
+    const connect=({automatic=false}={})=>{if(working||isBusy())return;const address=node('[data-address]')?.value.trim()||defaultBridgeEndpoint(settings.deviceEndpoint)||DEFAULT_BRIDGE_URL;if(!address){node('[data-configuration]')?.setAttribute('open','');node('[data-address]')?.focus();return;}if(!automatic)clearReconnect();return action(async({signal,current})=>{
       // Keep imported identity and RTC metadata across failed attempts; clear only after persistence succeeds.
       if(!information())throw componentError('infoRequired');
       const configuration=values();await saveInformation(configuration);
@@ -291,7 +312,7 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
         await enroll(saved.clientId,recoverySignal,saved.expectedFingerprint||saved.publicKeyFingerprint);
        }:null,{allowAssociate:true});if(!valid(current))return;
        setStatus('rtcSaving');await store.saveLocalCredential('device:'+configuration.baseUrl,client.exportCredentials());
-       const deviceRTC=verifiedRTC||bridge?.exportConfiguration?.();await savePublicSettings({deviceEndpoint:configuration.baseUrl,deviceFingerprint:client.status().publicKeyFingerprint,...(deviceRTC?{deviceRTC}:{})});retained=true;pendingSetup=null;node('[data-configuration]').open=false;if(bindingError)setStatus('operationFailed',bindingError);else setStatus(getState().ready?'inputTestOptional':legacyBinding?'legacyInputTest':'paired');startMonitor();
+       const deviceRTC=verifiedRTC||bridge?.exportConfiguration?.();await savePublicSettings({deviceEndpoint:configuration.baseUrl,deviceFingerprint:client.status().publicKeyFingerprint,...(deviceRTC?{deviceRTC}: {})});retained=true;pendingSetup=null;const configurationNode=node('[data-configuration]');if(configurationNode){configurationNode.open=false;configurationNode.removeAttribute?.('open');}clearReconnect();if(bindingError)setStatus('operationFailed',bindingError);else setStatus(getState().ready?'inputTestOptional':legacyBinding?'legacyInputTest':'paired');startMonitor();
       }finally{if(!retained){bridge?.close();if(transport===bridge)transport=null;connectionActive=false;invalidateProof();}}
     });
     };
@@ -354,8 +375,8 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
     });
     renderState();if(getState().connected)void checkConnection();return root;
   }
-  function destroy(){disposed=true;stopMonitor();connectionEpoch++;globalThis.document?.removeEventListener?.('visibilitychange',foreground);globalThis.removeEventListener?.('pagehide',suspend);close({abort:true});transport?.close();transport=null;connectionActive=false;targets=[];invalidateProof();}
-  function suspend(){stopMonitor();connectionEpoch++;close();const previous=transport;transport=null;previous?.close();connectionActive=false;targets=[];invalidateProof();}
+  function destroy(){disposed=true;clearReconnect();stopMonitor();connectionEpoch++;globalThis.document?.removeEventListener?.('visibilitychange',foreground);globalThis.removeEventListener?.('pagehide',suspend);close({abort:true});transport?.close();transport=null;connectionActive=false;targets=[];invalidateProof();}
+  function suspend(){clearReconnect();stopMonitor();connectionEpoch++;close();const previous=transport;transport=null;previous?.close();connectionActive=false;targets=[];invalidateProof();}
   globalThis.addEventListener?.('pagehide',suspend);
   return {open,dispose:close,destroy,receiveSetupLink,hasPendingSetup:()=>Boolean(pendingSetup||importError),getDevice:()=>getState().ready?client:null,getState,ensureReady,refreshConnection,refreshUI};
 }

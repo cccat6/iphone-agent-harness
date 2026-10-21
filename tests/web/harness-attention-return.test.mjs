@@ -89,7 +89,7 @@ test('an explicit stop cannot initiate attention navigation',async()=>{
 
 test('a blocked completion return never nests an attention return',async()=>{
  const f=await fixture({returnToHarness:true});await f.run((r,n)=>{if(n===1)return call('goal-observe','phone_observe');if(n===2)return report('goal-complete',lastFrame(r));return call('blocked-return','task_report',{status:'blocked',summary:'Safari is unavailable.'});});
- assert.equal(f.state.turns,3);assert.ok(!(await f.events()).some(e=>e.type==='task.attention_return_started'));const cp=(await f.store.getSession(f.session.id)).promptState.runResume;assert.equal(cp.taskCompletion.phase,'return_to_harness');assert.equal(cp.attentionReturn,undefined);f.store.close();
+ assert.equal(f.state.turns,3);const events=await f.events();assert.ok(!(events.some(e=>e.type==='task.attention_return_started')));assert.ok(events.some(e=>e.type==='task.return_pending'));assert.equal(events.at(-1).payload.status,'completed');assert.equal((await f.store.getSession(f.session.id)).promptState.runResume,null);f.store.close();
 });
 
 test('cancelled physical input does not initiate more navigation',async()=>{
@@ -114,7 +114,7 @@ test('attention messages cover all eight languages without claiming task complet
  for(const code of ['HARNESS_ATTENTION_UNCONFIRMED','HARNESS_ATTENTION_REQUIRED','HARNESS_ATTENTION_RETURN_PENDING']){assert.equal(Object.keys(HARNESS_RETURN_ERRORS[code]).length,8);for(const text of Object.values(HARNESS_RETURN_ERRORS[code]))assert.ok(text.trim().length>0);}
 });
 
-for(const phase of ['attention','completion'])test(`${phase} return prose recovery and explicit Continue never instruct resuming original work`,async()=>{
+for(const phase of ['attention','completion'])test(`${phase} return prose recovery never reopens completed work`,async()=>{
  const f=await fixture({returnToHarness:phase==='completion'});let recovering=false;
  await f.run((request,n)=>{
   if(phase==='attention'&&n===1)return question();
@@ -126,11 +126,5 @@ for(const phase of ['attention','completion'])test(`${phase} return prose recove
   assert.ok(!retry.text.includes('The authorized phone task is still active'));assert.ok(!retry.text.includes('if the goal is verified'));
   return call('blocked-return','task_report',{status:'blocked',summary:'Need help returning.'});
  });
- let resumed=0;await createHarness({...f.options,invoke:async request=>{
-  resumed++;
-  const instructions=request.messages.filter(m=>m.internal&&(m.text.includes('Interrupted run state (data):')||m.text.startsWith('Fresh observation after explicit resume.')));
-  assert.equal(instructions.length,2);
-  for(const message of instructions){assert.ok(message.text.includes('Do not continue, repeat, or modify the original task.'));assert.ok(!message.text.includes('Resume the existing user task'));assert.ok(!message.text.includes('reconcile the interrupted task'));}
-  return call('still-blocked','task_report',{status:'blocked',summary:'Still unavailable.'});
- }}).resume({sessionId:f.session.id});assert.equal(resumed,1);assert.equal(f.state.physical,0);f.store.close();
+ const saved=await f.store.getSession(f.session.id);if(phase==='completion'){assert.equal(saved.promptState.runResume,null);assert.equal((await f.events()).at(-1).payload.status,'completed');}else{assert.ok(saved.promptState.runResume);}assert.equal(f.state.physical,0);f.store.close();
 });

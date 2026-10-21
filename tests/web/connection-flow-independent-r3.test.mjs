@@ -49,6 +49,22 @@ test('connection failure exposes optional safe details and clears them during an
  const retry=f.field('[data-pair]').onclick();assert.equal(f.field('[data-connection-error-details]').hidden,true);assert.equal(f.field('[data-connection-error-content]').textContent,'');await retry;assert.equal(f.opens(),2);
 });
 
+test('closing the panel during an explicit connection keeps the single operation alive',async t=>{
+ let release;class Client{
+  constructor(){this.baseUrl=new URL(endpoint);this.paired=false;this.identityVerified=false;this.bindingVerified=false;this.boardId='board-a';this.bootId='boot-a';this.clientId='browser-a';}
+  async pair(){this.paired=this.identityVerified=true;}
+  async identity(){return this.status();}
+  async getBinding(){return {targets:[]};}
+  clearCredentials(){this.paired=this.identityVerified=false;}
+  exportCredentials(){return {format:'test',clientId:this.clientId};}
+  status(){return {boardId:this.boardId,bootId:this.bootId,publicKeyFingerprint:'ab'.repeat(32)};}
+ }
+ const f=await fixture(t,{clientFactory:()=>new Client()});await f.store.saveSettings({deviceEndpoint:endpoint,deviceRTC:rtc});await f.panel.open();
+ f.store.ensureDeviceClientId=async()=>new Promise(resolve=>{release=resolve;});
+ const pending=f.field('[data-pair]').onclick();for(let i=0;i<10&&!release;i++)await Promise.resolve();assert.ok(release);
+ f.panel.dispose();release('browser-a');await pending;assert.equal(f.panel.getState().connected,true);await f.panel.open();assert.equal(f.opens(),1);
+});
+
 async function refreshFixture(t){
  let stalled=false,readSignal;
  class Client{

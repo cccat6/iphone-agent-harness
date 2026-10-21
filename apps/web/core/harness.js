@@ -336,7 +336,18 @@ export function createHarness({store,onEvent=()=>{},capture=screenCapture,invoke
         // Complete the durable tool-call group even when cancellation cuts a batch.
         for(const call of run.pending)if(!run.settled.has(call.id))try{await settle(call,{status:run.current?.id===call.id&&run.mutating?'unknown':'not_executed',code:'run_interrupted',message:call.name==='mcp_call'?'Inspect the external service outcome before repeating this tool call.':'Inspect current state before retrying physical input.'});}catch(error){failure=failure||error;status='failed';}
         if(runSignal.aborted)status=run.pauseReason?'paused':'cancelled';
-        if(!runSignal.aborted&&!run.pauseReason&&!attentionReturn&&taskCompletion?.phase==='return_to_harness'){const returned=(await harnessState()).visible;if(returned){taskCompletion={...taskCompletion,phase:'returned'};status='completed';failure=null;}}
+        if(!runSignal.aborted&&!run.pauseReason&&!attentionReturn&&taskCompletion?.phase==='return_to_harness'){
+          const returned=(await harnessState()).visible;
+          if(returned){taskCompletion={...taskCompletion,phase:'returned'};status='completed';failure=null;}
+          else {
+            // The phone task is already verified. Returning the browser tab is
+            // a navigation convenience, so a missing return proof must not
+            // turn a completed task into a resumable paused task.
+            taskCompletion={...taskCompletion,phase:'return_pending'};
+            status='completed';failure=null;
+            await journal('task.return_pending',{goalSummary:taskCompletion.goalSummary});
+          }
+        }
         if(run.pauseReason&&run.current?.name==='phone_execute_plan'&&run.mutating)uncertainPlans.add(planSignature(run.current.arguments.plan));
         if(run.pauseReason)try{await saveResume({version:1,state:'paused',runId:run.id,goal:(goal||session?.goal||text).slice(0,4000),text:text.slice(0,4000),mode,pausedAt:Date.now(),reason:run.captureRestartRequired?'capture_restart_required':'capture_stopped',interruptedCall:run.current?.name||null,uncertainOutcome:Boolean(run.current&&run.mutating),uncertainPlans:[...uncertainPlans].slice(-8)});pauseStored=true;}catch(error){failure=error;status='failed';}
         else if(session&&claimed)try{await saveResume(attentionReturn?.phase==='return_for_attention'?{version:1,state:'paused',runId:run.id,goal:(goal||session?.goal||text).slice(0,4000),text:text.slice(0,4000),mode,reason:'return_for_attention',uncertainPlans:[...uncertainPlans].slice(-8)}:taskCompletion?.phase==='return_to_harness'?{version:1,state:'paused',runId:run.id,goal:(goal||session?.goal||text).slice(0,4000),text:text.slice(0,4000),mode,reason:'return_to_harness',uncertainPlans:[...uncertainPlans].slice(-8)}:null);}catch(error){failure=failure||error;status='failed';}
@@ -344,7 +355,7 @@ export function createHarness({store,onEvent=()=>{},capture=screenCapture,invoke
         if(active===run)active=null;signal?.removeEventListener('abort',abort);
       }
       if(runSignal.aborted){failure=failure||runSignal.reason;status=run.pauseReason?(pauseStored?'paused':'failed'):'cancelled';}
-      if(taskCompletion?.phase==='return_to_harness'){answer=await store.addMessage(sessionId,{role:'assistant',text:userText('HARNESS_RETURN_PENDING')+'\n'+taskCompletion.goalSummary});emit({type:'message',message:answer});}
+      if(taskCompletion?.phase==='return_pending'){answer=await store.addMessage(sessionId,{role:'assistant',text:userText('HARNESS_RETURN_UNCONFIRMED')+'\n'+taskCompletion.goalSummary});emit({type:'message',message:answer});}
       if(attentionReturn?.phase==='return_for_attention'){answer=await store.addMessage(sessionId,{role:'assistant',text:userText('HARNESS_ATTENTION_RETURN_PENDING')+'\n'+(attentionReturn.terminal.question||attentionReturn.terminal.summary||'')});emit({type:'message',message:answer});}
       emit({type:'status',status});
       if(status==='paused'){const reason=run.captureRestartRequired?'capture_restart_required':'capture_stopped';emit({type:'paused',reason,sessionId});return {status:'paused',reason,sessionId};}

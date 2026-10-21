@@ -38,13 +38,13 @@ test('independent R9: canonical aliases converge while settings writers retain e
  assert.deepEqual(await store.getSettings(),before);
 });
 
-test('independent R9: closing the panel during local ID allocation retains bridge information without pairing',async t=>{
+test('independent R9: closing the panel during local ID allocation keeps the connection operation alive',async t=>{
  const store=await openStore({memory:true}),entered=deferred(),allocated=deferred();let factories=0;
  await store.saveSettings({deviceEndpoint:panelEndpoint,deviceRTC:rtc});
  store.ensureDeviceClientId=async()=>{entered.resolve();return allocated.promise;};
  const f=panelFixture(t,store,()=>{factories++;throw new Error('must not create a network client');});await f.panel.open();f.fill(panelEndpoint);
  const pending=f.field('[data-pair]').onclick();await entered.promise;f.panel.dispose();allocated.resolve('existing-public-id');await pending;
- assert.equal(factories,0);assert.equal(f.panel.getDevice(),null);assert.equal((await store.getSettings()).deviceEndpoint,panelEndpoint);const savedRTC=(await store.getSettings()).deviceRTC;assert.equal(savedRTC.ip,rtc.ip);assert.equal(savedRTC.port,rtc.port);assert.equal(savedRTC.fingerprint.replaceAll(':','').toLowerCase(),fingerprint);
+ assert.equal(factories,1);assert.equal(f.panel.getDevice(),null);assert.equal((await store.getSettings()).deviceEndpoint,panelEndpoint);const savedRTC=(await store.getSettings()).deviceRTC;assert.equal(savedRTC.ip,rtc.ip);assert.equal(savedRTC.port,rtc.port);assert.equal(savedRTC.fingerprint.replaceAll(':','').toLowerCase(),fingerprint);
 });
 
 for(const preexisting of [false,true])test(`independent R9: saved local credential ${preexisting?'respects an existing ID':'keeps a stable ID'} after clearing the saved credential`,async t=>{

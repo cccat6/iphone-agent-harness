@@ -27,15 +27,15 @@ test('goal completion starts a separate return phase and only a new visible same
  const events=await f.events();assert.ok(events.some(event=>event.type==='task.goal_completed'));assert.ok(events.some(event=>event.type==='task.returned_to_harness'));assert.equal(events.at(-1).payload.status,'completed');assert.equal(events.at(-1).payload.returnStatus,'returned');assert.equal((await f.store.getSession(f.session.id)).promptState.runResume,null);f.store.close();
 });
 
-test('an old goal frame and a visible different session cannot establish a successful return',async()=>{
+test('an old goal frame and a visible different session cannot establish a successful return without reopening the completed task',async()=>{
  const f=await fixture();await createHarness({...f.options,invoke:async request=>{
   const initial=f.prefix(request);if(initial)return initial;
   if(f.state.turns===4){f.state.visible=true;f.state.current='other-session';return call('wrong-session-observe','phone_observe');}
   if(f.state.turns===5)return report('wrong-session-report',lastFrame(request));
   assert.ok(request.messages.some(message=>message.toolName==='task_report'&&message.text.includes('HARNESS_RETURN_UNCONFIRMED')));return call('return-blocked','task_report',{status:'blocked',summary:'Need the original Harness tab.'});
  }}).run({sessionId:f.session.id,text:'Set the alarm.'});
- const checkpoint=(await f.store.getSession(f.session.id)).promptState.runResume;
- assert.equal(checkpoint.taskCompletion.phase,'return_to_harness');assert.equal(checkpoint.taskCompletion.goalSummary,'Alarm saved and verified.');assert.equal((await f.events()).at(-1).payload.status,'needs_user');assert.ok((await f.store.getMessages(f.session.id)).at(-1).text.includes('Harness'));f.store.close();
+ const saved=await f.store.getSession(f.session.id);
+ assert.equal(saved.promptState.runResume,null);assert.equal((await f.events()).at(-1).payload.status,'completed');assert.ok((await f.events()).some(event=>event.type==='task.return_pending'));assert.ok((await f.store.getMessages(f.session.id)).at(-1).text.includes('Harness'));f.store.close();
 });
 
 test('disabling return leaves the target app in place and completes immediately after goal evidence',async()=>{
@@ -43,13 +43,9 @@ test('disabling return leaves the target app in place and completes immediately 
  assert.equal(f.state.turns,3);assert.equal(f.state.visible,false);assert.equal((await f.events()).at(-1).payload.status,'completed');assert.equal((await f.events()).some(event=>event.type==='task.goal_completed'),false);f.store.close();
 });
 
-test('resuming a pending return preserves goal success and does not repeat the original physical task',async()=>{
+test('a failed return preserves goal success without reopening the completed task',async()=>{
  const f=await fixture();await createHarness({...f.options,invoke:async request=>f.prefix(request)||call('blocked','task_report',{status:'blocked',summary:'Safari is not visible.'})}).run({sessionId:f.session.id,text:'Set the alarm.'});
- let turns=0;await createHarness({...f.options,executePlan:async()=>{throw new Error('Original task must not be replayed');},invoke:async request=>{
-  if(++turns===1){assert.ok(request.messages.some(message=>message.text.includes('"phase":"return_to_harness"')));f.state.visible=true;return call('resumed-return-observe','phone_observe');}
-  return report('resumed-return-complete',lastFrame(request));
- }}).resume({sessionId:f.session.id});
- assert.equal(f.state.physical,1);assert.equal(turns,2);assert.equal((await f.events()).at(-1).payload.returnStatus,'returned');assert.equal((await f.store.getSession(f.session.id)).promptState.runResume,null);f.store.close();
+ assert.equal(f.state.physical,1);assert.equal((await f.events()).at(-1).payload.status,'completed');assert.equal((await f.store.getSession(f.session.id)).promptState.runResume,null);f.store.close();
 });
 
 test('becoming visible only after capture does not mislabel an earlier target-app image as Harness proof',async()=>{
