@@ -1,7 +1,7 @@
 {
-  "builtAt": "2026-10-21T18:20:26.261988+00:00",
+  "builtAt": "2026-10-21T22:54:15.871048+00:00",
   "firmwareVersion": "0.5.6",
-  "buildId": "e984811c3c894a0d",
+  "buildId": "fc1559b2de0904c1",
   "dependencies": {
     "arduinoEsp32": "3.3.11",
     "NimBLE-Arduino": "2.5.1",
@@ -15,13 +15,13 @@
     "c2_sdk.components.lock": "de86c6e0b54dadef599400692273e5bd9b36564dc0ca90c85f3c0900e2b120de",
     "partitions/c2-2m.csv": "b49b7fc83f81c845f74e4a324a026c0acde081305d11d55912dc7c998ca57ba0"
   },
-  "sourceSha256": "e984811c3c894a0db909cfe172eaf41fcf47fe30fb6df6d3d06e7b6c0611a278",
+  "sourceSha256": "fc1559b2de0904c127a4b454bf5121a9027e40eb3fb77bd5a4d79b4e1af1acd5",
   "sourceFiles": {
     "IPhoneAutomationHarness.ino": "37feb9fe2dee7989b3a1ba21c34912238a03572f7c5338c471bf3cf66ee33167",
     "ResourceLimits.h": "0c3905448b154878a91e598108799c7390167a7cb432708a4f348f9f6e6eceee",
     "build_opt.h": "a0f100f642c14b2ec613aac33270f5d41185269cfb80055777331420fc0f8955",
     "config.example.h": "920a5f5c61e3df5299cd3855d35117d159ae04685ce439f5301d77bf509373b7",
-    "main.cpp": "8af660429eb9e2f3407f4f3dc97b32c65a61cba415a1ce8b4b21d29339fa737c",
+    "main.cpp": "7d64007db82c570126c35995fd8645793cbfc5eece1a680107cfcd564917cc88",
     "src/Admission.h": "89a830468c23ef9c881e58566e97dca992f76d94b725aa2b87ee1d6392b7ba41",
     "src/BridgeSettings.h": "362e554eb32a6e4ca32e35605ba062eba207f0deecc892f6d190398cd51c117d",
     "src/BridgeSettingsPage.h": "987798a4cd2bd13dfc6d6ff5f85cf6a4846a9c0e0be894c12b851a8ca7ebe842",
@@ -140,7 +140,7 @@
       "fqbn": "esp32:esp32:esp32c2:FlashMode=dio,FlashFreq=60,FlashSize=2M,PartitionScheme=minimal",
       "compiled": true,
       "summary": [
-        "Sketch uses 1306716 bytes (66%) of program storage space. Maximum is 1966080 bytes.",
+        "Sketch uses 1307344 bytes (66%) of program storage space. Maximum is 1966080 bytes.",
         "Global variables use 50236 bytes (15%) of dynamic memory, leaving 277444 bytes for local variables. Maximum is 327680 bytes."
       ],
       "sdkProvenance": {
@@ -206,7 +206,7 @@
           "mbedtls_ssl_handshake_server_step",
           "mbedtls_ssl_handshake_client_step"
         ],
-        "linkMapSha256": "649403c0b4c2c29456c7e52960ce354c9cd2d0b2737d088c978238337792c11f"
+        "linkMapSha256": "67878525a8d12eed3b133657465e43aa58ddded50a58e18c064d524d28ac1514"
       }
     },
     {
@@ -214,7 +214,7 @@
       "fqbn": "esp32:esp32:esp32c2:FlashMode=dio,FlashFreq=60,FlashSize=2M,PartitionScheme=minimal",
       "compiled": true,
       "summary": [
-        "Sketch uses 1306656 bytes (66%) of program storage space. Maximum is 1966080 bytes.",
+        "Sketch uses 1307284 bytes (66%) of program storage space. Maximum is 1966080 bytes.",
         "Global variables use 50236 bytes (15%) of dynamic memory, leaving 277444 bytes for local variables. Maximum is 327680 bytes."
       ],
       "sdkProvenance": {
@@ -280,7 +280,7 @@
           "mbedtls_ssl_handshake_server_step",
           "mbedtls_ssl_handshake_client_step"
         ],
-        "linkMapSha256": "4b35b8b6d35004b903b19460ca57aba89617b37e192b354c8c7eec730b2cac39"
+        "linkMapSha256": "dfd8e59754a0172fe410061ebe304f8695600f703cf5a625946031ec802b5262"
       }
     },
     {
@@ -288,7 +288,7 @@
       "fqbn": "esp32:esp32:esp32c3:CDCOnBoot=cdc,FlashMode=dio,FlashSize=4M,PartitionScheme=huge_app",
       "compiled": true,
       "summary": [
-        "Sketch uses 1572009 bytes (49%) of program storage space. Maximum is 3145728 bytes.",
+        "Sketch uses 1572637 bytes (49%) of program storage space. Maximum is 3145728 bytes.",
         "Global variables use 49552 bytes (15%) of dynamic memory, leaving 278128 bytes for local variables. Maximum is 327680 bytes."
       ],
       "rtcTlsLink": {
@@ -305,7 +305,7 @@
           "mbedtls_ssl_handshake_server_step",
           "mbedtls_ssl_handshake_client_step"
         ],
-        "linkMapSha256": "d2a68738f76e7a1c3c65dbfc70606d906663c82987ea2d5ab170b16c30755ed1"
+        "linkMapSha256": "f1f891ec4af654da5aa03245377cb8455e03486f54c0c4d6ee18d2790f3fac3b"
       }
     },
     {
@@ -313,7 +313,7 @@
       "fqbn": "esp32:esp32:esp32s3:USBMode=hwcdc,CDCOnBoot=cdc,FlashMode=dio,FlashSize=4M,PartitionScheme=huge_app,PSRAM=disabled",
       "compiled": true,
       "summary": [
-        "Sketch uses 1414533 bytes (44%) of program storage space. Maximum is 3145728 bytes.",
+        "Sketch uses 1414921 bytes (44%) of program storage space. Maximum is 3145728 bytes.",
         "Global variables use 58120 bytes (17%) of dynamic memory, leaving 269560 bytes for local variables. Maximum is 327680 bytes."
       ],
       "rtcTlsLink": {
@@ -330,7 +330,7 @@
           "mbedtls_ssl_handshake_server_step",
           "mbedtls_ssl_handshake_client_step"
         ],
-        "linkMapSha256": "b7440dfc004ad1f9bb3a84ef2a3749213a5d5da35590d05fc3553b21bbc71930"
+        "linkMapSha256": "09869bece7311e0980fcc75cbd4699c21c48fce5cab2b37f6a8f3915bdef0ee9"
       }
     },
     {
@@ -338,7 +338,7 @@
       "fqbn": "esp32:esp32:esp32c5:CDCOnBoot=cdc,FlashMode=dio,FlashSize=4M,PartitionScheme=huge_app,PSRAM=disabled",
       "compiled": true,
       "summary": [
-        "Sketch uses 1781997 bytes (56%) of program storage space. Maximum is 3145728 bytes.",
+        "Sketch uses 1782625 bytes (56%) of program storage space. Maximum is 3145728 bytes.",
         "Global variables use 60608 bytes (18%) of dynamic memory, leaving 267072 bytes for local variables. Maximum is 327680 bytes."
       ],
       "rtcTlsLink": {
@@ -355,7 +355,7 @@
           "mbedtls_ssl_handshake_server_step",
           "mbedtls_ssl_handshake_client_step"
         ],
-        "linkMapSha256": "b92779cf1549dac860f5d5a9b7055c2bf323dfb19674888a425c089012912d25"
+        "linkMapSha256": "ac656d4a50f14a3bd2a467463636b3c317f4fab08151eab9c62ec60379e57cf8"
       }
     },
     {
@@ -363,7 +363,7 @@
       "fqbn": "esp32:esp32:esp32c6:CDCOnBoot=cdc,FlashMode=dio,FlashSize=4M,PartitionScheme=huge_app",
       "compiled": true,
       "summary": [
-        "Sketch uses 1733380 bytes (55%) of program storage space. Maximum is 3145728 bytes.",
+        "Sketch uses 1734008 bytes (55%) of program storage space. Maximum is 3145728 bytes.",
         "Global variables use 54664 bytes (16%) of dynamic memory, leaving 273016 bytes for local variables. Maximum is 327680 bytes."
       ],
       "rtcTlsLink": {
@@ -380,7 +380,7 @@
           "mbedtls_ssl_handshake_server_step",
           "mbedtls_ssl_handshake_client_step"
         ],
-        "linkMapSha256": "7e36d104176db77a11d9b122b406aaa738f3acebcfbccbe89c6370370992822d"
+        "linkMapSha256": "8a299f2de28239c9cd46d47c9d6ed0402d7e5dd94622c08dad0e5036ffb70857"
       }
     },
     {
@@ -388,7 +388,7 @@
       "fqbn": "esp32:esp32:esp32:FlashMode=dio,FlashSize=4M,PartitionScheme=huge_app,PSRAM=disabled",
       "compiled": true,
       "summary": [
-        "Sketch uses 1493968 bytes (47%) of program storage space. Maximum is 3145728 bytes.",
+        "Sketch uses 1494396 bytes (47%) of program storage space. Maximum is 3145728 bytes.",
         "Global variables use 62124 bytes (18%) of dynamic memory, leaving 265556 bytes for local variables. Maximum is 327680 bytes."
       ],
       "rtcTlsLink": {
@@ -405,7 +405,7 @@
           "mbedtls_ssl_handshake_server_step",
           "mbedtls_ssl_handshake_client_step"
         ],
-        "linkMapSha256": "7ec8267ec89824ab290986df90b9569fd95ea47945c36602e96217423417d0e3"
+        "linkMapSha256": "9252776677da881836105341c686439b97236721e8ebb52ce3e0c8a6fcb1155c"
       }
     }
   ]
