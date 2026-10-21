@@ -37,7 +37,7 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
   let client=null,proof=null,targets=[],targetId='',root=null,dialog=null,controller=null,operation=0,working=false;
   let challenge=null,nonce='',armed=false,challengeTimer=null,testWait=null,unsubscribe=null,settings={},statusKey='notPaired',statusDetail='',checkedAt=null;
   let legacyBinding=false,challengeCancellation=Promise.resolve(),bindingError=null,verifiedRTC=null,challengeMayExist=false,challengeRetryController=null;
-  let connectionActive=false,pendingSetup=null,connectionEpoch=0,monitorTimer=null,refreshTask=null,disposed=false,lastRefreshStarted=0,reconnectTimer=null,reconnectAttempts=0,reconnecting=false,connectionInFlight=false;
+  let connectionActive=false,pendingSetup=null,connectionEpoch=0,monitorTimer=null,refreshTask=null,disposed=false,lastRefreshStarted=0,reconnectTimer=null,reconnectAttempts=0,reconnecting=false,connectionInFlight=false,connectAction=null;
   let importError=null,progressTimer=null,progressStarted=0,informationEdit=0,informationSaving=null,pendingSetupSource='';
   function receiveSetupLink(){
     const source=globalThis.location?.href;if(!source||!new URLSearchParams(globalThis.location.hash?.slice(1)||'').has('device'))return false;
@@ -155,7 +155,8 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
     reconnectTimer=setTimeout(()=>{
       reconnectTimer=null;
       if(disposed||working||isBusy()||!information()){reconnecting=false;publish();return;}
-      Promise.resolve(connect({automatic:true})).then(()=>{
+      if(typeof connectAction!=='function'){reconnectAttempts=Math.max(0,reconnectAttempts-1);scheduleReconnect();return;}
+      Promise.resolve(connectAction({automatic:true})).then(()=>{
         if(getState().connected){clearReconnect();startMonitor();}
         else scheduleReconnect();
       }).catch(()=>scheduleReconnect());
@@ -316,6 +317,7 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
       }finally{if(!retained){bridge?.close();if(transport===bridge)transport=null;connectionActive=false;invalidateProof();}}
     });return Promise.resolve(task).finally(()=>{connectionInFlight=false;});
     };
+    connectAction=connect;
     node('[data-pair]').onclick=connect;
     node('[data-refresh]').onclick=()=>action(async({signal,current})=>{await refresh(signal);if(valid(current))setStatus(getState().ready?'inputTestOptional':legacyBinding?'legacyInputTest':getState().bluetoothConnected?'phoneSelect':'noTargets');});
     node('[data-target]').onchange=()=>{if(working||isBusy()||!getState().connected){renderState();return;}const selected=node('[data-target]').value;return action(async({signal,current})=>{const tested=client,previousProof=proof;resetChallenge();try{await challengeCancellation;if(!valid(current)||client!==tested)return;await associate(tested,selected,signal);}catch(error){if(valid(current)&&client===tested){targetId=tested.targetId||'';proof=sameProof(previousProof,tested)?previousProof:null;renderState();}throw error;}if(!valid(current)||client!==tested)return;invalidateProof();targetId=tested.targetId||selected;await refresh(signal);setStatus(getState().ready?'inputTestOptional':legacyBinding?'legacyInputTest':'phoneSelect');});};
@@ -375,7 +377,7 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
     });
     renderState();if(getState().connected)void checkConnection();return root;
   }
-  function destroy(){disposed=true;clearReconnect();stopMonitor();connectionEpoch++;globalThis.document?.removeEventListener?.('visibilitychange',foreground);globalThis.removeEventListener?.('pagehide',suspend);close({abort:true});transport?.close();transport=null;connectionActive=false;targets=[];invalidateProof();}
+  function destroy(){disposed=true;connectAction=null;clearReconnect();stopMonitor();connectionEpoch++;globalThis.document?.removeEventListener?.('visibilitychange',foreground);globalThis.removeEventListener?.('pagehide',suspend);close({abort:true});transport?.close();transport=null;connectionActive=false;targets=[];invalidateProof();}
   function suspend(){clearReconnect();stopMonitor();connectionEpoch++;close();const previous=transport;transport=null;previous?.close();connectionActive=false;targets=[];invalidateProof();}
   globalThis.addEventListener?.('pagehide',suspend);
   return {open,dispose:close,destroy,receiveSetupLink,hasPendingSetup:()=>Boolean(pendingSetup||importError),getDevice:()=>getState().ready?client:null,getState,ensureReady,refreshConnection,refreshUI};
