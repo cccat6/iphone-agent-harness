@@ -237,7 +237,7 @@ export function createHarness({store,onEvent=()=>{},capture=screenCapture,invoke
             emit({type:'context',status:'ready',sessionId,modelId:contextModelId,snapshot:contextSnapshot(projected.metrics,provider,{sessionId,modelId:contextModelId})});
             await journal('model.started',{step:stepCount,context:projected.metrics,retry:attempt});emit({type:'status',status:'awaiting_model'});
             try{
-              const requestProvider={...provider,promptCacheKey:`iah:${sessionId}`,sessionId,enableResponseContinuation:true};
+              const requestProvider={...provider,promptCacheKey:`iah:${sessionId}`,sessionId,enableResponseContinuation:provider.enableResponseContinuation===true&&provider.storeResponses===true,storeResponses:provider.storeResponses===true};
               reply=await abortable(invoke({provider:requestProvider,credential,messages,tools:available,signal:runSignal,onRetry:retry=>{if(!runSignal.aborted&&active===run&&!run.finished&&Number.isInteger(retry?.attempt)&&retry.attempt>=1&&retry.attempt<=5&&retry.maxRetries===5&&[500,1000,2000,4000,8000].includes(retry.delayMs))emit({type:'status',status:'retrying_model',attempt:retry.attempt,maxRetries:retry.maxRetries,delayMs:retry.delayMs});},onDelta:delta=>{if(!runSignal.aborted){emitted=true;emit({type:'delta',text:delta});}}}),runSignal);await guard();break;
             }catch(error){
               if(attempt||emitted||error?.code!=='CONTEXT_WINDOW_EXCEEDED'||settings.context?.autoCompact===false)throw error;

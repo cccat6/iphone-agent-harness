@@ -271,12 +271,13 @@ export async function callCodexModel({provider,messages,tools=[],signal,onDelta=
   const endpoint=a.flow==='codex'?CODEX_ENDPOINTS.responses:normalizeSubscriptionRelay(provider.subscriptionRelayUrl)+'/responses';
   const token=await accessToken(id,{signal:active,fetchImpl});check(active);if(accounts.get(id)!==a)throw new Error('请求前账号已更换');
   const stateScope={origin:a.flow==='chatgpt-plan'?endpoint:new URL(endpoint).origin,accountId:id,backendAccountId:a.accountId,clientId:a.clientId,model:provider.model,flow:a.flow};
-  const previousEntry=provider.enableResponseContinuation===true?[...messages].reverse().find(message=>message.role==='assistant'&&continuationState(message,stateScope)):null;
+  const useContinuation=provider.enableResponseContinuation===true&&provider.storeResponses===true;
+  const previousEntry=useContinuation?[...messages].reverse().find(message=>message.role==='assistant'&&continuationState(message,stateScope)):null;
   const previousResponseId=previousEntry?continuationState(previousEntry,stateScope).responseId:null;
   const requestMessages=previousEntry?messages.slice(messages.indexOf(previousEntry)+1):messages;
   const functionTools=tools.map(t=>({type:'function',name:t.name,description:t.description,parameters:t.schema,strict:false}));
   const wireTools=a.flow==='chatgpt-plan'&&functionTools.length?[{type:'namespace',name:CODEX_TOOL_NAMESPACE,description:'Tools for this Harness conversation.',tools:functionTools}]:functionTools;
-  const payload={model:provider.model,store:false,stream:true,include:['reasoning.encrypted_content'],instructions:messages.filter(m=>m.role==='system').map(m=>m.text).join('\n\n')||'You are a helpful assistant.',input:toInput(requestMessages,stateScope),tools:wireTools,tool_choice:tools.length?'auto':'none',parallel_tool_calls:true,...(previousResponseId?{previous_response_id:previousResponseId}: {})};
+  const payload={model:provider.model,store:provider.storeResponses===true,stream:true,include:['reasoning.encrypted_content'],instructions:messages.filter(m=>m.role==='system').map(m=>m.text).join('\n\n')||'You are a helpful assistant.',input:toInput(requestMessages,stateScope),tools:wireTools,tool_choice:tools.length?'auto':'none',parallel_tool_calls:true,...(previousResponseId?{previous_response_id:previousResponseId}: {})};
   if(a.flow==='chatgpt-plan'&&provider.promptCacheKey)payload.prompt_cache_key=provider.promptCacheKey;
   Object.assign(payload,reasoningParameters({...provider,protocol:'codex'}));
   const connectionStarted=networkNow(),requestOptions={method:'POST',headers:headers(a,token,{sessionId:sessionId||provider.sessionId}),body:JSON.stringify(payload),signal:active,fetchImpl,...(a.flow==='chatgpt-plan'?{relayEndpoint:endpoint}:{})};
