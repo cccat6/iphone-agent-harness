@@ -133,7 +133,9 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
   function stopMonitor(){clearTimeout(monitorTimer);monitorTimer=null;}
   function startMonitor(){
     stopMonitor();if(disposed||!client?.paired||transport?.closed)return;
-    monitorTimer=setTimeout(async()=>{monitorTimer=null;await checkConnection();startMonitor();},5000);
+    // A running task already checks context and renews its lease. Avoid adding
+    // a second periodic identity/binding read to the same serial RTC channel.
+    monitorTimer=setTimeout(async()=>{monitorTimer=null;if(!isBusy())await checkConnection();startMonitor();},5000);
     monitorTimer?.unref?.();
   }
   async function checkConnection(){
