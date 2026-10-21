@@ -168,7 +168,8 @@ body.harness-surface{position:fixed;inset:0;overflow:hidden}
 @media(prefers-reduced-motion:no-preference){.session-search-wrap:not([hidden]){animation:search-reveal .16s ease-out}@keyframes search-reveal{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:translateY(0)}}}
 
 .compact-viewport .composer-wrap{padding-bottom:calc(9px + var(--safe-bottom))}
-.conversation-latest{align-self:center;flex:0 0 auto;margin:6px auto 0;min-height:34px;border-radius:18px;padding:7px 14px;background:var(--panel,#fff);box-shadow:0 2px 10px #30212b14;z-index:2}
+.conversation-surface{position:relative;display:flex;flex-direction:column;flex:1;min-height:0;min-width:0}.conversation-surface>.conversation{min-height:0;width:100%}
+.conversation-latest{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);display:grid;place-items:center;width:44px;height:44px;min-width:44px;min-height:44px;margin:0;padding:11px;border:1px solid var(--line);border-radius:50%;color:var(--accent);background:var(--panel,#fff);box-shadow:0 2px 10px #30212b14;z-index:2}
 .session-swipe{position:relative;overflow:hidden;border-radius:12px;margin-bottom:4px;touch-action:pan-y;--session-swipe-x:0px}
 .session-swipe-front{position:relative;z-index:1;display:flex;align-items:stretch;background:var(--sidebar,#fff);transform:translateX(var(--session-swipe-x));transition:transform .18s ease;will-change:transform}
 .session-swipe.swipe-dragging .session-swipe-front{transition:none}
@@ -315,3 +316,9 @@ body.panel-route,.panel-route .panel-dialog[open]{background:#fbf8f6}
 .primary:hover,.send-button:hover{background:#a9321e}.primary:disabled,.send-button:disabled{background:var(--accent)}
 .site-brand img{width:42px;height:42px;flex-basis:42px}.session-home-header .brand-icon{width:36px;height:36px;flex-basis:36px}.session-home-header .brand{gap:8px}
 .compatibility-logo{display:block;width:64px;height:64px;margin-bottom:22px}
+
+/* Follow the keyboard's opening and closing motion without moving the header. */
+.harness-surface .app-shell{transition:height var(--keyboard-layout-duration,0ms) cubic-bezier(.2,0,0,1)}
+@media(prefers-reduced-motion:reduce){.harness-surface .app-shell{transition:none}}
+
+.conversation-latest .ui-icon-down{--icon:url('./icons/arrow-down.svg')}

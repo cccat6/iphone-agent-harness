@@ -32,8 +32,11 @@
     <main class="workspace" id="workspace">
       <header class="topbar"><button id="back-sessions" class="icon-button mobile-only" aria-label="返回会话列表"><span class="ui-icon ui-icon-back" aria-hidden="true"></span></button><div class="conversation-heading"><h1 id="session-title">iPhone Agent Harness</h1><p id="session-subtitle"></p></div><button id="session-menu" class="icon-button" aria-label="会话操作" hidden><span class="ui-icon ui-icon-more" aria-hidden="true"></span></button></header>
       <div class="conversation-status"><p id="mode-description" class="capture-status" role="status" data-no-i18n></p><button id="conversation-device" class="conversation-device" data-no-i18n></button></div>
-      <div id="conversation" class="conversation" aria-live="polite"></div>
-      <button id="conversation-latest" class="secondary-button conversation-latest" type="button" hidden></button><section class="composer-wrap" aria-label="消息输入">
+      <div class="conversation-surface">
+        <div id="conversation" class="conversation" aria-live="polite"></div>
+        <button id="conversation-latest" class="conversation-latest" type="button" aria-label="回到最新" title="回到最新" aria-controls="conversation" hidden><span class="ui-icon ui-icon-down" aria-hidden="true"></span></button>
+      </div>
+      <section class="composer-wrap" aria-label="消息输入">
         <div id="run-status" class="run-status" role="status" hidden></div><button id="resume-run" class="secondary-button resume-run" type="button" hidden></button><div id="clipboard-panel" hidden></div>
         <form id="composer" class="composer"><textarea id="message-input" rows="1" placeholder="描述你想完成的事情…" aria-label="消息" maxlength="100000"></textarea><div class="composer-toolbar"><div class="composer-options"><select id="model-select" data-no-i18n aria-label="模型"><option value="">选择模型</option></select><select id="reasoning-select" aria-label="推理强度" hidden></select></div><button id="stop-run" class="send-button stop-button" type="button" aria-label="停止" hidden>■</button><button id="send-message" class="send-button" type="submit" aria-label="发送消息">↑</button></div></form>
       </section>

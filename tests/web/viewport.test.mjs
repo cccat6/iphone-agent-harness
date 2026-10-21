@@ -63,3 +63,21 @@ test('Safari keyboard shrinks innerHeight but retains layout height and a 331px 
  f.view.dispatchEvent(new Event('resize'));f.flush();assert.equal(f.styles.get('--viewport-top'),'0px');assert.equal(f.styles.get('--viewport-height'),'714px');assert.ok(!f.classes.has('keyboard-visible'));
  f.doc.documentElement.clientWidth=874;f.doc.documentElement.clientHeight=342;f.win.innerWidth=874;f.win.innerHeight=342;Object.assign(f.view,{width:874,height:342});f.win.dispatchEvent(new Event('orientationchange'));f.flush();assert.equal(f.styles.get('--viewport-width'),'874px');assert.equal(f.styles.get('--viewport-height'),'342px');f.dispose();
 });
+
+test('composer keyboard height animates on open and close, while orientation resets motion',()=>{
+ const f=fixture();f.doc.documentElement.clientHeight=844;f.doc.activeElement={id:'message-input',tagName:'TEXTAREA'};
+ f.doc.dispatchEvent(new Event('focusin'));f.flush();f.view.height=430;f.view.dispatchEvent(new Event('resize'));f.flush();
+ assert.equal(f.styles.get('--keyboard-layout-duration'),'240ms');
+ f.doc.activeElement=null;f.doc.dispatchEvent(new Event('focusout'));f.flush();
+ assert.equal(f.styles.get('--keyboard-layout-duration'),'240ms');
+ assert.equal(f.styles.get('--viewport-height'),'844px','close begins at blur while Safari still reports 430px');
+ f.view.dispatchEvent(new Event('scroll'));f.flush();assert.equal(f.styles.get('--viewport-height'),'844px','stale resize measurements cannot shrink the closing layout again');
+ f.view.height=844;f.view.dispatchEvent(new Event('resize'));f.flush();assert.equal(f.styles.get('--keyboard-layout-duration'),'240ms');
+ f.doc.documentElement.clientHeight=390;f.win.innerWidth=844;f.win.innerHeight=390;Object.assign(f.view,{width:844,height:390});f.win.dispatchEvent(new Event('orientationchange'));f.flush();assert.equal(f.styles.get('--keyboard-layout-duration'),'0ms');
+ f.doc.activeElement={id:'settings-field',tagName:'INPUT'};f.view.height=200;f.view.dispatchEvent(new Event('resize'));f.flush();assert.equal(f.styles.get('--keyboard-layout-duration'),'0ms');f.dispose();
+});
+
+test('desktop composer focus without keyboard does not animate an ordinary height resize',()=>{
+ const f=fixture();f.doc.activeElement={id:'message-input',tagName:'TEXTAREA'};f.doc.dispatchEvent(new Event('focusin'));f.flush();
+ f.win.innerHeight=700;f.view.height=700;f.win.dispatchEvent(new Event('resize'));f.flush();assert.equal(f.styles.get('--keyboard-layout-duration'),'0ms');f.dispose();
+});

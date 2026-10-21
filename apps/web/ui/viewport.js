@@ -16,7 +16,7 @@ export function mountViewport({window:win=globalThis.window,document:doc=globalT
   const view=win.visualViewport,root=doc.documentElement;
   const requestFrame=win.requestAnimationFrame?.bind(win)||((fn)=>setTimeout(fn,16));
   const cancelFrame=win.cancelAnimationFrame?.bind(win)||clearTimeout;
-  let pending=null,disposed=false,previous=null;
+  let pending=null,disposed=false,previous=null,composerKeyboard=false,motionDuration=null;
   const update=()=>{
     pending=null;if(disposed)return;
     const active=doc.activeElement;
@@ -24,7 +24,22 @@ export function mountViewport({window:win=globalThis.window,document:doc=globalT
     // Safari can shrink innerHeight to the keyboard-visible area while keeping
     // a taller layout viewport and panning it. Clamp against the layout height.
     const geometry=viewportGeometry({width:view?.width,height:view?.height,top:view?.offsetTop,scale:view?.scale,layoutWidth:root.clientWidth||win.innerWidth,layoutHeight:root.clientHeight||win.innerHeight,userAgent:win.navigator?.userAgent,editing});
+    const composerEditing=active?.id==='message-input';
+    if(composerEditing&&geometry.keyboard)composerKeyboard=true;
+    const keyboardSettledClosed=geometry.height>=(root.clientHeight||win.innerHeight)-1;
+    // On blur, Safari reports the old occluded height until its keyboard has
+    // finished hiding. Begin the return now instead of adding a second animation.
+    if(composerKeyboard&&!editing&&!doc.body.classList.contains('panel-route')){
+      geometry.height=Math.round(root.clientHeight||win.innerHeight);
+      geometry.top=0;geometry.keyboard=false;
+    }
     let changed=false;
+    if(previous?.height!==geometry.height||previous?.width!==geometry.width){
+      const animate=composerKeyboard&&previous&&previous.width===geometry.width&&Math.abs(geometry.scale-1)<.01&&!doc.body.classList.contains('panel-route');
+      const duration=animate?'240ms':'0ms';
+      if(duration!==motionDuration){root.style.setProperty('--keyboard-layout-duration',duration);motionDuration=duration;}
+    }
+    if(!composerEditing&&keyboardSettledClosed)composerKeyboard=false;
     for(const key of ['width','height','top','left'])if(previous?.[key]!==geometry[key]){root.style.setProperty('--viewport-'+key,geometry[key]+'px');changed=true;}
     for(const [key,name]of [['compact','compact-viewport'],['short','short-viewport'],['keyboard','keyboard-visible']])if(previous?.[key]!==geometry[key]){doc.body.classList.toggle(name,geometry[key]);changed=true;}
     previous=geometry;if(changed)onLayout(geometry);
@@ -39,8 +54,10 @@ export function mountViewport({window:win=globalThis.window,document:doc=globalT
     if(event.target?.closest?.('.image-preview'))return;
     if(doc.body.classList.contains('harness-surface')||event.target?.closest?.('.panel-dialog,.action-dialog'))event.preventDefault();
   };
+  const app=doc.getElementById?.('app'),settled=event=>{if(!disposed&&event.target===app&&event.propertyName==='height')onLayout(previous);};
+  app?.addEventListener('transitionend',settled);
   doc.addEventListener('gesturestart',preventAppPinch,{passive:false});
   doc.addEventListener('gesturechange',preventAppPinch,{passive:false});
   update();
-  return ()=>{disposed=true;if(pending!==null)cancelFrame(pending);for(const [target,event]of listeners)target.removeEventListener(event,schedule);doc.removeEventListener('gesturestart',preventAppPinch);doc.removeEventListener('gesturechange',preventAppPinch);};
+  return ()=>{disposed=true;app?.removeEventListener('transitionend',settled);if(pending!==null)cancelFrame(pending);for(const [target,event]of listeners)target.removeEventListener(event,schedule);doc.removeEventListener('gesturestart',preventAppPinch);doc.removeEventListener('gesturechange',preventAppPinch);};
 }

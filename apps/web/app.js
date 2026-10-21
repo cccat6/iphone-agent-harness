@@ -214,7 +214,7 @@ async function pageHistory(direction){
 }
 function welcome() { return `<section class="welcome"><h2>${escapeHTML(t('interaction.welcome'))}</h2><p>${escapeHTML(t('interaction.welcomeHelp'))}</p></section>`; }
 function conversationFollow(){return state.conversationFollow||(state.conversationFollow=createConversationFollow({region:$('#conversation'),onChange:following=>{renderLatestControl();if(following&&state.hasNewer&&!state.latestLoading)void showLatestConversation().catch(report);}}));}
-function renderLatestControl(){const button=$('#conversation-latest');if(button){button.hidden=(state.conversationFollow?.following!==false&&!state.hasNewer);button.textContent=t('interaction.latest');}}
+function renderLatestControl(){const button=$('#conversation-latest');if(button){button.hidden=(state.conversationFollow?.following!==false&&!state.hasNewer);const label=t('interaction.latest');button.setAttribute('aria-label',label);button.setAttribute('title',label);}}
 async function showLatestConversation(){if(!state.current||state.latestLoading)return;const id=state.current.id;state.latestLoading=true;try{const page=await historyWindow().load(id);if(!page||state.current?.id!==id)return;applyHistory(page);conversationFollow().follow();renderMessages({forceFollow:true});}finally{state.latestLoading=false;renderLatestControl();}}
 function renderMessages({scrollToEnd=true,forceFollow=false}={}) {
   const region=$('#conversation'),follow=conversationFollow();const wasFollowing=follow.beforeRender({force:forceFollow});const anchor=!wasFollowing?[...region.querySelectorAll('[data-message-id]')].find(node=>node.offsetTop+node.offsetHeight>=region.scrollTop):null,anchorPosition=anchor?{id:anchor.dataset.messageId,offset:anchor.offsetTop-region.scrollTop}:null;
