@@ -72,7 +72,7 @@ Für einen eigenen Relay trage deinen Website-Origin in `ALLOWED_ORIGINS` in `wr
 
 ### Standort
 
-Unter **Einstellungen → Standort** kannst du den Standortzugriff aktivieren; standardmäßig ist er ausgeschaltet. Erst wenn der Agent ausdrücklich `phone_get_location` aufruft, wird dein Standort einmal abgefragt. Beim ersten Aufruf bittet der Browser um Erlaubnis; das Ergebnis erhält das aktuell ausgewählte Modell. Ermittelt wird der Standort des Geräts, auf dem Harness geöffnet ist. Das funktioniert auch ohne ESP32-Verbindung oder Bildschirmfreigabe.
+Aktiviere den Zugriff unter **Einstellungen → Standort**. Der Browser fragt sofort den Standort ab, damit du die Erlaubnis direkt in den geöffneten Einstellungen erteilen kannst. Danach ruft der Agent bei Bedarf `phone_get_location` auf und übermittelt den neu ermittelten Standort an das ausgewählte Modell. Gemeint ist der Standort des Geräts, auf dem Harness läuft.
 
 <a id="bridge"></a>
 ## 7. Bridge verbinden und Eingabe optional testen

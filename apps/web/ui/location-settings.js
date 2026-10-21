@@ -7,10 +7,10 @@ export async function mountLocationSettings(root,{store,access,t=translate,onSav
   root.querySelector('#location-help').textContent=t('location.help');
   help.textContent=t('location.deniedHelp');
   let revision=0,savedSettings=await store.getSettings();
-  async function render(settings){
+  async function render(settings,knownPermission){
     const current=++revision;
     input.checked=settings.locationEnabled===true;input.disabled=!access.supported();
-    const permission=await access.permission();
+    const permission=knownPermission||await access.permission();
     if(current!==revision)return;
     const key='location.'+(!access.supported()?'unsupported':!input.checked?'off':permission==='unknown'?'on':permission);
     status.setAttribute?.('data-i18n',key);status.textContent=t(key);
@@ -20,7 +20,18 @@ export async function mountLocationSettings(root,{store,access,t=translate,onSav
     const enabled=input.checked;
     if(!enabled)access.cancel();
     input.disabled=true;
-    try{savedSettings=await store.saveSettings({locationEnabled:enabled});onSave(savedSettings);await render(savedSettings);}
+    try{
+      savedSettings=await store.saveSettings({locationEnabled:enabled});onSave(savedSettings);
+      if(enabled){
+        status.setAttribute?.('data-i18n','location.requesting');status.textContent=t('location.requesting');help.hidden=true;
+        try{
+          // Trigger browser permission while Settings is visible. Discard this
+          // fix; only an explicit agent tool call shares a position with a model.
+          await access.read();
+          await render(savedSettings,'granted');
+        }catch(error){onError(error);await render(savedSettings,error?.code==='LOCATION_DENIED'?'denied':undefined);}
+      }else await render(savedSettings);
+    }
     catch(error){onError(error);await render(savedSettings);}
   };
   await render(savedSettings);

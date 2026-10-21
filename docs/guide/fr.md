@@ -72,7 +72,7 @@ Pour héberger uniquement le relais, indiquez l’origine du site dans `ALLOWED_
 
 ### Localisation
 
-Activez la localisation dans **Réglages → Localisation** ; elle est désactivée par défaut. La position est lue une seule fois, uniquement lorsque l’agent appelle explicitement l’outil `phone_get_location`. Au premier appel, le navigateur demande votre accord, puis le résultat est transmis au modèle sélectionné. Il s’agit de la position de l’appareil où Harness est ouvert : l’outil fonctionne aussi sans connexion à l’ESP32 ni partage d’écran.
+Activez l’accès dans **Réglages → Localisation**. Le navigateur demande immédiatement votre position pour que vous puissiez donner votre accord pendant que les réglages sont ouverts. Ensuite, l’agent appelle `phone_get_location` selon les besoins de la tâche et transmet la nouvelle position au modèle sélectionné. Il s’agit de la position de l’appareil où Harness est ouvert.
 
 <a id="bridge"></a>
 ## 7. Connecter le pont et tester les entrées si souhaité

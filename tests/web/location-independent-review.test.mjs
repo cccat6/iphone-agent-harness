@@ -12,12 +12,12 @@ function fixture({settings={},permissions}={}){
  return {access,navigator,callbacks,set:value=>current=value,get:()=>current,reads:()=>reads,queries:()=>queries};
 }
 
-test('opening location settings and enabling its switch query permission but never request coordinates',async()=>{
+test('opening settings only checks permission; enabling requests a fix immediately and discards it',async()=>{
  const f=fixture({permissions:async()=>({state:'prompt'})}),fields=new Map(),field=key=>{if(!fields.has(key))fields.set(key,{});return fields.get(key);},root={innerHTML:'',querySelector:field};
  const store={getSettings:async()=>f.get(),saveSettings:async patch=>{f.set({...f.get(),...patch});return f.get();}};
  await mountLocationSettings(root,{store,access:f.access,t:key=>key});assert.equal(field('#location-enabled').checked,false);assert.equal(f.reads(),0);assert.equal(f.queries(),1);
- field('#location-enabled').checked=true;await field('#location-enabled').onchange();assert.equal(f.reads(),0);assert.equal(f.get().locationEnabled,true);assert.equal(field('#location-permission').textContent,'location.prompt');
- field('#location-enabled').checked=false;await field('#location-enabled').onchange();assert.equal(f.reads(),0);assert.equal(f.get().locationEnabled,false);
+ field('#location-enabled').checked=true;const enabling=field('#location-enabled').onchange();await flush();assert.equal(f.reads(),1);f.callbacks[0].success(position);await enabling;assert.deepEqual(f.get(),{locationEnabled:true});assert.equal(field('#location-permission').textContent,'location.granted');
+ field('#location-enabled').checked=false;await field('#location-enabled').onchange();assert.equal(f.reads(),1);assert.equal(f.get().locationEnabled,false);
 });
 
 test('missing opt-in never reads position even with browser permission granted',async()=>{

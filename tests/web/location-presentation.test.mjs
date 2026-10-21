@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {LOCATION_MESSAGES} from '../../apps/web/locales/location.js';
 import {messages} from '../../apps/web/locales/messages.js';
 import {messagePresentation} from '../../apps/web/ui/message-presentation.js';
-const expectedKeys=['title','enable','help','off','on','prompt','granted','denied','unsupported','deniedHelp','located','disabledError','deniedError','unavailableError','timeoutError','unsupportedError'].map(key=>'location.'+key);
+const expectedKeys=['title','enable','help','off','on','prompt','granted','denied','unsupported','deniedHelp','located','disabledError','deniedError','unavailableError','timeoutError','unsupportedError','requesting'].map(key=>'location.'+key);
 const result={status:'located',latitude:12.34567,longitude:-45.6789,accuracy:25,timestamp:1700000000000};
 const record=()=>({role:'tool',toolName:'phone_get_location',text:JSON.stringify(result)});
 test('location settings and permission copy is present in all eight registered locale tables',()=>{

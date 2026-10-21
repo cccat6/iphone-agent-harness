@@ -72,7 +72,7 @@ Para alojar solo el relé, configura `ALLOWED_ORIGINS` en `wrangler.relay.jsonc`
 
 ### Ubicación
 
-Activa esta función en **Ajustes → Ubicación**; está desactivada por defecto. La posición se obtiene una vez, únicamente cuando el agente llama explícitamente a `phone_get_location`. En la primera llamada, el navegador pide permiso y el resultado se envía al modelo seleccionado. Se obtiene la ubicación del dispositivo donde está abierto Harness, incluso sin conexión al ESP32 ni pantalla compartida.
+Activa el acceso en **Ajustes → Ubicación**. El navegador solicita tu ubicación de inmediato para que puedas dar permiso mientras tienes los ajustes abiertos. Después, el agente llama a `phone_get_location` cuando la tarea lo necesita y envía la ubicación recién obtenida al modelo seleccionado. Es la ubicación del dispositivo donde está abierto Harness.
 
 <a id="bridge"></a>
 ## 7. Conecta el puente y prueba la entrada si quieres

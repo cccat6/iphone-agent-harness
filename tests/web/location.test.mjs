@@ -32,11 +32,11 @@ test('disable while settings are pending prevents the browser API call',async()=
  let resolve,calls=0;const access=createLocationAccess({getSettings:()=>new Promise(r=>resolve=r),navigator:{geolocation:{getCurrentPosition(){calls++;}}}});
  const p=access.read();access.cancel();resolve({locationEnabled:true});await assert.rejects(p,{code:'LOCATION_DISABLED'});assert.equal(calls,0);
 });
-test('real settings mount and checkbox persist opt-in without requesting location',async()=>{
+test('settings enable requests one position and disabling cancels without another request',async()=>{
  const nodes=new Map(),root={set innerHTML(v){for(const id of v.matchAll(/id="([^"]+)"/g))nodes.set('#'+id[1],{checked:false,disabled:false,hidden:false,textContent:''});},querySelector:key=>nodes.get(key)};
  let settings={},reads=0,cancels=0;const access={supported:()=>true,permission:async()=>'prompt',cancel:()=>cancels++,read:()=>reads++};
  await mountLocationSettings(root,{store:{getSettings:async()=>settings,saveSettings:async patch=>(settings={...settings,...patch})},access,t:k=>k});
- const checkbox=root.querySelector('#location-enabled');assert.equal(checkbox.checked,false);checkbox.checked=true;await checkbox.onchange();assert.equal(settings.locationEnabled,true);assert.equal(reads,0);checkbox.checked=false;await checkbox.onchange();assert.equal(settings.locationEnabled,false);assert.equal(cancels,1);assert.equal(reads,0);
+ const checkbox=root.querySelector('#location-enabled');assert.equal(checkbox.checked,false);checkbox.checked=true;await checkbox.onchange();assert.equal(settings.locationEnabled,true);assert.equal(reads,1);assert.equal(root.querySelector('#location-permission').textContent,'location.granted');checkbox.checked=false;await checkbox.onchange();assert.equal(settings.locationEnabled,false);assert.equal(cancels,1);assert.equal(reads,1);
 });
 test('failed settings save restores the checkbox without another storage read',async()=>{
  const nodes=new Map(),root={set innerHTML(v){for(const id of v.matchAll(/id="([^"]+)"/g))nodes.set('#'+id[1],{checked:false,disabled:false,hidden:false,textContent:''});},querySelector:key=>nodes.get(key)};
@@ -46,4 +46,15 @@ test('failed settings save restores the checkbox without another storage read',a
  await mountLocationSettings(root,{store,access,t:k=>k,onError:error=>errors.push(error)});
  const checkbox=root.querySelector('#location-enabled');checkbox.checked=true;await checkbox.onchange();
  assert.equal(checkbox.checked,false);assert.equal(checkbox.disabled,false);assert.equal(storageReads,1);assert.equal(locationReads,0);assert.deepEqual(errors,[failure]);assert.equal(root.querySelector('#location-permission').textContent,'location.off');
+});
+
+for(const code of ['LOCATION_DENIED','LOCATION_TIMEOUT','LOCATION_UNAVAILABLE'])test('settings permission request reports '+code+' and restores interaction',async()=>{
+ const fields=new Map(),root={innerHTML:'',querySelector(key){if(!fields.has(key))fields.set(key,{});return fields.get(key);}};
+ let settings={locationEnabled:false};const errors=[];
+ const access={supported:()=>true,permission:async()=>'unknown',cancel(){},read:async()=>{assert.equal(root.querySelector('#location-enabled').disabled,true);assert.equal(root.querySelector('#location-permission').textContent,'location.requesting');throw Object.assign(new Error(code),{code});}};
+ await mountLocationSettings(root,{store:{getSettings:async()=>settings,saveSettings:async patch=>(settings={...settings,...patch})},access,t:k=>k,onError:e=>errors.push(e)});
+ const input=root.querySelector('#location-enabled');input.checked=true;await input.onchange();
+ assert.equal(input.disabled,false);assert.equal(input.checked,true);assert.equal(errors[0].code,code);
+ assert.equal(root.querySelector('#location-denied-help').hidden,code!=='LOCATION_DENIED');
+ assert.deepEqual(settings,{locationEnabled:true});
 });

@@ -72,7 +72,7 @@ To host only the relay, set `ALLOWED_ORIGINS` in `wrangler.relay.jsonc` to your 
 
 ### Location
 
-Open **Settings → Location** to enable location access; it is off by default. Enabling it makes the capability available: your position is read once only when the agent explicitly calls `phone_get_location`. The browser asks for permission on first use, and the result is provided to the currently selected model. The position comes from the device running Harness, so the tool also works without an ESP32 connection or screen sharing.
+Open **Settings → Location** and enable location access. The browser immediately requests a position so you can grant permission while Settings is open. The agent later calls `phone_get_location` when a task needs your location and shares that fresh result with the selected model. The position comes from the device running Harness.
 
 <a id="bridge"></a>
 ## 7. Connect the bridge and optionally test input
