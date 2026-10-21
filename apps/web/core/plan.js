@@ -290,7 +290,7 @@ export async function executePhonePlan(input,{device,capture,context,signal,onEv
     if(changes)for(const key of ['identityVerified','bindingVerified','leaseVerified','executionEnabled'])if(current[key]!==true)fail(`Execution permission lost: ${key}`,'unknown');
     return current;
   }
-  const wait=async ms=>{await check();await measured('settleMs',()=>sleep(ms,controller.signal));await check();};
+  const wait=async(ms,{allowDeadline=false}={})=>{if(!allowDeadline)await check();await measured('settleMs',()=>sleep(ms,controller.signal));if(!allowDeadline)await check();};
   async function within(promise,endAt){
     let timer;const timeout=new Promise((_,reject)=>{timer=setTimeout(()=>{const e=new Error('Device result timed out');e.code='DEVICE_RESULT_TIMEOUT';e.cancelReason='device_result_timeout';reject(e);},Math.max(0,endAt-now()));});
     try{return await abortable(Promise.race([promise,timeout]),controller.signal);}finally{clearTimeout(timer);}
@@ -361,13 +361,13 @@ export async function executePhonePlan(input,{device,capture,context,signal,onEv
       if(step.op==='wait'){await wait(step.durationMs);result.steps.push({id:step.id,status:'waited',detail:'Bounded host wait completed.'});}
       else if(step.op==='capture'){
         if(inputState!=='released')fail('Capture barrier requires confirmed released input','unknown');
-        await collectFrames(step);await check();result.steps.push({id:step.id,status:'captured',detail:step.review?'Capture saved; return to model for review.':'Capture saved at a released-input barrier.'});
+        await collectFrames(step);if(!(deadlineExceeded&&stepIndex===plan.steps.length-1&&inputState==='released'))await check();else result.deadlineExceededAfterCompletion=true;result.steps.push({id:step.id,status:'captured',detail:step.review?'Capture saved; return to model for review.':'Capture saved at a released-input barrier.'});
       }else if(step.op==='observe'){
         // Start the sampler without awaiting its first frame. Motion down/move/up
         // is submitted as one segment and never waits for screenshot encoding.
         const sampled=collectFrames(step),motion=runGesture(step.motion,stepIndex);
-        await Promise.all([sampled,motion]);await wait(actionSettleMs(step.motion));await check();result.steps.push({id:step.id,status:'hid_submitted',detail:'Motion submitted; observation frames carry actual times, not promised alignment.'});
-      }else{await runGesture(step,stepIndex);const settleMs=actionSettleMs(step);if(settleMs){emit(onEvent,{type:'step',phase:'settling',stepId:step.id,settleMs});await wait(settleMs);}await check();result.steps.push({id:step.id,status:'hid_submitted',detail:'Device confirmed HID submission and release; visible outcome not evaluated.'});}
+        await Promise.all([sampled,motion]);const finalStep=stepIndex===plan.steps.length-1&&deadlineExceeded&&inputState==='released';await wait(actionSettleMs(step.motion),{allowDeadline:finalStep});if(finalStep)result.deadlineExceededAfterCompletion=true;else await check();result.steps.push({id:step.id,status:'hid_submitted',detail:'Motion submitted; observation frames carry actual times, not promised alignment.'});
+      }else{await runGesture(step,stepIndex);const settleMs=actionSettleMs(step),finalStep=stepIndex===plan.steps.length-1&&deadlineExceeded&&inputState==='released';if(settleMs){emit(onEvent,{type:'step',phase:'settling',stepId:step.id,settleMs});await wait(settleMs,{allowDeadline:finalStep});}if(finalStep)result.deadlineExceededAfterCompletion=true;else await check();result.steps.push({id:step.id,status:'hid_submitted',detail:'Device confirmed HID submission and release; visible outcome not evaluated.'});}
       emit(onEvent,{type:'step',phase:'completed',stepId:step.id});
     }
   }catch(e){
@@ -379,7 +379,7 @@ export async function executePhonePlan(input,{device,capture,context,signal,onEv
     await cleanupRelease();
   }finally{clearTimeout(deadlineTimer);signal?.removeEventListener('abort',cancel);}
   const elapsedMs=executionElapsedMs??Math.max(0,now()-start),effectiveBudgetMs=Math.max(0,deadline-start);
-  result.timing={...Object.fromEntries(Object.entries(timing).map(([key,value])=>[key,Math.round(value)])),elapsedMs:Math.round(elapsedMs),maxExecutionMs:plan.maxExecutionMs,ttlMs:plan.ttlMs,effectiveBudgetMs:Math.round(effectiveBudgetMs),plannedWorkMs:validation.budgetMs};
+  result.timing={...Object.fromEntries(Object.entries(timing).map(([key,value])=>[key,Math.round(value)])),elapsedMs:Math.round(elapsedMs),maxExecutionMs:plan.maxExecutionMs,ttlMs:plan.ttlMs,effectiveBudgetMs:Math.round(effectiveBudgetMs),plannedWorkMs:validation.budgetMs,...(result.deadlineExceededAfterCompletion?{deadlineExceededAfterCompletion:true}:{})};
   if(result.code==='PLAN_DEADLINE_EXCEEDED'){
     // Advisory for a new plan only. It never extends this plan or authorizes a replay.
     const estimate=Math.max(effectiveBudgetMs+1000,validation.budgetMs+timing.contextMs+timing.submitMs+timing.resultQueryMs+500);
