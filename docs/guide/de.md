@@ -86,7 +86,11 @@ Eine Bridge unterstützt zwei unabhängige Harness-Verbindungen. Wähle bei zwei
 
 Ist das Telefon noch nicht bereit, prüfe Bluetooth, warte kurz und klicke auf **Aktualisieren**.
 
-Probiere „Öffne die Uhr und stelle einen Wecker auf 7:00“. Erlaube die Bildschirmfreigabe. Nach Abschluss kehrt der Agent zum Gespräch zurück. Ändern kannst du das unter **Einstellungen → Aufgabenabschluss → Zu Harness zurückkehren**.
+Probiere „Öffne die Uhr und stelle einen Wecker auf 7 Uhr“. Erlaube die Bildschirmfreigabe. Unter **Einstellungen → Zurück zu Harness** wählst du **Nach Abschluss einer Aufgabe** und **Wenn ich gefragt bin** unabhängig voneinander. Beide Optionen sind standardmäßig aktiviert. Bei Fragen, Bestätigungen oder Problemen kehrt der Agent zum aktuellen Gespräch zurück und wartet auf deine Antwort.
+
+### Kontextnutzung
+
+Tippe auf den Ring links im Eingabebereich, um verwendete und verbleibende Tokens sowie die Kontextkapazität des Modells zu sehen. Schätzwerte sind mit ≈ markiert. Die Komprimierung fasst älteren Kontext für folgende Anfragen zusammen; der Chatverlauf bleibt erhalten.
 
 <a id="clipboard"></a>
 ## 8. Kopieren mit Kurzbefehlen einrichten

@@ -1,3 +1,4 @@
+import {CONTEXT_METER_MESSAGES} from './context-meter.js';
 import {LOCATION_MESSAGES} from './location.js';
 import {SIWC_MESSAGES} from './siwc.js';
 import {PRODUCT_NAVIGATION_MESSAGES} from './product-navigation.js';
@@ -5318,3 +5319,5 @@ for(const [locale,table] of Object.entries(PRODUCT_NAVIGATION_MESSAGES))Object.a
 
 for(const [locale,table] of Object.entries(LOCATION_MESSAGES))Object.assign(messages[locale],table);
 for(const [locale,table] of Object.entries(SIWC_MESSAGES))Object.assign(messages[locale],table);
+
+for(const [locale,table] of Object.entries(CONTEXT_METER_MESSAGES))Object.assign(messages[locale],table);

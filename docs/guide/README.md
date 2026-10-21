@@ -86,7 +86,11 @@ One bridge supports two independent Harness connections. When using two phones, 
 
 If the phone is not shown as ready, check its Bluetooth connection, wait a moment, then click **Refresh**.
 
-Try “Open Clock and set an alarm for 7:00.” Allow screen sharing when prompted. By default, the agent returns to this conversation after finishing; change that in **Settings → Task completion → Return to Harness**.
+Try “Open Clock and set an alarm for 7:00.” Allow screen sharing when prompted. In **Settings → Return to Harness**, choose whether to return **When a task finishes** and **When I’m needed**. Both are enabled by default. Questions, confirmations and problems that need your help return to the current conversation while leaving the task awaiting your response.
+
+### Context usage
+
+Tap the ring on the left of the composer to see used tokens, remaining tokens and the model’s context capacity. Estimates are marked with ≈. Choose **Compact now** to summarize earlier context for subsequent requests while keeping the chat history.
 
 <a id="clipboard"></a>
 ## 8. Set up clipboard copy with Shortcuts

@@ -86,7 +86,11 @@ Un puente admite dos conexiones independientes de Harness. Si usas dos teléfono
 
 Si el teléfono no está listo, comprueba Bluetooth, espera un momento y pulsa **Actualizar**.
 
-Prueba «Abre Reloj y pon una alarma a las 7:00». Permite compartir pantalla. Al terminar, el agente vuelve a la conversación; puedes cambiarlo en **Ajustes → Finalización de tarea → Volver a Harness**.
+Prueba «Abre Reloj y pon una alarma a las 7:00». Permite compartir la pantalla. En **Ajustes → Volver a Harness**, elige por separado **Al terminar una tarea** y **Cuando se necesite mi intervención**. Ambas opciones están activadas por defecto. Si hace falta una respuesta, confirmación o ayuda con un problema, el Agent vuelve a la conversación actual y espera tu respuesta.
+
+### Uso del contexto
+
+Toca el anillo a la izquierda del área de entrada para ver los tokens usados, los restantes y la capacidad de contexto del modelo. Las estimaciones llevan el símbolo ≈. El botón de compresión resume el contexto anterior para las siguientes solicitudes y conserva el historial del chat.
 
 <a id="clipboard"></a>
 ## 8. Configura la copia con Atajos

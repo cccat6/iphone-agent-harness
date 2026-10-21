@@ -107,12 +107,45 @@ function projectedMetrics(messages,settings,prefixTokens){
   const estimatedInputTokens=prefixTokens+messages.reduce((n,m)=>n+messageTokens(m,settings),0);
   return {estimatedInputTokens,estimatedTotalTokens:estimatedInputTokens+settings.reserveTokens,imageCount:messages.reduce((n,m)=>n+refCount(m),0)};
 }
+export function contextSnapshot(metrics={},provider={},extra={}){
+  const value=provider?.contextWindowTokens??provider?.contextWindow,capacityTokens=Number.isSafeInteger(value)&&value>=1024&&value<=10000000?value:null;
+  const usedTokens=Math.max(0,Math.ceil(metrics.estimatedInputTokens||0));
+  return {...metrics,...extra,estimated:true,source:'estimated',usedTokens,capacityTokens,remainingTokens:capacityTokens===null?null:Math.max(0,capacityTokens-usedTokens),usedPercent:capacityTokens===null?null:usedTokens/capacityTokens*100};
+}
+export function requestContextUsage(usage,provider={},usageSeq){
+  const input=usage?.input_tokens??usage?.prompt_tokens;
+  if(!Number.isSafeInteger(input)||input<0)return null;
+  let lastRequestInputTokens=input;
+  if(provider.protocol==='anthropic')for(const key of ['cache_read_input_tokens','cache_creation_input_tokens']){const count=usage[key]??0;if(!Number.isSafeInteger(count)||count<0)return null;lastRequestInputTokens+=count;}
+  if(!Number.isSafeInteger(lastRequestInputTokens))return null;
+  return {source:'last_request',estimated:false,lastRequestInputTokens,usageSeq,capacityTokens:contextSnapshot({},provider).capacityTokens};
+}
+// Inspect the same stored projection without retaining the transcript, resolving
+// image assets, sending requests, or modifying a compaction boundary.
+export async function inspectContext({store,sessionId,settings:input,provider,prefixTokens=0,pageSize=128,signal}={}){
+  if(!Number.isSafeInteger(prefixTokens)||prefixTokens<0||!Number.isInteger(pageSize)||pageSize<1||pageSize>512)throw new Error('Invalid context inspection bounds');
+  const settings=normalizeContextSettings(input),metrics={estimated:true,estimator:'heuristic-cjk-v1',prefixTokens,reserveTokens:settings.reserveTokens,imageTokenBudget:settings.imageTokens,pagesRead:0,messagesRead:0,retainedImagesDecoded:0,projectedMessages:0};
+  contextAbort(signal);
+  if(!sessionId)return contextSnapshot({...metrics,...projectedMetrics([],settings,prefixTokens)},provider,{lastSeq:0});
+  const session=await store.getSession(sessionId);contextAbort(signal);if(!session)throw new Error('Context session does not exist');
+  const checkpoint=session.checkpoint||null,lastSeq=session.lastSeq||0,through=checkpoint?.throughSeq||0;
+  if(!Number.isSafeInteger(lastSeq)||!Number.isSafeInteger(through)||through<0||through>lastSeq)throw new Error('Invalid checkpoint/history boundary');
+  let estimatedInputTokens=prefixTokens,imageCount=0,goalSeen=false;
+  const add=rows=>{for(const message of rows){estimatedInputTokens+=messageTokens(message,settings);imageCount+=refCount(message);metrics.projectedMessages++;}};
+  add(checkpointPrefix(checkpoint));
+  for await(const group of contextGroups(store,sessionId,{afterSeq:through,endSeq:lastSeq,pageSize,signal,metrics})){
+    if(checkpoint?.goalMessage&&group.some(m=>messageKey(m)===messageKey(checkpoint.goalMessage)))goalSeen=true;
+    add(projectPrepared(group,{...checkpoint,text:'',goalMessage:null}));
+  }
+  if(checkpoint?.goalMessage&&!goalSeen)add([selectedMessage(checkpoint.goalMessage,checkpoint)]);
+  return contextSnapshot({...metrics,estimatedInputTokens,estimatedTotalTokens:estimatedInputTokens+settings.reserveTokens,imageCount},provider,{lastSeq,checkpointThroughSeq:through});
+}
 /**
  * Append-only between explicit compaction boundaries. Messages keep frameRefs;
  * the caller hydrates only this final projection, not the paginated source.
  * Includes a stable checkpoint user row and a verbatim latest-user anchor.
  */
-export async function prepareContext({store,sessionId,settings:input,provider,credential,invoke,signal,summaryPrompt=SUMMARY_PROMPT,onEvent,prefixTokens=0,pageSize=128,force=false}={}){
+export async function prepareContext({store,sessionId,settings:input,provider,credential,invoke,signal,summaryPrompt=SUMMARY_PROMPT,onEvent,prefixTokens=0,pageSize=128,force=false,forceReason='provider-overflow',runId}={}){
   let settings=normalizeContextSettings(input);
   // Only use explicit capacity metadata; a model name is not proof of its window.
   const capacity=provider?.contextWindowTokens??provider?.contextWindow;
@@ -123,9 +156,10 @@ export async function prepareContext({store,sessionId,settings:input,provider,cr
   contextAbort(signal);const session=await store.getSession(sessionId);contextAbort(signal);
   if(!session)throw new Error('Context session does not exist');
   const old=session.checkpoint||null,lastSeq=session.lastSeq||0,through=old?.throughSeq||0;
+  const commit=checkpoint=>runId&&store.commitContextCheckpoint?store.commitContextCheckpoint(sessionId,checkpoint,{runId,lastSeq,previousCheckpoint:old,signal}):store.updateSession(sessionId,{checkpoint},{signal});
   if(!Number.isSafeInteger(lastSeq)||!Number.isSafeInteger(through)||through<0||through>lastSeq)throw new Error('Invalid checkpoint/history boundary');
   let fingerprint=JSON.stringify(settings);
-  const metrics={estimated:true,estimator:'heuristic-cjk-v1',prefixTokens,reserveTokens:settings.reserveTokens,imageTokenBudget:settings.imageTokens,pagesRead:0,messagesRead:0,sourceMessagesSummarized:0,summaryCalls:0,providerUsage:[],compactionReason:null,retainedImagesDecoded:0};
+  const metrics={estimated:true,estimator:'heuristic-cjk-v1',lastSeq,prefixTokens,reserveTokens:settings.reserveTokens,imageTokenBudget:settings.imageTokens,pagesRead:0,messagesRead:0,sourceMessagesSummarized:0,summaryCalls:0,providerUsage:[],compactionReason:null,retainedImagesDecoded:0};
   const options={afterSeq:through,endSeq:lastSeq,pageSize,signal,metrics};
   const retainedGroups=[];let normal=[],totalGroups=0,latestGoal=old?.goalMessage||null;
   let estimated=prefixTokens+checkpointPrefix(old).reduce((n,m)=>n+messageTokens(m,settings),0),images=0;
@@ -136,14 +170,15 @@ export async function prepareContext({store,sessionId,settings:input,provider,cr
     for(const m of group)if(isRealUser(m))latestGoal=m;
     for(const m of group){const projected=selectedMessage(m,old);estimated+=messageTokens(projected,settings);images+=refCount(projected);}
     threshold=force||estimated+settings.reserveTokens>=settings.triggerTokens;
-    if(!threshold||!settings.autoCompact)normal.push(...group);else normal=[];
+    if(!threshold||(!settings.autoCompact&&!force))normal.push(...group);else normal=[];
   }
   // A boundary's own tail may exceed its target (e.g. a huge indivisible group).
   // Do not keep paying for an identical failed-to-shrink compaction each turn.
   const unchanged=!force&&old?.compactedAtSeq===lastSeq&&old.settingsFingerprint===fingerprint;
-  const reason=force?'provider-overflow':estimated+settings.reserveTokens>=settings.triggerTokens?'tokens':images>settings.maxImages?'images':null;
+  if(force&&!['manual','provider-overflow'].includes(forceReason))throw new Error('Invalid compaction trigger');
+  const reason=force?forceReason:estimated+settings.reserveTokens>=settings.triggerTokens?'tokens':images>settings.maxImages?'images':null;
   metrics.compactionReason=reason;
-  if(!settings.autoCompact||!reason||unchanged){
+  if((!settings.autoCompact&&!force)||!reason||unchanged){
     // If collection was bounded after reaching a threshold but the previous
     // checkpoint already covered this exact input, retrieve the full tail.
     if(unchanged&&threshold){normal=[];for await(const m of contextRows(store,sessionId,options))normal.push(m);}
@@ -159,10 +194,10 @@ export async function prepareContext({store,sessionId,settings:input,provider,cr
     const rows=[...(anchor?[anchor]:[]),...normal].map(m=>selectedMessage(m,old));
     const checkpoint={...(old||{}),throughSeq:through,text:old?.text||'',kind:old?.kind||'image-selection',note:old?.text?old.note:'Image-selection boundary; no message text was summarized.',compactedAtSeq:lastSeq,settingsFingerprint:fingerprint,imageSelection:chooseImageSelection(rows,settings.maxImages),createdAt:Date.now()};
     const messages=projectPrepared(normal,checkpoint);Object.assign(metrics,projectedMetrics(messages,settings,prefixTokens));metrics.targetReached=metrics.estimatedInputTokens<=settings.targetTokens;
-    contextAbort(signal);await store.updateSession(sessionId,{checkpoint},{signal});eventContext(onEvent,{status:'compacted',strategy:'image-selection',throughSeq:through});
+    contextAbort(signal);await commit(checkpoint);eventContext(onEvent,{status:'compacted',strategy:'image-selection',throughSeq:through});
     return {messages,checkpoint,compacted:true,metrics};
   }
-  if(force){
+  if(force&&forceReason==='provider-overflow'){
     // The server rejected this exact request. Make one smaller attempt; this
     // estimate is a retry budget, never advertised as the model's capacity.
     settings=normalizeContextSettings({...settings,triggerTokens:Math.max(1024,Math.min(settings.triggerTokens,Math.floor(estimated*.5)))});
@@ -177,7 +212,7 @@ export async function prepareContext({store,sessionId,settings:input,provider,cr
       const checkpoint={...(old||{}),throughSeq:through,text:old?.text||'',kind:old?.kind||'image-selection',note:'Image-selection boundary; no additional message text was summarized.',compactedAtSeq:lastSeq,settingsFingerprint:fingerprint,imageSelection:chooseImageSelection([...(anchor?[anchor]:[]),...boundaryRows],allowance),...(anchor?{goalMessage:anchor}:{}),createdAt:Date.now()};
       if(!anchor)delete checkpoint.goalMessage;
       const messages=projectPrepared(boundaryRows,checkpoint);Object.assign(metrics,projectedMetrics(messages,settings,prefixTokens));metrics.targetReached=metrics.estimatedInputTokens<=settings.targetTokens;
-      contextAbort(signal);await store.updateSession(sessionId,{checkpoint},{signal});eventContext(onEvent,{status:'compacted',strategy:'image-selection',throughSeq:through});
+      contextAbort(signal);await commit(checkpoint);eventContext(onEvent,{status:'compacted',strategy:'image-selection',throughSeq:through});
       return {messages,checkpoint,compacted:true,metrics};
     }
     const messages=projectPrepared(retainedGroups.flat(),old);Object.assign(metrics,projectedMetrics(messages,settings,prefixTokens));metrics.targetReached=false;metrics.compactionBlocked='No complete older group can be compacted without dropping the current goal/tool group';
@@ -226,7 +261,7 @@ export async function prepareContext({store,sessionId,settings:input,provider,cr
     const messages=projectPrepared(tail.rows,checkpoint);Object.assign(metrics,projectedMetrics(messages,settings,prefixTokens));metrics.sourceMessagesSummarized=sourceCount;metrics.targetReached=metrics.estimatedInputTokens<=settings.targetTokens;
     // Single commit only after all pages and summary requests completed. Never
     // mutate the old checkpoint in place or publish an intermediate batch.
-    await store.updateSession(sessionId,{checkpoint},{signal});
+    await commit(checkpoint);
     eventContext(onEvent,{status:'compacted',throughSeq:checkpoint.throughSeq,estimatedTokens:metrics.estimatedInputTokens,targetReached:metrics.targetReached});
     return {messages,checkpoint,compacted:true,metrics};
   }catch(e){eventContext(onEvent,{status:signal?.aborted?'compaction_cancelled':'compaction_failed'});throw e;}

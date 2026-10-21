@@ -86,7 +86,11 @@ Un pont prend en charge deux connexions Harness indépendantes. Avec deux télé
 
 Si le téléphone n’est pas prêt, vérifiez le Bluetooth, patientez puis cliquez sur **Actualiser**.
 
-Essayez « Ouvre Horloge et règle une alarme à 7 h ». Autorisez le partage d’écran. L’agent revient ensuite à la conversation ; modifiez ce comportement dans **Réglages → Fin de tâche → Revenir à Harness**.
+Essayez « Ouvre Horloge et règle une alarme à 7 h ». Autorisez le partage d’écran. Dans **Réglages → Retour à Harness**, choisissez séparément **À la fin d’une tâche** et **Lorsque mon intervention est nécessaire**. Les deux options sont activées par défaut. Pour une question, une confirmation ou un problème nécessitant votre aide, l’Agent revient à la conversation actuelle et attend votre réponse.
+
+### Utilisation du contexte
+
+Touchez l’anneau à gauche de la zone de saisie pour voir les tokens utilisés, les tokens restants et la capacité de contexte du modèle. Les estimations portent le signe ≈. Le bouton de compression résume le contexte ancien pour les requêtes suivantes, tout en conservant l’historique de la conversation.
 
 <a id="clipboard"></a>
 ## 8. Configurer la copie avec Raccourcis

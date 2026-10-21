@@ -1,3 +1,4 @@
+import {mountContextMeter} from './ui/context-meter.js';
 import {createLocationAccess} from './core/location.js';
 import {loadComposerDraft,saveComposerDraft,clearComposerDraft} from './ui/composer-draft.js';
 import {mountCodexLogin,loadPendingCodexLogin,prepareCodexSignInProfile} from './ui/codex-login.js';
@@ -162,15 +163,16 @@ function renderModelOptions() {
   $('#model-select').value=selected||$('#model-select').options[0]?.value||'';if(!$('#model-select').value&&$('#model-select').options.length)$('#model-select').value=$('#model-select').options[0].value;$('#model-select').setAttribute('aria-label',t('session.model'));
   const resolved=selectedProvider();$('#model-select').title=resolved?`${resolved.name} · ${selectionParts($('#model-select').value).modelId}`:t('provider.chooseAccountModel');renderReasoningOptions();
 }
+function contextMeterState(){return {sessionId:state.current?.id||null,modelId:$('#model-select')?.value||'',busy:state.running||state.submitting||state.contextCompacting===true};}
 function renderReasoningOptions(){
   const select=$('#reasoning-select');if(!select)return;const profile=selectedProvider(),model=selectionParts($('#model-select').value).modelId||profile?.model;
   const provider=profile?{...profile,model}:{};const options=reasoningOptions(provider),key=profile?profile.id+'::'+model:'';
   const selected=normalizeReasoningEffort(provider,state.current?.reasoningEfforts?.[key]??(state.composerDraftActive?state.composerDraft?.reasoningEfforts?.[key]:undefined)??state.settings.reasoningEfforts?.[key]??profile?.reasoningEffort);
-  select.hidden=!options.length;select.disabled=state.running||state.submitting;select.setAttribute('aria-label',t('reasoning.label'));select.title=t('reasoning.label');
-  select.innerHTML=['auto',...options].map(value=>`<option value="${value}">${escapeHTML(t('reasoning.'+value))}</option>`).join('');select.value=selected;
+  select.hidden=!options.length;select.disabled=!options.length||state.running||state.submitting||state.contextCompacting===true;select.setAttribute('aria-label',t('reasoning.label'));select.title=t('reasoning.label');
+  const markup=options.map(value=>`<option value="${value}">${escapeHTML(t('reasoning.'+value))}</option>`).join('');if(select.innerHTML!==markup)select.innerHTML=markup;if(select.value!==selected)select.value=selected;state.contextMeter?.setContext(contextMeterState());
 }
 function updateModeDescription() { const status=$('#mode-description');status.textContent=t(capture.active?'interaction.sharing':'interaction.notSharing');status.classList.toggle('sharing',capture.active); }
-async function changeReasoningSelection(){const profile=selectedProvider();if(!profile)return;const model=selectionParts($('#model-select').value).modelId||profile.model,key=profile.id+'::'+model,value=normalizeReasoningEffort({...profile,model},$('#reasoning-select').value);if(state.current){const id=state.current.id,reasoningEfforts={...state.current.reasoningEfforts,[key]:value};await state.store.updateSession(id,{reasoningEfforts});if(state.current?.id===id)state.current.reasoningEfforts=reasoningEfforts;}else if(state.composerDraftActive&&state.composerDraft){state.composerDraft.reasoningEfforts={...state.composerDraft.reasoningEfforts,[key]:value};rememberComposerDraft();}else state.settings=await state.store.saveSettings({reasoningEfforts:{...state.settings.reasoningEfforts,[key]:value}});renderReasoningOptions();}
+async function changeReasoningSelection(){const profile=selectedProvider();if(!profile||state.running||state.submitting||state.contextCompacting)return;const model=selectionParts($('#model-select').value).modelId||profile.model,key=profile.id+'::'+model,value=normalizeReasoningEffort({...profile,model},$('#reasoning-select').value);if(!value)return;if(state.current){const id=state.current.id,reasoningEfforts={...state.current.reasoningEfforts,[key]:value};await state.store.updateSession(id,{reasoningEfforts});if(state.current?.id===id)state.current.reasoningEfforts=reasoningEfforts;}else if(state.composerDraftActive&&state.composerDraft){state.composerDraft.reasoningEfforts={...state.composerDraft.reasoningEfforts,[key]:value};rememberComposerDraft();}else state.settings=await state.store.saveSettings({reasoningEfforts:{...state.settings.reasoningEfforts,[key]:value}});renderReasoningOptions();}
 async function changeModelSelection(){const selection=$('#model-select').value,resolved=selectedProvider();$('#model-select').title=resolved?`${resolved.name} · ${selectionParts(selection).modelId}`:t('provider.chooseAccountModel');renderReasoningOptions();if(state.current){const id=state.current.id;await state.store.updateSession(id,{modelId:selection});if(state.current?.id===id)state.current.modelId=selection;}else if(state.composerDraftActive&&state.composerDraft){state.composerDraft.modelId=selection;rememberComposerDraft();}}
 function rememberComposerDraft(){if(!state.composerDraftActive||state.current||!state.composerDraft)return;state.composerDraft.text=$('#message-input').value;saveComposerDraft(state.composerDraft);}
 function openComposerDraft({focus=false,navigation=true}={}){
@@ -239,9 +241,10 @@ function renderMessages({scrollToEnd=true,forceFollow=false}={}) {
   if(scrollToEnd&&!state.hasNewer)follow.afterRender();renderLatestControl();
   state.historyImages=createHistoryImages({store:state.store,root:region,onImageReady:()=>{if(!state.hasNewer)follow.afterRender();}});state.historyImages.mount();renderRunControls();
 }
-function renderRunControls(){const deleting=!!state.current&&!!state.sessionActions?.isDeleting(state.current.id);$('#send-message').disabled=state.submitting||deleting;for(const action of $$('[data-execute-plan]'))action.disabled=state.running||state.submitting||deleting;const paused=Boolean(state.current?.promptState?.runResume||(!!state.current?.id&&state.capturePaused===state.current.id));const button=$('#resume-run');button.hidden=state.running||!paused;button.disabled=state.submitting||deleting;button.textContent=t(capture.active?'interaction.resume':'interaction.startSharing');$('#run-status').hidden=!state.running&&!paused;if(!state.running&&paused)$('#run-status').textContent=t('interaction.paused');updateModeDescription();}
+function renderRunControls(){const deleting=!!state.current&&!!state.sessionActions?.isDeleting(state.current.id);$('#send-message').disabled=state.submitting||deleting||state.contextCompacting===true;for(const action of $$('[data-execute-plan]'))action.disabled=state.running||state.submitting||deleting;const paused=Boolean(state.current?.promptState?.runResume||(!!state.current?.id&&state.capturePaused===state.current.id));const button=$('#resume-run');button.hidden=state.running||!paused;button.disabled=state.submitting||deleting||state.contextCompacting===true;button.textContent=t(capture.active?'interaction.resume':'interaction.startSharing');$('#run-status').hidden=!state.running&&!paused;if(!state.running&&paused)$('#run-status').textContent=t('interaction.paused');updateModeDescription();state.contextMeter?.setContext(contextMeterState());}
 function setRunning(running) { state.running=running;if($('#reasoning-select'))$('#reasoning-select').disabled=running||state.submitting; $('#send-message').hidden=running; $('#stop-run').hidden=!running; $('#model-select').disabled=running; if(!running)$('#run-status').textContent='';renderRunControls(); }
 function onHarnessEvent(event) {
+  if(event.type==='context'){state.contextMeter?.accept(event);return;}
   if(event.type==='session.title'){if(state.current?.id===event.sessionId){state.current.title=event.title;$('#session-title').textContent=event.title;}void refreshSessions().catch(report);return;}
   if((event.internal||event.message?.internal)&&!state.settings.developerMode)return;
   if(event.type==='status') { if(event.status==='paused')state.capturePaused=state.current?.id;$('#run-status').textContent=event.status==='paused'?t('interaction.paused'):event.status==='returning_to_harness'?t('taskSettings.returning'):({awaiting_model:'正在等待模型回复…',compacting:'正在整理上下文…',executing:'正在处理工具请求…',completed:'本轮已完成',needs_user:'需要补充信息或连接设备',unknown:'操作结果待核对',budget_exhausted:'达到本轮预算，进度已保存',cancelled:'已停止',failed:'本轮未完成'})[event.status]||event.status; }
@@ -250,7 +253,7 @@ function onHarnessEvent(event) {
   if(event.type==='error') { state.lastError=localizeError(event.message);renderMessages(); }
 }
 async function resumeRun(){
-  if(state.running||state.submitting||!state.current||state.sessionActions?.isDeleting(state.current.id))return;
+  if(state.running||state.submitting||state.contextCompacting||!state.current||state.sessionActions?.isDeleting(state.current.id))return;
   // Start capture directly from this trusted click before storage/network awaits.
   const sharing=capture.active?Promise.resolve():capture.start();
   state.submitting=true;let resolveCompletion;state.runCompletion=new Promise(resolve=>{resolveCompletion=resolve;});let generation=null;const sessionId=state.current.id;
@@ -259,7 +262,7 @@ async function resumeRun(){
   finally{try{if(generation===null||generation===state.runGeneration){const session=await state.store.getSession(sessionId);if((generation===null||generation===state.runGeneration)&&state.current?.id===sessionId){state.current=session;applyHistory(historyWindow().snapshot());renderMessages();}}}finally{if(generation===null||generation===state.runGeneration){state.abort=null;state.submitting=false;setRunning(false);}renderRunControls();renderReasoningOptions();resolveCompletion?.();}}
 }
 async function sendMessage(event,textOverride=null,modeOverride=null) {
-  event.preventDefault();if(!getBrowserCompatibility().supportedForHarness){renderPlatform();return;}const text=(textOverride===null?$('#message-input').value:textOverride).trim();if(!text||state.running||state.submitting||(state.current&&state.sessionActions?.isDeleting(state.current.id)))return;
+  event.preventDefault();if(!getBrowserCompatibility().supportedForHarness){renderPlatform();return;}const text=(textOverride===null?$('#message-input').value:textOverride).trim();if(!text||state.running||state.submitting||state.contextCompacting||(state.current&&state.sessionActions?.isDeleting(state.current.id)))return;
   const draftGeneration=state.current?null:state.sessionOpenGeneration;
   const sharing=capture.active||!deviceSessionAvailable()||!selectedProvider()?Promise.resolve():capture.start();
   if(state.composerDraftActive)rememberComposerDraft();state.submitting=true;renderRunControls();let resolveCompletion;state.runCompletion=new Promise(resolve=>{resolveCompletion=resolve;});let generation=null,sessionId=null,controller=null,firstMessageId=null,firstSendGeneration=draftGeneration;
@@ -398,8 +401,9 @@ async function showSettings(section='home') {
     await mountLocationSettings($('#location-settings'),{store:state.store,access:state.locationAccess,onSave:settings=>{state.settings=settings;},onError:toast});
     if(navigation!==state.panelGeneration)return;
   }else if(section==='behavior'){
-    panel(t('taskSettings.title'),'',`<label class="check-field"><input id="return-to-harness" type="checkbox" ${settings.returnToHarness!==false?'checked':''}>${systemTextHTML('taskSettings.return')}</label>`);
+    panel(t('taskSettings.title'),'',`<label class="check-field"><input id="return-to-harness" type="checkbox" ${settings.returnToHarness!==false?'checked':''}>${systemTextHTML('taskSettings.return')}</label><label class="check-field"><input id="return-on-attention" type="checkbox" ${settings.returnOnAttention!==false?'checked':''}>${systemTextHTML('taskSettings.attention')}</label><p class="quiet-note">${systemTextHTML('taskSettings.attentionHelp')}</p>`);
     $('#return-to-harness').onchange=guard(async event=>{state.settings=await state.store.saveSettings({returnToHarness:event.target.checked});});
+    $('#return-on-attention').onchange=guard(async event=>{state.settings=await state.store.saveSettings({returnOnAttention:event.target.checked});});
   }else if(section==='context'){
     const context=normalizeContextSettings(state.settings.context),images=normalizeImageSettings(state.settings.images);
     panel(t('context.title'),'',`<form id="context-form">
@@ -833,6 +837,7 @@ async function boot() {
   $('#back-sessions').onclick=guard(()=>state.navigation?state.navigation.back({screen:'list',sessionId:null,panel:null,action:null}):$('#app').classList.remove('in-conversation'));$('#session-menu').onclick=guard(showSessionMenu);
   $('#conversation-device').onclick=guard(showDevices);$('#open-settings').onclick=guard(showSettings);$('#open-devices').onclick=guard(showDevices);
   $('#conversation-latest').onclick=guard(showLatestConversation);
+  state.contextMeter=mountContextMeter($('#context-meter'),{inspect:options=>state.harness.inspectContext(options),compact:options=>state.harness.compact(options),onBusy:busy=>{state.contextCompacting=busy;$('#model-select').disabled=busy||state.running;$('#reasoning-select').disabled=busy||state.running;renderRunControls();}});state.contextMeter.setContext(contextMeterState());
   $('#resume-run').onclick=guard(resumeRun);capture.subscribe(event=>{state.deviceStatus=state.devicePanel?.getState?.();updateModeDescription();renderDeviceStatus();if(event.type==='stopped'&&state.running){$('#run-status').textContent=t('interaction.shareStopped');}renderRunControls();});
   mountComposerFocus($('#message-input'));
   $('#composer').onsubmit=guard(sendMessage);$('#message-input').oninput=()=>{resizeInput();rememberComposerDraft();};$('#stop-run').onclick=()=>{state.harness.stop();state.abort?.abort();$('#run-status').textContent='正在停止…';};

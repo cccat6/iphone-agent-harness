@@ -55,7 +55,7 @@ test('preparing clipboard text pauses after a local queue receipt and sends no p
  const {store,session}=await setup();let models=0,inputs=0;const prepared=[];
  const h=createHarness({store,getContext:()=>trusted,executePlan:async()=>{inputs++;},clipboard:{prepare:args=>{prepared.push(args);return {status:'awaiting_user_action',sessionId:args.sessionId,targetId:args.targetId,requestId:'copy',characters:args.text.length};}},invoke:async request=>{models++;assert.ok(request.tools.some(t=>t.name==='phone_prepare_clipboard'));return {text:'',toolCalls:[{id:'prepare',name:'phone_prepare_clipboard',arguments:{text:'中文 long text'}},{id:'must-not-paste',name:'phone_execute_plan',arguments:{plan:plan(session.id)}}]};}});
  await h.run({sessionId:session.id,text:'Type this text'});assert.deepEqual(prepared,[{text:'中文 long text',sessionId:session.id,targetId:'phone'}]);assert.equal(inputs,0);assert.equal(models,1);
- const messages=await store.getMessages(session.id);assert.equal(JSON.parse(messages.find(m=>m.toolCallId==='prepare').text).status,'awaiting_user_action');assert.equal(JSON.parse(messages.find(m=>m.toolCallId==='must-not-paste').text).status,'error');assert.equal((await store.getSession(session.id)).activeRun,undefined);
+ const messages=await store.getMessages(session.id);assert.equal(JSON.parse(messages.find(m=>m.toolCallId==='prepare').text).status,'awaiting_user_action');assert.equal(JSON.parse(messages.find(m=>m.toolCallId==='must-not-paste').text).status,'not_executed');assert.equal(JSON.parse(messages.find(m=>m.toolCallId==='must-not-paste').text).code,'task_needs_user');assert.equal((await store.getSession(session.id)).activeRun,undefined);
 });
 
 test('offline clipboard preparation fails as missing bridge without queuing text',async()=>{

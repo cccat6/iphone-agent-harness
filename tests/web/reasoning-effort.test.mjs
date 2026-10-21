@@ -15,7 +15,7 @@ test('effort choices follow selected catalog model, including explicit unsupport
  const selected=resolveModelSelection(settings,'a::gpt-5.4');assert.deepEqual(reasoningOptions(selected),['high']);assert.equal(selected.contextWindowTokens,1000000);
  assert.deepEqual(reasoningOptions(resolveModelSelection(settings,'a::plain')),[]);
  assert.deepEqual(reasoningOptions({...openai,model:'unknown-future-model'}),[]);
- assert.equal(normalizeReasoningEffort(selected,'xhigh'),'auto');assert.equal(normalizeReasoningEffort(selected,'high'),'high');
+ assert.equal(normalizeReasoningEffort(selected,'xhigh'),'high');assert.equal(normalizeReasoningEffort(selected,'high'),'high');
 });
 test('known model fallbacks expose only documented levels and do not guess future model IDs',()=>{
  assert.deepEqual(reasoningOptions(openai),['none','low','medium','high','xhigh']);
@@ -29,16 +29,16 @@ test('known model fallbacks expose only documented levels and do not guess futur
  assert.deepEqual(reasoningOptions(deepseek('openai')),['none','low','high','max']);
  assert.deepEqual(reasoningOptions({...deepseek('openai'),model:'deepseek-chat'}),[]);
 });
-test('OpenAI effort is transmitted, auto and unsupported effort omitted, reasoning output budget uses completion token field',async()=>{
+test('OpenAI legacy auto and unsupported preferences resolve to a supported default',async()=>{
  let sent=await payload({...openai,reasoningEffort:'high',maxTokens:2048});assert.equal(sent.reasoning_effort,'high');assert.equal(sent.max_completion_tokens,2048);assert.equal(sent.max_tokens,undefined);
- for(const effort of ['auto','unsupported','max',undefined]){sent=await payload({...openai,reasoningEffort:effort});assert.equal(sent.reasoning_effort,undefined);assert.equal(sent.thinking,undefined);}
+ for(const effort of ['auto','unsupported','max',undefined]){sent=await payload({...openai,reasoningEffort:effort});assert.equal(sent.reasoning_effort,'none');assert.equal(sent.thinking,undefined);}
  sent=await payload({...openai,model:'gpt-4.1',reasoningEffort:'high'});assert.equal(sent.reasoning_effort,undefined);
 });
 for(const protocol of ['openai','anthropic'])test(`DeepSeek ${protocol} uses its documented thinking and effort fields`,async()=>{
  const disabled=await payload({...deepseek(protocol),reasoningEffort:'none'});assert.deepEqual(disabled.thinking,{type:'disabled'});assert.equal(disabled.reasoning_effort,undefined);assert.equal(disabled.output_config,undefined);
  const high=await payload({...deepseek(protocol),reasoningEffort:'max'});assert.deepEqual(high.thinking,{type:'enabled'});
  if(protocol==='anthropic'){assert.deepEqual(high.output_config,{effort:'max'});assert.equal(high.reasoning_effort,undefined);}else{assert.equal(high.reasoning_effort,'max');assert.equal(high.output_config,undefined);}
- const auto=await payload({...deepseek(protocol),reasoningEffort:'auto'});assert.equal(auto.thinking,undefined);assert.equal(auto.reasoning_effort,undefined);assert.equal(auto.output_config,undefined);
+ const auto=await payload({...deepseek(protocol),reasoningEffort:'auto'});assert.deepEqual(auto.thinking,{type:'enabled'});if(protocol==='anthropic'){assert.deepEqual(auto.output_config,{effort:'high'});assert.equal(auto.reasoning_effort,undefined);}else{assert.equal(auto.reasoning_effort,'high');assert.equal(auto.output_config,undefined);}
 });
 test('Claude effort uses adaptive thinking only on supported models; older extended thinking has no invented effort levels',async()=>{
  const claude={protocol:'anthropic',baseUrl:'https://api.anthropic.com',stream:false,model:'claude-sonnet-4-6',reasoningEffort:'max'};
@@ -51,16 +51,16 @@ test('API model discovery preserves bounded supported effort metadata through se
  assert.deepEqual(models[0].supportedReasoningEfforts,['low','high']);assert.equal(models[0].defaultReasoningEffort,'low');
  const selected=resolveModelSelection({providers:[{...openai,models}]},'a::custom');assert.deepEqual(reasoningOptions(selected),['low','high']);assert.deepEqual(reasoningParameters({...selected,reasoningEffort:'high'}),{reasoning_effort:'high'});
 });
-test('Codex exact catalog efforts survive discovery and use Responses reasoning schema; auto omitted',async()=>{
+test('Codex catalog default migrates legacy auto to an exact supported Responses effort',async()=>{
  clearCodexAccounts();const b64=x=>Buffer.from(JSON.stringify(x)).toString('base64url'),token=b64({alg:'none'})+'.'+b64({'https://api.openai.com/auth':{chatgpt_account_id:'acct'}})+'.fixture';registerCodexAccount('acct',{access_token:token,refresh_token:'synthetic',expires_in:3600});
  try{
  const models=await discoverCodexModels({accountId:'acct',fetchImpl:async()=>Response.json({models:[{slug:'custom-codex',supported_reasoning_levels:[{effort:'low'},{effort:'ultra'}],default_reasoning_level:'low'}]})});assert.deepEqual(models[0].supportedReasoningEfforts,['low','ultra']);
  const provider={protocol:'codex',accountId:'acct',model:'custom-codex',models};
- for(const effort of ['ultra','auto','high'])await callCodexModel({provider:{...provider,reasoningEffort:effort},messages:[],fetchImpl:async(url,options)=>{const sent=JSON.parse(options.body);assert.deepEqual(sent.reasoning,effort==='ultra'?{effort:'ultra',summary:'auto'}:undefined);return new Response('data: '+JSON.stringify({type:'response.completed',response:{status:'completed',output:[{type:'message',content:[{type:'output_text',text:'ok'}]}]}})+'\n\n');}});
+ for(const effort of ['ultra','auto','high'])await callCodexModel({provider:{...provider,reasoningEffort:effort},messages:[],fetchImpl:async(url,options)=>{const sent=JSON.parse(options.body);assert.deepEqual(sent.reasoning,{effort:effort==='ultra'?'ultra':'low',summary:'auto'});return new Response('data: '+JSON.stringify({type:'response.completed',response:{status:'completed',output:[{type:'message',content:[{type:'output_text',text:'ok'}]}]}})+'\n\n');}});
  }finally{clearCodexAccounts();}
 });
 test('all eight locales describe every supported reasoning choice',()=>{
- assert.equal(Object.keys(REASONING_MESSAGES).length,8);for(const table of Object.values(REASONING_MESSAGES))for(const key of ['label','auto','none','minimal','low','medium','high','xhigh','max','ultra'])assert.equal(typeof table['reasoning.'+key],'string');
+ assert.equal(Object.keys(REASONING_MESSAGES).length,8);for(const table of Object.values(REASONING_MESSAGES))for(const key of ['label','none','minimal','low','medium','high','xhigh','max','ultra'])assert.equal(typeof table['reasoning.'+key],'string');
 });
 
 import {indexedDB,IDBKeyRange} from 'fake-indexeddb';
@@ -93,10 +93,20 @@ test('actual reasoning selector renders catalog choices and persists a session o
  const select={value:'',setAttribute(name,value){this[name]=value;}},modelSelect={value:'a::chosen'},$=selector=>selector==='#reasoning-select'?select:modelSelect;
  const state={settings,current,running:false,submitting:false,store};
  const context=vm.createContext({state,$,selectedProvider:()=>profile,selectionParts:value=>({modelId:value.split('::')[1]}),reasoningOptions,normalizeReasoningEffort,t:key=>key,escapeHTML:String,guard:fn=>fn});
- vm.runInContext(source.slice(start,end),context);context.renderReasoningOptions();assert.equal(select.hidden,false);assert.equal(select.value,'high');assert.match(select.innerHTML,/value="auto"/);assert.match(select.innerHTML,/value="low"/);assert.match(select.innerHTML,/value="high"/);assert.doesNotMatch(select.innerHTML,/value="max"/);
+ vm.runInContext(source.slice(start,end),context);context.renderReasoningOptions();assert.equal(select.hidden,false);assert.equal(select.value,'high');assert.doesNotMatch(select.innerHTML,/value="auto"/);assert.match(select.innerHTML,/value="low"/);assert.match(select.innerHTML,/value="high"/);assert.doesNotMatch(select.innerHTML,/value="max"/);
  const changeStart=source.indexOf('async function changeReasoningSelection()'),changeEnd=source.indexOf('\nasync function changeModelSelection(',changeStart);vm.runInContext(source.slice(changeStart,changeEnd),context);
  const handlerStart=source.indexOf("$('#reasoning-select').onchange=guard("),handlerEnd=source.indexOf("\n  $('#model-select').onchange",handlerStart);assert.ok(handlerStart>=0&&handlerEnd>handlerStart);vm.runInContext(source.slice(handlerStart,handlerEnd),context);
  select.value='low';await select.onchange();assert.equal((await store.getSession(current.id)).reasoningEfforts['a::chosen'],'low');assert.equal(state.current.reasoningEfforts['a::plain'],'auto');assert.equal((await store.getSettings()).reasoningEfforts['a::chosen'],'high');assert.equal(state.settings.reasoningEfforts['other::chosen'],'low');
  state.running=true;context.renderReasoningOptions();assert.equal(select.disabled,true);state.running=false;
- modelSelect.value='a::plain';context.renderReasoningOptions();assert.equal(select.hidden,true);assert.equal(select.value,'auto');store.close();
+ modelSelect.value='a::plain';context.renderReasoningOptions();assert.equal(select.hidden,true);assert.equal(select.value,'');assert.equal(select.disabled,true);store.close();
+});
+
+test('legacy auto and missing values resolve to catalog defaults before known fallbacks',()=>{
+ const provider={...openai,model:'custom',models:[{id:'custom',supportedReasoningEfforts:['low','high'],defaultReasoningEffort:'high'}]};for(const value of [undefined,'auto','unsupported'])assert.equal(normalizeReasoningEffort(provider,value),'high');assert.equal(normalizeReasoningEffort(provider,'low'),'low');assert.equal(normalizeReasoningEffort({...provider,models:[{id:'custom',supportedReasoningEfforts:['low','high']}]},'auto'),'low');assert.equal(normalizeReasoningEffort({...provider,models:[{id:'custom',supportedReasoningEfforts:[]}]},'auto'),'');assert.deepEqual(reasoningParameters({...openai,model:'unknown',reasoningEffort:'auto'}),{});
+ assert.equal(normalizeReasoningEffort({...openai,model:'gpt-5'},'auto'),'medium');assert.equal(normalizeReasoningEffort({...openai,model:'gpt-5.1'},'auto'),'none');assert.equal(normalizeReasoningEffort({...openai,model:'gpt-6-luna'},'auto'),'medium');assert.ok(reasoningOptions({...openai,model:'gpt-6-luna'}).includes('none'));assert.ok(!reasoningOptions({...openai,model:'gpt-6.1-sol'}).includes('none'));assert.deepEqual(reasoningOptions({...openai,model:'gpt-6.1-luna'}),[]);
+ for(const table of Object.values(REASONING_MESSAGES))assert.equal(Object.hasOwn(table,'reasoning.auto'),false);
+});
+
+test('reasoning selection updates value without rebuilding unchanged native options',async()=>{
+ const source=await readFile(new URL('../../apps/web/app.js',import.meta.url),'utf8'),start=source.indexOf('function renderReasoningOptions()'),end=source.indexOf('\nfunction updateModeDescription(',start);let writes=0,html='',language='en';const select={value:'',setAttribute(){},get innerHTML(){return html;},set innerHTML(value){writes++;html=value;}},profile={...openai,models:[{id:'chosen',supportedReasoningEfforts:['low','high'],defaultReasoningEffort:'high'}]},model={value:'a::chosen'},state={settings:{},current:null,running:false,submitting:false},context=vm.createContext({state,$:id=>id==='#reasoning-select'?select:model,selectedProvider:()=>profile,selectionParts:value=>({modelId:value.split('::')[1]}),reasoningOptions,normalizeReasoningEffort,t:key=>language+':'+key,escapeHTML:String});vm.runInContext(source.slice(start,end),context);context.renderReasoningOptions();assert.equal(writes,1);assert.equal(select.value,'high');state.settings.reasoningEfforts={'a::chosen':'low'};context.renderReasoningOptions();assert.equal(writes,1);assert.equal(select.value,'low');language='zh';context.renderReasoningOptions();assert.equal(writes,2);context.renderReasoningOptions();assert.equal(writes,2);
 });

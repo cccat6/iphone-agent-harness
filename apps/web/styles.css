@@ -322,3 +322,39 @@ body.panel-route,.panel-route .panel-dialog[open]{background:#fbf8f6}
 @media(prefers-reduced-motion:reduce){.harness-surface .app-shell{transition:none}}
 
 .conversation-latest .ui-icon-down{--icon:url('./icons/arrow-down.svg')}
+
+/* Native picker selection stays borderless inside the compact composer. */
+.composer select,.composer select:focus{outline:none;caret-color:transparent;border-radius:8px}
+.composer select:focus-visible{box-shadow:none}
+#reasoning-select{text-align:right;text-align-last:right}
+
+/* Context details float above the composer without changing keyboard geometry. */
+.composer-toolbar{justify-content:flex-end;flex-wrap:nowrap;gap:8px}
+.composer-toolbar .composer-options{margin-left:auto;justify-content:flex-end;flex-wrap:nowrap;min-width:0;max-width:calc(100% - 105px)}
+.composer-toolbar #model-select{flex:1 1 auto;min-width:0;text-align:right;text-align-last:right}
+.composer-toolbar #reasoning-select{flex:0 1 auto;text-align:right;text-align-last:right}
+.context-meter{flex:0 0 auto;margin-right:auto;min-width:0}
+.context-meter-button{display:flex;align-items:center;gap:5px;min-height:34px;padding:3px 0;border:0;background:transparent;color:var(--muted);font-family:inherit;font-size:11px;font-weight:500;line-height:1.2;white-space:nowrap;cursor:pointer}
+.context-meter-button:disabled{opacity:.45;cursor:default}
+.context-meter-ring{width:21px;height:21px;flex:none;fill:none;stroke-width:2.2;transform:rotate(-90deg)}
+.context-meter-track{stroke:var(--line,#eaded7)}
+.context-meter-progress{stroke:var(--accent);stroke-linecap:round;transition:stroke-dasharray .2s}
+.context-meter-high .context-meter-progress{stroke:var(--danger,#bb3927)}
+.context-meter-popup{position:fixed;z-index:1000;margin:0;padding:16px;border:1px solid var(--line,#eaded7);border-radius:16px;background:var(--panel,#fff);box-shadow:0 12px 40px #33233020;color:var(--text,#332330);font-size:13px;max-height:calc(var(--viewport-height,100dvh) - 24px);overflow:auto;box-sizing:border-box}
+.context-meter-popup[hidden]{display:none}
+.context-meter-popup header{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.context-meter-popup header strong{font-size:15px}
+.context-compact-button{display:grid;place-items:center;width:34px;height:34px;padding:7px;border:1px solid var(--line,#eaded7);border-radius:9px;background:var(--soft,#fff4ed);color:var(--accent);cursor:pointer}
+.context-compact-button:disabled{opacity:.4;cursor:default}
+.context-compact-button svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.context-meter-source{font-size:11px;color:var(--muted);margin:4px 0 12px}
+.context-meter-popup dl{margin:0;display:grid;gap:10px}
+.context-meter-popup dl>div{display:flex;justify-content:space-between;gap:16px}
+.context-meter-popup dt{color:var(--muted)}
+.context-meter-popup dd{margin:0;font-variant-numeric:tabular-nums;text-align:right}
+.context-meter-unknown,.context-meter-last,.context-meter-status{font-size:11px;line-height:1.55;color:var(--muted);margin:12px 0 0}
+.context-meter-popup p[hidden]{display:none}
+.context-meter-button:focus-visible,.context-compact-button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media(max-width:380px){.composer-toolbar{gap:5px}.composer-toolbar .composer-options{gap:3px;max-width:calc(100% - 96px)}.context-meter-button{font-size:10px;gap:3px}.context-meter-ring{width:19px;height:19px}}
+
+.context-meter-caption{display:grid;gap:2px;text-align:left;font-variant-numeric:tabular-nums}.context-meter-caption small{font-size:9px;font-weight:400;color:var(--muted);line-height:1.1}

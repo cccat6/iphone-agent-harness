@@ -19,13 +19,20 @@ test('production return callback verifies the exact visible focused conversation
  nodes['#app'].classList.contains=()=>false;assert.equal(read().visible,false);
 });
 
-test('the actual completion setting is enabled by default and persists opt-out without replacing other settings',async()=>{
- const store=await openStore({memory:true});await store.saveSettings({locale:'ja',providers:[{id:'preserved-api'}]});const state={store,settings:await store.getSettings()},checkbox={};let html='';
- const context=vm.createContext({state,settings:state.settings,panel(title,subtitle,body){html=body;},t:key=>key,systemTextHTML:key=>key,$:()=>checkbox,guard:fn=>fn});
- const start=source.indexOf("    panel(t('taskSettings.title')"),end=source.indexOf("  }else if(section==='context')",start);assert.ok(start>=0&&end>start);
- vm.runInContext(source.slice(start,end),context);assert.match(html,/type="checkbox" checked/);await checkbox.onchange({target:{checked:false}});
- assert.equal((await store.getSettings()).returnToHarness,false);assert.equal((await store.getSettings()).locale,'ja');assert.equal((await store.getSettings()).providers[0].id,'preserved-api');
- context.settings=await store.getSettings();vm.runInContext(source.slice(start,end),context);assert.doesNotMatch(html,/type="checkbox" checked/);await checkbox.onchange({target:{checked:true}});assert.equal((await store.getSettings()).returnToHarness,true);store.close();
+test('return settings default on and persist independently without replacing other settings',async()=>{
+ const store=await openStore({memory:true});await store.saveSettings({locale:'ja',providers:[{id:'preserved-api'}]});const state={store,settings:await store.getSettings()},checkboxes={'#return-to-harness':{},'#return-on-attention':{}};let html='';
+ const context=vm.createContext({state,settings:state.settings,panel(title,subtitle,body){html=body;},t:key=>key,systemTextHTML:key=>key,$:key=>checkboxes[key],guard:fn=>fn});
+ const start=source.indexOf("    panel(t('taskSettings.title')"),end=source.indexOf("  }else if(section==='context')",start);
+ vm.runInContext(source.slice(start,end),context);assert.equal((html.match(/type="checkbox" checked/g)||[]).length,2);
+ await checkboxes['#return-to-harness'].onchange({target:{checked:false}});
+ assert.equal((await store.getSettings()).returnToHarness,false);
+ await checkboxes['#return-on-attention'].onchange({target:{checked:false}});
+ assert.equal((await store.getSettings()).returnOnAttention,false);
+ context.settings=await store.getSettings();vm.runInContext(source.slice(start,end),context);assert.doesNotMatch(html,/type="checkbox" checked/);
+ await checkboxes['#return-on-attention'].onchange({target:{checked:true}});
+ assert.equal((await store.getSettings()).returnToHarness,false);assert.equal((await store.getSettings()).returnOnAttention,true);
+ assert.equal((await store.getSettings()).locale,'ja');assert.equal((await store.getSettings()).providers[0].id,'preserved-api');
+ await checkboxes['#return-to-harness'].onchange({target:{checked:true}});assert.equal((await store.getSettings()).returnToHarness,true);store.close();
 });
 
 test('the homepage has a localized five-step guide in all eight languages',()=>{

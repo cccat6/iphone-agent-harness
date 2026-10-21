@@ -17,7 +17,7 @@ export async function installBuiltinSkills(store){
     if(!valid)await store.saveSkill({...structuredClone(skill),enabled:old?.source==='builtin'?old.enabled!==false:true});
   }
 }
-export async function snapshotSkills(store){await installBuiltinSkills(store);return (await store.listSkills()).filter(s=>s.enabled!==false).map(s=>structuredClone(s));}
+export async function snapshotSkills(store,{readonly=false}={}){if(!readonly){await installBuiltinSkills(store);return (await store.listSkills()).filter(s=>s.enabled!==false).map(s=>structuredClone(s));}const installed=await store.listSkills(),byId=new Map(installed.map(s=>[s.id,s])),reserved=new Set(BUILTIN_SKILLS.map(s=>s.id));return [...installed.filter(s=>!reserved.has(s.id)),...BUILTIN_SKILLS.map(s=>({...s,enabled:byId.get(s.id)?.source==='builtin'?byId.get(s.id).enabled!==false:true}))].filter(s=>s.enabled!==false).map(s=>structuredClone(s));}
 export function readSkill(skills,id,path='SKILL.md'){
   if(typeof id!=='string'||!id||typeof path!=='string'||path.startsWith('/')||path.includes('..')||path.includes('\\'))throw new Error('无效 Skill 或资源路径');
   const skill=skills.find(s=>s.id===id);if(!skill)throw new Error('Skill 未安装或未启用');
