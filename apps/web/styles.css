@@ -333,14 +333,14 @@ body.panel-route,.panel-route .panel-dialog[open]{background:#fbf8f6}
 .composer-toolbar .composer-options{margin-left:auto;justify-content:flex-end;flex-wrap:nowrap;min-width:0;max-width:calc(100% - 84px)}
 .composer-toolbar #model-select{flex:1 1 auto;min-width:0;text-align:right;text-align-last:right}
 .composer-toolbar #reasoning-select{flex:0 1 auto;text-align:right;text-align-last:right}
-.context-meter{flex:0 0 auto;margin-right:auto;min-width:0}
+.context-meter{position:relative;flex:0 0 auto;margin-right:auto;min-width:0}
 .context-meter-button{display:flex;align-items:center;justify-content:center;width:34px;min-height:34px;padding:6px;border:0;background:transparent;color:var(--muted);font-family:inherit;font-size:11px;font-weight:500;line-height:1.2;white-space:nowrap;cursor:pointer}
 .context-meter-button:disabled{opacity:.45;cursor:default}
 .context-meter-ring{width:21px;height:21px;flex:none;fill:none;stroke-width:2.2;transform:rotate(-90deg)}
 .context-meter-track{stroke:var(--line,#eaded7)}
 .context-meter-progress{stroke:var(--accent);stroke-linecap:round;transition:stroke-dasharray .2s}
 .context-meter-high .context-meter-progress{stroke:var(--danger,#bb3927)}
-.context-meter-popup{position:fixed;z-index:1000;margin:0;padding:16px;border:1px solid var(--line,#eaded7);border-radius:16px;background:var(--panel,#fff);box-shadow:0 12px 40px #33233020;color:var(--text,#332330);font-size:13px;max-height:calc(var(--viewport-height,100dvh) - 24px);overflow:auto;box-sizing:border-box}
+.context-meter-popup{position:absolute;bottom:calc(100% + 10px);left:0;z-index:1000;margin:0;padding:16px;border:1px solid var(--line,#eaded7);border-radius:16px;background:var(--panel,#fff);box-shadow:0 12px 40px #33233020;color:var(--text,#332330);font-size:13px;max-height:calc(var(--viewport-height,100dvh) - 24px);overflow:auto;box-sizing:border-box}
 .context-meter-popup[hidden]{display:none}
 .context-meter-popup header{display:flex;align-items:center;justify-content:space-between;gap:12px}
 .context-meter-popup header strong{font-size:15px}
