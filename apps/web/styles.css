@@ -81,6 +81,7 @@ body.harness-surface{position:fixed;inset:0;overflow:hidden}
 .capture-status::before{content:"";width:6px;height:6px;flex:0 0 6px;border-radius:50%;background:#a59b9f}
 .capture-status.sharing::before{background:#3f9076}
 .conversation-device{flex:0 1 auto;max-width:58%;min-width:0;border:0;background:transparent;color:var(--muted);font-size:12px;text-align:right;padding:9px 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.conversation-device::before{content:"";display:inline-block;width:14px;height:14px;margin-right:5px;vertical-align:-2px;background:currentColor;-webkit-mask:url("./icons/cpu.svg") center/contain no-repeat;mask:url("./icons/cpu.svg") center/contain no-repeat}
 .conversation-device.connected{color:var(--accent)}
 .panel-dialog,.panel-header,.panel-body{background:#fff}
 .panel-header{gap:8px;padding:16px 20px;min-height:68px}.panel-header>div{flex:1}.panel-header h2{font-size:18px;letter-spacing:-.3px}
@@ -369,3 +370,6 @@ body.panel-route,.panel-route .panel-dialog[open]{background:#fbf8f6}
 .composer .composer-picker select,.composer .composer-picker #model-select,.composer .composer-picker #reasoning-select{position:absolute;inset:0;width:100%;height:100%;max-width:none;margin:0;padding:0;opacity:0;font-size:16px;line-height:normal;border:0;border-radius:0;background:none;outline:none;box-shadow:none;cursor:pointer;text-align:right;text-align-last:right}
 .composer .composer-picker select:focus,.composer .composer-picker select:focus-visible{outline:none;box-shadow:none}
 .composer-picker:has(select:disabled){opacity:.5}
+
+/* A location request stays with its conversation until the user responds. */
+.location-request-panel{margin:8px 12px;padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:var(--soft);font-size:14px}.location-request-panel p{margin:0 0 10px}.location-request-panel .panel-actions{display:flex;gap:8px;flex-wrap:wrap}.location-request-panel .quiet-note{margin:10px 0 0}

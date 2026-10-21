@@ -305,7 +305,7 @@ class FirmwareReleaseTests(unittest.TestCase):
         self.assertIn('cancel-in-progress: false', text)
         self.assertEqual(text.count('python3 tools/build_c2_sdk_test.py'),1)
         self.assertEqual(text.count("if: steps.firmware.outputs.compile == 'true'"), 3)
-        order = ['firmware_release.py plan', 'build_firmware.py --parallel', 'firmware_release.py verify', 'npm run build', 'firmware_release.py publish', 'wrangler deploy --config wrangler.relay.production.jsonc\n', 'wrangler deploy\n', 'verify_release_site.mjs']
+        order = ['firmware_release.py plan', 'build_firmware.py --parallel', 'firmware_release.py verify', 'npm run build', 'firmware_release.py publish', 'write_firmware_publication.py', 'wrangler deploy --config wrangler.relay.production.jsonc\n', 'wrangler deploy\n', 'verify_release_site.mjs']
         positions = [text.index(item) for item in order]
         self.assertEqual(positions, sorted(positions))
         self.assertIn('wrangler deploy --config wrangler.relay.production.jsonc --dry-run', text)

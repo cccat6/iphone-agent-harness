@@ -1,38 +1,12 @@
 import {t as translate} from '../i18n.js';
-
 export async function mountLocationSettings(root,{store,access,t=translate,onSave=()=>{},onError=()=>{}}={}){
-  root.innerHTML='<label class="check-field"><input id="location-enabled" type="checkbox"><span id="location-label" data-i18n="location.enable"></span></label><p id="location-help" data-i18n="location.help" class="quiet-note"></p><p id="location-permission" class="quiet-note" role="status"></p><p id="location-denied-help" data-i18n="location.deniedHelp" class="quiet-note" hidden></p>';
-  const input=root.querySelector('#location-enabled'),status=root.querySelector('#location-permission'),help=root.querySelector('#location-denied-help');
-  root.querySelector('#location-label').textContent=t('location.enable');
-  root.querySelector('#location-help').textContent=t('location.help');
-  help.textContent=t('location.deniedHelp');
-  let revision=0,savedSettings=await store.getSettings();
-  async function render(settings,knownPermission){
-    const current=++revision;
-    input.checked=settings.locationEnabled===true;input.disabled=!access.supported();
-    const permission=knownPermission||await access.permission();
-    if(current!==revision)return;
-    const key='location.'+(!access.supported()?'unsupported':!input.checked?'off':permission==='unknown'?'on':permission);
-    status.setAttribute?.('data-i18n',key);status.textContent=t(key);
-    help.hidden=!input.checked||permission!=='denied';
-  }
-  input.onchange=async()=>{
-    const enabled=input.checked;
-    if(!enabled)access.cancel();
-    input.disabled=true;
-    try{
-      savedSettings=await store.saveSettings({locationEnabled:enabled});onSave(savedSettings);
-      if(enabled){
-        status.setAttribute?.('data-i18n','location.requesting');status.textContent=t('location.requesting');help.hidden=true;
-        try{
-          // Trigger browser permission while Settings is visible. Discard this
-          // fix; only an explicit agent tool call shares a position with a model.
-          await access.read();
-          await render(savedSettings,'granted');
-        }catch(error){onError(error);await render(savedSettings,error?.code==='LOCATION_DENIED'?'denied':undefined);}
-      }else await render(savedSettings);
-    }
-    catch(error){onError(error);await render(savedSettings);}
-  };
-  await render(savedSettings);
+ root.innerHTML='<label class="check-field"><input id="location-enabled" type="checkbox"><span id="location-label" data-i18n="location.enable"></span></label><p id="location-help" data-i18n="location.help" class="quiet-note"></p><p id="location-permission" class="quiet-note" role="status"></p><p id="location-denied-help" data-i18n="location.deniedHelp" class="quiet-note" hidden></p>';
+ const input=root.querySelector('#location-enabled'),status=root.querySelector('#location-permission'),help=root.querySelector('#location-denied-help');root.querySelector('#location-label').textContent=t('location.enable');root.querySelector('#location-help').textContent=t('location.help');help.textContent=t('location.deniedHelp');let revision=0,disposed=false,working=false,controller=null;
+ async function render(){const current=++revision,grant=access.syncPermission?await access.syncPermission():{permission:await access.permission()};let settings=await store.getSettings();if(current!==revision||disposed)return;const confirmed=grant.confirmed??grant.permission==='granted';if(settings.locationEnabled===true&&!confirmed){settings=await store.saveSettings({locationEnabled:false});onSave(settings);}if(current!==revision||disposed)return;input.checked=settings.locationEnabled===true&&confirmed;input.disabled=working||!access.supported();const key='location.'+(!access.supported()?'unsupported':grant.permission==='denied'?'denied':input.checked?'granted':grant.permission==='unknown'?'unknown':'prompt');status.setAttribute?.('data-i18n',key);status.textContent=t(key);help.hidden=grant.permission!=='denied';}
+ input.onchange=async()=>{if(working||disposed)return;const enabled=input.checked;controller?.abort();controller=new AbortController();working=true;input.disabled=true;
+  try{if(enabled){status.setAttribute?.('data-i18n','location.requesting');status.textContent=t('location.requesting');help.hidden=true;const grant=await access.authorize({signal:controller.signal});if(disposed)return;const settings=await store.saveSettings({locationEnabled:grant.confirmed===true});onSave(settings);}else{access.cancel();const settings=await store.saveSettings({locationEnabled:false});onSave(settings);}}
+  catch(error){if(!disposed&&error.name!=='AbortError')onError(error);}
+  finally{working=false;if(!disposed)try{await render();}catch(error){onError(error);input.checked=false;input.disabled=!access.supported();}}
+ };
+ const unsubscribe=access.subscribe?.(()=>{if(!working&&!disposed&&root.isConnected!==false)void render().catch(onError);});await render();return {dispose(){disposed=true;revision++;controller?.abort();unsubscribe?.();}};
 }

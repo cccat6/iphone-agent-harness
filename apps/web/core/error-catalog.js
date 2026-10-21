@@ -142,4 +142,4 @@ const rows=[
 export const ERROR_CATALOG=Object.fromEntries(rows.flatMap(([aliases,texts])=>aliases.map(alias=>[alias,Object.fromEntries(locales.map((locale,i)=>[locale,texts[i]]))])));
 Object.assign(ERROR_CATALOG,HARNESS_RETURN_ERRORS,SIWC_ERROR_CATALOG);
 
-for(const [code,key] of Object.entries({LOCATION_DISABLED:'disabledError',LOCATION_DENIED:'deniedError',LOCATION_UNAVAILABLE:'unavailableError',LOCATION_TIMEOUT:'timeoutError',LOCATION_UNSUPPORTED:'unsupportedError'}))ERROR_CATALOG[code]=Object.fromEntries(Object.entries(LOCATION_MESSAGES).map(([locale,table])=>[locale,table['location.'+key]]));
+for(const [code,key] of Object.entries({LOCATION_PERMISSION_REQUIRED:'permissionRequiredError',LOCATION_DISABLED:'disabledError',LOCATION_DENIED:'deniedError',LOCATION_UNAVAILABLE:'unavailableError',LOCATION_TIMEOUT:'timeoutError',LOCATION_UNSUPPORTED:'unsupportedError'}))ERROR_CATALOG[code]=Object.fromEntries(Object.entries(LOCATION_MESSAGES).map(([locale,table])=>[locale,table['location.'+key]]));

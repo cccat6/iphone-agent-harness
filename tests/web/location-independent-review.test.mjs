@@ -13,20 +13,20 @@ function fixture({settings={},permissions}={}){
 }
 
 test('opening settings only checks permission; enabling requests a fix immediately and discards it',async()=>{
- const f=fixture({permissions:async()=>({state:'prompt'})}),fields=new Map(),field=key=>{if(!fields.has(key))fields.set(key,{});return fields.get(key);},root={innerHTML:'',querySelector:field};
+ let permission='prompt';const f=fixture({permissions:async()=>({state:permission})}),fields=new Map(),field=key=>{if(!fields.has(key))fields.set(key,{});return fields.get(key);},root={innerHTML:'',querySelector:field};
  const store={getSettings:async()=>f.get(),saveSettings:async patch=>{f.set({...f.get(),...patch});return f.get();}};
  await mountLocationSettings(root,{store,access:f.access,t:key=>key});assert.equal(field('#location-enabled').checked,false);assert.equal(f.reads(),0);assert.equal(f.queries(),1);
- field('#location-enabled').checked=true;const enabling=field('#location-enabled').onchange();await flush();assert.equal(f.reads(),1);f.callbacks[0].success(position);await enabling;assert.deepEqual(f.get(),{locationEnabled:true});assert.equal(field('#location-permission').textContent,'location.granted');
+ field('#location-enabled').checked=true;const enabling=field('#location-enabled').onchange();await flush();assert.equal(f.reads(),1);permission='granted';f.callbacks[0].success(position);await enabling;assert.deepEqual(f.get(),{locationEnabled:true});assert.equal(field('#location-permission').textContent,'location.granted');
  field('#location-enabled').checked=false;await field('#location-enabled').onchange();assert.equal(f.reads(),1);assert.equal(f.get().locationEnabled,false);
 });
 
-test('missing opt-in never reads position even with browser permission granted',async()=>{
- const f=fixture({permissions:async()=>({state:'granted'})});assert.equal(await f.access.permission(),'granted');assert.equal(await f.access.isEnabled(),false);await assert.rejects(f.access.read(),error=>error.code==='LOCATION_DISABLED');assert.equal(f.reads(),0);
+test('explicit foreground call can read position without saved opt-in',async()=>{
+ const f=fixture({permissions:async()=>({state:'granted'})});assert.equal(await f.access.permission(),'granted');assert.equal(await f.access.isEnabled(),false);const result=f.access.read();await flush();assert.equal(f.reads(),1);f.callbacks[0].success(position);assert.equal((await result).status,'located');
 });
 
 test('Safari absent or throwing Permissions.query does not block an enabled explicit read',async()=>{
  for(const permissions of [undefined,async()=>{throw new TypeError('Unsupported permission name');}]){
-  const f=fixture({settings:{locationEnabled:true},permissions});assert.equal(await f.access.permission(),'unknown');assert.equal(await f.access.isEnabled(),true);assert.equal(f.reads(),0);
+  const f=fixture({settings:{locationEnabled:true},permissions});assert.equal(await f.access.permission(),'unknown');assert.equal(await f.access.isEnabled(),false);assert.equal(f.reads(),0);
   const result=f.access.read();await flush();assert.equal(f.reads(),1);assert.deepEqual(f.callbacks[0].options,{enableHighAccuracy:false,maximumAge:0,timeout:15000});f.callbacks[0].success(position);const value=await result;assert.equal(value.latitude,position.coords.latitude);assert.equal(value.coordinateSystem,'WGS84');
  }
 });
@@ -39,7 +39,7 @@ test('cancel then re-enable rejects old position callbacks while a new read can 
 
 test('closing opt-in during final settings recheck suppresses the successful browser result',async()=>{
  let settings={locationEnabled:true},resolveFinal,readSettings=0;const callbacks=[];
- const access=createLocationAccess({getSettings:()=>++readSettings===1?settings:new Promise(resolve=>{resolveFinal=resolve;}),navigator:{geolocation:{getCurrentPosition(success){callbacks.push(success);}}}});
+ const access=createLocationAccess({getSettings:()=>++readSettings===1?settings:new Promise(resolve=>{resolveFinal=resolve;}),navigator:{permissions:{query:async()=>({state:'granted'})},geolocation:{getCurrentPosition(success){callbacks.push(success);}}}});
  const pending=access.read(),rejected=assert.rejects(pending,error=>error.code==='LOCATION_DISABLED');await flush();callbacks[0](position);await flush();assert.equal(typeof resolveFinal,'function');
  settings={locationEnabled:false};access.cancel();resolveFinal(settings);await rejected;await flush();
 });
@@ -49,5 +49,5 @@ test('caller abort drops late coordinates without changing them into a location 
 });
 
 test('a final opt-in read catches changes made outside this settings panel',async()=>{
- const f=fixture({settings:{locationEnabled:true}}),pending=f.access.read(),rejected=assert.rejects(pending,error=>error.code==='LOCATION_DISABLED');await flush();f.set({locationEnabled:false});f.callbacks[0].success(position);await rejected;
+ const f=fixture({settings:{locationEnabled:true},permissions:async()=>({state:'granted'})}),pending=f.access.read(),rejected=assert.rejects(pending,error=>error.code==='LOCATION_DISABLED');await flush();f.set({locationEnabled:false});f.callbacks[0].success(position);await rejected;
 });

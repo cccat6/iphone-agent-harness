@@ -26,7 +26,7 @@ function viewFixture(){
     const textNode={nodeValue:text,parentElement:result};result.children=[textNode];Object.defineProperty(result,'textContent',{get(){return this.children.map(node=>node.nodeValue).join('');},set(value){this.children[0].nodeValue=value;}});if(key){result.dataset.i18n=key;result.protectedContent=true;}nodes.push(result);return result;
   }
   const protectedSkill=element({text:'设置',protectedContent:true}),protectedSession=element({text:'设置',actionTitle:true}),account=element({text:'设置',cardTitle:true}),foreignDescription=element({text:'查看',protectedContent:true}),secret=element({text:'',input:true,value:'mock-unsaved-secret'}),name=element({text:'',input:true,value:'设置'}),help=element({text:messages.es['provider.visionHelp'],key:'provider.visionHelp'}),vault=element({text:messages.es['provider.vaultHelp'],key:'provider.vaultHelp'}),unlock=element({text:messages.es['provider.unlockEachTime'],key:'provider.unlockEachTime'}),builtin=element({text:messages.es['skill.phone-navigation.name'],key:'skill.phone-navigation.name'});
-  const root={querySelectorAll(selector){if(selector==='[data-i18n]')return nodes.filter(node=>node.dataset.i18n);if(selector==='#mode-select option')return [];return [];}},document={body:root,createTreeWalker(){let index=0;return {nextNode:()=>nodes[index++]?.children[0]||null};}},context=vm.createContext({document,NodeFilter:{SHOW_TEXT:4},localizing:false,viewObserver:{disconnect(){},observe(){}},viewObserverOptions:{},localizedNodes:new WeakMap(),localizedAttributes:new WeakMap(),t,translateText,$$:()=>[]});
+  const root={querySelector(){return null;},querySelectorAll(selector){if(selector==='[data-i18n]')return nodes.filter(node=>node.dataset.i18n);if(selector==='#mode-select option')return [];return [];}},document={body:root,createTreeWalker(){let index=0;return {nextNode:()=>nodes[index++]?.children[0]||null};}},context=vm.createContext({document,NodeFilter:{SHOW_TEXT:4},localizing:false,viewObserver:{disconnect(){},observe(){}},viewObserverOptions:{},localizedNodes:new WeakMap(),localizedAttributes:new WeakMap(),t,translateText,$$:()=>[]});
   vm.runInContext(localizeSource,context);
   return {render:()=>vm.runInContext('localizeView()',context),protectedSkill,protectedSession,account,foreignDescription,secret,name,help,vault,unlock,builtin};
 }
@@ -49,4 +49,11 @@ test('session import uses current-language system suffix and fallback while pres
 });
 test('unlock and capture-source error codes and legacy unlock alias are localized in all eight languages',()=>{
   for(const locale of locales){setLocale(locale);for(const code of ['CREDENTIAL_UNLOCK_FAILED','CAPTURE_SOURCE_CHANGED'])assert.equal(localizeError(Object.assign(new Error(code),{code})),ERROR_CATALOG[code][locale]);assert.equal(localizeError('无法解锁，请检查口令与账号类型。'),ERROR_CATALOG.CREDENTIAL_UNLOCK_FAILED[locale]);}setLocale('auto');
+});
+
+test('language selector wiring works independently of the localization root',()=>{
+ const select={value:'',onchange:null};let selected;
+ const context=vm.createContext({$$:()=>[select],getLocalePreference:()=> 'en',setLocale:value=>{selected=value;}});
+ const begin=source.indexOf('function wireLanguageSelector()'),end=source.indexOf('function showLanguageSettings()',begin);
+ vm.runInContext(source.slice(begin,end),context);context.wireLanguageSelector();assert.equal(select.value,'en');select.value='zh-Hans';select.onchange();assert.equal(selected,'zh-Hans');
 });

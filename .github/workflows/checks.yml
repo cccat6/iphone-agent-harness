@@ -53,6 +53,7 @@ jobs:
           python3 tools/build_c2_sdk_test.py
           python3 tools/build_firmware_test.py
           python3 tools/firmware_release_test.py
+          python3 tools/write_firmware_publication_test.py
       - name: Reuse firmware for unchanged sources and build configuration
         id: firmware
         env:
@@ -98,6 +99,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: python3 tools/firmware_release.py publish
+      - name: Record the published firmware date for the installer
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 tools/write_firmware_publication.py
       - name: Deploy the regional subscription relay
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

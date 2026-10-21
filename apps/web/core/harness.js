@@ -53,7 +53,7 @@ function callsFrom(reply){
 }
 export function chatExecutionContext(){return {identityVerified:false,bindingVerified:false,leaseVerified:false,executionEnabled:false,inputState:'unknown',orientationEpoch:0,targetId:'unbound-screen'};}
 export function createHarness({store,onEvent=()=>{},capture=screenCapture,invoke=callModel,titleInvoke=invoke===callModel?callModel:null,executePlan=null,device=null,mcp=null,clipboard=null,locationAccess=null,getContext=()=>({}),getDeviceStatus=()=>({}),getHarnessState=null,maxSteps=Infinity,maxToolCalls=Infinity,maxDurationMs=Infinity,contextChars=48000,getIdentity=openCreatorIdentity}={}){
-  locationAccess ||= createLocationAccess({getSettings:()=>store.getSettings()});
+  locationAccess ||= createLocationAccess({getSettings:()=>store.getSettings(),saveSettings:patch=>store.saveSettings(patch)});
   let active=null;
   const emit=event=>{try{onEvent(event)?.catch?.(()=>{});}catch{/* View callbacks never control execution. */}};
   const toolsFor=(mode,ctx,{locationEnabled=false,returning=false,estimate=false}={})=>{
@@ -68,7 +68,7 @@ export function createHarness({store,onEvent=()=>{},capture=screenCapture,invoke
     let provider;try{provider=resolveModelSelection({...settings,reasoningEfforts:{...settings.reasoningEfforts,...session?.reasoningEfforts}},modelId||session?.modelId||settings.activeProviderId);}catch{provider=null;}
     const skills=await snapshotSkills(store,{readonly:true});checkAbort(signal);const prefix=prefixMessages(mode,skills),ctx=await getDeviceStatus();checkAbort(signal);
     const returning=['return_to_harness'].includes(session?.promptState?.runResume?.taskCompletion?.phase)||session?.promptState?.runResume?.attentionReturn?.phase==='return_for_attention';
-    const tools=toolsFor(mode,ctx||{},{estimate:true,returning,locationEnabled:await locationAccess.isEnabled()});checkAbort(signal);
+    const tools=toolsFor(mode,ctx||{},{estimate:true,returning,locationEnabled:typeof locationAccess.supported==='function'?locationAccess.supported():await locationAccess.isEnabled()});checkAbort(signal);
     return {session,settings,provider,mode,prefixTokens:prefixEstimate(prefix,tools)};
   }
   const api={
@@ -188,7 +188,7 @@ export function createHarness({store,onEvent=()=>{},capture=screenCapture,invoke
         if(taskCompletion&&!returnRequired){taskCompletion={...taskCompletion,phase:'not_required'};terminal={status:'completed'};status='completed';answer=await store.addMessage(sessionId,{role:'assistant',text:taskCompletion.goalSummary||userText('HARNESS_RETURN_DISABLED')});emit({type:'message',message:answer});}
         for(stepCount=0;stepCount<maxSteps&&!terminal;stepCount++){
           await guard();const ctx=await context();await recordRuntime(ctx);
-          const available=toolsFor(mode,ctx,{locationEnabled:await locationAccess.isEnabled(),returning:attentionReturn?.phase==='return_for_attention'});
+          const available=toolsFor(mode,ctx,{locationEnabled:typeof locationAccess.supported==='function'?locationAccess.supported():await locationAccess.isEnabled(),returning:attentionReturn?.phase==='return_for_attention'});
           const contextModelId=provider.id+'::'+provider.model,contextOptions={store,sessionId,settings:settings.context,provider,credential,invoke,signal:runSignal,summaryPrompt:PROMPTS.summary,onEvent:event=>emit({...event,sessionId,modelId:contextModelId}),prefixTokens:prefixEstimate(prefix,available),runId:run.id};
           let projected=await prepareContext(contextOptions),reply;
           for(let attempt=0;attempt<2;attempt++){
@@ -222,7 +222,7 @@ export function createHarness({store,onEvent=()=>{},capture=screenCapture,invoke
               await journal('tool.started',{callId:call.id,name:call.name});await guard();emit({type:'status',status:'executing'});
               switch(call.name){
                 case 'phone_observe':result=await observe(call.arguments);break;
-                case 'phone_get_location':result={value:await locationAccess.read({signal:runSignal})};break;
+                case 'phone_get_location':result={value:await locationAccess.read({signal:runSignal,sessionId})};break;
                 case 'mcp_list_tools':{result={value:await abortable(mcp.listForModel({...call.arguments,signal:runSignal}),runSignal)};break;}
                 case 'mcp_call':{result={value:await abortable(mcp.call(call.arguments,{mode,signal:runSignal}),runSignal)};break;}
                 case 'phone_remember_interaction':{const latest=await context({allowClaim:false});const evidence=await Promise.all(call.arguments.evidenceFrameIds.map(async id=>observed.get(id)||await store.getRunFrameEvidence?.(sessionId,run.id,id)));if(!evidence.every(frame=>frame&&frame.targetId===latest.targetId&&frame.orientationEpoch===latest.orientationEpoch))throw new Error('Correction requires actual frames from this run and current target/orientation');const note={component:call.arguments.component,finding:call.arguments.finding,evidenceFrameIds:call.arguments.evidenceFrameIds,targetId:latest.targetId,orientationEpoch:latest.orientationEpoch,updatedAt:Date.now()};interactionNotes=[...interactionNotes.filter(n=>n.component!==note.component||n.targetId!==note.targetId||n.orientationEpoch!==note.orientationEpoch),note].slice(-24);const latestSession=await store.getSession(sessionId);await store.updateSession(sessionId,{promptState:{...latestSession?.promptState,interactionNotes}});result={value:{status:'remembered',note}};break;}
