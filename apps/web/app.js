@@ -32,6 +32,7 @@ import { unsealCredentials } from './core/auth.js';
 import { createMCPAccess } from './core/mcp.js';
 import { mountSessionSearch } from './ui/session-search.js';
 import { mountViewport } from './ui/viewport.js';
+import { mountComposerFocus } from './ui/composer-focus.js';
 import { showPanelSurface } from './ui/panel-surface.js';
 import { createMCPSettings } from './ui/mcp-settings.js';
 import { discoverModels, normalizeProviderEndpoint } from './core/providers.js';
@@ -108,7 +109,7 @@ function deviceSessionAvailable(){const value=state.devicePanel?.getState?.();re
 function renderDeviceStatus(){
   const value=state.devicePanel?.getState?.()||state.deviceStatus||{},ready=value.ready??value.inputVerified,key=value.status==='connecting'?'connecting':value.checking?'checking':!value.connected?'offline':value.bluetoothConnected===false?'phone':value.phoneInputReady===false?'input':!ready?'target':value.sharing?'sharing':'ready';
   $('#home-device-status').textContent=t('device.state.'+key);$('#home-device-detail').textContent=t(value.connected?'device.manage':'device.connectHint');$('#device-indicator').classList.toggle('verified',Boolean(ready));
-  $('#conversation-device').textContent=t('device.state.'+key);$('#conversation-device').classList.toggle('connected',Boolean(ready));
+  $('#conversation-device').textContent=t('device.state.'+(key==='sharing'?'ready':key));$('#conversation-device').classList.toggle('connected',Boolean(ready));
   $('#new-session').setAttribute('aria-label',t('session.new'));$('#new-session').setAttribute('aria-describedby','home-device-status');
 }
 async function refreshSessions() { state.sessionListCursors=[];state.sessionListBefore=null;const request=state.sessionListGeneration=(state.sessionListGeneration||0)+1;const sessions=await state.store.listSessions({archived:state.archived,search:$('#session-search').value,limit:81});if(request!==state.sessionListGeneration)return;state.sessions=sessions.slice(0,80);state.libraryCommittedArchived=state.archived;state.sessionListMore=sessions.length>80;renderSessions(); }
@@ -168,7 +169,7 @@ function renderReasoningOptions(){
   select.hidden=!options.length;select.disabled=state.running||state.submitting;select.setAttribute('aria-label',t('reasoning.label'));select.title=t('reasoning.label');
   select.innerHTML=['auto',...options].map(value=>`<option value="${value}">${escapeHTML(t('reasoning.'+value))}</option>`).join('');select.value=selected;
 }
-function updateModeDescription() { $('#mode-description').textContent=t(capture.active?'interaction.sharing':'interaction.notSharing'); }
+function updateModeDescription() { const status=$('#mode-description');status.textContent=t(capture.active?'interaction.sharing':'interaction.notSharing');status.classList.toggle('sharing',capture.active); }
 async function changeReasoningSelection(){const profile=selectedProvider();if(!profile)return;const model=selectionParts($('#model-select').value).modelId||profile.model,key=profile.id+'::'+model,value=normalizeReasoningEffort({...profile,model},$('#reasoning-select').value);if(state.current){const id=state.current.id,reasoningEfforts={...state.current.reasoningEfforts,[key]:value};await state.store.updateSession(id,{reasoningEfforts});if(state.current?.id===id)state.current.reasoningEfforts=reasoningEfforts;}else if(state.composerDraftActive&&state.composerDraft){state.composerDraft.reasoningEfforts={...state.composerDraft.reasoningEfforts,[key]:value};rememberComposerDraft();}else state.settings=await state.store.saveSettings({reasoningEfforts:{...state.settings.reasoningEfforts,[key]:value}});renderReasoningOptions();}
 async function changeModelSelection(){const selection=$('#model-select').value,resolved=selectedProvider();$('#model-select').title=resolved?`${resolved.name} · ${selectionParts(selection).modelId}`:t('provider.chooseAccountModel');renderReasoningOptions();if(state.current){const id=state.current.id;await state.store.updateSession(id,{modelId:selection});if(state.current?.id===id)state.current.modelId=selection;}else if(state.composerDraftActive&&state.composerDraft){state.composerDraft.modelId=selection;rememberComposerDraft();}}
 function rememberComposerDraft(){if(!state.composerDraftActive||state.current||!state.composerDraft)return;state.composerDraft.text=$('#message-input').value;saveComposerDraft(state.composerDraft);}
@@ -833,6 +834,7 @@ async function boot() {
   $('#conversation-device').onclick=guard(showDevices);$('#open-settings').onclick=guard(showSettings);$('#open-devices').onclick=guard(showDevices);
   $('#conversation-latest').onclick=guard(showLatestConversation);
   $('#resume-run').onclick=guard(resumeRun);capture.subscribe(event=>{state.deviceStatus=state.devicePanel?.getState?.();updateModeDescription();renderDeviceStatus();if(event.type==='stopped'&&state.running){$('#run-status').textContent=t('interaction.shareStopped');}renderRunControls();});
+  mountComposerFocus($('#message-input'));
   $('#composer').onsubmit=guard(sendMessage);$('#message-input').oninput=()=>{resizeInput();rememberComposerDraft();};$('#stop-run').onclick=()=>{state.harness.stop();state.abort?.abort();$('#run-status').textContent='正在停止…';};
   $('#reasoning-select').onchange=guard(changeReasoningSelection);
   $('#model-select').onchange=guard(changeModelSelection);

@@ -42,7 +42,7 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
   const copy=(key,params={})=>Object.entries(params).reduce((text,[name,value])=>text.replaceAll('{'+name+'}',String(value)),(DEVICE_MESSAGES[getLocale()]||DEVICE_MESSAGES.en)[key]||key);
   const node=selector=>root?.querySelector(selector);
   const mounted=()=>Boolean(root?.isConnected&&getPanelRoot()?.contains(root));
-  const getState=()=>{const connected=Boolean(connectionActive&&client?.paired&&client.identityVerified),selected=targets.find(target=>target.targetId===(client?.targetId||targetId)),bluetoothConnected=Boolean(connected&&selected?.connected),phoneInputReady=Boolean(bluetoothConnected&&usableTarget(selected)),targetBound=Boolean(connected&&phoneInputReady&&client?.bindingVerified&&client.targetId===targetId),inputVerified=targetBound&&sameProof(proof,client),ready=targetBound;return {informationReady:!!information(),connected,bluetoothConnected,phoneInputReady,targetBound,inputVerified,ready,legacyInputTestRequired:Boolean(connected&&legacyBinding&&!targetBound),sharing:Boolean(capture.active),checking:Boolean(refreshTask),boardId:connected?client.boardId:null,targetId:ready?client.targetId:null,status:working?'connecting':ready?(capture.active?'sharing':'ready'):connected?'needs-target':'disconnected'};};
+  const getState=()=>{const connected=Boolean(connectionActive&&client?.paired&&client.identityVerified),selected=targets.find(target=>target.targetId===(client?.targetId||targetId)),bluetoothConnected=Boolean(connected&&selected?.connected),phoneInputReady=Boolean(bluetoothConnected&&usableTarget(selected)),targetBound=Boolean(connected&&phoneInputReady&&client?.bindingVerified&&client.targetId===targetId),inputVerified=targetBound&&sameProof(proof,client),ready=targetBound;return {informationReady:!!information(),connected,bluetoothConnected,phoneInputReady,targetBound,inputVerified,ready,legacyInputTestRequired:Boolean(connected&&legacyBinding&&!targetBound),sharing:Boolean(capture.active),checking:Boolean(refreshTask?.visible),boardId:connected?client.boardId:null,targetId:ready?client.targetId:null,status:working?'connecting':ready?(capture.active?'sharing':'ready'):connected?'needs-target':'disconnected'};};
   const publish=()=>onDeviceChange(getState().ready?client:null,getState());
   const setStatus=(key,detail='')=>{statusKey=key;statusDetail=detail;renderStatus();publish();};
   function invalidateProof(){proof=null;publish();}
@@ -128,15 +128,14 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
   async function checkConnection(){
     // A connection test owns the focused input and its countdown until confirmed.
     // Reading status must not rebuild that UI or disturb its in-flight challenge.
-    if(disposed||working||armed||!client?.paired||transport?.closed)return false;
-    try{await refresh();return getState().ready;}catch{return false;}
+    if(disposed||working||armed)return false;
+    return refreshConnection({force:true});
   }
   async function refreshConnection({force=false}={}){
     if(disposed||working||armed)return getState().ready;
     if(refreshTask)return refreshTask.promise.catch(()=>false);
     if(!client?.paired||!transport||transport.closed){if(connectionActive){connectionActive=false;targets=[];proof=null;checkedAt=null;publish();renderState();}return false;}
     if(!force&&Date.now()-lastRefreshStarted<300)return getState().ready;
-    lastRefreshStarted=Date.now();
     try{return await refresh();}catch{return false;}
   }
   function foreground(){if(globalThis.document?.visibilityState==='hidden'&&armed)resetChallenge();else if(globalThis.document?.visibilityState==='visible')void refreshConnection();}
@@ -159,7 +158,10 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
     const abort=new AbortController(),cancel=()=>abort.abort(signal?.reason),timer=setTimeout(()=>{deadlineExpired=true;abort.abort();},8000);
     signal?.addEventListener('abort',cancel,{once:true});if(signal?.aborted)cancel();
     const current=()=>tested===client&&epoch===connectionEpoch&&!disposed;
-    const task={client:tested,epoch};refreshTask=task;publish();
+    // Heartbeat and navigation reads retain the last confirmed visible state.
+    // Explicit device actions already own visible progress via working.
+    lastRefreshStarted=Date.now();
+    const task={client:tested,epoch,visible:working};refreshTask=task;publish();
     task.promise=(async()=>{
       try{
         const identity=await tested.identity({signal:abort.signal});
