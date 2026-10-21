@@ -89,7 +89,7 @@ export async function callModel({provider,credential,messages,tools=[],signal,on
   const scope={kind:provider.protocol,origin:base.origin,endpoint:canonicalEndpoint.href,accountId:provider.accountId||provider.id||'',model:provider.model};
   const payload={model:provider.model,stream:provider.stream!==false,messages:isAnthropic?anthropicMessages(messages,scope):openaiMessages(messages,scope,base.hostname==='api.deepseek.com')};
   Object.assign(payload,reasoningParameters(provider));
-  if(!isAnthropic&&base.hostname==='api.openai.com'&&provider.promptCacheKey)payload.prompt_cache_key=provider.promptCacheKey;
+  if(!isAnthropic&&base.hostname==='api.openai.com'&&provider.promptCacheKey){payload.prompt_cache_key=provider.promptCacheKey;payload.prompt_cache_retention='24h';}
   if(provider.maxTokens&&Number.isInteger(provider.maxTokens)&&provider.maxTokens>0)payload[base.hostname==='api.openai.com'&&payload.reasoning_effort?'max_completion_tokens':'max_tokens']=provider.maxTokens;
   if(isAnthropic){payload.max_tokens=provider.maxTokens||4096;payload.system=messages.filter(m=>m.role==='system').map(m=>m.text).join('\n\n');}
   if(!isAnthropic&&payload.stream&&['api.openai.com','api.deepseek.com'].includes(base.hostname))payload.stream_options={include_usage:true};

@@ -276,7 +276,7 @@ export async function callCodexModel({provider,messages,tools=[],signal,onDelta=
   const functionTools=tools.map(t=>({type:'function',name:t.name,description:t.description,parameters:t.schema,strict:false}));
   const wireTools=a.flow==='chatgpt-plan'&&functionTools.length?[{type:'namespace',name:CODEX_TOOL_NAMESPACE,description:'Tools for this Harness conversation.',tools:functionTools}]:functionTools;
   const payload={model:provider.model,store:false,stream:true,include:['reasoning.encrypted_content'],instructions:messages.filter(m=>m.role==='system').map(m=>m.text).join('\n\n')||'You are a helpful assistant.',input:toInput(requestMessages,stateScope),tools:wireTools,tool_choice:tools.length?'auto':'none',parallel_tool_calls:true,...(previousResponseId?{previous_response_id:previousResponseId}: {})};
-  if(a.flow==='chatgpt-plan'&&provider.promptCacheKey){payload.prompt_cache_key=provider.promptCacheKey;payload.prompt_cache_options={mode:'implicit',ttl:'30m'};}
+  if(a.flow==='chatgpt-plan'&&provider.promptCacheKey)payload.prompt_cache_key=provider.promptCacheKey;
   Object.assign(payload,reasoningParameters({...provider,protocol:'codex'}));
   const connectionStarted=networkNow(),requestOptions={method:'POST',headers:headers(a,token,{sessionId:sessionId||provider.sessionId}),body:JSON.stringify(payload),signal:active,fetchImpl,...(a.flow==='chatgpt-plan'?{relayEndpoint:endpoint}:{})};
   const retryDelays=[500,1000,2000,4000,8000];let response,connectionAttempts=0,recoveredNetwork=null;
