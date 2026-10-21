@@ -144,7 +144,10 @@ export async function callModel({provider,credential,messages,tools=[],signal,on
 }
 
 export function cacheUsage(usage={},anthropic=false){
-  const cached=usage.prompt_cache_hit_tokens??usage.prompt_tokens_details?.cached_tokens??usage.input_tokens_details?.cached_tokens??usage.cache_read_input_tokens;
+  const details=usage.input_tokens_details||usage.prompt_tokens_details||{};
+  const cached=usage.prompt_cache_hit_tokens??details.cached_tokens??usage.cache_read_input_tokens;
   const input=usage.prompt_tokens??usage.input_tokens;
-  return {reported:cached!==undefined,inputTokens:input??null,cachedInputTokens:cached??null,cacheWriteTokens:usage.cache_creation_input_tokens??null,uncachedInputTokens:usage.prompt_cache_miss_tokens??(input!==undefined&&cached!==undefined&&!anthropic?Math.max(0,input-cached):null)};
+  const writes=usage.cache_creation_input_tokens??details.cache_write_tokens??null;
+  const uncached=usage.prompt_cache_miss_tokens??(input!==undefined&&cached!==undefined&&!anthropic?Math.max(0,input-cached-(writes||0)):null);
+  return {reported:cached!==undefined,inputTokens:input??null,cachedInputTokens:cached??null,cacheWriteTokens:writes,cacheWriteTokens30m:details.cache_write_tokens_details?.ttl_30m_tokens??null,cacheWriteTokens12h:details.cache_write_tokens_details?.ttl_12h_tokens??null,uncachedInputTokens:uncached,outputTokens:usage.output_tokens??usage.completion_tokens??null,totalTokens:usage.total_tokens??null};
 }
