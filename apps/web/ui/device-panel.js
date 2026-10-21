@@ -37,7 +37,7 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
   let client=null,proof=null,targets=[],targetId='',root=null,dialog=null,controller=null,operation=0,working=false;
   let challenge=null,nonce='',armed=false,challengeTimer=null,testWait=null,unsubscribe=null,settings={},statusKey='notPaired',statusDetail='',checkedAt=null;
   let legacyBinding=false,challengeCancellation=Promise.resolve(),bindingError=null,verifiedRTC=null,challengeMayExist=false,challengeRetryController=null;
-  let connectionActive=false,pendingSetup=null,connectionEpoch=0,monitorTimer=null,refreshTask=null,disposed=false,lastRefreshStarted=0,reconnectTimer=null,reconnectAttempts=0,reconnecting=false;
+  let connectionActive=false,pendingSetup=null,connectionEpoch=0,monitorTimer=null,refreshTask=null,disposed=false,lastRefreshStarted=0,reconnectTimer=null,reconnectAttempts=0,reconnecting=false,connectionInFlight=false;
   let importError=null,progressTimer=null,progressStarted=0,informationEdit=0,informationSaving=null,pendingSetupSource='';
   function receiveSetupLink(){
     const source=globalThis.location?.href;if(!source||!new URLSearchParams(globalThis.location.hash?.slice(1)||'').has('device'))return false;
@@ -137,7 +137,7 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
   function begin(){if(working||isBusy())throw componentError('busy');working=true;startProgress();publish();controller?.abort();controller=new AbortController();const current=++operation;renderState();return {signal:controller.signal,current};}
   function valid(current){return !disposed&&current===operation&&!controller?.signal.aborted;}
   async function action(work){let current;try{const started=begin();current=started.current;await work(started);if(valid(current))renderState();}catch(rawError){const error=normalizedError(rawError);if((mounted()||current===operation)&&(current===undefined||current===operation)&&error.name!=='AbortError')setStatus('operationFailed',error);}finally{if(current===operation){working=false;stopProgress();publish();if(mounted())renderState();}}}
-  function close({abort=false}={}){const preserve=working&&!armed&&!abort,keepConnection=Boolean(client?.paired&&transport&&!transport.closed);if(!preserve){stopProgress();operation++;controller?.abort();controller=null;working=false;resetChallenge();}unsubscribe?.();unsubscribe=null;dialog?.removeEventListener('close',close);root=null;dialog=null;publish();if(keepConnection)startMonitor();}
+  function close({abort=false}={}){const preserve=connectionInFlight||(working&&!armed&&!abort),keepConnection=Boolean(client?.paired&&transport&&!transport.closed);if(!preserve){stopProgress();operation++;controller?.abort();controller=null;working=false;resetChallenge();}unsubscribe?.();unsubscribe=null;dialog?.removeEventListener('close',close);root=null;dialog=null;publish();if(keepConnection)startMonitor();}
   const usableTarget=target=>target.connected&&target.encrypted&&target.hidSubscribed;
   function stopMonitor(){clearTimeout(monitorTimer);monitorTimer=null;}
   function startMonitor(){
@@ -281,7 +281,7 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
       const ready=bridge.open({signal});ready.catch(()=>{});return {bridge,ready};
     }
     node('[data-disconnect]').onclick=()=>{if(working||isBusy())return;clearReconnect();stopMonitor();connectionEpoch++;const previous=transport;transport=null;previous?.close();connectionActive=false;client?.clearCredentials();client=null;targets=[];targetId='';resetChallenge();invalidateProof();setStatus('notPaired');renderState();};
-    const connect=({automatic=false}={})=>{if(working||isBusy())return;const address=node('[data-address]')?.value.trim()||defaultBridgeEndpoint(settings.deviceEndpoint)||DEFAULT_BRIDGE_URL;if(!address){node('[data-configuration]')?.setAttribute('open','');node('[data-address]')?.focus();return;}if(!automatic)clearReconnect();return action(async({signal,current})=>{
+    const connect=({automatic=false}={})=>{if(working||isBusy()||connectionInFlight)return;const address=node('[data-address]')?.value.trim()||defaultBridgeEndpoint(settings.deviceEndpoint)||DEFAULT_BRIDGE_URL;if(!address){node('[data-configuration]')?.setAttribute('open','');node('[data-address]')?.focus();return;}if(!automatic)clearReconnect();connectionInFlight=true;const task=action(async({signal,current})=>{
       // Keep imported identity and RTC metadata across failed attempts; clear only after persistence succeeds.
       if(!information())throw componentError('infoRequired');
       const configuration=values();await saveInformation(configuration);
@@ -314,7 +314,7 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
        setStatus('rtcSaving');await store.saveLocalCredential('device:'+configuration.baseUrl,client.exportCredentials());
        const deviceRTC=verifiedRTC||bridge?.exportConfiguration?.();await savePublicSettings({deviceEndpoint:configuration.baseUrl,deviceFingerprint:client.status().publicKeyFingerprint,...(deviceRTC?{deviceRTC}: {})});retained=true;pendingSetup=null;const configurationNode=node('[data-configuration]');if(configurationNode){configurationNode.open=false;configurationNode.removeAttribute?.('open');}clearReconnect();if(bindingError)setStatus('operationFailed',bindingError);else setStatus(getState().ready?'inputTestOptional':legacyBinding?'legacyInputTest':'paired');startMonitor();
       }finally{if(!retained){bridge?.close();if(transport===bridge)transport=null;connectionActive=false;invalidateProof();}}
-    });
+    });return Promise.resolve(task).finally(()=>{connectionInFlight=false;});
     };
     node('[data-pair]').onclick=connect;
     node('[data-refresh]').onclick=()=>action(async({signal,current})=>{await refresh(signal);if(valid(current))setStatus(getState().ready?'inputTestOptional':legacyBinding?'legacyInputTest':getState().bluetoothConnected?'phoneSelect':'noTargets');});
