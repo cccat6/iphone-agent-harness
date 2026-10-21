@@ -424,9 +424,10 @@ async function showSettings(section='home') {
     if(locationGeneration!==state.panelGeneration||$('#location-settings')!==locationRoot||locationRoot.isConnected===false){view.dispose();return;}
     state.locationSettings=view;
   }else if(section==='behavior'){
-    panel(t('taskSettings.title'),'',`<label class="check-field"><input id="return-to-harness" type="checkbox" ${settings.returnToHarness!==false?'checked':''}>${systemTextHTML('taskSettings.return')}</label><label class="check-field"><input id="return-on-attention" type="checkbox" ${settings.returnOnAttention!==false?'checked':''}>${systemTextHTML('taskSettings.attention')}</label><p class="quiet-note">${systemTextHTML('taskSettings.attentionHelp')}</p>`);
+    panel(t('taskSettings.title'),'',`<label class="check-field"><input id="return-to-harness" type="checkbox" ${settings.returnToHarness!==false?'checked':''}>${systemTextHTML('taskSettings.return')}</label><label class="check-field"><input id="return-on-attention" type="checkbox" ${settings.returnOnAttention!==false?'checked':''}>${systemTextHTML('taskSettings.attention')}</label><label class="check-field"><input id="release-capture-on-completion" type="checkbox" ${settings.releaseCaptureOnCompletion===true?'checked':''}>${systemTextHTML('taskSettings.releaseCapture')}</label><p class="quiet-note">${systemTextHTML('taskSettings.attentionHelp')}</p>`);
     $('#return-to-harness').onchange=guard(async event=>{state.settings=await state.store.saveSettings({returnToHarness:event.target.checked});});
     $('#return-on-attention').onchange=guard(async event=>{state.settings=await state.store.saveSettings({returnOnAttention:event.target.checked});});
+    if($('#release-capture-on-completion'))$('#release-capture-on-completion').onchange=guard(async event=>{state.settings=await state.store.saveSettings({releaseCaptureOnCompletion:event.target.checked});});
   }else if(section==='context'){
     const context=normalizeContextSettings(state.settings.context),images=normalizeImageSettings(state.settings.images);
     panel(t('context.title'),'',`<form id="context-form">
