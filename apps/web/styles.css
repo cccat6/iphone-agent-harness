@@ -330,11 +330,11 @@ body.panel-route,.panel-route .panel-dialog[open]{background:#fbf8f6}
 
 /* Context details float above the composer without changing keyboard geometry. */
 .composer-toolbar{justify-content:flex-end;flex-wrap:nowrap;gap:8px}
-.composer-toolbar .composer-options{margin-left:auto;justify-content:flex-end;flex-wrap:nowrap;min-width:0;max-width:calc(100% - 105px)}
+.composer-toolbar .composer-options{margin-left:auto;justify-content:flex-end;flex-wrap:nowrap;min-width:0;max-width:calc(100% - 84px)}
 .composer-toolbar #model-select{flex:1 1 auto;min-width:0;text-align:right;text-align-last:right}
 .composer-toolbar #reasoning-select{flex:0 1 auto;text-align:right;text-align-last:right}
 .context-meter{flex:0 0 auto;margin-right:auto;min-width:0}
-.context-meter-button{display:flex;align-items:center;gap:5px;min-height:34px;padding:3px 0;border:0;background:transparent;color:var(--muted);font-family:inherit;font-size:11px;font-weight:500;line-height:1.2;white-space:nowrap;cursor:pointer}
+.context-meter-button{display:flex;align-items:center;justify-content:center;width:34px;min-height:34px;padding:6px;border:0;background:transparent;color:var(--muted);font-family:inherit;font-size:11px;font-weight:500;line-height:1.2;white-space:nowrap;cursor:pointer}
 .context-meter-button:disabled{opacity:.45;cursor:default}
 .context-meter-ring{width:21px;height:21px;flex:none;fill:none;stroke-width:2.2;transform:rotate(-90deg)}
 .context-meter-track{stroke:var(--line,#eaded7)}
@@ -344,7 +344,7 @@ body.panel-route,.panel-route .panel-dialog[open]{background:#fbf8f6}
 .context-meter-popup[hidden]{display:none}
 .context-meter-popup header{display:flex;align-items:center;justify-content:space-between;gap:12px}
 .context-meter-popup header strong{font-size:15px}
-.context-compact-button{display:grid;place-items:center;width:34px;height:34px;padding:7px;border:1px solid var(--line,#eaded7);border-radius:9px;background:var(--soft,#fff4ed);color:var(--accent);cursor:pointer}
+.context-compact-button{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:34px;padding:7px 9px;font:inherit;font-size:12px;white-space:nowrap;border:1px solid var(--line,#eaded7);border-radius:9px;background:var(--soft,#fff4ed);color:var(--accent);cursor:pointer}
 .context-compact-button:disabled{opacity:.4;cursor:default}
 .context-compact-button svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
 .context-meter-source{font-size:11px;color:var(--muted);margin:4px 0 12px}
@@ -355,6 +355,17 @@ body.panel-route,.panel-route .panel-dialog[open]{background:#fbf8f6}
 .context-meter-unknown,.context-meter-last,.context-meter-status{font-size:11px;line-height:1.55;color:var(--muted);margin:12px 0 0}
 .context-meter-popup p[hidden]{display:none}
 .context-meter-button:focus-visible,.context-compact-button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-@media(max-width:380px){.composer-toolbar{gap:5px}.composer-toolbar .composer-options{gap:3px;max-width:calc(100% - 96px)}.context-meter-button{font-size:10px;gap:3px}.context-meter-ring{width:19px;height:19px}}
+@media(max-width:380px){.composer-toolbar{gap:5px}.composer-toolbar .composer-options{gap:3px;max-width:calc(100% - 84px)}.context-meter-button{font-size:10px;gap:3px}.context-meter-ring{width:19px;height:19px}}
 
-.context-meter-caption{display:grid;gap:2px;text-align:left;font-variant-numeric:tabular-nums}.context-meter-caption small{font-size:9px;font-weight:400;color:var(--muted);line-height:1.1}
+
+
+/* Native 16px controls retain Safari's zoom-safe hit targets; captions are 14px. */
+.composer-options .composer-picker{position:relative;display:flex;align-items:center;justify-content:flex-end;min-width:0;min-height:34px;padding:5px 20px 5px 0;overflow:hidden;color:#7b666f;box-sizing:border-box}
+.composer-options .composer-picker[hidden]{display:none}
+.composer-options .composer-model-picker{flex:1 1 auto}
+.composer-options .composer-reasoning-picker{flex:0 1 auto;max-width:110px}
+.composer-picker-caption{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px;font-weight:400;line-height:1.35;text-align:right}
+.composer-picker::after{content:"";position:absolute;right:0;top:50%;transform:translateY(-50%);width:15px;height:15px;background:url('./icons/chevron-down.svg') center/contain no-repeat;pointer-events:none}
+.composer .composer-picker select,.composer .composer-picker #model-select,.composer .composer-picker #reasoning-select{position:absolute;inset:0;width:100%;height:100%;max-width:none;margin:0;padding:0;opacity:0;font-size:16px;line-height:normal;border:0;border-radius:0;background:none;outline:none;box-shadow:none;cursor:pointer;text-align:right;text-align-last:right}
+.composer .composer-picker select:focus,.composer .composer-picker select:focus-visible{outline:none;box-shadow:none}
+.composer-picker:has(select:disabled){opacity:.5}
