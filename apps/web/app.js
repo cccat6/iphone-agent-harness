@@ -9,7 +9,7 @@ import {createSessionActions} from './ui/session-actions.js';
 import {mountSessionSwipe} from './ui/session-swipe.js';
 import {createViewNavigation} from './ui/navigation.js';
 import {reasoningOptions,normalizeReasoningEffort,modelReasoningMetadata} from './core/reasoning.js';
-import {messagePresentation,createConversationFollow} from './ui/message-presentation.js';
+import {messagePresentation,createConversationFollow,skillActivityResults} from './ui/message-presentation.js';
 import {showImagePreview} from './ui/image-preview.js';
 import {pendingDeviceSetupReturn} from './core/device-setup.js';
 import { getBrowserCompatibility } from './core/compatibility.js';
@@ -237,8 +237,9 @@ function renderMessages({scrollToEnd=true,forceFollow=false}={}) {
   const earlier=state.hasOlder?`<button id="load-older-messages" class="secondary-button history-page">${escapeHTML(t('session.older'))}</button>`:'';
   const later=state.hasNewer?`<button id="load-newer-messages" class="secondary-button history-page">${escapeHTML(t('session.newer'))}</button>`:'';
   state.historyImages?.destroy();
+  const activityResults=skillActivityResults(state.messages);
   const rendered=state.messages.map(message=>{
-    const view=messagePresentation(message,{developerMode:!!state.settings.developerMode,t});if(!view)return '';
+    const view=messagePresentation(message,{developerMode:!!state.settings.developerMode,t,activityResults});if(!view)return '';
     return `<article data-message-id="${escapeHTML(message.id)}" class="message ${escapeHTML(message.role)} ${view.kind}"><div class="message-label">${escapeHTML(message.role==='assistant'?'Agent':t(message.role==='user'?'session.you':'interaction.toolResult'))}</div>${view.text?`<div class="message-body">${escapeHTML(view.text)}</div>`:''}${message.textLength>message.text.length&&message.role!=='tool'?`<div class="message-text-paging"><button class="secondary-button" data-text-page="previous" data-offset="0" hidden>${escapeHTML(t('session.previousText'))}</button><button class="secondary-button" data-text-page="next" data-offset="0">${escapeHTML(t('session.nextText'))}</button></div>`:''}${view.plan?`<section class="task-plan"><strong>${escapeHTML(t('interaction.plan'))}</strong><p>${escapeHTML(view.plan.goal)}</p><ol>${view.plan.steps.map(step=>`<li>${escapeHTML(typeof step==='string'?step:step.description||step.title||'')}</li>`).join('')}</ol><button class="secondary-button" data-execute-plan="${escapeHTML(message.id)}" ${state.running?'disabled':''}>${escapeHTML(t('interaction.executePlan'))}</button></section>`:''}${view.frameRefs.length?`<div class="message-images">${view.frameRefs.map(ref=>`<button type="button" class="screenshot-thumbnail" data-preview-frame="${escapeHTML(ref)}" aria-label="${escapeHTML(t('session.screenshot'))}"><img data-frame-ref="${escapeHTML(ref)}" alt="${escapeHTML(t('session.screenshot'))}" decoding="async"></button>`).join('')}</div>`:''}${view.detail?`<details class="message-debug"><summary>${escapeHTML(t('interaction.details'))}</summary><pre>${escapeHTML(view.detail)}</pre></details>`:''}</article>`;
   }).join('');
   region.innerHTML=state.messages.length?earlier+rendered+later:welcome();

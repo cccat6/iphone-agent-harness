@@ -37,7 +37,7 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
   let client=null,proof=null,targets=[],targetId='',root=null,dialog=null,controller=null,operation=0,working=false;
   let challenge=null,nonce='',armed=false,challengeTimer=null,testWait=null,unsubscribe=null,settings={},statusKey='notPaired',statusDetail='',checkedAt=null;
   let legacyBinding=false,challengeCancellation=Promise.resolve(),bindingError=null,verifiedRTC=null,challengeMayExist=false,challengeRetryController=null;
-  let connectionActive=false,pendingSetup=null,connectionEpoch=0,monitorTimer=null,refreshTask=null,disposed=false,lastRefreshStarted=0,reconnectTimer=null,reconnectAttempts=0,reconnecting=false,connectionInFlight=false,connectAction=null;
+  let connectionActive=false,pendingSetup=null,connectionEpoch=0,monitorTimer=null,refreshTask=null,disposed=false,lastRefreshStarted=0,reconnectTimer=null,reconnectAttempts=0,reconnecting=false,connectionInFlight=false,connectAction=null,wantsConnection=false;
   let importError=null,progressTimer=null,progressStarted=0,informationEdit=0,informationSaving=null,pendingSetupSource='';
   function receiveSetupLink(){
     const source=globalThis.location?.href;if(!source||!new URLSearchParams(globalThis.location.hash?.slice(1)||'').has('device'))return false;
@@ -149,12 +149,16 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
   }
   function clearReconnect(){clearTimeout(reconnectTimer);reconnectTimer=null;reconnectAttempts=0;reconnecting=false;}
   function scheduleReconnect(){
-    if(disposed||working||isBusy()||reconnectTimer||reconnectAttempts>=4||!information())return;
+    if(disposed||!wantsConnection||reconnectTimer||reconnectAttempts>=4||!information())return;
+    // A task may still be unwinding after transport loss. Keep recovery queued
+    // until it releases ownership, without spending an actual connect attempt.
+    if(working||isBusy()||connectionInFlight){reconnectTimer=setTimeout(()=>{reconnectTimer=null;scheduleReconnect();},1000);reconnectTimer?.unref?.();return;}
     reconnecting=true;setStatus('rtcOpening');
     const delay=[500,1200,2500,5000][reconnectAttempts++];
     reconnectTimer=setTimeout(()=>{
       reconnectTimer=null;
-      if(disposed||working||isBusy()||!information()){reconnecting=false;publish();return;}
+      if(disposed||!wantsConnection||!information()){reconnecting=false;publish();return;}
+      if(working||isBusy()||connectionInFlight){reconnectAttempts--;scheduleReconnect();return;}
       if(typeof connectAction!=='function'){reconnectAttempts=Math.max(0,reconnectAttempts-1);scheduleReconnect();return;}
       Promise.resolve(connectAction({automatic:true})).then(()=>{
         if(getState().connected){clearReconnect();startMonitor();}
@@ -277,14 +281,14 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
         // A lost RTC transport is recoverable while no phone mutation is in
         // flight. Never replay an input operation or reconnect after an
         // explicit user disconnect/cancel.
-        if(error?.code!=='DEVICE_REQUEST_CANCELLED'&&!working&&!isBusy()&&!disposed)scheduleReconnect();
+        if(error?.code!=='DEVICE_REQUEST_CANCELLED'&&!disposed)scheduleReconnect();
       }});
       const ready=bridge.open({signal});ready.catch(()=>{});return {bridge,ready};
     }
-    node('[data-disconnect]').onclick=()=>{if(working||isBusy())return;clearReconnect();stopMonitor();connectionEpoch++;const previous=transport;transport=null;previous?.close();connectionActive=false;client?.clearCredentials();client=null;targets=[];targetId='';resetChallenge();invalidateProof();setStatus('notPaired');renderState();};
+    node('[data-disconnect]').onclick=()=>{if(working||isBusy())return;wantsConnection=false;clearReconnect();stopMonitor();connectionEpoch++;const previous=transport;transport=null;previous?.close();connectionActive=false;client?.clearCredentials();client=null;targets=[];targetId='';resetChallenge();invalidateProof();setStatus('notPaired');renderState();};
     const connect=({automatic=false}={})=>{if(working||isBusy()||connectionInFlight)return;const address=node('[data-address]')?.value.trim()||defaultBridgeEndpoint(settings.deviceEndpoint)||DEFAULT_BRIDGE_URL;if(!address){node('[data-configuration]')?.setAttribute('open','');node('[data-address]')?.focus();return;}if(!automatic)clearReconnect();connectionInFlight=true;const task=action(async({signal,current})=>{
       // Keep imported identity and RTC metadata across failed attempts; clear only after persistence succeeds.
-      if(!information())throw componentError('infoRequired');
+      if(!information())throw componentError('infoRequired');wantsConnection=true;
       const configuration=values();await saveInformation(configuration);
       const preferredId=client?.paired&&client.baseUrl?.origin===configuration.baseUrl?client.clientId:undefined;
       // Create the peer from the explicit Connect action; no auxiliary tab is opened.
@@ -377,8 +381,8 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
     });
     renderState();if(getState().connected)void checkConnection();return root;
   }
-  function destroy(){disposed=true;connectAction=null;clearReconnect();stopMonitor();connectionEpoch++;globalThis.document?.removeEventListener?.('visibilitychange',foreground);globalThis.removeEventListener?.('pagehide',suspend);close({abort:true});transport?.close();transport=null;connectionActive=false;targets=[];invalidateProof();}
-  function suspend(){clearReconnect();stopMonitor();connectionEpoch++;close();const previous=transport;transport=null;previous?.close();connectionActive=false;targets=[];invalidateProof();}
+  function destroy(){disposed=true;wantsConnection=false;connectAction=null;clearReconnect();stopMonitor();connectionEpoch++;globalThis.document?.removeEventListener?.('visibilitychange',foreground);globalThis.removeEventListener?.('pagehide',suspend);close({abort:true});transport?.close();transport=null;connectionActive=false;targets=[];invalidateProof();}
+  function suspend(){wantsConnection=false;clearReconnect();stopMonitor();connectionEpoch++;close();const previous=transport;transport=null;previous?.close();connectionActive=false;targets=[];invalidateProof();}
   globalThis.addEventListener?.('pagehide',suspend);
   return {open,dispose:close,destroy,receiveSetupLink,hasPendingSetup:()=>Boolean(pendingSetup||importError),getDevice:()=>getState().ready?client:null,getState,ensureReady,refreshConnection,refreshUI};
 }

@@ -42,6 +42,22 @@ test('models are fetched per selected account; catalog is not entitlement',async
 test('Responses SSE text fragments, usage, account headers and fixed endpoint',async()=>{
  register();let deltas='';const result=await callCodexModel({provider,messages:[{role:'system',text:'phone rules'},{role:'user',text:'hello'}],onDelta:s=>deltas+=s,fetchImpl:async(url,o)=>{assert.equal(url,CODEX_ENDPOINTS.responses);assert.equal(o.headers['chatgpt-account-id'],'a');assert.equal(o.headers.originator,'iphone_automation_harness');const body=JSON.parse(o.body);assert.equal(body.instructions,'phone rules');assert.equal(body.store,false);assert.equal(body.stream,true);return response([{type:'response.output_text.delta',delta:'手机'},completed()]);}});assert.equal(result.text,'手机完成');assert.equal(deltas,'手机完成');assert.equal(result.usage.input_tokens,7);assert.equal(result.finish,'stop');
 });
+test('Codex subscription cache usage normalizes cached_tokens and attribution fields',async()=>{
+ register();
+ const event={
+  type:'response.completed',
+  response:{
+   id:'cache-r',status:'completed',
+   output:[{type:'message',content:[{type:'output_text',text:'ok'}]}],
+   usage:{
+    input_tokens:100,output_tokens:5,total_tokens:105,cached_tokens:80,
+    attribution:{items:{a:{input_tokens:60,cached_tokens:50,cache_write_tokens:2},b:{input_tokens:40,cached_tokens:30,cache_write_tokens:3}}}
+   }
+  }
+ };
+ const result=await callCodexModel({provider,messages:[],fetchImpl:async()=>response([event])});
+ assert.equal(result.cache.reported,true);assert.equal(result.cache.inputTokens,100);assert.equal(result.cache.cachedInputTokens,80);assert.equal(result.cache.cacheWriteTokens,5);assert.equal(result.cache.uncachedInputTokens,15);assert.equal(result.cache.cacheHitRatio,.8);
+});
 test('function calls only emerge after valid completed event',async()=>{
  register();const item={type:'function_call',id:'item',call_id:'call',name:'phone_observe',arguments:'{}'};const result=await callCodexModel({provider,messages:[],tools:[{name:'phone_observe',description:'observe',schema:{type:'object'}}],fetchImpl:async()=>response([{type:'response.output_item.added',item:{...item,arguments:''}},{type:'response.function_call_arguments.delta',item_id:'item',delta:'{'},{type:'response.function_call_arguments.done',item_id:'item',arguments:'{}'},completed([item])])});assert.deepEqual(result.toolCalls,[{id:'call',name:'phone_observe',arguments:{}}]);assert.equal(result.finish,'tool_calls');
 });

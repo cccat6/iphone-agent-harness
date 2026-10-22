@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {indexedDB,IDBKeyRange} from 'fake-indexeddb';
 import {projectToolActivity,toolActivityForMessage} from '../../apps/web/core/tool-activity.js';
-import {messagePresentation} from '../../apps/web/ui/message-presentation.js';
+import {messagePresentation,skillActivityResults} from '../../apps/web/ui/message-presentation.js';
 import {createHistoryWindow} from '../../apps/web/core/history-window.js';
 import {openStore} from '../../apps/web/core/store.js';
 import {INTERACTION_MESSAGES} from '../../apps/web/locales/interaction-refinement.js';
@@ -31,4 +31,20 @@ test('persisted and pending assistant message labels say Agent',async()=>{const 
 
 test('partial pointer sequences describe only their actual phases, and no-motion paths have no invented direction',()=>{
  const activity=projectToolActivity([{name:'phone_execute_plan',arguments:{plan:{steps:[{op:'pointer_sequence',events:[{phase:'up',x:10,y:20}]},{op:'swipe',path:[{x:100,y:100},{x:100,y:100}]}]}}}]);assert.deepEqual(activity[0].actions[0].phases,['up']);assert.equal(activity[0].actions[1].direction,undefined);const text=messagePresentation({role:'assistant',text:'',toolActivity:activity},{t}).text;assert.match(text,/指针操作 \(松开\)/);assert.doesNotMatch(text,/按下|向下/);
+});
+test('Skill call names survive normal history projection and successful results add no duplicate line',async()=>{
+ const store=await openStore({memory:true}),session=await store.createSession();
+ const call={id:'load',name:'skills_load',arguments:{id:'phone-navigation',path:'SKILL.md'}};
+ const live=await store.addMessage(session.id,{role:'assistant',text:'',toolCalls:[call]});
+ const [history]=await store.getMessages(session.id,{viewOnly:true,includeImages:false});
+ for(const locale of Object.keys(INTERACTION_MESSAGES)){
+  const translate=tFor(locale),before=messagePresentation(live,{t:translate}),after=messagePresentation(history,{t:translate});assert.equal(after.text,before.text);assert.ok(after.text.includes('phone-navigation'));assert.equal(after.text.split('\n').length,1);
+  for(const status of ['loaded','already_loaded'])assert.equal(messagePresentation({role:'tool',toolName:'skills_load',text:JSON.stringify({status,id:'phone-navigation',instructions:'private instructions'})},{t:translate}),null);
+ }
+ assert.ok(messagePresentation({role:'tool',toolName:'skills_load',text:'{"status":"loaded","id":"phone-navigation"}'},{t,developerMode:true}).detail);
+});
+
+test('Skill completion updates the original call line instead of adding a tool-result message',()=>{
+ const assistant={role:'assistant',text:'',toolCalls:[{id:'skill-call',name:'skills_load',arguments:{id:'phone-navigation'}}]},result={role:'tool',toolName:'skills_load',toolCallId:'skill-call',text:JSON.stringify({status:'loaded',id:'phone-navigation'})};
+ const activityResults=skillActivityResults([assistant,result]);assert.equal(messagePresentation(assistant,{t,activityResults}).text,'已读取技能：phone-navigation');assert.equal(messagePresentation(result,{t,activityResults}),null);
 });

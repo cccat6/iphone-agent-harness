@@ -51,7 +51,6 @@ async function* contextRows(store,sessionId,{afterSeq,endSeq,pageSize,signal,met
     for(const row of rows){
       if(!Number.isSafeInteger(row.seq)||row.seq!==cursor+1||row.seq>endSeq)throw new Error(`Non-contiguous local history at sequence ${cursor+1}`);
       cursor=row.seq;
-      if(row.runtimeContext)continue;
       metrics.messagesRead++;yield row;
     }
   }

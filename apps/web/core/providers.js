@@ -1,3 +1,5 @@
+import {cacheUsage} from './model-usage.js';
+export {cacheUsage} from './model-usage.js';
 import {modelContextMetadata} from './models.js';
 import {modelReasoningMetadata,reasoningParameters} from './reasoning.js';
 import {contextOverflowError,readProviderFailure} from './provider-errors.js';
@@ -141,13 +143,4 @@ export async function callModel({provider,credential,messages,tools=[],signal,on
     return {text,toolCalls,finish,...(Object.keys(opaque).length?{providerState:{...scope,...opaque}}:{}),...(usage?{usage,cache:cacheUsage(usage,isAnthropic)}:{})};
   } catch(e) {if(credential&&String(e.message).includes(credential))throw new Error('模型通信失败，敏感错误已隐藏');throw e;}
   finally {clearTimeout(timer);signal?.removeEventListener('abort',abort);}
-}
-
-export function cacheUsage(usage={},anthropic=false){
-  const details=usage.input_tokens_details||usage.prompt_tokens_details||{};
-  const cached=usage.prompt_cache_hit_tokens??details.cached_tokens??usage.cache_read_input_tokens;
-  const input=usage.prompt_tokens??usage.input_tokens;
-  const writes=usage.cache_creation_input_tokens??details.cache_write_tokens??null;
-  const uncached=usage.prompt_cache_miss_tokens??(input!==undefined&&cached!==undefined&&!anthropic?Math.max(0,input-cached-(writes||0)):null);
-  return {reported:cached!==undefined,inputTokens:input??null,cachedInputTokens:cached??null,cacheWriteTokens:writes,cacheWriteTokens30m:details.cache_write_tokens_details?.ttl_30m_tokens??null,cacheWriteTokens12h:details.cache_write_tokens_details?.ttl_12h_tokens??null,uncachedInputTokens:uncached,outputTokens:usage.output_tokens??usage.completion_tokens??null,totalTokens:usage.total_tokens??null};
 }

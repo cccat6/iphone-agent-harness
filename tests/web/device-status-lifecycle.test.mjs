@@ -13,6 +13,8 @@ async function fixture(t){
  class Client{
   constructor(){this.baseUrl=new URL(endpoint);this.paired=false;this.identityVerified=false;this.bindingVerified=false;this.boardId='board';this.bootId='boot';this.clientId='browser';this.targetId=null;}
   async pair(){pairs++;this.paired=this.identityVerified=true;}
+  restoreCredentials(){this.paired=true;}
+  async pinIdentity(){this.identityVerified=true;}
   async identity(){identities++;if(pending)await pending;if(failure)throw failure;return this.status();}
   async getBinding(){reads++;if(failure)throw failure;if(expired){expired=false;throw new DeviceError('DEVICE_AUTH_EXPIRED','expired',{status:401,serverCode:'invalid_client_credential'});}return {targetId:this.targetId,bindingVerified:this.bindingVerified,targets:[{targetId:'phone',connected:phone,encrypted:phone,hidSubscribed:phone&&subscribed}]};}
   async startChallenge(){challenges++;if(startErrors.length)throw startErrors.shift();return {challengeId:'challenge-'+challenges};}
@@ -89,4 +91,12 @@ test('transport disconnect still immediately revokes readiness while periodic ta
 });
 test('explicit device refresh still exposes progress while fresh readiness checks stay silent',async t=>{
  const f=await fixture(t),release=f.stall(),request=f.field('[data-refresh]').onclick();assert.equal(f.panel.getState().status,'connecting');assert.equal(f.panel.getState().checking,true);release();await request;assert.equal(f.panel.getState().ready,true);assert.equal(f.panel.getState().checking,false);const again=f.stall(),ready=f.panel.ensureReady();assert.equal(f.panel.getState().checking,false);again();assert.equal(await ready,true);
+});
+test('RTC loss during a task keeps idle recovery queued after its panel closes',async t=>{
+ t.mock.timers.enable({apis:['setTimeout']});const f=await fixture(t);const settle=async()=>{for(let i=0;i<80;i++)await Promise.resolve();};
+ f.panel.dispose();f.setBusy(true);f.disconnectTransport();assert.equal(f.panel.getState().ready,false);
+ t.mock.timers.tick(15000);await settle();assert.equal(f.opens(),1);
+ f.setBusy(false);t.mock.timers.tick(1000);await settle();t.mock.timers.tick(500);await settle();
+ assert.equal(f.opens(),2);assert.equal(f.panel.getState().ready,true);
+ f.field('[data-disconnect]').onclick();t.mock.timers.tick(30000);await settle();assert.equal(f.opens(),2);assert.equal(f.panel.getState().ready,false);
 });

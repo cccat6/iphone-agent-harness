@@ -16,7 +16,7 @@ function action(step){
 }
 export function projectToolActivity(calls){
  if(!Array.isArray(calls))return [];
- return calls.slice(0,8).map(call=>{const kind=kinds[call?.name]||'tool',out={kind};if(kind==='skillsLoad'){out.skillId=typeof call.arguments?.id==='string'?call.arguments.id:'';out.skillPath=typeof call.arguments?.path==='string'?call.arguments.path:'SKILL.md';}if(kind==='execute'){const steps=call.arguments?.plan?.steps;if(Array.isArray(steps)){out.actions=steps.slice(0,12).map(action);out.more=Math.max(0,Math.min(10000,steps.length-12));}}return out;});
+ return calls.slice(0,8).map(call=>{const kind=kinds[call?.name]||'tool',out={kind};if(kind==='skillsLoad'){if(typeof call.id==='string')out.callId=call.id.slice(0,128);out.skillId=typeof call.arguments?.id==='string'?call.arguments.id:'';out.skillPath=typeof call.arguments?.path==='string'?call.arguments.path:'SKILL.md';}if(kind==='execute'){const steps=call.arguments?.plan?.steps;if(Array.isArray(steps)){out.actions=steps.slice(0,12).map(action);out.more=Math.max(0,Math.min(10000,steps.length-12));}}return out;});
 }
 // Recheck incoming view records too: imports and callers may supply arbitrary data.
 export function toolActivityForMessage(message){
@@ -24,6 +24,11 @@ export function toolActivityForMessage(message){
  if(!Array.isArray(message.toolActivity))return [];
  return message.toolActivity.slice(0,8).map(value=>{
   const kind=Object.values(kinds).includes(value?.kind)?value.kind:'tool',out={kind};
+  if(kind==='skillsLoad'){
+   if(typeof value.callId==='string')out.callId=value.callId.slice(0,128);
+   if(typeof value.skillId==='string')out.skillId=value.skillId.slice(0,200);
+   if(typeof value.skillPath==='string')out.skillPath=value.skillPath.slice(0,200);
+  }
   if(kind==='execute'){
    out.actions=Array.isArray(value.actions)?value.actions.slice(0,12).map(value=>{const op=ops.has(value?.op)?value.op:'other',item={op};if(op==='tap'&&value.point&&[value.point.x,value.point.y].every(n=>Number.isInteger(n)&&n>=0&&n<=100))item.point={x:value.point.x,y:value.point.y};if(directions.has(value.direction))item.direction=value.direction;if(op==='pointer_sequence'&&Array.isArray(value.phases))item.phases=[...new Set(value.phases.filter(phase=>['down','move','up'].includes(phase)))].slice(0,3);if(op==='key'&&keyKinds.has(value.key))item.key=value.key;if(op==='wait'&&Number.isInteger(value.durationMs)&&value.durationMs>=0&&value.durationMs<=2000)item.durationMs=value.durationMs;return item;}):[];
    out.more=Number.isInteger(value.more)?Math.max(0,Math.min(10000,value.more)):0;
