@@ -70,8 +70,8 @@ export async function discoverModels({protocol,baseUrl,credential='',accountId,f
   const models=[];let pages=0;
   while(true){const r=await fetchImpl(url,{headers,credentials:'omit',referrerPolicy:'no-referrer',signal:signal?AbortSignal.any([signal,AbortSignal.timeout(20000)]):AbortSignal.timeout(20000)});checkAbort(signal);if(!r.ok){if([401,402,403].includes(r.status))throw await readProviderFailure(r,{signal});throw Object.assign(new Error(`PROVIDER_MODELS_HTTP (HTTP ${r.status})`),{code:'PROVIDER_MODELS_HTTP',status:r.status});}const data=JSON.parse(await readText(r,{maxBytes:2000000,signal}));checkAbort(signal);const entries=data.data||data.models;if(!Array.isArray(entries))throw new Error('模型目录没有返回有效列表');for(const m of entries)if(typeof m.id==='string'&&!models.some(v=>v.id===m.id))models.push({id:m.id,name:m.display_name||m.name||m.id,...modelContextMetadata(m),...modelReasoningMetadata(m)});if(models.length>2000)throw new Error('模型目录超过限额');if(!data.has_more)return models;if(!data.last_id||++pages>=20)throw new Error('模型目录分页不完整');url.searchParams.set('after_id',data.last_id);}
 }
-export async function callModel({provider,credential,messages,tools=[],signal,onDelta=()=>{},onRetry=()=>{},fetchImpl=fetch}) {
-  if(provider?.protocol==='codex')return callCodexModel({provider,messages,tools,signal,onDelta,onRetry,fetchImpl});
+export async function callModel({provider,credential,messages,tools=[],toolDefinitions=tools,purpose,signal,onDelta=()=>{},onRetry=()=>{},fetchImpl=fetch}) {
+  if(provider?.protocol==='codex')return callCodexModel({provider,messages,tools,toolDefinitions,signal,onDelta,onRetry,fetchImpl});
   if(!provider?.baseUrl||!provider?.model)throw new Error('请先配置后端地址和模型');
   if(!['openai','anthropic'].includes(provider.protocol))throw new Error('不支持的后端协议');
   const base=new URL(provider.baseUrl);
@@ -91,13 +91,23 @@ export async function callModel({provider,credential,messages,tools=[],signal,on
   const scope={kind:provider.protocol,origin:base.origin,endpoint:canonicalEndpoint.href,accountId:provider.accountId||provider.id||'',model:provider.model};
   const payload={model:provider.model,stream:provider.stream!==false,messages:isAnthropic?anthropicMessages(messages,scope):openaiMessages(messages,scope,base.hostname==='api.deepseek.com')};
   Object.assign(payload,reasoningParameters(provider));
-  if(!isAnthropic&&base.hostname==='api.openai.com'&&provider.promptCacheKey){payload.prompt_cache_key=provider.promptCacheKey;payload.prompt_cache_retention='24h';}
+  if(!isAnthropic&&base.hostname==='api.openai.com'&&provider.promptCacheKey)payload.prompt_cache_key=provider.promptCacheKey;
   if(provider.maxTokens&&Number.isInteger(provider.maxTokens)&&provider.maxTokens>0)payload[base.hostname==='api.openai.com'&&payload.reasoning_effort?'max_completion_tokens':'max_tokens']=provider.maxTokens;
   if(isAnthropic){payload.max_tokens=provider.maxTokens||4096;payload.system=messages.filter(m=>m.role==='system').map(m=>m.text).join('\n\n');}
   if(!isAnthropic&&payload.stream&&['api.openai.com','api.deepseek.com'].includes(base.hostname))payload.stream_options={include_usage:true};
   // Only send provider-specific cache hints to the official native endpoint.
-  if(isAnthropic&&base.hostname==='api.anthropic.com'&&payload.system)payload.system=[{type:'text',text:payload.system,cache_control:{type:'ephemeral'}}];
-  if(tools.length)payload.tools=isAnthropic?tools.map(t=>({name:t.name,description:t.description,input_schema:t.schema})):tools.map(t=>({type:'function',function:{name:t.name,description:t.description,parameters:t.schema}}));
+  if(isAnthropic&&base.hostname==='api.anthropic.com'){
+    // Keep an explicit static-prefix read point and let the native API advance
+    // the conversation cache point as new messages and tool results are added.
+    payload.cache_control={type:'ephemeral'};
+    if(payload.system)payload.system=[{type:'text',text:payload.system,cache_control:{type:'ephemeral'}}];
+  }
+  if(toolDefinitions.length)payload.tools=isAnthropic?toolDefinitions.map(t=>({name:t.name,description:t.description,input_schema:t.schema})):toolDefinitions.map(t=>({type:'function',function:{name:t.name,description:t.description,parameters:t.schema}}));
+  // DeepSeek drops native tool instructions with `none`; Claude invalidates
+  // message caches when tool_choice changes. Summaries retain that reference
+  // format, while their caller permits no execution and validates plain text.
+  const referenceOnlySummary=purpose==='compaction'&&['api.deepseek.com','api.anthropic.com'].includes(base.hostname);
+  if(toolDefinitions.length&&!tools.length&&!referenceOnlySummary)payload.tool_choice=isAnthropic?{type:'none'}:'none';
   const controller=new AbortController();const abort=()=>controller.abort(signal?.reason);signal?.addEventListener('abort',abort,{once:true});if(signal?.aborted)abort();
   const timer=setTimeout(()=>controller.abort(new Error('模型请求超过总时限')),provider.timeoutMs||180000);
   try {

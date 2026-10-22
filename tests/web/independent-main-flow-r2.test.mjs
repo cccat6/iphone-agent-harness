@@ -24,7 +24,7 @@ test('image-only updates after a text checkpoint retain its memory, verbatim goa
   const sentTail=second.messages.filter(m=>m.seq>before.throughSeq);
   assert.deepEqual(sentTail.map(m=>[m.id,m.text]),tail.map(m=>[m.id,m.text]));
   for(let i=0;i<11;i++){const at=second.messages.findIndex(m=>m.toolCalls?.[0]?.id===`observe-${i}`);assert.equal(second.messages[at+1].toolCallId,`observe-${i}`);}
-  assert.equal(second.messages.flatMap(m=>m.frameRefs||[]).length,8);
+  assert.equal(second.messages.flatMap(m=>m.frameRefs||[]).length,4);
   const repeat=await prepareContext(options);assert.deepEqual(repeat.messages,second.messages);assert.equal(repeat.compacted,false);
   assert.equal((await store.getMessages(session.id,{includeImages:false}))[0].id,goal.id);
 });

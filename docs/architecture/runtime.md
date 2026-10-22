@@ -10,4 +10,8 @@ The UI loads indexed history in pages, decoding images when needed. Reading olde
 
 Automatic model summaries default to a 750,000-token trigger. Compaction summarizes model context while retaining the full local history. Three JPEG presets preserve image dimensions. Export a conversation from its menu; import a conversation file in Settings. Browser storage retention controls are also in Settings.
 
+Tool definitions keep a fixed order and schema within each interaction mode. Current permissions travel in an appended runtime record and are checked again before execution. MCP tool descriptions load in pages; retained pages can be reused until the authorized catalog changes. Summary requests reuse the conversation prefix and historical message format, with tool execution disabled in the compaction runtime. API usage records include summary requests as well as normal agent turns.
+
+Screenshots have a bounded model-context budget. At the image limit, the runtime selects a smaller recent batch while preserving the latest complete observation group within that budget. Later captures append until the next boundary. Stored screenshots remain available in the local conversation. Text compaction, image selection, model changes and provider cache expiry can each change cache reuse; request logs retain the provider's actual counters.
+
 [Implementation](harness-runtime-implementation.md) · [Actions](actions.md)

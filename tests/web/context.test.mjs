@@ -147,8 +147,22 @@ test('nine-plus screenshots across many tool groups select recent images without
  const first=await run(store,{settings,invoke:m.invoke,pageSize:3});
  assert.equal(first.metrics.compactionReason,'images');assert.equal(first.checkpoint.throughSeq,0);assert.equal(first.metrics.sourceMessagesSummarized,0);assert.equal(m.calls.length,0);assert.equal(store.framesRead,0);
  assert.deepEqual(first.messages.map(row=>row.text),store.rows.map(row=>row.text));assert.equal(first.messages.length,store.rows.length);paired(first.messages);
- assert.deepEqual(first.messages.flatMap(row=>row.frameRefs||[]),Array.from({length:8},(_,i)=>`local-asset:frame-${i+4}`));
+ assert.deepEqual(first.messages.flatMap(row=>row.frameRefs||[]),Array.from({length:4},(_,i)=>`local-asset:frame-${i+8}`));
  const same=await run(store,{settings,invoke:m.invoke});assert.deepEqual(same.messages,first.messages);assert.equal(same.compacted,false);
  store.add({role:'assistant',text:'Continue from the last observed state.'});const appended=await run(store,{settings,invoke:m.invoke});assert.equal(appended.compacted,false);assert.deepEqual(appended.messages.slice(0,-1),first.messages);assert.equal(m.calls.length,0);
- store.add({role:'user',text:'New screenshot',frameRefs:['local-asset:frame-new']});const nextImage=await run(store,{settings,invoke:m.invoke});assert.equal(nextImage.checkpoint.throughSeq,0);assert.equal(nextImage.messages.length,store.rows.length);assert.deepEqual(nextImage.messages.map(row=>row.text),store.rows.map(row=>row.text));assert.equal(m.calls.length,0);assert.equal(nextImage.messages.flatMap(row=>row.frameRefs||[]).length,8);assert.equal(store.rows.filter(row=>row.frameRefs?.length).length,13);
+ store.add({role:'user',text:'New screenshot',frameRefs:['local-asset:frame-new']});const nextImage=await run(store,{settings,invoke:m.invoke});assert.equal(nextImage.checkpoint.throughSeq,0);assert.equal(nextImage.messages.length,store.rows.length);assert.deepEqual(nextImage.messages.map(row=>row.text),store.rows.map(row=>row.text));assert.equal(m.calls.length,0);assert.equal(nextImage.messages.flatMap(row=>row.frameRefs||[]).length,5);assert.equal(store.rows.filter(row=>row.frameRefs?.length).length,13);
+});
+
+test('image pressure evicts a batch, then new observations append without rewriting the retained prefix',async()=>{
+ const store=new Memory([{role:'user',text:'Keep inspecting the fixture.'}]),settings={schemaVersion:2,triggerTokens:750000,maxImages:8};
+ for(let i=0;i<9;i++)store.add({role:'user',internal:true,text:'Observation '+i,frameRefs:['local-asset:'+i]});
+ const boundary=await run(store,{settings});assert.equal(boundary.compacted,true);assert.equal(boundary.metrics.imageCount,4);
+ let prior=boundary;
+ for(let i=9;i<13;i++){store.add({role:'user',internal:true,text:'Observation '+i,frameRefs:['local-asset:'+i]});const next=await run(store,{settings});assert.equal(next.compacted,false);assert.deepEqual(next.messages.slice(0,prior.messages.length),prior.messages);assert.ok(next.metrics.imageCount<=8);prior=next;}
+ store.add({role:'user',internal:true,text:'Observation 13',frameRefs:['local-asset:13']});const again=await run(store,{settings});assert.equal(again.compacted,true);assert.equal(again.metrics.imageCount,4);assert.equal(store.framesRead,0);
+});
+test('image batch retention keeps an eight-frame observation group complete within the hard cap',async()=>{
+ const store=new Memory([{role:'user',text:'Observe motion.'}]);for(let i=0;i<5;i++)store.add({role:'user',internal:true,text:'Earlier frame '+i,frameRefs:['local-asset:early'+i]});
+ store.add({role:'assistant',text:'Observe the full sequence.',toolCalls:[{id:'sequence',name:'phone_observe',arguments:{count:8}}]});const refs=Array.from({length:8},(_,i)=>'local-asset:sequence'+i);store.add({role:'tool',toolCallId:'sequence',text:'Eight captured frames.',frameRefs:refs});
+ const result=await run(store,{settings:{schemaVersion:2,triggerTokens:750000,maxImages:8}});assert.equal(result.metrics.imageCount,8);assert.deepEqual(result.messages.at(-1).frameRefs,refs);paired(result.messages);
 });

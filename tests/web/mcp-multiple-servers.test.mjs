@@ -24,7 +24,7 @@ test('two saved MCP servers route identical tool names independently, with separ
   assert.equal(f.settings.mcpServers.length,2);assert.equal(f.settings.mcpEndpoint,'');
   assert.ok(!JSON.stringify(f.saved).includes('token'));assert.equal(f.settings.mcpServers[0].endpoint,'https://docs.example/mcp');
   for(const id of [a,b]){f.model.select(id,['lookup']);f.model.enable(id,true);}
-  const directory=await f.access.listForModel();assert.deepEqual(directory.tools.map(t=>[t.serverId,t.serverName,t.name]),[[a,'Docs','lookup'],[b,'Notes','lookup']]);
+  const directory=await f.access.listForModel();assert.deepEqual(directory.tools.map(t=>[t.serverId,t.serverName,t.name]),[[a,'Docs','lookup'],[b,'Notes','lookup']].sort((a,b)=>a[0]<b[0]?-1:1));
   for(const [id,host,token] of [[a,'docs.example','docs-token'],[b,'notes.example','notes-token']]){
     const reply=await f.access.call({serverId:id,name:'lookup',arguments:{}},{mode:'task'});assert.equal(reply.result.content[0].text,host);
     assert.equal(f.requests.find(r=>r.host===host&&r.method==='tools/call').token,'Bearer '+token);

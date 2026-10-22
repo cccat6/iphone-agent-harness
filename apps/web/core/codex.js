@@ -264,7 +264,7 @@ function toInput(messages,scope){
  if(images.length)out.push({role:'user',content:images});return out;
 }
 async function* events(body,signal,onReadError){const reader=body.getReader(),decoder=new TextDecoder('utf-8',{fatal:true});let pending='',ended=false;try{while(true){check(signal);let chunk;try{chunk=await awaitWithSignal(reader.read(),signal);}catch(error){check(signal);throw onReadError?onReadError(error):error;}const {done,value}=chunk;pending+=done?decoder.decode():decoder.decode(value,{stream:true});if(pending.length>CODEX_LIMITS.eventChars)throw new Error('订阅响应事件超过容量限制');let match;while((match=/\r?\n\r?\n/.exec(pending))){const block=pending.slice(0,match.index);pending=pending.slice(match.index+match[0].length);const data=block.split(/\r?\n/).filter(l=>l.startsWith('data:')).map(l=>l.slice(5).replace(/^ /,'')).join('\n');if(data&&data!=='[DONE]'){try{yield JSON.parse(data);}catch(e){if(e instanceof SyntaxError)throw new Error('订阅响应事件格式无效');throw e;}}}if(done){ended=true;if(pending.trim()&&!pending.trim().startsWith(':'))throw new Error('订阅响应流被截断');return;}}}finally{if(!ended)try{await reader.cancel();}catch{}reader.releaseLock();}}
-export async function callCodexModel({provider,messages,tools=[],signal,onDelta=()=>{},onRetry=()=>{},fetchImpl=fetch,sessionId}={}){
+export async function callCodexModel({provider,messages,tools=[],toolDefinitions=tools,signal,onDelta=()=>{},onRetry=()=>{},fetchImpl=fetch,sessionId}={}){
  const id=provider?.accountId||provider?.codexAccountId||activeId,a=accounts.get(id);if(!a)throw new Error('请选择已登录的订阅账号');if(!provider?.model)throw new Error('请选择订阅模型');
  const controller=new AbortController(),abort=()=>controller.abort(signal?.reason);signal?.addEventListener('abort',abort,{once:true});if(signal?.aborted)abort();const timer=setTimeout(()=>controller.abort(new Error('订阅模型请求超时')),provider.timeoutMs||180000);const active=controller.signal;
  try{
@@ -275,7 +275,7 @@ export async function callCodexModel({provider,messages,tools=[],signal,onDelta=
   const previousEntry=useContinuation?[...messages].reverse().find(message=>message.role==='assistant'&&continuationState(message,stateScope)):null;
   const previousResponseId=previousEntry?continuationState(previousEntry,stateScope).responseId:null;
   const requestMessages=previousEntry?messages.slice(messages.indexOf(previousEntry)+1):messages;
-  const functionTools=tools.map(t=>({type:'function',name:t.name,description:t.description,parameters:t.schema,strict:false}));
+  const functionTools=toolDefinitions.map(t=>({type:'function',name:t.name,description:t.description,parameters:t.schema,strict:false}));
   const wireTools=a.flow==='chatgpt-plan'&&functionTools.length?[{type:'namespace',name:CODEX_TOOL_NAMESPACE,description:'Tools for this Harness conversation.',tools:functionTools}]:functionTools;
   const payload={model:provider.model,store:provider.storeResponses===true,stream:true,include:['reasoning.encrypted_content'],instructions:messages.filter(m=>m.role==='system').map(m=>m.text).join('\n\n')||'You are a helpful assistant.',input:toInput(requestMessages,stateScope),tools:wireTools,tool_choice:tools.length?'auto':'none',parallel_tool_calls:true,...(previousResponseId?{previous_response_id:previousResponseId}: {})};
   if(a.flow==='chatgpt-plan'&&provider.promptCacheKey)payload.prompt_cache_key=provider.promptCacheKey;

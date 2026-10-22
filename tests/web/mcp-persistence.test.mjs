@@ -15,7 +15,7 @@ test('fresh database and access objects restore two authenticated servers and se
  const exported=JSON.stringify(await first.exportSession(session.id));assert.ok(!exported.includes('synthetic-'));assert.ok(!JSON.stringify(settings).includes('synthetic-'));
  first.close();const reopened=await openStore({name}),nextRequests=[],b=createMCPAccess({fetchImpl:transport(nextRequests)}),restored=createMCPSettingsModel({access:b,store:reopened});
  await restored.restore(await reopened.getSettings().then(s=>({servers:s.mcpServers})));
- assert.deepEqual((await b.listForModel()).tools.map(t=>[t.serverId,t.name]),[[one,'lookup'],[two,'lookup']]);
+ assert.deepEqual((await b.listForModel()).tools.map(t=>[t.serverId,t.name]),[[one,'lookup'],[two,'lookup']].sort((a,b)=>a[0]<b[0]?-1:1));
  assert.deepEqual(nextRequests.filter(r=>r.method==='initialize').map(r=>r.authorization),['Bearer synthetic-notes','Bearer synthetic-docs']);
  assert.ok(nextRequests[0].url.includes('token=synthetic-query'));
  assert.ok(!JSON.stringify(restored.getRows()).includes('synthetic-notes'));

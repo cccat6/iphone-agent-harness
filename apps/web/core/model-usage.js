@@ -31,7 +31,7 @@ export function usageMetrics(usage,anthropic=false){
 export async function inspectRunMetrics(store,{sessionId,runId,pageSize=128}={}){
  if(typeof sessionId!=='string'||!sessionId||typeof runId!=='string'||!runId)throw new TypeError('Session and run IDs are required');
  const session=await store.getSession(sessionId);if(!session)throw new Error('Session not found');
- const endSeq=session.eventSeq||0,requests=[],stages=[],tools=[],started=new Map(),failed=[];let afterSeq=0,start=null,end=null,pagesRead=0;
+ const endSeq=session.eventSeq||0,requests=[],compactions=[],stages=[],tools=[],started=new Map(),failed=[];let afterSeq=0,start=null,end=null,pagesRead=0;
  while(afterSeq<endSeq){
   const rows=await store.getEvents(sessionId,{afterSeq,beforeSeq:endSeq+1,limit:Math.max(1,Math.min(512,pageSize)),direction:'next'});pagesRead++;if(!rows.length)break;
   for(const event of rows){if(event.runId!==runId)continue;const p=event.payload||{};
@@ -40,11 +40,12 @@ export async function inspectRunMetrics(store,{sessionId,runId,pageSize=128}={})
    if(event.type==='model.started'&&p.requestId)started.set(p.requestId,{at:event.createdAt,prefixHash:p.prefixHash,toolsHash:p.toolsHash,messageCount:p.messageCount,imageCount:p.imageCount,model:p.model,reasoningEffort:p.reasoningEffort});
    if(event.type==='model.failed')failed.push({seq:event.seq,at:event.createdAt,...p});
    if(event.type==='model.usage')requests.push({...(started.get(p.requestId)||{}),seq:event.seq,at:event.createdAt,step:p.step,requestId:p.requestId||null,durationMs:p.durationMs??null,...usageMetrics(p.usage,p.protocol==='anthropic')});
+   if(event.type==='model.compaction_usage')compactions.push({seq:event.seq,at:event.createdAt,model:p.model,...usageMetrics(p.usage,p.protocol==='anthropic')});
    if(event.type==='capture.stage')stages.push({seq:event.seq,at:event.createdAt,...p});
    if(event.type==='tool.started'||event.type==='tool.result')tools.push({seq:event.seq,at:event.createdAt,type:event.type,...p});
   }
   afterSeq=rows.at(-1).seq;
  }
- const reported=requests.filter(row=>row.cache.reported&&row.cache.inputTokens!==null),input=reported.reduce((n,row)=>n+row.cache.inputTokens,0),cached=reported.reduce((n,row)=>n+row.cache.cachedInputTokens,0);
- return {sessionId,runId,start,end,pagesRead,requests,failedRequests:failed,captures:stages,tools,cache:{reportedRequests:reported.length,unreportedRequests:requests.length-reported.length,inputTokens:input,cachedInputTokens:cached,cacheHitRatio:input>0?cached/input:null}};
+ const allRequests=[...requests,...compactions],reported=allRequests.filter(row=>row.cache.reported&&row.cache.inputTokens!==null),input=reported.reduce((n,row)=>n+row.cache.inputTokens,0),cached=reported.reduce((n,row)=>n+row.cache.cachedInputTokens,0);
+ return {sessionId,runId,start,end,pagesRead,requests,compactions,failedRequests:failed,captures:stages,tools,cache:{reportedRequests:reported.length,unreportedRequests:allRequests.length-reported.length,inputTokens:input,cachedInputTokens:cached,cacheHitRatio:input>0?cached/input:null}};
 }

@@ -18,6 +18,13 @@ export const estimateContextTokens=textTokens;
 const refCount=m=>m.frameRefs?.length||m.images?.length||0;
 const messageTokens=(m,s)=>8+textTokens(m.text)+textTokens(JSON.stringify(m.toolCalls||[]))+textTokens(JSON.stringify(m.providerState||{}))+refCount(m)*s.imageTokens;
 const groupTokens=(g,s)=>g.reduce((n,m)=>n+messageTokens(m,s),0);
+function imageRetention(groups,checkpoint,limit){
+  const latest=groups.findLast(group=>group.some(message=>refCount(selectedMessage(message,checkpoint))));
+  const observed=latest?.reduce((n,message)=>n+refCount(selectedMessage(message,checkpoint)),0)||0;
+  // Leave room for subsequent captures instead of editing an old image out on
+  // every turn. Keep the newest complete observation group up to the hard cap.
+  return Math.min(limit,Math.max(Math.ceil(limit/2),observed));
+}
 const messageKey=m=>m.id||`seq:${m.seq}`;
 const isRealUser=m=>m.role==='user'&&!m.internal;
 function contextAbort(signal){if(signal?.aborted){const e=new Error('Context preparation cancelled');e.name='AbortError';throw e;}}
@@ -40,7 +47,7 @@ export function normalizeContextSettings(input={}){
 
 // Every metadata page is consumed completely, with explicit progress checking.
 // A gap is an error, never an excuse to mark an unread range summarized.
-async function* contextRows(store,sessionId,{afterSeq,endSeq,pageSize,signal,metrics}){
+async function* contextRows(store,sessionId,{afterSeq,endSeq,pageSize,signal,metrics,onSourceMessage}){
   let cursor=afterSeq;
   while(cursor<endSeq){
     contextAbort(signal);
@@ -51,6 +58,7 @@ async function* contextRows(store,sessionId,{afterSeq,endSeq,pageSize,signal,met
     for(const row of rows){
       if(!Number.isSafeInteger(row.seq)||row.seq!==cursor+1||row.seq>endSeq)throw new Error(`Non-contiguous local history at sequence ${cursor+1}`);
       cursor=row.seq;
+      onSourceMessage?.(row);
       metrics.messagesRead++;yield row;
     }
   }
@@ -146,7 +154,7 @@ export async function inspectContext({store,sessionId,settings:input,provider,pr
  * the caller hydrates only this final projection, not the paginated source.
  * Includes a stable checkpoint user row and a verbatim latest-user anchor.
  */
-export async function prepareContext({store,sessionId,settings:input,provider,credential,invoke,signal,summaryPrompt=SUMMARY_PROMPT,onEvent,prefixTokens=0,pageSize=128,force=false,forceReason='provider-overflow',runId}={}){
+export async function prepareContext({store,sessionId,settings:input,provider,credential,invoke,signal,summaryPrompt=SUMMARY_PROMPT,summaryContext,onSourceMessage,onEvent,prefixTokens=0,pageSize=128,force=false,forceReason='provider-overflow',runId}={}){
   let settings=normalizeContextSettings(input);
   // Only use explicit capacity metadata; a model name is not proof of its window.
   const capacity=provider?.contextWindowTokens??provider?.contextWindow;
@@ -161,7 +169,7 @@ export async function prepareContext({store,sessionId,settings:input,provider,cr
   if(!Number.isSafeInteger(lastSeq)||!Number.isSafeInteger(through)||through<0||through>lastSeq)throw new Error('Invalid checkpoint/history boundary');
   let fingerprint=JSON.stringify(settings);
   const metrics={estimated:true,estimator:'heuristic-cjk-v1',lastSeq,prefixTokens,reserveTokens:settings.reserveTokens,imageTokenBudget:settings.imageTokens,pagesRead:0,messagesRead:0,sourceMessagesSummarized:0,summaryCalls:0,providerUsage:[],compactionReason:null,retainedImagesDecoded:0};
-  const options={afterSeq:through,endSeq:lastSeq,pageSize,signal,metrics};
+  const options={afterSeq:through,endSeq:lastSeq,pageSize,signal,metrics,onSourceMessage};
   const retainedGroups=[];let normal=[],totalGroups=0,latestGoal=old?.goalMessage||null;
   let estimated=prefixTokens+checkpointPrefix(old).reduce((n,m)=>n+messageTokens(m,settings),0),images=0;
   if(old?.goalMessage){estimated+=messageTokens(selectedMessage(old.goalMessage,old),settings);images+=refCount(selectedMessage(old.goalMessage,old));}
@@ -193,7 +201,8 @@ export async function prepareContext({store,sessionId,settings:input,provider,cr
     // Respect an earlier selection so dropped assets cannot reappear later.
     const anchor=old?.goalMessage&&!normal.some(m=>messageKey(m)===messageKey(old.goalMessage))?old.goalMessage:null;
     const rows=[...(anchor?[anchor]:[]),...normal].map(m=>selectedMessage(m,old));
-    const checkpoint={...(old||{}),throughSeq:through,text:old?.text||'',kind:old?.kind||'image-selection',note:old?.text?old.note:'Image-selection boundary; no message text was summarized.',compactedAtSeq:lastSeq,settingsFingerprint:fingerprint,imageSelection:chooseImageSelection(rows,settings.maxImages),createdAt:Date.now()};
+    const retain=imageRetention(retainedGroups,old,settings.maxImages);metrics.imageRetentionTarget=retain;
+    const checkpoint={...(old||{}),throughSeq:through,text:old?.text||'',kind:old?.kind||'image-selection',note:old?.text?old.note:'Image-selection boundary; no message text was summarized.',compactedAtSeq:lastSeq,settingsFingerprint:fingerprint,imageSelection:chooseImageSelection(rows,retain),createdAt:Date.now()};
     const messages=projectPrepared(normal,checkpoint);Object.assign(metrics,projectedMetrics(messages,settings,prefixTokens));metrics.targetReached=metrics.estimatedInputTokens<=settings.targetTokens;
     contextAbort(signal);await commit(checkpoint);eventContext(onEvent,{status:'compacted',strategy:'image-selection',throughSeq:through});
     return {messages,checkpoint,compacted:true,metrics};
@@ -201,7 +210,10 @@ export async function prepareContext({store,sessionId,settings:input,provider,cr
   if(force&&forceReason==='provider-overflow'){
     // The server rejected this exact request. Make one smaller attempt; this
     // estimate is a retry budget, never advertised as the model's capacity.
-    settings=normalizeContextSettings({...settings,triggerTokens:Math.max(1024,Math.min(settings.triggerTokens,Math.floor(estimated*.5)))});
+    // The fixed tool/instruction prefix cannot shrink. Halve only the variable
+    // history, rather than starving every summary batch of its input budget.
+    const historyBudget=Math.max(2048,Math.floor(Math.max(0,estimated-prefixTokens)*.5));
+    settings=normalizeContextSettings({...settings,triggerTokens:Math.max(1024,Math.min(settings.triggerTokens,prefixTokens+historyBudget)),reserveTokens:Math.min(settings.reserveTokens,Math.floor(historyBudget*.2))});
     fingerprint=JSON.stringify(settings);
   }
   const tail=tailAndGoal(retainedGroups,latestGoal,settings,prefixTokens);
@@ -209,7 +221,7 @@ export async function prepareContext({store,sessionId,settings:input,provider,cr
     if(images>settings.maxImages){
       const boundaryRows=retainedGroups.flat(),anchor=latestGoal&&!boundaryRows.some(m=>messageKey(m)===messageKey(latestGoal))?latestGoal:null;
       const cpCost=checkpointPrefix(old).reduce((n,m)=>n+messageTokens(m,settings),0),textCost=[...(anchor?[anchor]:[]),...boundaryRows].reduce((n,m)=>n+messageTokens(m,{...settings,imageTokens:0}),0);
-      const allowance=Math.min(settings.maxImages,Math.max(0,Math.floor((settings.targetTokens-prefixTokens-cpCost-textCost)/settings.imageTokens)));
+      const allowance=imageRetention(retainedGroups,old,Math.min(settings.maxImages,Math.max(0,Math.floor((settings.targetTokens-prefixTokens-cpCost-textCost)/settings.imageTokens))));
       const checkpoint={...(old||{}),throughSeq:through,text:old?.text||'',kind:old?.kind||'image-selection',note:'Image-selection boundary; no additional message text was summarized.',compactedAtSeq:lastSeq,settingsFingerprint:fingerprint,imageSelection:chooseImageSelection([...(anchor?[anchor]:[]),...boundaryRows],allowance),...(anchor?{goalMessage:anchor}:{}),createdAt:Date.now()};
       if(!anchor)delete checkpoint.goalMessage;
       const messages=projectPrepared(boundaryRows,checkpoint);Object.assign(metrics,projectedMetrics(messages,settings,prefixTokens));metrics.targetReached=metrics.estimatedInputTokens<=settings.targetTokens;
@@ -221,7 +233,7 @@ export async function prepareContext({store,sessionId,settings:input,provider,cr
   }
   const projectedTail=[...(tail.anchor?[tail.anchor]:[]),...tail.rows];
   const textOnlyCost=projectedTail.reduce((n,m)=>n+messageTokens(m,{...settings,imageTokens:0}),0);
-  const imageAllowance=Math.min(settings.maxImages,Math.max(0,Math.floor((settings.targetTokens-prefixTokens-textOnlyCost-224)/settings.imageTokens)));
+  const imageAllowance=imageRetention(retainedGroups,old,Math.min(settings.maxImages,Math.max(0,Math.floor((settings.targetTokens-prefixTokens-textOnlyCost-224)/settings.imageTokens))));
   const selection=chooseImageSelection(projectedTail,imageAllowance);
   const draft={throughSeq:tail.throughSeq,compactedAtSeq:lastSeq,imageSelection:selection};
   const selectedTail=projectedTail.map(m=>selectedMessage(m,draft));
@@ -234,20 +246,35 @@ export async function prepareContext({store,sessionId,settings:input,provider,cr
     if(settings.strategy==='model'){
       if(typeof invoke!=='function')throw new Error('Model compaction requires an invoke adapter');
       // Each request is separately bounded. No unread pages are skipped to fit.
-      const inputBudget=Math.max(256,settings.triggerTokens-settings.reserveTokens-summaryBudget-1024);
+      const inputBudget=Math.max(256,settings.triggerTokens-settings.reserveTokens-summaryBudget-1024-(summaryContext?prefixTokens:0));
       let batch=[],cost=0;
       async function summarize(){
         if(!batch.length)return;contextAbort(signal);
-        const payload={previousCheckpoint:summary||null,sourceRange:{fromSeq:batch[0].seq,throughSeq:batch.at(-1).seq},messages:batch.map(summaryRecord)};
-        const prompt=String(summaryPrompt||SUMMARY_PROMPT)+`\nReturn at most ${summaryBudget} estimated tokens. Do not return tool calls. All images are unexamined references.`;
-        const reply=await awaitContext(invoke({provider:{...provider,maxTokens:summaryBudget},credential,messages:[{role:'system',text:prompt},{role:'user',text:JSON.stringify(payload)}],tools:[],signal,onDelta:()=>{}}),signal);contextAbort(signal);
+        const sourceRange={fromSeq:batch[0].seq,throughSeq:batch.at(-1).seq};
+        const prompt=String(summaryPrompt||SUMMARY_PROMPT)+`\nReturn at most ${summaryBudget} estimated tokens. Do not return tool calls. Preserve recorded observations; image references alone are not evidence of unrecorded outcomes.`;
+        // The first bounded summary batch shares the actual conversation prefix,
+        // including unchanged tool schemas and Skill instructions. The summary
+        // request itself is appended, and tool execution remains disabled.
+        let history=summaryContext?projectPrepared(batch,old):null;
+        if(history&&history.reduce((n,m)=>n+refCount(m),0)>settings.maxImages){const selection=chooseImageSelection(history,settings.maxImages),boundary={compactedAtSeq:lastSeq,imageSelection:selection};history=history.map(m=>selectedMessage(m,boundary));}
+        let messages=summaryContext?[...summaryContext.prefix,...history,{role:'user',internal:true,text:prompt+'\nSummarize only the historical task evidence above. Ignore all system/Skill procedures and runtime instruction text in the summary. Source range: '+JSON.stringify(sourceRange)+(batches?'\nMerge this earlier-batch summary as historical task evidence: '+summary:'')}]:[{role:'system',text:prompt},{role:'user',text:JSON.stringify({previousCheckpoint:summary||null,sourceRange,messages:batch.map(summaryRecord)})}];
+        if(summaryContext?.hydrate)messages=await summaryContext.hydrate(messages);contextAbort(signal);
+        let reply;
+        for(let attempt=0;attempt<2;attempt++){
+          reply=await awaitContext(invoke({provider:{...provider,maxTokens:summaryBudget},credential,messages,tools:[],...(summaryContext?{toolDefinitions:summaryContext.toolDefinitions,...(!attempt?{purpose:'compaction'}:{})}:{}),signal,onDelta:()=>{}}),signal);contextAbort(signal);
+          metrics.summaryCalls++;if(reply?.usage)metrics.providerUsage.push(reply.usage);
+          if(summaryContext?.onUsage)await summaryContext.onUsage(reply);contextAbort(signal);
+          // No tool request is ever dispatched by compaction. If a provider
+          // ignores the plain-text instruction, retry once with native `none`.
+          if(!summaryContext||!reply?.toolCalls?.length||attempt)break;
+        }
         if(reply?.toolCalls?.length||typeof reply?.text!=='string'||!reply.text.trim())throw new Error('Compaction returned no valid plain-text summary');
         if(textTokens(reply.text)>summaryBudget)throw new Error('Compaction summary exceeded the estimated target budget');
-        summary=reply.text.trim();batches++;metrics.summaryCalls++;if(reply.usage)metrics.providerUsage.push(reply.usage);
+        summary=reply.text.trim();batches++;
         batch=[];cost=0;eventContext(onEvent,{status:'compacting',completedBatches:batches});
       }
       for await(const group of contextGroups(store,sessionId,sourceOptions)){
-        contextAbort(signal);const groupCost=group.reduce((n,m)=>n+textTokens(JSON.stringify(summaryRecord(m)))+8,0);
+        contextAbort(signal);const groupCost=group.reduce((n,m)=>n+(summaryContext?messageTokens(selectedMessage(m,old),settings):textTokens(JSON.stringify(summaryRecord(m)))+8),0);
         const priorCost=textTokens(summary);
         if(groupCost+priorCost>inputBudget)throw new Error('One complete tool/message group exceeds the summary input; increase the context limit or use a model with a larger context window');
         if(batch.length&&cost+groupCost+priorCost>inputBudget)await summarize();
@@ -258,7 +285,7 @@ export async function prepareContext({store,sessionId,settings:input,provider,cr
       await summarize();
     }
     contextAbort(signal);
-    const checkpoint={...draft,text:summary,kind:'model-summary',note:'Previous checkpoint plus every newly read record in readRanges; earlier original records were not re-read, and images were not inspected.',settingsFingerprint:fingerprint,sourceIds,sourceIdsComplete:sourceCount<=sourceIds.length,sourceRanges:[{fromSeq:1,throughSeq:tail.throughSeq}],readRanges:[{fromSeq:through+1,throughSeq:tail.throughSeq}],previousThroughSeq:through,sourceMessageCount:sourceCount,...(tail.anchor?{goalMessage:tail.anchor}:{}),createdAt:Date.now()};
+    const checkpoint={...draft,text:summary,kind:'model-summary',note:summaryContext?'Previous checkpoint and every newly read record in readRanges; retained image content may accompany the recorded task evidence.':'Previous checkpoint plus every newly read record in readRanges; earlier original records were not re-read, and images were not inspected.',settingsFingerprint:fingerprint,sourceIds,sourceIdsComplete:sourceCount<=sourceIds.length,sourceRanges:[{fromSeq:1,throughSeq:tail.throughSeq}],readRanges:[{fromSeq:through+1,throughSeq:tail.throughSeq}],previousThroughSeq:through,sourceMessageCount:sourceCount,...(tail.anchor?{goalMessage:tail.anchor}:{}),createdAt:Date.now()};
     const messages=projectPrepared(tail.rows,checkpoint);Object.assign(metrics,projectedMetrics(messages,settings,prefixTokens));metrics.sourceMessagesSummarized=sourceCount;metrics.targetReached=metrics.estimatedInputTokens<=settings.targetTokens;
     // Single commit only after all pages and summary requests completed. Never
     // mutate the old checkpoint in place or publish an intermediate batch.

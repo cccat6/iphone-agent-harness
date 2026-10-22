@@ -21,7 +21,9 @@ Each has a manifest and complete [instruction body](../../apps/web/skills/). The
 
 Create/edit/publish on desktop or phone through the public Skills page or Harness. Authorship uses a browser-generated cryptographic identity. Back it up encrypted before moving devices. Downloaded and builtin items are read-only; only owned items are directly editable/publishable.
 
-On refresh, builtins are reconciled and unchanged installed community downloads are checked for newer versions. Enabled/disabled choices persist. Validation or network failure retains the installed version; local authored drafts and active run snapshots keep their existing content.
+On refresh, builtins are reconciled and unchanged installed community downloads are checked for newer versions. Enabled/disabled choices persist. Local authored drafts remain separate from community updates.
+
+The system prompt and installed catalog stay fixed within a context boundary. Loaded Skill entries and references remain available while their complete instructions are retained. Repeated loads return a short reference; an explicit reload can request the full body. When installed instructions change, the runtime appends the updated entry or reference once, preserving the earlier request prefix. After text compaction, current loaded procedures move into the new prefix. The task summary covers user requests, actions and observed results, leaving procedural instructions to their own records.
 
 Prompts live in [system.md](../../prompts/system.md), [modes.md](../../prompts/modes.md) and [context-summary.md](../../prompts/context-summary.md). The runtime places stable instructions before history. Interaction notes use current screen observations and are scoped to the selected target and orientation.
 

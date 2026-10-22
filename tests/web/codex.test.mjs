@@ -179,3 +179,8 @@ test('legacy Codex data-array catalogs without visibility remain usable',async()
 test('legacy inference preserves Codex routing headers and rejects credential redirects',async()=>{
  register('a');await callCodexModel({provider,messages:[],sessionId:'legacy-session',fetchImpl:async(url,options)=>{assert.deepEqual(options.headers,{authorization:'Bearer '+token('a'),'content-type':'application/json',accept:'text/event-stream',originator:'iphone_automation_harness','chatgpt-account-id':'a','OpenAI-Beta':'responses=experimental','session-id':'legacy-session'});assert.equal(options.redirect,'error');return response([completed()]);}});
 });
+test('subscription requests keep stable native definitions while permissions are filtered or disabled',async()=>{
+ register();const definitions=[{name:'read',description:'Synthetic read',schema:{type:'object',properties:{}}},{name:'write',description:'Synthetic write',schema:{type:'object',properties:{}}}],payloads=[];
+ for(const tools of [definitions,[definitions[0]],[]])await callCodexModel({provider,messages:[{role:'system',text:'Stable rules'},{role:'user',text:'Synthetic request'}],tools,toolDefinitions:definitions,fetchImpl:async(url,options)=>{payloads.push(JSON.parse(options.body));return response([completed()]);}});
+ assert.deepEqual(payloads[0].tools,payloads[1].tools);assert.deepEqual(payloads[0].tools,payloads[2].tools);assert.equal(payloads[0].tool_choice,'auto');assert.equal(payloads[2].tool_choice,'none');
+});

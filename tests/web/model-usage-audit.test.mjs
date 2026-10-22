@@ -36,3 +36,8 @@ test('run inspection pages ordered session events and isolates runs, zero hits a
  await store.addEvent(s.id,{runId:'new',type:'run.ended',payload:{status:'completed'}});
  const report=await inspectRunMetrics(store,{sessionId:s.id,runId:'new',pageSize:2});assert.equal(report.pagesRead,3);assert.equal(report.requests.length,3);assert.deepEqual(report.cache,{reportedRequests:2,unreportedRequests:1,inputTokens:150,cachedInputTokens:90,cacheHitRatio:.6});assert.equal(report.end.status,'completed');
 });
+test('run cache accounting includes compaction API usage using its own protocol denominator',async()=>{
+ const store=await openStore({memory:true}),session=await store.createSession();
+ await store.addEvent(session.id,{runId:'r',type:'model.compaction_usage',payload:{protocol:'anthropic',model:'fixture',usage:{input_tokens:10,cache_read_input_tokens:90,cache_creation_input_tokens:0}}});
+ const report=await inspectRunMetrics(store,{sessionId:session.id,runId:'r'});assert.equal(report.compactions.length,1);assert.equal(report.compactions[0].cache.inputTokens,100);assert.equal(report.cache.cacheHitRatio,.9);
+});
