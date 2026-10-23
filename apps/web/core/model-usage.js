@@ -38,7 +38,7 @@ export async function inspectRunMetrics(store,{sessionId,runId,pageSize=128}={})
    if(event.type==='run.started')start=event.createdAt;
    if(event.type==='run.ended')end={at:event.createdAt,...p};
    if(event.type==='model.started'&&p.requestId)started.set(p.requestId,{at:event.createdAt,prefixHash:p.prefixHash,toolsHash:p.toolsHash,messageCount:p.messageCount,imageCount:p.imageCount,model:p.model,reasoningEffort:p.reasoningEffort,preparation:p.preparation});
-   if(event.type==='model.failed')failed.push({seq:event.seq,at:event.createdAt,...p});
+   if(event.type==='model.failed')failed.push({...(started.get(p.requestId)||{}),seq:event.seq,at:event.createdAt,...p});
    if(event.type==='model.usage')requests.push({...(started.get(p.requestId)||{}),seq:event.seq,at:event.createdAt,step:p.step,requestId:p.requestId||null,durationMs:p.durationMs??null,timing:p.timing||null,cacheDiagnostics:p.cache?.diagnostics||null,...usageMetrics(p.usage,p.protocol==='anthropic')});
    if(event.type==='model.compaction_usage')compactions.push({seq:event.seq,at:event.createdAt,model:p.model,durationMs:p.durationMs??null,timing:p.timing||null,sourceRange:p.sourceRange||null,...usageMetrics(p.usage,p.protocol==='anthropic')});
    if(event.type==='capture.stage')stages.push({seq:event.seq,at:event.createdAt,...p});
@@ -52,6 +52,7 @@ export async function inspectRunMetrics(store,{sessionId,runId,pageSize=128}={})
  for(const row of results){const item=byTool[row.name]??={calls:0,failed:0,durationMs:0};item.calls++;if(['error','failed','cancelled','unknown'].includes(row.status))item.failed++;item.durationMs+=Number.isFinite(row.durationMs)?row.durationMs:0;}
  // Capture stages nest within tools, and compaction nests within preparation.
  // Keep these breakdowns separate so callers do not sum overlapping intervals.
- const latency={timedRequests:requests.filter(row=>Number.isFinite(row.durationMs)).length,timedPreparations:requests.filter(row=>Number.isFinite(row.preparation?.totalMs)).length,timedCompactions:compactions.filter(row=>Number.isFinite(row.durationMs)).length,timedTools:results.filter(row=>Number.isFinite(row.durationMs)).length,elapsedMs:start!==null&&end?Math.max(0,end.at-start):null,modelMs:sum(requests,row=>row.durationMs),preparationMs:sum(requests,row=>row.preparation?.totalMs),compactionMs:sum(compactions,row=>row.durationMs),toolMs:sum(results,row=>row.durationMs),byTool};
+ const measuredRequests=[...requests,...failed];
+ const latency={timedRequests:measuredRequests.filter(row=>Number.isFinite(row.durationMs)).length,timedPreparations:measuredRequests.filter(row=>Number.isFinite(row.preparation?.totalMs)).length,timedCompactions:compactions.filter(row=>Number.isFinite(row.durationMs)).length,timedTools:results.filter(row=>Number.isFinite(row.durationMs)).length,elapsedMs:start!==null&&end?Math.max(0,end.at-start):null,modelMs:sum(measuredRequests,row=>row.durationMs),preparationMs:sum(measuredRequests,row=>row.preparation?.totalMs),compactionMs:sum(compactions,row=>row.durationMs),toolMs:sum(results,row=>row.durationMs),byTool};
  return {sessionId,runId,start,end,pagesRead,requests,compactions,failedRequests:failed,captures:stages,tools,latency,cache:{reportedRequests:reported.length,unreportedRequests:allRequests.length-reported.length,inputTokens:input,cachedInputTokens:cached,cacheHitRatio:input>0?cached/input:null}};
 }

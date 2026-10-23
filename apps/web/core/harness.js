@@ -236,7 +236,7 @@ export function createHarness({store,onEvent=()=>{},capture=screenCapture,invoke
         if(attentionReturn&&(!attentionRequired||(await harnessState()).visible)){attentionReturn={...attentionReturn,phase:attentionRequired?'returned':'not_required'};terminal=attentionTerminal();status='needs_user';answer=await store.addMessage(sessionId,{role:'assistant',text:terminal.question||terminal.summary||userText('HARNESS_ATTENTION_REQUIRED')});emit({type:'message',message:answer});}
         if(taskCompletion&&!returnRequired){taskCompletion={...taskCompletion,phase:'not_required'};terminal={status:'completed'};status='completed';answer=await store.addMessage(sessionId,{role:'assistant',text:taskCompletion.goalSummary||userText('HARNESS_RETURN_DISABLED')});emit({type:'message',message:answer});}
         for(stepCount=0;stepCount<maxSteps&&!terminal;stepCount++){
-          const preparationStarted=performance.now(),preparation={};await guard();let stageStarted=performance.now();await refreshRunSkills();preparation.skillsMs=Math.round(performance.now()-stageStarted);stageStarted=performance.now();const ctx=await context();preparation.deviceContextMs=Math.round(performance.now()-stageStarted);
+          let preparationStarted=performance.now(),preparation={};await guard();let stageStarted=performance.now();await refreshRunSkills();preparation.skillsMs=Math.round(performance.now()-stageStarted);stageStarted=performance.now();const ctx=await context();preparation.deviceContextMs=Math.round(performance.now()-stageStarted);
           const available=toolsFor(mode,ctx,{locationEnabled:typeof locationAccess.supported==='function'?locationAccess.supported():await locationAccess.isEnabled(),returning:attentionReturn?.phase==='return_for_attention'});
           ctx.allowedTools=available.map(tool=>tool.name);
           const requestProvider={...provider,promptCacheKey:`iah:${sessionId}`,sessionId,enableResponseContinuation:provider.enableResponseContinuation===true&&provider.storeResponses===true,storeResponses:provider.storeResponses===true};
@@ -268,7 +268,7 @@ export function createHarness({store,onEvent=()=>{},capture=screenCapture,invoke
             }catch(error){
               await journal('model.failed',{requestId,step:stepCount,durationMs:Math.round(performance.now()-modelStartedAt),status:runSignal.aborted?'cancelled':'failed',code:typeof error?.code==='string'&&/^[A-Z0-9_]{1,80}$/.test(error.code)?error.code:runSignal.aborted?'RUN_CANCELLED':'MODEL_REQUEST_FAILED',httpStatus:Number.isInteger(error?.status)?error.status:null});
               if(attempt||emitted||error?.code!=='CONTEXT_WINDOW_EXCEEDED'||settings.context?.autoCompact===false)throw error;
-              await guard();projected=await prepareContext({...contextOptions,summaryContext:{...contextOptions.summaryContext,prefix},force:true});
+              await guard();preparationStarted=performance.now();preparation={};stageStarted=performance.now();projected=await prepareContext({...contextOptions,summaryContext:{...contextOptions.summaryContext,prefix},force:true});preparation.contextMs=Math.round(performance.now()-stageStarted);
               if(!projected.compacted)throw error;
             }
           }
