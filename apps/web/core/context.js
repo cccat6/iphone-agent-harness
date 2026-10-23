@@ -253,7 +253,8 @@ export async function prepareContext({store,sessionId,settings:input,provider,cr
     if(settings.strategy==='model'){
       if(typeof invoke!=='function')throw new Error('Model compaction requires an invoke adapter');
       // Each request is separately bounded. No unread pages are skipped to fit.
-      const inputBudget=Math.max(256,settings.triggerTokens-settings.reserveTokens-summaryBudget-1024-(summaryContext?prefixTokens:0));
+      const summaryCapacity=preserveImagePrefix&&summaryContext?.lazyHydrate&&Number.isSafeInteger(capacity)?capacity:settings.triggerTokens;
+      const inputBudget=Math.max(256,summaryCapacity-settings.reserveTokens-summaryBudget-1024-(summaryContext?prefixTokens:0));
       let batch=[],cost=0;
       async function summarize(){
         if(!batch.length)return;contextAbort(signal);
@@ -266,7 +267,7 @@ export async function prepareContext({store,sessionId,settings:input,provider,cr
         // Keep the live conversation prefix through its latest completed model
         // output so WebSocket continuation can summarize without re-uploading
         // old screenshots. The recent tail remains verbatim after compression.
-        const cacheTail=history&&preserveImagePrefix&&summaryContext.lazyHydrate&&!batches&&sourceRange.throughSeq===tail.throughSeq&&estimated+summaryBudget+settings.reserveTokens<settings.triggerTokens;
+        const cacheTail=history&&preserveImagePrefix&&summaryContext.lazyHydrate&&!batches&&sourceRange.throughSeq===tail.throughSeq&&estimated+summaryBudget+settings.reserveTokens<(Number.isSafeInteger(capacity)?capacity:settings.triggerTokens);
         if(cacheTail){history.push(...tail.rows.map(m=>selectedMessage(m,old)));metrics.summaryCacheTailMessages=tail.rows.length;}
         const boundary=cacheTail?'\nRecent exchanges after this historical boundary remain verbatim and must not be summarized: '+JSON.stringify(summaryRecord(batch.at(-1))).slice(0,1200):'';
         if((!preserveImagePrefix||forceReason==='transport-capacity')&&history&&history.reduce((n,m)=>n+refCount(m),0)>(forceReason==='transport-capacity'?1:settings.maxImages)){const selection=chooseImageSelection(history,forceReason==='transport-capacity'?1:settings.maxImages),boundary={compactedAtSeq:lastSeq,imageSelection:selection};history=history.map(m=>selectedMessage(m,boundary));}

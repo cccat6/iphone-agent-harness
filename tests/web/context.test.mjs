@@ -188,3 +188,10 @@ test('summary replay exceeding image transfer capacity retries once without drop
  const result=await run(store,{settings:{triggerTokens:750000},preserveImagePrefix:true,force:true,forceReason:'manual',summaryContext:{prefix,lazyHydrate:true,hydrate:async rows=>rows,toolDefinitions:[]},invoke:async args=>{calls.push(structuredClone({...args,hydrate:undefined,onDelta:undefined}));if(calls.length===1)throw Object.assign(Error('wire capacity'),{code:'CONTEXT_TRANSPORT_LIMIT'});return {text:'All historical outcomes retained.',toolCalls:[]};}});
  assert.equal(calls.length,2);assert.equal(result.metrics.summaryTransportFallback,true);assert.deepEqual(calls[0].messages.map(m=>m.text),calls[1].messages.map(m=>m.text));assert.ok(calls[0].messages.flatMap(m=>m.frameRefs||[]).length>1);assert.equal(calls[1].messages.flatMap(m=>m.frameRefs||[]).length,1);paired(calls[1].messages.slice(prefix.length,-1));assert.equal(store.framesRead,0);
 });
+
+test('automatic compaction uses available model headroom to retain the cached tail above its trigger',async()=>{
+ const store=new Memory(history(20)),calls=[],prefix=[{role:'system',text:'Stable procedures'}];
+ const before=await run(store,{settings:{triggerTokens:750000},preserveImagePrefix:true});
+ const result=await run(store,{settings:{triggerTokens:6000},provider:{contextWindowTokens:100000},preserveImagePrefix:true,summaryContext:{prefix,lazyHydrate:true,hydrate:async rows=>rows,toolDefinitions:[]},invoke:async args=>{calls.push(args);return {text:'Historical evidence.',toolCalls:[]};}});
+ assert.equal(result.compacted,true);assert.equal(result.metrics.compactionReason,'tokens');assert.equal(calls.length,1);assert.deepEqual(calls[0].messages.slice(1,-1),before.messages);assert.ok(result.metrics.summaryCacheTailMessages>0);
+});

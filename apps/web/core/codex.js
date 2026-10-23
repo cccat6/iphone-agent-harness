@@ -1,3 +1,4 @@
+import {warmupReplay} from './response-replay.js';
 import {ResponseSocket} from './response-socket.js';
 import {cacheUsage} from './model-usage.js';
 import {SITE_CONFIG} from '../site-config.js';
@@ -321,7 +322,12 @@ export async function callCodexModel({provider,messages,tools=[],toolDefinitions
   }
   const hydrateStarted=networkNow();
   const inputFor=async rows=>{const ready=rows.map(message=>({...message}));if(hydrate)await hydrate(ready);check(active);return toInput(ready,stateScope);};
-  payload.input=await inputFor(requestMessages);timing.imagesMs=Math.round(networkNow()-hydrateStarted);
+  try{payload.input=await inputFor(requestMessages);}catch(error){
+   if(error?.code!=='CONTEXT_TRANSPORT_LIMIT'||!socket||previousResponseId)throw error;
+   let replay;try{replay=await warmupReplay({messages:requestMessages,inputFor,payload,socket,events,signal:active});}catch(replayError){check(active);socket.close();throw Object.assign(new Error('Context replay unavailable'),{code:'CONTEXT_TRANSPORT_LIMIT'});}
+   previousResponseId=replay.responseId;payload.previous_response_id=previousResponseId;payload.input=[];
+   timing.replayWarmupRequests=replay.requests;timing.replayWarmupBytes=replay.wireBytes;
+  }timing.imagesMs=Math.round(networkNow()-hydrateStarted);
   timing.transport=socket?'responses-websocket':'https';timing.continued=!!previousResponseId;timing.inputItems=payload.input.length;
   const serializeStarted=networkNow(),encoded=JSON.stringify(payload);timing.requestBytes=new TextEncoder().encode(encoded).length;timing.serializeMs=Math.round(networkNow()-serializeStarted);timing.prepareMs=Math.round(networkNow()-callStarted);
   const connectionStarted=networkNow(),requestOptions={method:'POST',headers:headers(a,token,{sessionId:a.flow==='chatgpt-plan'?(provider.promptCacheKey||sessionId||provider.sessionId):(sessionId||provider.sessionId)}),body:encoded,signal:active,fetchImpl,...(a.flow==='chatgpt-plan'?{relayEndpoint:endpoint}:{})};
