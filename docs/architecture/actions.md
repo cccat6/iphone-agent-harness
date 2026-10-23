@@ -26,3 +26,7 @@ Cancel, lost sharing, disconnection, expiry or late execution stop dependent wor
 
 
 The compiler sends the last absolute position while pressed, then sends button-up separately after a short report gap. This preserves the endpoint on iOS. Gesture timing records scheduled and device-reported input time separately from RPC time, receipt polling, settling and capture. Input execution overlaps receipt polling; those figures are not added to calculate wall time.
+
+Bridges advertising `segmentEncoding: gesture-v2` receive a compact `gesture` tuple instead of expanded `events`. Tap, key and Home carry their parameters; paths carry positioning time, report cadence, motion duration, release hold and `[x,y,t]` keyframes. The MCU expands the path into its bounded scheduler. Explicit pointer sequences and batched keys use compact report tuples. Version 1 remains available for older firmware; both versions retain identity, lease, request hash and execution receipts.
+
+Motion planning uses feedback from the actual control. Native lists and native time wheels are measured separately. Large moves can use inertia, followed by short held drags near the target. Custom or unidentified controls start with a small held drag. Stop-time estimates come from time-separated frames of the control and are revised after overshoot, rebound or a changed layout.

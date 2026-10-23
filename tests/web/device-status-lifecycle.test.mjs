@@ -100,3 +100,11 @@ test('RTC loss during a task keeps idle recovery queued after its panel closes',
  assert.equal(f.opens(),2);assert.equal(f.panel.getState().ready,true);
  f.field('[data-disconnect]').onclick();t.mock.timers.tick(30000);await settle();assert.equal(f.opens(),2);assert.equal(f.panel.getState().ready,false);
 });
+test('exhausted background reconnects publish failure and allow an explicit retry',async t=>{
+ t.mock.timers.enable({apis:['setTimeout']});const f=await fixture(t),settle=async()=>{for(let i=0;i<100;i++)await Promise.resolve();};
+ f.panel.dispose();f.setFailure(new DeviceError('DEVICE_RTC_TIMEOUT'));f.disconnectTransport();
+ for(const delay of [500,1200,2500,5000]){t.mock.timers.tick(delay);await settle();}
+ assert.equal(f.opens(),5);assert.equal(f.panel.getState().status,'error');assert.equal(f.updates.at(-1).status,'error');
+ t.mock.timers.tick(60000);await settle();assert.equal(f.opens(),5,'recovery stops after four attempts');
+ f.setFailure(null);await f.panel.open();await f.field('[data-pair]').onclick();assert.equal(f.panel.getState().ready,true);assert.equal(f.opens(),6);
+});

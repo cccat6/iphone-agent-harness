@@ -95,8 +95,8 @@ function stateChecks(plan,context) {
 
 const REQUEST_BYTES_DEFAULT=98304;
 function requestByteLimit(caps={}){const value=caps.maxRequestBytes??REQUEST_BYTES_DEFAULT;if(!integer(value,1,REQUEST_BYTES_DEFAULT))fail('Invalid trusted device limit: maxRequestBytes');return value;}
-function gestureEnvelope(plan,identity,index,{events,durationMs},segmentId='00000000-0000-4000-8000-000000000000'){
- return {protocolVersion:1,boardId:identity.boardId,bootId:identity.bootId,targetId:identity.targetId,clientId:identity.clientId,leaseId:identity.leaseId,segmentId,planId:plan.planId,segmentIndex:index,ttlMs:Math.min(15000,Math.max(100,durationMs+1000)),events,payloadHash:'0'.repeat(64)};
+function gestureEnvelope(plan,identity,index,{events,durationMs,gesture},segmentId='00000000-0000-4000-8000-000000000000'){
+ return {protocolVersion:gesture?2:1,boardId:identity.boardId,bootId:identity.bootId,targetId:identity.targetId,clientId:identity.clientId,leaseId:identity.leaseId,segmentId,planId:plan.planId,segmentIndex:index,ttlMs:Math.min(15000,Math.max(100,durationMs+1000)),...(gesture?{gesture}:{events}),payloadHash:'0'.repeat(64)};
 }
 function checkRequestBytes(segment,caps){if(new TextEncoder().encode(JSON.stringify(segment)).length>requestByteLimit(caps))fail('Compiled segment exceeds device request byte limit; shorten or sparsify the motion.');}
 function checkGestureLimits(events,durationMs,caps={}){
@@ -185,8 +185,18 @@ export function compileGesture(step,context={}) {
   }
   const durationMs=events.at(-1).atMs;
   checkGestureLimits(events,durationMs,caps);
-  return {events,durationMs};
+  let gesture;
+  if(caps.segmentEncoding==='gesture-v2'){
+    if(step.op==='home')gesture=['home'];
+    else if(step.op==='tap')gesture=['tap',step.point.x,step.point.y,settle,step.holdMs];
+    else if(step.op==='key')gesture=['key',step.modifiers,step.usage,step.holdMs];
+    else if((step.op==='drag'||step.op==='swipe')&&step.path.length<=64){const hold=step.endHoldMs||(step.op==='swipe'?Math.min(interval,20):0);gesture=['path',settle,interval,durationMs-settle-hold,hold,step.path.map(p=>[p.x,p.y,p.tMs])];}
+    else gesture=compactReports(events);
+  }
+  return {events,durationMs,...(gesture?{gesture}:{})};
 }
+
+function compactReports(events){return ['reports',events.map(e=>e.kind==='pointer'?[e.atMs,0,e.buttons,e.x,e.y]:e.kind==='keyboard'?[e.atMs,1,e.modifiers,e.usages]:[e.atMs,2,e.usage])];}
 
 // Printable text keys can share one device-scheduled segment. Commands and
 // observation barriers keep their own segments and independent verification.
@@ -196,10 +206,10 @@ function compileTextKeyRun(plan,index,context,identity){
  let events=[],offset=0,end=index,durationMs=0;
  for(let i=index;i<plan.steps.length&&eligible(plan.steps[i]);i++){
   const compiled=compileGesture(plan.steps[i],context),candidate=[...events,...compiled.events.map(event=>({...event,atMs:offset+event.atMs}))],duration=offset+compiled.durationMs;
-  try{checkGestureLimits(candidate,duration,context.capabilities);checkRequestBytes(gestureEnvelope(plan,identity,index,{events:candidate,durationMs:duration}),context.capabilities);}catch(error){if(!events.length)throw error;break;}
+  try{checkGestureLimits(candidate,duration,context.capabilities);checkRequestBytes(gestureEnvelope(plan,identity,index,{events:candidate,durationMs:duration,...(context.capabilities?.segmentEncoding==='gesture-v2'?{gesture:compactReports(candidate)}:{})}),context.capabilities);}catch(error){if(!events.length)throw error;break;}
   events=candidate;durationMs=duration;end=i;offset=duration+actionSettleMs(plan.steps[i]);
  }
- return end>index?{events,durationMs,end}:null;
+ return end>index?{events,durationMs,end,...(context.capabilities?.segmentEncoding==='gesture-v2'?{gesture:compactReports(events)}:{})}:null;
 }
 
 /** Deterministic canonical wire JSON: recursive key sorting, integer numbers only. */
@@ -317,7 +327,7 @@ export async function executePhonePlan(input,{device,capture,context,signal,onEv
   async function runGesture(step,index,prepared){
     const current=await check(),caps=current.capabilities||context.capabilities;operationAllowed(step.op,{capabilities:caps});const compiled=prepared||compileGesture(step,{...context,capabilities:caps});
     const segment=gestureEnvelope(plan,baseline,index,compiled,crypto.randomUUID());checkRequestBytes(segment,caps);
-    segment.payloadHash=await hashSegment(segment);const latest=await check(),latestCaps=latest.capabilities||context.capabilities;operationAllowed(step.op,{capabilities:latestCaps});checkGestureLimits(segment.events,compiled.durationMs,latestCaps);checkRequestBytes(segment,latestCaps);
+    segment.payloadHash=await hashSegment(segment);const latest=await check(),latestCaps=latest.capabilities||context.capabilities;operationAllowed(step.op,{capabilities:latestCaps});checkGestureLimits(compiled.events,compiled.durationMs,latestCaps);checkRequestBytes(segment,latestCaps);
     if(!dispatched){const batch=validatePlan(plan,{...context,capabilities:latestCaps});if(!batch.valid)fail(batch.errors.join('; '));}
     context.validateSegment?.(segment);
     let receipt;timing.scheduledInputMs+=compiled.durationMs;dispatched=true;if(activeKeyRun&&activeKeyRun.start===index)activeKeyRun.sent=true;inputState='unknown';mandatoryStages++;

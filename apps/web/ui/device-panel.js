@@ -149,7 +149,8 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
   }
   function clearReconnect(){clearTimeout(reconnectTimer);reconnectTimer=null;reconnectAttempts=0;reconnecting=false;}
   function scheduleReconnect(){
-    if(disposed||!wantsConnection||reconnectTimer||reconnectAttempts>=4||!information())return;
+    if(disposed||!wantsConnection||reconnectTimer||!information())return;
+    if(reconnectAttempts>=4){reconnecting=false;renderState();publish();return;}
     // A task may still be unwinding after transport loss. Keep recovery queued
     // until it releases ownership, without spending an actual connect attempt.
     if(working||isBusy()||connectionInFlight){reconnectTimer=setTimeout(()=>{reconnectTimer=null;scheduleReconnect();},1000);reconnectTimer?.unref?.();return;}

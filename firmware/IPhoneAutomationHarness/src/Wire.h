@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <vector>
 #include "Core.h"
+#include "CompactGesture.h"
 #include "Canonical.h"
 #include "Admission.h"
 #include "CryptoUtils.h"
@@ -26,13 +27,15 @@ inline String canonicalDigest(JsonVariantConst value){
 }
 inline bool parseSegment(JsonObjectConst json,Segment& s,String& error){
  auto bad=[&](const char* message){error=message;return false;};
- if(!fields(json,{"protocolVersion","boardId","bootId","targetId","clientId","leaseId","segmentId","planId","segmentIndex","ttlMs","payloadHash","events"}))return bad("invalid_segment_fields");
- if(!wireInteger(json["protocolVersion"],1,1)||!wireInteger(json["segmentIndex"],0,29)||!wireInteger(json["ttlMs"],100,15000))return bad("invalid_segment_limits");
+ const bool compact=json["protocolVersion"]==2;
+ if(!fields(json,{"protocolVersion","boardId","bootId","targetId","clientId","leaseId","segmentId","planId","segmentIndex","ttlMs","payloadHash",compact?"gesture":"events"}))return bad("invalid_segment_fields");
+ if(!wireInteger(json["protocolVersion"],1,2)||!wireInteger(json["segmentIndex"],0,29)||!wireInteger(json["ttlMs"],100,15000))return bad("invalid_segment_limits");
  for(auto field:{"boardId","bootId","targetId","clientId","leaseId","segmentId","planId"})if(!json[field].is<const char*>()||!validId(json[field].as<const char*>()))return bad("invalid_identifier");
  String hash=json["payloadHash"]|"";if(hash.length()!=64)return bad("invalid_hash");for(char c:hash)if(!((c>='0'&&c<='9')||(c>='a'&&c<='f')))return bad("invalid_hash");
- auto events=json["events"].as<JsonArrayConst>();if(!json["events"].is<JsonArrayConst>()||events.size()<1||events.size()>WireMaxEvents)return bad("invalid_event_count");
+ auto events=json["events"].as<JsonArrayConst>();if(!compact&&(!json["events"].is<JsonArrayConst>()||events.size()<1||events.size()>WireMaxEvents))return bad("invalid_event_count");
  s.protocolVersion=1;s.boardId=json["boardId"].as<const char*>();s.bootId=json["bootId"].as<const char*>();s.targetId=json["targetId"].as<const char*>();s.clientId=json["clientId"].as<const char*>();s.leaseId=json["leaseId"].as<const char*>();s.segmentId=json["segmentId"].as<const char*>();s.planId=json["planId"].as<const char*>();s.payloadHash=hash.c_str();s.segmentIndex=json["segmentIndex"].as<int>();s.ttlMs=json["ttlMs"].as<int>();s.count=0;
- for(auto value:events){auto e=value.as<JsonObjectConst>();if(!value.is<JsonObjectConst>()||!wireInteger(e["atMs"],0,5000))return bad("invalid_event");Event report;report.atMs=e["atMs"].as<int>();String kind=e["kind"]|"";
+ if(compact){if(!expandGesture(json["gesture"].as<JsonArrayConst>(),s))return bad("invalid_compact_gesture");}
+ else for(auto value:events){auto e=value.as<JsonObjectConst>();if(!value.is<JsonObjectConst>()||!wireInteger(e["atMs"],0,5000))return bad("invalid_event");Event report;report.atMs=e["atMs"].as<int>();String kind=e["kind"]|"";
   if(kind=="pointer"){if(!fields(e,{"atMs","kind","buttons","x","y"})||!wireInteger(e["buttons"],0,1)||!wireInteger(e["x"],0,10000)||!wireInteger(e["y"],0,10000))return bad("invalid_pointer");report.kind=Kind::Pointer;report.x=e["x"].as<int>();report.y=e["y"].as<int>();report.buttons=e["buttons"].as<int>();}
   else if(kind=="keyboard"){if(!fields(e,{"atMs","kind","modifiers","usages"})||!wireInteger(e["modifiers"],0,255)||!e["usages"].is<JsonArrayConst>()||e["usages"].size()>6)return bad("invalid_keyboard");report.kind=Kind::Keyboard;report.modifiers=e["modifiers"].as<int>();for(auto u:e["usages"].as<JsonArrayConst>()){if(!wireInteger(u,4,231))return bad("invalid_usage");report.usages[report.count++]=u.as<int>();}}
   else if(kind=="consumer"){if(!fields(e,{"atMs","kind","usage"})||!wireInteger(e["usage"],0,64)||(e["usage"].as<int>()!=0&&e["usage"].as<int>()!=64))return bad("invalid_consumer");report.kind=Kind::Consumer;report.usage=e["usage"].as<int>();}

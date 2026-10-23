@@ -23,7 +23,7 @@ def wire_method(signature):
  while depth:
   depth+=(wire[end]=='{')-(wire[end]=='}');end+=1
  return wire[start:end]
-parse_segment=wire_method('inline bool parseSegment(')
+parse_segment='#include "'+str(ROOT/'firmware/IPhoneAutomationHarness/src/CompactGesture.h')+'"\n'+wire_method('inline bool parseSegment(')
 receipt=method('void receipt(')
 program=r'''
 #include <ArduinoJson.h>

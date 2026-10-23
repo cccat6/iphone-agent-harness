@@ -1,11 +1,14 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "ESP32 timed HID segment v1 (design contract)",
+  "title": "ESP32 input segment",
   "type": "object",
   "additionalProperties": false,
   "properties": {
     "protocolVersion": {
-      "const": 1
+      "enum": [
+        1,
+        2
+      ]
     },
     "boardId": {
       "type": "string",
@@ -153,6 +156,240 @@
       },
       "minItems": 1,
       "maxItems": 512
+    },
+    "gesture": {
+      "oneOf": [
+        {
+          "type": "array",
+          "prefixItems": [
+            {
+              "const": "home"
+            }
+          ],
+          "minItems": 1,
+          "maxItems": 1,
+          "items": false
+        },
+        {
+          "type": "array",
+          "prefixItems": [
+            {
+              "const": "tap"
+            },
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10000
+            },
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10000
+            },
+            {
+              "type": "integer",
+              "minimum": 8,
+              "maximum": 500
+            },
+            {
+              "type": "integer",
+              "minimum": 40,
+              "maximum": 1200
+            }
+          ],
+          "minItems": 5,
+          "maxItems": 5,
+          "items": false
+        },
+        {
+          "type": "array",
+          "prefixItems": [
+            {
+              "const": "key"
+            },
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 255
+            },
+            {
+              "type": "integer",
+              "minimum": 4,
+              "maximum": 231
+            },
+            {
+              "type": "integer",
+              "minimum": 40,
+              "maximum": 1200
+            }
+          ],
+          "minItems": 4,
+          "maxItems": 4,
+          "items": false
+        },
+        {
+          "type": "array",
+          "prefixItems": [
+            {
+              "const": "path"
+            },
+            {
+              "type": "integer",
+              "minimum": 8,
+              "maximum": 500
+            },
+            {
+              "type": "integer",
+              "minimum": 8,
+              "maximum": 100
+            },
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 3000
+            },
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 3000
+            },
+            {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 64,
+              "items": {
+                "type": "array",
+                "prefixItems": [
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 10000
+                  },
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 10000
+                  },
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 3000
+                  }
+                ],
+                "minItems": 3,
+                "maxItems": 3,
+                "items": false
+              }
+            }
+          ],
+          "minItems": 6,
+          "maxItems": 6,
+          "items": false
+        },
+        {
+          "type": "array",
+          "prefixItems": [
+            {
+              "const": "reports"
+            },
+            {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 128,
+              "items": {
+                "oneOf": [
+                  {
+                    "type": "array",
+                    "prefixItems": [
+                      {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 5000
+                      },
+                      {
+                        "const": 0
+                      },
+                      {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 10000
+                      },
+                      {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 10000
+                      }
+                    ],
+                    "minItems": 5,
+                    "maxItems": 5,
+                    "items": false
+                  },
+                  {
+                    "type": "array",
+                    "prefixItems": [
+                      {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 5000
+                      },
+                      {
+                        "const": 1
+                      },
+                      {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 255
+                      },
+                      {
+                        "type": "array",
+                        "maxItems": 6,
+                        "items": {
+                          "type": "integer",
+                          "minimum": 4,
+                          "maximum": 231
+                        }
+                      }
+                    ],
+                    "minItems": 4,
+                    "maxItems": 4,
+                    "items": false
+                  },
+                  {
+                    "type": "array",
+                    "prefixItems": [
+                      {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 5000
+                      },
+                      {
+                        "const": 2
+                      },
+                      {
+                        "enum": [
+                          0,
+                          64
+                        ]
+                      }
+                    ],
+                    "minItems": 3,
+                    "maxItems": 3,
+                    "items": false
+                  }
+                ]
+              }
+            }
+          ],
+          "minItems": 2,
+          "maxItems": 2,
+          "items": false
+        }
+      ]
     }
   },
   "required": [
@@ -166,7 +403,38 @@
     "planId",
     "segmentIndex",
     "ttlMs",
-    "payloadHash",
-    "events"
+    "payloadHash"
+  ],
+  "oneOf": [
+    {
+      "properties": {
+        "protocolVersion": {
+          "const": 1
+        }
+      },
+      "required": [
+        "events"
+      ],
+      "not": {
+        "required": [
+          "gesture"
+        ]
+      }
+    },
+    {
+      "properties": {
+        "protocolVersion": {
+          "const": 2
+        }
+      },
+      "required": [
+        "gesture"
+      ],
+      "not": {
+        "required": [
+          "events"
+        ]
+      }
+    }
   ]
 }

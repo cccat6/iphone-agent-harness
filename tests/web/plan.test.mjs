@@ -199,3 +199,7 @@ test('cancelled submitted text batches never label their remaining characters as
  const controller=new AbortController(),a=adapters({submit:()=>{controller.abort();throw Error('cancelled after send');}}),keys=[4,5,6].map((usage,i)=>({id:'char-'+i,op:'key',usage,modifiers:0,holdMs:40}));
  const result=await executePhonePlan(plan([...keys,shot('after')]),{...a,context:context(),signal:controller.signal});assert.equal(result.status,'cancelled');assert.equal(a.segments.length,1);assert.deepEqual(result.steps.slice(0,3).map(s=>s.status),['unknown','unknown','unknown']);assert.equal(result.steps.at(-1).status,'skipped');assert.equal(a.releases.length,1);
 });
+
+test('gesture-v2 sends keyframes instead of sampled reports while older bridges retain v1',async()=>{
+ for(const compact of [false,true]){const a=adapters();const input=plan([{id:'long',op:'swipe',path:[{x:9000,y:7800,tMs:0},{x:1000,y:7800,tMs:2000}],settleMs:0}]);const ctx=context({capabilities:{operations,reportIntervalMs:40,...(compact?{segmentEncoding:'gesture-v2'}:{})}});const result=await executePhonePlan(input,{...a,context:ctx});assert.equal(result.status,'completed');const segment=a.segments[0];assert.equal(segment.protocolVersion,compact?2:1);if(compact){assert.equal(segment.events,undefined);assert.equal(segment.gesture[0],'path');assert.equal(segment.gesture[5].length,2);assert.ok(JSON.stringify(segment).length<550);}else assert.ok(segment.events.length>40);assert.equal(segment.payloadHash,createHash('sha256').update(canonicalSegmentJson(segment)).digest('hex'));}
+});
