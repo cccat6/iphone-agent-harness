@@ -45,7 +45,7 @@ import { openCreatorIdentity, importCreatorIdentity } from './community/identity
 import { createAuthoredSkill, updateAuthoredSkill, isOwnedAuthored, importOwnSkillFile } from './community/authoring.js';
 import { CommunityClient } from './community/client.js';
 import { canFlash, loadFirmwareManifest, flashFirmware, readDeviceSetup, firmwareInstallerChoices } from './core/flasher.js';
-import { startCodexLogin, validateCodexCallback, completeCodexLogin, discoverCodexModels, normalizeSubscriptionRelay, getCodexAccount, registerCodexAccount, hasCodexAccount, removeCodexAccount, setCodexTokenObserver } from './core/codex.js';
+import { startCodexLogin, validateCodexCallback, completeCodexLogin, discoverCodexModels, normalizeSubscriptionRelay, getCodexAccount, registerCodexAccount, hasCodexAccount, removeCodexAccount, setCodexRefreshStorage } from './core/codex.js';
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -56,14 +56,13 @@ const clipboard=createClipboardController({isCurrent:({sessionId,targetId})=>sta
 const deviceClipboard=createDeviceClipboard({getDevice:()=>activeInputBridge(),isCurrent:({sessionId,targetId})=>state.current?.id===sessionId&&deviceStatus().targetBound&&deviceStatus().targetId===targetId});
 clipboard.subscribe(snapshot=>{if(!snapshot||snapshot.status!=='awaiting_user_action')deviceClipboard.cancel();});
 registerErrorCatalog(BACKUP_ERRORS);
-let vaultWrite=Promise.resolve();
-setCodexTokenObserver(({id,event})=>{
-  if(event!=='refreshed'||!state.store)return;
-  vaultWrite=vaultWrite.catch(()=>{}).then(async()=>{
-    const latest=await state.store.getSettings(),account=getCodexAccount(id);
-    if(!account||!latest.providers?.some(profile=>profile.id===id&&profile.protocol==='codex'))return;
-    await saveProviderCredential(state.store,id,{kind:'codex',tokens:account.exportTokens()});
-  }).catch(error=>toast(()=>t('providerRefinement.credentialSaveFailed',{detail:localizeError(error)})));
+setCodexRefreshStorage({
+  load:async id=>(await state.store?.getLocalCredential('provider:'+id))?.tokens,
+  save:async(id,tokens)=>{
+    const latest=await state.store.getSettings();
+    if(!latest.providers?.some(profile=>profile.id===id&&profile.protocol==='codex'))return;
+    await saveProviderCredential(state.store,id,{kind:'codex',tokens});
+  }
 });
 let toastTimer,toastNode;
 const modeLabel=()=>t('interaction.assistant');

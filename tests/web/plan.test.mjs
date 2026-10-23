@@ -203,3 +203,12 @@ test('cancelled submitted text batches never label their remaining characters as
 test('gesture-v2 sends keyframes instead of sampled reports while older bridges retain v1',async()=>{
  for(const compact of [false,true]){const a=adapters();const input=plan([{id:'long',op:'swipe',path:[{x:9000,y:7800,tMs:0},{x:1000,y:7800,tMs:2000}],settleMs:0}]);const ctx=context({capabilities:{operations,reportIntervalMs:40,...(compact?{segmentEncoding:'gesture-v2'}:{})}});const result=await executePhonePlan(input,{...a,context:ctx});assert.equal(result.status,'completed');const segment=a.segments[0];assert.equal(segment.protocolVersion,compact?2:1);if(compact){assert.equal(segment.events,undefined);assert.equal(segment.gesture[0],'path');assert.equal(segment.gesture[5].length,2);assert.ok(JSON.stringify(segment).length<550);}else assert.ok(segment.events.length>40);assert.equal(segment.payloadHash,createHash('sha256').update(canonicalSegmentJson(segment)).digest('hex'));}
 });
+
+test('gesture-v2 continuous taps share one segment and keep observation and waiting barriers',async()=>{
+ const a=adapters(),taps=[1,2,3].map(n=>({...tap('continuous-'+n),point:{x:n*1000,y:6000},settleMs:0})),ctx=context({capabilities:{operations,segmentEncoding:'gesture-v2',reportIntervalMs:40}});
+ const result=await executePhonePlan(plan([...taps,shot('checkpoint'),tap('wait-tap')]),{...a,context:ctx});assert.equal(result.status,'completed');assert.equal(a.segments.length,2);assert.equal(a.segments[0].gesture[0],'reports');const reports=a.segments[0].gesture[1];assert.equal(reports.length,9);assert.deepEqual(reports.filter(r=>r[2]===1).map(r=>r[3]),[1000,2000,3000]);assert.equal(reports.at(-1)[2],0);assert.equal(a.segments[1].gesture[0],'tap');assert.equal(result.frames.length,1);
+});
+test('cancelled continuous taps reconcile the whole submitted batch without replay',async()=>{
+ const controller=new AbortController(),a=adapters({submit:()=>{controller.abort();throw Error('cancelled after send');}}),taps=[1,2,3].map(n=>({...tap('continuous-'+n),settleMs:0}));
+ const result=await executePhonePlan(plan([...taps,shot('after')]),{...a,signal:controller.signal,context:context({capabilities:{operations,segmentEncoding:'gesture-v2'}})});assert.equal(result.status,'cancelled');assert.equal(a.segments.length,1);assert.deepEqual(result.steps.slice(0,3).map(s=>s.status),['unknown','unknown','unknown']);assert.equal(result.steps.at(-1).status,'skipped');assert.equal(a.releases.length,1);
+});

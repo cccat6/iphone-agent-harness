@@ -198,10 +198,11 @@ export function compileGesture(step,context={}) {
 
 function compactReports(events){return ['reports',events.map(e=>e.kind==='pointer'?[e.atMs,0,e.buttons,e.x,e.y]:e.kind==='keyboard'?[e.atMs,1,e.modifiers,e.usages]:[e.atMs,2,e.usage])];}
 
-// Printable text keys can share one device-scheduled segment. Commands and
-// observation barriers keep their own segments and independent verification.
-function compileTextKeyRun(plan,index,context,identity){
- const eligible=step=>step?.op==='key'&&[0,2,32,34].includes(step.modifiers)&&((step.usage>=4&&step.usage<=39)||step.usage===42||step.usage>=44&&step.usage<=56)&&actionSettleMs(step)>=(context.capabilities?.reportIntervalMs||20);
+// Printable keys and explicitly continuous taps can share a device-scheduled
+// segment. Observation barriers and taps requesting a host wait stay separate.
+function compileInputRun(plan,index,context,identity){
+ const continuousTaps=context.capabilities?.segmentEncoding==='gesture-v2'&&plan.steps[index]?.op==='tap';
+ const eligible=step=>continuousTaps?step?.op==='tap'&&step.settleMs===0:step?.op==='key'&&[0,2,32,34].includes(step.modifiers)&&((step.usage>=4&&step.usage<=39)||step.usage===42||step.usage>=44&&step.usage<=56)&&actionSettleMs(step)>=(context.capabilities?.reportIntervalMs||20);
  if(!eligible(plan.steps[index]))return null;
  let events=[],offset=0,end=index,durationMs=0;
  for(let i=index;i<plan.steps.length&&eligible(plan.steps[i]);i++){
@@ -295,7 +296,7 @@ export async function executePhonePlan(input,{device,capture,context,signal,onEv
   if(!finite(start)||!finite(acceptedAt)||acceptedAt>start)fail('Invalid trusted monotonic clock');
   const deadline=Math.min(start+plan.maxExecutionMs,acceptedAt+plan.ttlMs);
   if(deadline<=start)throw deadlineError();
-  let failureCode=null,dispatched=false,inputState='released',stepIndex=0,deadlineExceeded=false,mandatoryStages=0,activeKeyRun=null;
+  let failureCode=null,dispatched=false,inputState='released',stepIndex=0,deadlineExceeded=false,mandatoryStages=0,activeInputRun=null;
   const result={version:1,planId:plan.planId,targetId:plan.targetId,status:'completed',outcome:'not_evaluated',inputState:'released',steps:[],frames:[]};
   const timing={contextMs:0,submitMs:0,resultQueryMs:0,receiptWaitMs:0,settleMs:0,capturePipelineMs:0,saveMs:0,scheduledInputMs:0,deviceExecutionMs:0,deviceTimedSegments:0,maxInputLatenessMs:0,submitCount:0,resultQueryCount:0,submittedBodyBytes:0,maxSubmittedBodyBytes:0};
   const measured=async(key,operation)=>{const at=now();try{return await operation();}finally{timing[key]+=Math.max(0,now()-at);}};
@@ -330,7 +331,7 @@ export async function executePhonePlan(input,{device,capture,context,signal,onEv
     segment.payloadHash=await hashSegment(segment);const latest=await check(),latestCaps=latest.capabilities||context.capabilities;operationAllowed(step.op,{capabilities:latestCaps});checkGestureLimits(compiled.events,compiled.durationMs,latestCaps);checkRequestBytes(segment,latestCaps);
     if(!dispatched){const batch=validatePlan(plan,{...context,capabilities:latestCaps});if(!batch.valid)fail(batch.errors.join('; '));}
     context.validateSegment?.(segment);
-    let receipt;timing.scheduledInputMs+=compiled.durationMs;dispatched=true;if(activeKeyRun&&activeKeyRun.start===index)activeKeyRun.sent=true;inputState='unknown';mandatoryStages++;
+    let receipt;timing.scheduledInputMs+=compiled.durationMs;dispatched=true;if(activeInputRun&&activeInputRun.start===index)activeInputRun.sent=true;inputState='unknown';mandatoryStages++;
     emit(onEvent,{type:'segment',phase:'submitting',segment});
     try{
       const requestTimeout=integer(context.resultTimeoutMs,100,30000)?context.resultTimeoutMs:8000;
@@ -398,13 +399,13 @@ export async function executePhonePlan(input,{device,capture,context,signal,onEv
         const sampled=collectFrames(step),motion=runGesture(step.motion,stepIndex);
         await Promise.all([sampled,motion]);const finalStep=stepIndex===plan.steps.length-1&&deadlineExceeded&&inputState==='released';await wait(actionSettleMs(step.motion),{allowDeadline:finalStep});if(finalStep)result.deadlineExceededAfterCompletion=true;else await check();result.steps.push({id:step.id,status:'hid_submitted',detail:'Motion submitted; observation frames carry actual times, not promised alignment.'});
       }else{
-        const keys=step.op==='key'?compileTextKeyRun(plan,stepIndex,{...context,capabilities:(await check()).capabilities||context.capabilities},baseline):null;
+        const keys=['key','tap'].includes(step.op)?compileInputRun(plan,stepIndex,{...context,capabilities:(await check()).capabilities||context.capabilities},baseline):null;
         if(keys){
-          activeKeyRun={start:stepIndex,end:keys.end,sent:false};
+          activeInputRun={start:stepIndex,end:keys.end,sent:false};
           emit(onEvent,{type:'input-batch',stepIds:plan.steps.slice(stepIndex,keys.end+1).map(s=>s.id),scheduledDurationMs:keys.durationMs});
           await runGesture(step,stepIndex,keys);
-          for(let i=stepIndex;i<=keys.end;i++){result.steps.push({id:plan.steps[i].id,status:'hid_submitted',detail:'Device confirmed the scheduled text-key batch and release; visible text not evaluated.'});emit(onEvent,{type:'step',phase:'completed',stepId:plan.steps[i].id});}
-          stepIndex=keys.end;activeKeyRun=null;const final=stepIndex===plan.steps.length-1&&deadlineExceeded&&inputState==='released';
+          for(let i=stepIndex;i<=keys.end;i++){result.steps.push({id:plan.steps[i].id,status:'hid_submitted',detail:'Device confirmed the scheduled input batch and release; visible outcome not evaluated.'});emit(onEvent,{type:'step',phase:'completed',stepId:plan.steps[i].id});}
+          stepIndex=keys.end;activeInputRun=null;const final=stepIndex===plan.steps.length-1&&deadlineExceeded&&inputState==='released';
           await wait(actionSettleMs(plan.steps[stepIndex]),{allowDeadline:final});if(final)result.deadlineExceededAfterCompletion=true;continue;
         }
         await runGesture(step,stepIndex);const settleMs=actionSettleMs(step),finalStep=stepIndex===plan.steps.length-1&&deadlineExceeded&&inputState==='released';if(settleMs){emit(onEvent,{type:'step',phase:'settling',stepId:step.id,settleMs});await wait(settleMs,{allowDeadline:finalStep});}if(finalStep)result.deadlineExceededAfterCompletion=true;else await check();result.steps.push({id:step.id,status:'hid_submitted',detail:'Device confirmed HID submission and release; visible outcome not evaluated.'});}
@@ -414,7 +415,7 @@ export async function executePhonePlan(input,{device,capture,context,signal,onEv
     executionElapsedMs=Math.max(0,now()-start);
     const code=String(failureCode||e.code||'failed').slice(0,100);failureCode=code;controller.abort(e);
     result.code=code;if(e.cancelReason)result.cancelReason=e.cancelReason;else if(code==='PLAN_DEADLINE_EXCEEDED')result.cancelReason='plan_deadline';else if(code==='DEVICE_RESULT_TIMEOUT')result.cancelReason='device_result_timeout';if(code==='CAPTURE_TIMEOUT')result.captureStage=e.stage;if(e.deviceFailure)result.deviceFailure=e.deviceFailure;result.status=code==='USER_CANCELLED'?'cancelled':code==='unknown'||(dispatched&&inputState==='unknown')||(code==='DEVICE_BRIDGE_UNAVAILABLE'&&dispatched&&inputState==='unknown')?'unknown':'failed';result.outcome='insufficient_evidence';
-    if(activeKeyRun?.sent){for(let i=activeKeyRun.start;i<=activeKeyRun.end;i++)result.steps.push({id:plan.steps[i].id,status:'unknown',detail:'The submitted text-key batch did not finish with a verified receipt; inspect the field before further typing.'});stepIndex=activeKeyRun.end;}
+    if(activeInputRun?.sent){for(let i=activeInputRun.start;i<=activeInputRun.end;i++)result.steps.push({id:plan.steps[i].id,status:'unknown',detail:'The submitted input batch did not finish with a verified receipt; inspect the current screen before further input.'});stepIndex=activeInputRun.end;}
     else if(stepIndex<plan.steps.length&&!result.steps.some(step=>step.id===plan.steps[stepIndex].id))result.steps.push({id:plan.steps[stepIndex].id,status:result.status==='cancelled'?'cancelled':result.status==='unknown'?'unknown':'failed',detail:String(e.message).slice(0,500)});
     for(let i=stepIndex+1;i<plan.steps.length;i++)result.steps.push({id:plan.steps[i].id,status:'skipped',detail:'Stopped after prior failure or cancellation.'});
     await cleanupRelease();

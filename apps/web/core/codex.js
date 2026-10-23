@@ -15,6 +15,11 @@ export const CODEX_CLIENT_ID='app_EMoamEEZ73f0CkXaXp7hrann';
 export const CODEX_ENDPOINTS=Object.freeze({issuer:'https://auth.openai.com',userCode:'https://auth.openai.com/api/accounts/deviceauth/usercode',poll:'https://auth.openai.com/api/accounts/deviceauth/token',token:'https://auth.openai.com/oauth/token',planToken:'https://auth.openai.com/api/accounts/oauth/token',verification:'https://auth.openai.com/codex/device',responses:'https://chatgpt.com/backend-api/codex/responses',models:'https://chatgpt.com/backend-api/codex/models',planResponses:'https://api.openai.com/v1/responses',planModels:'https://api.openai.com/v1/models'});
 const responseSockets=new Map(),socketDisabledUntil=new Map();
 const accounts=new Map();let activeId='';const completedLogins=new WeakSet(),loginExchanges=new Map();const tokenObservers=new Set();
+let refreshStorage=null;
+export function setCodexRefreshStorage(storage){
+ if(storage!==null&&(!storage||typeof storage.load!=='function'||typeof storage.save!=='function'))throw new TypeError('Invalid subscription refresh storage');
+ refreshStorage=storage;
+}
 export function setCodexTokenObserver(listener){if(typeof listener!=='function')throw new TypeError('需要令牌更新监听函数');tokenObservers.add(listener);return ()=>tokenObservers.delete(listener);}
 function tokensChanged(id){for(const listener of [...tokenObservers])try{Promise.resolve(listener(Object.freeze({id,event:'refreshed'}))).catch(()=>{});}catch{}}
 const copy=v=>structuredClone(v), abortError=()=>new DOMException('操作已取消','AbortError');
@@ -28,7 +33,7 @@ function failure(message,status){const e=new Error(message+(status?`（HTTP ${st
 const subscriptionTimeout=()=>Object.assign(new Error('订阅请求超时，请重试'),{name:'TimeoutError',code:'SUBSCRIPTION_TIMEOUT'});
 async function withSubscriptionDeadline(milliseconds,signal,work){const timeout=AbortSignal.timeout(milliseconds),active=signal?AbortSignal.any([signal,timeout]):timeout;try{return await work(active);}catch(cause){check(signal);if(timeout.aborted)throw subscriptionTimeout();throw cause;}}
 const networkNow=()=>performance.now();
-function networkFacts(phase,started,error,attempts=1,extra={}){let online=null,visibility='unknown';try{if(typeof globalThis.navigator?.onLine==='boolean')online=globalThis.navigator.onLine;}catch{}try{if(['visible','hidden','prerender'].includes(globalThis.document?.visibilityState))visibility=globalThis.document.visibilityState;}catch{}return safeNetworkDiagnostics({phase,attempts,durationMs:Math.max(0,Math.min(3600000,networkNow()-started)),errorName:error instanceof TypeError?'TypeError':error?.name==='NetworkError'?'NetworkError':'Error',online,visibility,...extra});}
+function networkFacts(phase,started,error,attempts=1,extra={}){let online=null,visibility='unknown';try{if(typeof globalThis.navigator?.onLine==='boolean')online=globalThis.navigator.onLine;}catch{}try{if(['visible','hidden','prerender'].includes(globalThis.document?.visibilityState))visibility=globalThis.document.visibilityState;}catch{}return safeNetworkDiagnostics({phase,attempts,durationMs:Math.max(0,Math.min(3600000,networkNow()-started)),...(typeof error?.code==='string'?{transportCode:error.code}:{}),...(Number.isInteger(error?.socketCloseCode)?{socketCloseCode:error.socketCloseCode}:{}),...(typeof error?.socketCloseReason==='string'?{socketCloseReason:error.socketCloseReason}:{}),errorName:error instanceof TypeError?'TypeError':error?.name==='NetworkError'?'NetworkError':'Error',online,visibility,...extra});}
 async function request(url,{fetchImpl=fetch,signal,redirectMode='error',relayEndpoint,...init}={}){check(signal);const started=networkNow();try{const pending=Promise.resolve(fetchImpl.call(globalThis,relayEndpoint===String(url)?relayEndpoint:safeURL(url),{...init,signal,credentials:'omit',referrerPolicy:'no-referrer',cache:'no-store',redirect:redirectMode==='manual'?'manual':'error'})).then(response=>{if(signal?.aborted){void response.body?.cancel().catch(()=>{});check(signal);}return response;});return await awaitWithSignal(pending,signal);}catch(error){check(signal);throw Object.assign(failure('订阅连接失败；请检查网络或服务可用性'),{code:'SUBSCRIPTION_NETWORK',networkDiagnostics:networkFacts('awaiting_response_headers',started,error),beforeHeadersTypeError:error instanceof TypeError});}}
 async function post(url,body,options={},form=false){return request(url,{...options,method:'POST',headers:{'content-type':form?'application/x-www-form-urlencoded':'application/json'},body:form?new URLSearchParams(body):JSON.stringify(body)});}
 async function json(r,label,{signal}={}){
@@ -66,18 +71,30 @@ export function registerCodexAccount(id,raw,options={}){
 async function accessToken(id,{signal,fetchImpl=fetch,loadPublicKeys=loadOpenAIPublicKeys}={}){
  check(signal);const a=accounts.get(id);if(!a)throw new Error('订阅账号尚未登录');
  if(a.flow==='chatgpt-plan'&&!a.scopes.includes('chatgpt.tokens.use.direct'))throw new Error('订阅账号缺少 plan 使用授权');
- if(a.tokens.expiresAt>Date.now()+60000)return a.tokens.access_token;
+ if(!a.refreshing&&!a.pendingSave&&a.tokens.expiresAt>Date.now()+60000)return a.tokens.access_token;
  if(!a.tokens.refresh_token)throw new Error('订阅登录已到期，请重新登录');
  if(!a.refreshing){a.refreshController=new AbortController();const timer=setTimeout(()=>a.refreshController.abort(subscriptionTimeout()),30000);
-  a.refreshing=(async()=>{
-   const active=a.refreshController.signal,body={grant_type:'refresh_token',client_id:a.clientId,refresh_token:a.tokens.refresh_token,...(a.flow==='chatgpt-plan'?{resource:'https://api.openai.com/v1'}:{})};
-   const r=await post(a.flow==='chatgpt-plan'?CODEX_ENDPOINTS.planToken:CODEX_ENDPOINTS.token,body,{fetchImpl,signal:active},true),raw=await json(r,'订阅刷新失败',{signal:active}),next=acceptTokens(raw,a.tokens);
+  const storage=refreshStorage,active=a.refreshController.signal;
+  const save=async()=>{if(!a.pendingSave)return;if(storage){try{await storage.save(id,getCodexAccount(id).exportTokens());}catch{throw Object.assign(new Error('登录信息尚未保存，请重试。'),{code:'SUBSCRIPTION_SAVE_FAILED'});}}check(active);if(accounts.get(id)!==a)throw new Error('刷新期间账号已移除');a.pendingSave=false;tokensChanged(id);};
+  const refresh=async()=>{
+   check(active);if(accounts.get(id)!==a)throw new Error('刷新期间账号已移除');
+   // Read again inside the cross-tab lock: another tab may have rotated this
+   // token while this page was waiting. Never replace newer in-memory tokens.
+   if(storage&&!a.pendingSave){const saved=await storage.load(id);check(active);if(accounts.get(id)!==a)throw new Error('刷新期间账号已移除');if(saved&&saved.clientId===a.clientId&&saved.flow===a.flow&&saved.accountId===a.accountId&&(a.flow!=='chatgpt-plan'||saved.identityVerified===true&&saved.scopes?.includes('chatgpt.tokens.use.direct'))&&Number(saved.expiresAt)>a.tokens.expiresAt&&(!a.subject||jwt(saved.id_token).sub===a.subject)){a.tokens=acceptTokens(saved);a.scopes=[...(saved.scopes||a.scopes)];a.refreshError=null;}}
+   await save();if(a.tokens.expiresAt>Date.now()+60000)return a.tokens.access_token;
+   if(a.refreshError)throw a.refreshError;
+   const body={grant_type:'refresh_token',client_id:a.clientId,refresh_token:a.tokens.refresh_token,...(a.flow==='chatgpt-plan'?{resource:'https://api.openai.com/v1'}:{})};
+   const r=await post(a.flow==='chatgpt-plan'?CODEX_ENDPOINTS.planToken:CODEX_ENDPOINTS.token,body,{fetchImpl,signal:active},true);
+   if(r.status===400||r.status===401){let detail;try{detail=JSON.parse(await readText(r.clone(),{maxBytes:16384,signal:active}));}catch{check(active);}const reason=typeof detail?.error==='string'?detail.error:detail?.error?.code;if(['invalid_grant','refresh_token_expired','refresh_token_reused','refresh_token_invalidated'].includes(reason)){a.refreshError=Object.assign(new Error('ChatGPT 登录已失效，请在账号设置中重新登录。'),{code:'SUBSCRIPTION_RELOGIN_REQUIRED',status:r.status});throw a.refreshError;}}
+   const raw=await json(r,'订阅刷新失败',{signal:active}),next=acceptTokens(raw,a.tokens);
    if(accounts.get(id)!==a)throw new Error('刷新期间账号已移除');
    const refreshedId=jwt(next.access_token)['https://api.openai.com/auth']?.chatgpt_account_id;if(a.flow==='codex'&&refreshedId&&refreshedId!==a.accountId)throw identityFailure('SIWC_ACCOUNT_SUBJECT','刷新返回了不匹配的账号');
    if(a.flow==='chatgpt-plan'&&raw.id_token!==undefined){const identity=await verifyIdentity(raw.id_token,a.clientId,undefined,loadPublicKeys,active);if(!a.subject||identity.sub!==a.subject)throw identityFailure('SIWC_ACCOUNT_SUBJECT','刷新返回了不匹配的账号');}
    const scopes=raw.scope===undefined?a.scopes:String(raw.scope).split(/\s+/).filter(Boolean);if(a.flow==='chatgpt-plan'&&!scopes.includes('chatgpt.tokens.use.direct'))throw new Error('刷新后缺少 plan 使用授权');
-   check(active);if(accounts.get(id)!==a)throw new Error('刷新期间账号已移除');a.tokens=next;a.scopes=scopes;tokensChanged(id);return next.access_token;
-  })().finally(()=>{clearTimeout(timer);a.refreshing=null;a.refreshController=null;});
+   check(active);if(accounts.get(id)!==a)throw new Error('刷新期间账号已移除');a.tokens=next;a.scopes=scopes;a.pendingSave=true;await save();return next.access_token;
+  };
+  const locks=storage?.locks||globalThis.navigator?.locks;
+  a.refreshing=(locks?.request?locks.request('iah-subscription-refresh:'+id,{mode:'exclusive',signal:active},refresh):refresh()).finally(()=>{clearTimeout(timer);a.refreshing=null;a.refreshController=null;});
  }
  return awaitWithSignal(a.refreshing,signal);
 }
@@ -391,6 +408,6 @@ export async function callCodexModel({provider,messages,tools=[],toolDefinitions
   if(socket&&!socket.closed&&terminal.id)socket.record={responseId:terminal.id,hashes:socketHashes,staticKey,output:JSON.stringify(items)};
   timing.firstEventMs=firstEventAt===null?null:Math.round(firstEventAt-connectionStarted);timing.firstContentMs=firstContentAt===null?null:Math.round(firstContentAt-connectionStarted);timing.streamMs=Math.round(networkNow()-connectionStarted-timing.responseHeadersMs);timing.totalMs=Math.round(networkNow()-callStarted);
   return {text,toolCalls,...(typeof terminal.model==='string'?{actualModel:terminal.model.slice(0,160)}:{}),...(['current_turn','all_turns'].includes(terminal.reasoning?.context)?{reasoningContext:terminal.reasoning.context}:{}),finish:toolCalls.length?'tool_calls':'stop',usage:terminal.usage||null,timing,cache:terminal.usage?{...cacheUsage(terminal.usage),diagnostics:terminal.prompt_cache_diagnostics||null,serviceTier:terminal.service_tier||null}:null,responseId:terminal.id||null,providerState,...(recoveredNetwork?{transportDiagnostics:recoveredNetwork}:{})};
- }catch(e){check(active);if(e.status||e.code==='CONTEXT_TRANSPORT_LIMIT'||e.code==='CONTEXT_WINDOW_EXCEEDED'||e.code?.startsWith('SIWC_RELAY_'))throw e;throw new Error(['订阅响应','订阅协议','工具','请选择','请求前','订阅账号','登录'].some(p=>e.message?.startsWith(p))?e.message:'订阅通信失败；请检查登录、CORS 与网络');}
+ }catch(e){check(active);if(e.status||e.code==='SUBSCRIPTION_SAVE_FAILED'||e.code==='CONTEXT_TRANSPORT_LIMIT'||e.code==='CONTEXT_WINDOW_EXCEEDED'||e.code?.startsWith('SIWC_RELAY_'))throw e;throw new Error(['订阅响应','订阅协议','工具','请选择','请求前','订阅账号','登录'].some(p=>e.message?.startsWith(p))?e.message:'订阅通信失败；请检查登录、CORS 与网络');}
  finally{clearTimeout(timer);signal?.removeEventListener('abort',abort);}
 }

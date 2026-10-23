@@ -9,7 +9,7 @@ export class ResponseSocket{
   this.timer=setTimeout(()=>this.close(failure('RESPONSE_SOCKET_CONNECT_TIMEOUT')),connectTimeoutMs);
   this.socket.addEventListener('open',()=>{if(this.closed)return;try{this.socket.send(JSON.stringify({type:'iah.authenticate',authorization:'Bearer '+token,sessionId}));}catch{this.close(failure('RESPONSE_SOCKET_CLOSED'));}finally{token=null;}});
   this.socket.addEventListener('message',event=>this.receive(event.data));
-  this.socket.addEventListener('close',()=>this.close(failure('RESPONSE_SOCKET_CLOSED')));
+  this.socket.addEventListener('close',event=>this.close(Object.assign(failure('RESPONSE_SOCKET_CLOSED'),{socketCloseCode:event.code,socketCloseReason:event.reason})));
   this.socket.addEventListener('error',()=>this.close(failure('RESPONSE_SOCKET_CLOSED')));
  }
  receive(raw){
