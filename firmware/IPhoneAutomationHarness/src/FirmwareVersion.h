@@ -6,7 +6,7 @@
 #define IAH_BUILD_ID_TEXT(value) IAH_BUILD_ID_TEXT_IMPL(value)
 namespace iah {
 namespace firmware {
-inline constexpr char Version[] = "0.5.6";
+inline constexpr char Version[] = "0.5.7";
 inline constexpr char BuildId[] = IAH_BUILD_ID_TEXT(IAH_BUILD_ID);
 template<class Json> void addIdentity(Json& value){
  value["firmwareVersion"] = Version;

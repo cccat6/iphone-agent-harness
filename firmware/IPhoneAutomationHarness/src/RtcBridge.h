@@ -17,6 +17,7 @@
 #include "RtcIdentity.h"
 #include "RtcSctp.h"
 #include "RtcRpc.h"
+#include "RtcUdpSend.h"
 
 namespace iah {
 // Own this object and call begin/loop/stop on one network task. Dispatch runs on
@@ -41,6 +42,13 @@ class RtcBridge {
   int lastAbortCause()const{return lastAbort_.load();}
   unsigned completedRequests()const{return completedRequests_.load();}
   bool connected()const{return connected_.load();}
+  unsigned droppedDatagrams()const{return droppedDatagrams_.load();}
+  int lastDatagramError()const{return lastDatagramError_.load();}
+  unsigned closeCount()const{return closeCount_.load();}
+  uint32_t lastCloseAt()const{return lastCloseAt_.load();}
+  int lastCloseError()const{return lastCloseError_.load();}
+  int lastSctpFailure()const{return lastSctpFailure_.load();}
+  unsigned maxHeartbeatBytes()const{return maxHeartbeatBytes_.load();}
   String peerAddress()const{if(!peerKnown_)return String();char ip[INET_ADDRSTRLEN]{};return inet_ntop(AF_INET,&peer_.sin_addr,ip,sizeof(ip))?String(ip):String();}
   bool begin(Dispatch dispatch,Disconnect disconnected,CanReplace canReplace={}){
    if(ready_)return true;if(WiFi.status()!=WL_CONNECTED)return false;
@@ -77,7 +85,7 @@ class RtcBridge {
     else if(result!=MBEDTLS_ERR_SSL_WANT_READ&&result!=MBEDTLS_ERR_SSL_WANT_WRITE){lastError_=result;closePending_=true;}
    }else{
     int n=mbedtls_ssl_read(&ssl_,wire_.data(),wire_.size());if(replacementPending_){applyReplacement();return;}
-    if(n>0){lastPeerActivity_=now;if(unsigned(n)>maxSctpBytes_)maxSctpBytes_=n;for(size_t at=12;at+4<=size_t(n);){auto length=rtc::Sctp::read16(wire_.data()+at+2);if(length<4||at+length>size_t(n))break;if(wire_[at]==0)dataFlagsSeen_.fetch_or(1u<<(wire_[at+1]&15));at+=(length+3)&~size_t(3);}if(n>=16){lastChunk_=wire_[12];if(wire_[12]==6&&n>=20)lastAbort_=rtc::Sctp::read16(wire_.data()+16);}sctp_.input(wire_.data(),n,now);}
+    if(n>0){lastPeerActivity_=now;if(unsigned(n)>maxSctpBytes_)maxSctpBytes_=n;for(size_t at=12;at+4<=size_t(n);){auto length=rtc::Sctp::read16(wire_.data()+at+2);if(length<4||at+length>size_t(n))break;if((wire_[at]==4||wire_[at]==5)&&length>maxHeartbeatBytes_)maxHeartbeatBytes_=length;if(wire_[at]==0)dataFlagsSeen_.fetch_or(1u<<(wire_[at+1]&15));at+=(length+3)&~size_t(3);}if(n>=16){lastChunk_=wire_[12];if(wire_[12]==6&&n>=20)lastAbort_=rtc::Sctp::read16(wire_.data()+16);}sctp_.input(wire_.data(),n,now);}
     else if(n==0||(n!=MBEDTLS_ERR_SSL_WANT_READ&&n!=MBEDTLS_ERR_SSL_WANT_WRITE)){lastError_=n?n:-100004;closePending_=true;}
     connected_=sctp_.established();if(!closePending_){sctp_.tick(millis());if(!rpc_.tick(sctp_,millis())){lastError_=-100003;closePending_=true;}}
     if(!sctp_.established()&&now-dtlsStarted_>20000)closePending_=true;
@@ -95,7 +103,7 @@ class RtcBridge {
    if(udp_>=0){close(udp_);udp_=-1;}ready_=false;
   }
  private:
-  static int sendUdp(void* ctx,const unsigned char* p,size_t n){auto* self=static_cast<RtcBridge*>(ctx);if(!self->peerKnown_)return MBEDTLS_ERR_SSL_WANT_WRITE;int sent=sendto(self->udp_,p,n,0,reinterpret_cast<sockaddr*>(&self->peer_),sizeof(self->peer_));return sent<0?MBEDTLS_ERR_SSL_WANT_WRITE:sent;}
+  static int sendUdp(void* ctx,const unsigned char* p,size_t n){auto* self=static_cast<RtcBridge*>(ctx);if(!self->peerKnown_)return MBEDTLS_ERR_SSL_WANT_WRITE;int sent=sendto(self->udp_,p,n,0,reinterpret_cast<sockaddr*>(&self->peer_),sizeof(self->peer_));const int code=sent<0?errno:0;if(sent<0){self->lastDatagramError_=code;if(rtc::udpBackpressure(code))self->droppedDatagrams_++;}const int result=rtc::udpSendResult(sent,n,code);return result<0?MBEDTLS_ERR_SSL_INTERNAL_ERROR:result;}
   static int receiveUdp(void* ctx,unsigned char* p,size_t n){auto* self=static_cast<RtcBridge*>(ctx);sockaddr_in from{};socklen_t length=sizeof(from);int got=recvfrom(self->udp_,p,n,0,reinterpret_cast<sockaddr*>(&from),&length);if(got<=0)return MBEDTLS_ERR_SSL_WANT_READ;
    if(p[0]<4){self->stun(p,got,from,millis());return MBEDTLS_ERR_SSL_WANT_READ;}if(!self->samePeer(from))return MBEDTLS_ERR_SSL_WANT_READ;return got;
   }
@@ -128,6 +136,7 @@ class RtcBridge {
   }
   void clearPeer(){
    bool notify=connected_.load()||rpc_.completed()>0;
+   if(peerKnown_){closeCount_++;lastCloseAt_=millis();lastCloseError_=lastError_.load();lastSctpFailure_=static_cast<int>(sctp_.failure());}
    if(dtlsReady_)mbedtls_ssl_close_notify(&ssl_);mbedtls_ssl_session_reset(&ssl_);
    peerKnown_=dtlsReady_=replacementPending_=closePending_=false;connected_=false;timerFinal_=0;password_[0]=0;rpc_.reset();
    std::array<uint8_t,16> cookie{};mbedtls_ctr_drbg_random(&rng_,cookie.data(),cookie.size());sctp_.reset(millis(),esp_random(),esp_random(),cookie);
@@ -136,12 +145,14 @@ class RtcBridge {
   void applyReplacement(){
    if(rpc_.busy()||(canReplace_&&!canReplace_())){replacementPending_=false;return;}
    sockaddr_in selected=nextPeer_;char password[257];std::memcpy(password,nextPassword_,sizeof(password));clearPeer();
+   lastError_=0;lastAbort_=0;lastChunk_=-1;
    peer_=selected;std::memcpy(password_,password,sizeof(password_));peerKnown_=true;lastPeerActivity_=handshakeStarted_=millis();
    if(mbedtls_ssl_set_client_transport_id(&ssl_,reinterpret_cast<const uint8_t*>(&peer_),sizeof(peer_)))clearPeer();
   }
   const uint16_t localPort_;
   Dispatch dispatch_;Disconnect disconnected_;CanReplace canReplace_;std::atomic<bool>ready_{false},connected_{false};std::atomic<bool>dtlsReady_{false};bool initialized_=false,tlsConfigured_=false,peerKnown_=false,replacementPending_=false,closePending_=false;
   std::atomic<int>lastError_{0},lastChunk_{-1},lastAbort_{0};std::atomic<unsigned>completedRequests_{0},maxSctpBytes_{0},dataFlagsSeen_{0};int udp_=-1;sockaddr_in peer_{},nextPeer_{};char password_[257]{},nextPassword_[257]{};uint32_t lastPeerActivity_=0,handshakeStarted_=0,dtlsStarted_=0,timerStart_=0,timerIntermediate_=0,timerFinal_=0;
+  std::atomic<unsigned>droppedDatagrams_{0},closeCount_{0},maxHeartbeatBytes_{0};std::atomic<int>lastDatagramError_{0},lastCloseError_{0},lastSctpFailure_{0};std::atomic<uint32_t>lastCloseAt_{0};
   mbedtls_ssl_context ssl_{};mbedtls_ssl_config conf_{};mbedtls_ssl_cookie_ctx cookie_{};mbedtls_entropy_context entropy_{};mbedtls_ctr_drbg_context rng_{};mbedtls_x509_crt cert_{};mbedtls_pk_context key_{};
   // Both slots are serviced serially by the same task. Input callbacks copy
   // complete frames into their own SCTP/RPC state before the next loop call.

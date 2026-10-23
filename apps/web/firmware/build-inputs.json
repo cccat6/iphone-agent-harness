@@ -2,7 +2,7 @@
   "format": "iah-firmware-inputs/1",
   "sourceFiles": {
     "IPhoneAutomationHarness.ino": "37feb9fe2dee7989b3a1ba21c34912238a03572f7c5338c471bf3cf66ee33167",
-    "main.cpp": "7d64007db82c570126c35995fd8645793cbfc5eece1a680107cfcd564917cc88",
+    "main.cpp": "c3661078cdcdb4b499af23ea24653492051cec5f785cb8fba4212edb95792d31",
     "config.example.h": "920a5f5c61e3df5299cd3855d35117d159ae04685ce439f5301d77bf509373b7",
     "ResourceLimits.h": "0c3905448b154878a91e598108799c7390167a7cb432708a4f348f9f6e6eceee",
     "build_opt.h": "a0f100f642c14b2ec613aac33270f5d41185269cfb80055777331420fc0f8955",
@@ -13,7 +13,7 @@
     "src/HidReportMap.h": "4b962c2339efc8ad3aef14779bd501ed5f85b99590fd8004f27dcf0faba57482",
     "src/Admission.h": "89a830468c23ef9c881e58566e97dca992f76d94b725aa2b87ee1d6392b7ba41",
     "src/CryptoUtils.h": "9e2eab4564cfc2bf5500fda4b1d125a5dc5e9610f7e0910a12bc0b9f8a63c3bd",
-    "src/FirmwareVersion.h": "af1d1e994f42f18df90782b4cd2707f2f1c999d781a0dd487e096d86b51d7a0f",
+    "src/FirmwareVersion.h": "daa036e0909ffa8e75f83d7a113522b448f596a6950fe427a8ea79261d201fbd",
     "src/MdnsLifecycle.h": "13ca25c7568744a2356b7db7d72c497717267c92e4842b626f9049b42bc1b074",
     "src/RtcPeerOwnership.h": "f0fa5cf57a2e2930b333cc928f0eb1805befe1c1d6ad18ea4459edbe36bd8db1",
     "src/Wire.h": "c8747b8e108045cb9c05d111ff701e9038c9bb1edcc727cd25670e6734696f6b",
@@ -26,9 +26,10 @@
     "src/ClipboardMailbox.h": "75ca3090f0e8c31a4f6e5023388818da89d1b82e4c7d1496e8d8c30ac14c8296",
     "src/ClipboardWire.h": "7897c094a693c4036009c818ad0e3fb3fa7dae4c549ff798b4120c20c92ec4ad",
     "src/RtcIdentity.h": "7c257108c7e66ef28f0d68308ac41682e0ba998f815c3001dd5a5026a2954918",
-    "src/RtcSctp.h": "6b6dccd703c4dc8063144df2de9641bb74d7a866fcb6141b1a5e92057c082fc8",
+    "src/RtcSctp.h": "0f3954239df3311d1105caabdf4218e57c772238baa4b4f57d48977be7833e50",
     "src/RtcRpc.h": "fb22666fa024194930752a0c57929fa6ce62abaae9f41243ba8cb09138657a8f",
-    "src/RtcBridge.h": "4b97dfe75ebfd1687e44598f28f08ba9e212cc7d624255e775e286033e0927f5",
+    "src/RtcBridge.h": "68a691cb3eb6749ba978083bccad47a27914e59756c468f926e2a52bea68cac1",
+    "src/RtcUdpSend.h": "1e913072b210a730ca6858ec43cc675440cdf028649bd33d743faf6629c908fd",
     "src/StrictJson.h": "0a476d23a4e862f381cccb515c0d2bc26d265f0c587bb3c92ef8a71cfe1ba337",
     "src/RtcTls/RtcTlsConfig.h": "66af52262452ae8f547ba1f844b27b4a334c0fb4aba1e9978f164adaca7e929c",
     "src/RtcTls/aesce.h": "554a363178d24668d52a8036ecd403b43aa43ca02748fec168fea4079da6cf28",
@@ -117,14 +118,14 @@
     "src/RtcTls/x509_internal.h": "cff993cc6af31de0b42a009ef25320ea2c6657a9e8e32ffef43aadb00a640f41"
   },
   "recipeFiles": {
-    "build_firmware.py": "03d47c1ec78e119e89f6aec79eaefbb92446a7159b2883fe7ebe9e95548d0391",
+    "build_firmware.py": "7ab67b6beac9ed4bda1b48e730d2bc801568418c9a90b0cfc2c81c864797c177",
     "verify_rtc_tls_link.py": "ccda6913da963200ea367112c350e05bb733761324d50804c0c808d8a5da4b8b",
     "build_c2_sdk.py": "e0e22f566bf4893f18db795ca05bac85e06d4e97c8b9737e4ed18fd6ddd8a9a4",
     "c2_sdk.lock.json": "05ad1d7a7f0c3adb6d0a302533f2a78a2ad99737fdf71e88be1f9a342dc4ea6a",
     "c2_sdk.components.lock": "de86c6e0b54dadef599400692273e5bd9b36564dc0ca90c85f3c0900e2b120de",
     "partitions/c2-2m.csv": "b49b7fc83f81c845f74e4a324a026c0acde081305d11d55912dc7c998ca57ba0"
   },
-  "recipeSha256": "3c6d3eb4d60e512f6f15fcf8dbbe07cf5ef7bc1c0026974e3c58e16424baa57f",
+  "recipeSha256": "46a35d75ffe6578022d3a31f84e8486bea29978ba0a2cfa2e6c313cc63cef6ae",
   "arduinoCli": "1.5.1",
   "dependencies": {
     "arduinoEsp32": "3.3.11",

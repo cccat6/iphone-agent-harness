@@ -1,8 +1,10 @@
 #include "../../../firmware/IPhoneAutomationHarness/src/RtcSctp.h"
 #include "../../../firmware/IPhoneAutomationHarness/src/RtcRpc.h"
+#include "../../../firmware/IPhoneAutomationHarness/src/RtcUdpSend.h"
 #include <cassert>
 #include <iostream>
 #include <vector>
+#include <algorithm>
 using iah::rtc::Sctp;using iah::rtc::Rpc;using Bytes=std::vector<uint8_t>;
 Bytes packet(uint8_t type,const Bytes& body={},uint8_t flags=0,uint32_t tag=777){Bytes p((16+body.size()+3)&~size_t(3));Sctp::write16(p.data(),5000);Sctp::write16(p.data()+2,5000);Sctp::write32(p.data()+4,tag);p[12]=type;p[13]=flags;Sctp::write16(p.data()+14,body.size()+4);std::copy(body.begin(),body.end(),p.begin()+16);Sctp::checksum(p.data(),p.size());return p;}
 Bytes data(uint32_t tsn,uint16_t ssn,const std::string& text){Bytes body(12+text.size());Sctp::write32(body.data(),tsn);Sctp::write16(body.data()+6,ssn);Sctp::write32(body.data()+8,51);std::copy(text.begin(),text.end(),body.begin()+12);return packet(0,body,3);}
@@ -17,6 +19,36 @@ std::vector<std::string> frames(const std::string& request,uint32_t n=1,const st
 bool feedRpc(Rpc& rpc,const std::string& s){return rpc.input(reinterpret_cast<const uint8_t*>(s.data()),s.size(),10);}
 std::string request(size_t bodySize=0){JsonDocument d;d["method"]="POST";d["path"]="/v1/test";d["headers"].to<JsonObject>();d["body"]=std::string(bodySize,'a');std::string s;serializeJson(d,s);return s;}
 int main(){
+ // Browser SCTP heartbeats carry opaque address/timing data exceeding 128B.
+ // They may share a packet with DATA: rejecting the heartbeat must not make
+ // an otherwise valid application message disappear on every retransmission.
+ {Fixture f;f.init();Bytes heartbeat(256);Sctp::write16(heartbeat.data(),1);Sctp::write16(heartbeat.data()+2,heartbeat.size());for(size_t i=4;i<heartbeat.size();i++)heartbeat[i]=static_cast<uint8_t>(i);
+  auto combined=packet(4,heartbeat),application=data(100,0,"application alongside heartbeat");combined.insert(combined.end(),application.begin()+12,application.end());Sctp::checksum(combined.data(),combined.size());
+  f.feed(combined,20000);assert(f.s.established());assert(f.messages==std::vector<std::string>{"application alongside heartbeat"});
+  const auto echoed=std::find_if(f.sent.begin(),f.sent.end(),[](const Bytes& p){return p[12]==5;});assert(echoed!=f.sent.end());assert(std::equal(heartbeat.begin(),heartbeat.end(),echoed->begin()+16));assert(f.sent.back()[12]==3);
+ }
+
+ // DATA, SACK and peer HEARTBEAT traffic establish liveness even when an
+ // earlier outgoing heartbeat acknowledgement was lost or delayed.
+ {Fixture f;f.init();f.s.tick(15001);assert(f.sent.back()[12]==4);
+  f.feed(data(100,0,"still active"),20000);f.s.tick(45001);assert(f.s.established());
+  f.feed(ack(499),50000);f.s.tick(70000);assert(f.s.established());
+  Bytes heartbeat(12);Sctp::write16(heartbeat.data(),1);Sctp::write16(heartbeat.data()+2,12);
+  f.feed(packet(4,heartbeat),80000);assert(f.sent.back()[12]==5);f.s.tick(110000);assert(f.s.established()&&f.closed==0);
+ }
+ {Fixture f;f.init();f.s.tick(15001);auto invalid=data(100,0,"invalid");invalid[8]^=1;f.feed(invalid,44000);f.s.tick(45001);assert(f.s.failure()==Sctp::Failure::HeartbeatTimeout&&f.closed==1);}
+
+ // Nonblocking Wi-Fi buffer pressure is a lost datagram, not a lost SCTP
+ // association. The first packet drops; retransmission preserves its TSN.
+ for(const int cause:{EAGAIN,ENOMEM,ENOBUFS}){
+  Fixture f;f.init();bool drop=true;unsigned attempts=0;
+  f.s.callbacks([&](const uint8_t* p,size_t n){++attempts;if(drop){drop=false;return iah::rtc::udpSendResult(-1,n,cause)==static_cast<int>(n);}f.sent.emplace_back(p,p+n);return true;},[](const uint8_t*,size_t){},[&]{f.closed++;});
+  assert(f.s.sendText(reinterpret_cast<const uint8_t*>("receipt"),7,10));assert(f.s.established()&&f.s.pending()&&f.sent.empty());
+  f.s.tick(310);assert(attempts==2&&f.sent.size()==1&&f.s.established());assert(Sctp::read32(f.sent.back().data()+16)==500);
+  f.feed(ack(500),311);assert(!f.s.pending()&&f.s.established()&&f.closed==0);
+ }
+ assert(iah::rtc::udpSendResult(-1,512,EBADF)==-1);
+
  // A single task scratch can be overwritten between peers: reordered SCTP
  // fragments and incomplete RPC requests must already own their bytes.
  {Fixture a,b;a.init(100);b.init(200);Rpc one,two;std::string gotA,gotB;

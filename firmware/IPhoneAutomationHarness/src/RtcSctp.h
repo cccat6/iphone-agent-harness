@@ -16,14 +16,16 @@ class Sctp {
   using Message=std::function<void(const uint8_t*,size_t)>;
   using Closed=std::function<void()>;
   enum class State {Idle,CookieWait,Established,Drain,Closing,Closed};
+  enum class Failure {None,CookieTimeout,RetransmitTimeout,HeartbeatTimeout,PeerAbort,SendFailure,StreamSequence,Fragment,Shutdown,Protocol};
   void callbacks(Send send,Message message,Closed closed){send_=send;message_=message;closed_=closed;}
   void reset(uint32_t now,uint32_t tag,uint32_t tsn,const std::array<uint8_t,16>& cookie){
-   state_=State::Idle;localTag_=tag?tag:1;nextTx_=tsn;lastTx_=tsn-1;cookie_=cookie;remoteTag_=0;rxCum_=0;rxSsn_=txSsn_=0;rxFragmenting_=false;rxMessageSize_=0;txWaiting_=false;duplicates_=0;peerWindow_=4096;lastActivity_=now;lastHeartbeat_=now;lastHeartbeatSend_=now;heartbeatPending_=false;for(auto& x:rx_)x.valid=false;
+   state_=State::Idle;failure_=Failure::None;localTag_=tag?tag:1;nextTx_=tsn;lastTx_=tsn-1;cookie_=cookie;remoteTag_=0;rxCum_=0;rxSsn_=txSsn_=0;rxFragmenting_=false;rxMessageSize_=0;txWaiting_=false;duplicates_=0;peerWindow_=4096;lastActivity_=now;lastHeartbeat_=now;lastHeartbeatSend_=now;heartbeatPending_=false;for(auto& x:rx_)x.valid=false;
   }
   bool established()const{return state_==State::Established;}
   bool idleToSend()const{return established()&&!txWaiting_&&peerWindow_>0;}
   bool pending()const{return txWaiting_;}
   State state()const{return state_;}
+  Failure failure()const{return failure_;}
   uint32_t cumulative()const{return rxCum_;}
   static uint16_t read16(const uint8_t* p){return uint16_t(p[0])<<8|p[1];}
   static uint32_t read32(const uint8_t* p){return uint32_t(p[0])<<24|uint32_t(p[1])<<16|uint32_t(p[2])<<8|p[3];}
@@ -36,7 +38,7 @@ class Sctp {
    if(!idleToSend()||!n||n>MaxMessage||peerWindow_<n)return false;
    txSize_=12+16+n;txSize_=(txSize_+3)&~size_t(3);tx_.fill(0);header(tx_.data(),remoteTag_);
    auto* c=tx_.data()+12;c[0]=0;c[1]=3;write16(c+2,16+n);txTsn_=nextTx_++;lastTx_=txTsn_;write32(c+4,txTsn_);write16(c+8,0);write16(c+10,txSsn_++);write32(c+12,51);std::memcpy(c+16,data,n);checksum(tx_.data(),txSize_);
-   txWaiting_=true;txRetries_=0;txRto_=300;txDeadline_=now+txRto_;if(!send_(tx_.data(),txSize_)){fail();return false;}return true;
+   txWaiting_=true;txRetries_=0;txRto_=300;txDeadline_=now+txRto_;if(!send_(tx_.data(),txSize_)){fail(Failure::SendFailure);return false;}return true;
   }
   void input(const uint8_t* p,size_t n,uint32_t now){
    if(state_==State::Closed||n<16||n>2048||read16(p)!=5000||read16(p+2)!=5000)return;
@@ -47,7 +49,7 @@ class Sctp {
     if(p[at]==0&&(len<=16||len>16+MaxMessage||(p[at+1]&4)!=0||read16(p+at+8)!=0||read32(p+at+12)!=51))return;
     if(p[at]==1&&(at!=12||len<20||((len+3)&~size_t(3))+12!=n))return;
     if(p[at]==3&&(len<16||size_t(16)+4*read16(p+at+12)+4*read16(p+at+14)!=len))return;
-    if((p[at]==4||p[at]==5)&&(len<8||len>128||read16(p+at+4)!=1||read16(p+at+6)!=len-4))return;
+    if((p[at]==4||p[at]==5)&&(len<8||len>1172||read16(p+at+4)!=1||read16(p+at+6)!=len-4))return;
     if((p[at]==7&&len!=8)||((p[at]==8||p[at]==11||p[at]==14)&&len!=4)||(p[at]==10&&len!=20))return;
     at+=(len+3)&~size_t(3);if(at>n)return;
    }
@@ -69,11 +71,11 @@ class Sctp {
       Slot* free=nullptr;bool exists=false;for(auto& slot:rx_){if(slot.valid&&slot.tsn==tsn)exists=true;if(!slot.valid&&!free)free=&slot;}
       if(exists)duplicate(tsn);else if(free){free->valid=true;free->tsn=tsn;free->ssn=read16(c+10);free->flags=c[1]&3;free->size=size;std::memcpy(free->data.data(),c+16,size);}sack=true;
       while(state_==State::Established){Slot* ready=nullptr;for(auto& slot:rx_)if(slot.valid&&slot.tsn==rxCum_+1){ready=&slot;break;}if(!ready)break;
-       if(ready->ssn!=rxSsn_){abort();return;}
+       if(ready->ssn!=rxSsn_){abort(Failure::StreamSequence);return;}
        const bool begin=(ready->flags&2)!=0,end=(ready->flags&1)!=0;
        // Only the next contiguous TSN reaches reassembly. All fragments of an
        // ordered message share one SSN; duplicates never reach this branch.
-       if(begin==rxFragmenting_||rxMessageSize_+ready->size>MaxMessage){abort();return;}
+       if(begin==rxFragmenting_||rxMessageSize_+ready->size>MaxMessage){abort(Failure::Fragment);return;}
        ++rxCum_;ready->valid=false;
        if(begin&&end){++rxSsn_;if(message_)message_(ready->data.data(),ready->size);}
        else{
@@ -85,32 +87,35 @@ class Sctp {
     }else if(type==3){if(state_==State::Established||state_==State::Drain)ack(c,len);}
     else if(type==4){if(state_==State::Established)emit(5,0,c+4,len-4);}
     else if(type==5){if(len==16&&heartbeatPending_&&!std::memcmp(c+8,heartbeat_.data(),8)){heartbeatPending_=false;lastHeartbeat_=now;}}
-    else if(type==6){fail();return;}
+    else if(type==6){fail(Failure::PeerAbort);return;}
     else if(type==7){if(state_==State::Established||state_==State::Drain||state_==State::Closing){ackCumulative(read32(c+4));state_=State::Drain;if(!txWaiting_)shutdownAck(now);}}
     else if(type==14){if(state_==State::Closing)fail();}
     else if(type==8||type==11){}
     else if((type&0xc0)<0x80)return; // Unsupported mandatory chunks are not interpreted.
-    lastActivity_=now;at+=(len+3)&~size_t(3);
+    lastActivity_=now;if(state_==State::Established&&type!=5)heartbeatPending_=false;at+=(len+3)&~size_t(3);
    }
    if(sack&&state_==State::Established)sendSack();
   }
   void tick(uint32_t now){
-   if(state_==State::CookieWait&&expired(now,cookieDeadline_)){fail();return;}
-   if(txWaiting_&&expired(now,txDeadline_)){if(txRetries_++>=6){fail();return;}if(!send_(tx_.data(),txSize_)){fail();return;}txRto_=txRto_<2000?txRto_*2:2000;txDeadline_=now+txRto_;}
+   if(state_==State::CookieWait&&expired(now,cookieDeadline_)){fail(Failure::CookieTimeout);return;}
+   if(txWaiting_&&expired(now,txDeadline_)){if(txRetries_++>=6){fail(Failure::RetransmitTimeout);return;}if(!send_(tx_.data(),txSize_)){fail(Failure::SendFailure);return;}txRto_=txRto_<2000?txRto_*2:2000;txDeadline_=now+txRto_;}
    if(state_==State::Drain&&!txWaiting_)shutdownAck(now);
    if(state_==State::Closing&&expired(now,closeDeadline_)){if(closeRetries_++>=5){fail();return;}emit(8,0,nullptr,0);closeDeadline_=now+1000;}
-   if(state_==State::Established&&now-lastHeartbeat_>=15000){
-    if(heartbeatPending_&&now-lastHeartbeat_>=45000){fail();return;}
+   // Any valid SCTP traffic from this authenticated DTLS peer proves liveness.
+   // Send heartbeats only while idle; an unanswered probe cannot invalidate
+   // a peer that has continued sending DATA, SACK or its own heartbeats.
+   if(state_==State::Established&&now-lastActivity_>=15000){
+    if(heartbeatPending_&&now-lastActivity_>=45000){fail(Failure::HeartbeatTimeout);return;}
     if(!heartbeatPending_){write32(heartbeat_.data(),now);write32(heartbeat_.data()+4,localTag_);heartbeatPending_=true;}
     if(now-lastHeartbeatSend_>=5000){uint8_t body[12];write16(body,1);write16(body+2,12);std::memcpy(body+4,heartbeat_.data(),8);emit(4,0,body,12);lastHeartbeatSend_=now;}
    }
   }
-  void abort(){if(remoteTag_)emit(6,0,nullptr,0);fail();}
+  void abort(Failure cause=Failure::Protocol){if(remoteTag_)emit(6,0,nullptr,0);fail(cause);}
  private:
   struct Slot{bool valid=false;uint32_t tsn=0;uint16_t ssn=0;uint8_t flags=0;size_t size=0;std::array<uint8_t,MaxMessage>data{};};
   static bool expired(uint32_t now,uint32_t due){return int32_t(now-due)>=0;}
   void header(uint8_t* p,uint32_t tag){write16(p,5000);write16(p+2,5000);write32(p+4,tag);std::memset(p+8,0,4);}
-  bool emit(uint8_t type,uint8_t flags,const uint8_t* body,size_t size){if(size>1168)return false;std::array<uint8_t,1200> p{};header(p.data(),remoteTag_);p[12]=type;p[13]=flags;write16(p.data()+14,size+4);if(size)std::memcpy(p.data()+16,body,size);size_t n=(16+size+3)&~size_t(3);checksum(p.data(),n);if(!send_||!send_(p.data(),n)){fail();return false;}return true;}
+  bool emit(uint8_t type,uint8_t flags,const uint8_t* body,size_t size){if(size>1168)return false;std::array<uint8_t,1200> p{};header(p.data(),remoteTag_);p[12]=type;p[13]=flags;write16(p.data()+14,size+4);if(size)std::memcpy(p.data()+16,body,size);size_t n=(16+size+3)&~size_t(3);checksum(p.data(),n);if(!send_||!send_(p.data(),n)){fail(Failure::SendFailure);return false;}return true;}
   void initAck(){uint8_t body[36]{};write32(body,localTag_);write32(body+4,Window*MaxMessage);write16(body+8,1);write16(body+10,1);write32(body+12,nextTx_);write16(body+16,7);write16(body+18,20);std::memcpy(body+20,cookie_.data(),16);emit(2,0,body,sizeof(body));}
   void duplicate(uint32_t tsn){if(duplicates_<dups_.size())dups_[duplicates_++]=tsn;}
   void sendSack(){uint8_t body[12+Window*4+16]{};write32(body,rxCum_);size_t occupied=0;for(auto& slot:rx_)if(slot.valid)occupied+=slot.size;write32(body+4,Window*MaxMessage-occupied);
@@ -126,8 +131,8 @@ class Sctp {
    for(uint16_t i=0;i<read16(c+12);i++){uint16_t first=read16(c+16+i*4),last=read16(c+18+i*4);if(txWaiting_&&uint32_t(txTsn_-cumulative)>=first&&uint32_t(txTsn_-cumulative)<=last)txWaiting_=false;}
   }
   void shutdownAck(uint32_t now){state_=State::Closing;closeRetries_=0;closeDeadline_=now+1000;emit(8,0,nullptr,0);}
-  void fail(){if(state_==State::Closed)return;state_=State::Closed;txWaiting_=false;if(closed_)closed_();}
-  Send send_;Message message_;Closed closed_;State state_=State::Idle;
+  void fail(Failure cause=Failure::Shutdown){if(state_==State::Closed)return;failure_=cause;state_=State::Closed;txWaiting_=false;if(closed_)closed_();}
+  Send send_;Message message_;Closed closed_;State state_=State::Idle;Failure failure_=Failure::None;
   uint32_t localTag_=1,remoteTag_=0,nextTx_=0,lastTx_=0,peerInitial_=0,rxCum_=0,peerWindow_=4096,cookieDeadline_=0,lastActivity_=0;
   uint16_t rxSsn_=0,txSsn_=0;bool rxFragmenting_=false;size_t rxMessageSize_=0;std::array<uint8_t,MaxMessage>rxMessage_{};std::array<uint8_t,16>cookie_{};std::array<Slot,Window>rx_{};std::array<uint32_t,4>dups_{};size_t duplicates_=0;
   std::array<uint8_t,12+16+MaxMessage>tx_{};size_t txSize_=0;bool txWaiting_=false;uint32_t txTsn_=0,txDeadline_=0,txRto_=300;unsigned txRetries_=0;

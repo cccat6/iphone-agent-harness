@@ -1,10 +1,185 @@
 {
   "schemaVersion": 1,
-  "firmwareVersion": "0.5.6",
-  "buildId": "fc1559b2de0904c1",
+  "firmwareVersion": "0.5.7",
+  "buildId": "5c5a412c1f2a941d",
   "executionEnabled": true,
   "requiresManualTrust": false,
   "profiles": [
+    {
+      "id": "esp32c3",
+      "label": "ESP32-C3",
+      "chip": "esp32c3",
+      "board": "ESP32C3 Dev Module",
+      "minFlashMB": 4,
+      "usbCdc": true,
+      "flashFreq": "80m",
+      "parts": [
+        {
+          "path": "esp32c3/bootloader.bin",
+          "offset": 0,
+          "sha256": "a180b91d20d2094cda59871e79a8e1e3b69f1552f396090946de7503d93b8016",
+          "size": 18688
+        },
+        {
+          "path": "esp32c3/partitions.bin",
+          "offset": 32768,
+          "sha256": "aaae2888c5a6a348004b5b436f47abb25ae32e72d9003902955a998eda723edd",
+          "size": 3072
+        },
+        {
+          "path": "esp32c3/boot_app0.bin",
+          "offset": 57344,
+          "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0",
+          "size": 8192
+        },
+        {
+          "path": "esp32c3/application.bin",
+          "offset": 65536,
+          "sha256": "9ecea450f5b795a3ddbafb796794cc150447597e80587bf18d9d6b4eccc030ee",
+          "size": 1573968
+        }
+      ]
+    },
+    {
+      "id": "esp32s3",
+      "label": "ESP32-S3",
+      "chip": "esp32s3",
+      "board": "ESP32S3 Dev Module",
+      "minFlashMB": 4,
+      "usbCdc": true,
+      "flashFreq": "80m",
+      "parts": [
+        {
+          "path": "esp32s3/bootloader.bin",
+          "offset": 0,
+          "sha256": "3ef75dd1e480cfca38a4a1d4cf72a19e802224dbc8cbeddf53727eb38b4743b1",
+          "size": 18720
+        },
+        {
+          "path": "esp32s3/partitions.bin",
+          "offset": 32768,
+          "sha256": "aaae2888c5a6a348004b5b436f47abb25ae32e72d9003902955a998eda723edd",
+          "size": 3072
+        },
+        {
+          "path": "esp32s3/boot_app0.bin",
+          "offset": 57344,
+          "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0",
+          "size": 8192
+        },
+        {
+          "path": "esp32s3/application.bin",
+          "offset": 65536,
+          "sha256": "260a491d0b971c89192835b2021fe864f9afbbd8fbfcd947c20d04d0d4987d3c",
+          "size": 1415744
+        }
+      ]
+    },
+    {
+      "id": "esp32c5",
+      "label": "ESP32-C5",
+      "chip": "esp32c5",
+      "board": "ESP32C5 Dev Module",
+      "minFlashMB": 4,
+      "usbCdc": true,
+      "flashFreq": "80m",
+      "parts": [
+        {
+          "path": "esp32c5/bootloader.bin",
+          "offset": 8192,
+          "sha256": "47aaf2f9047ca13e6ac16edc74a7e6b45d8b5ea115b803a5387a5c3779ed5808",
+          "size": 19920
+        },
+        {
+          "path": "esp32c5/partitions.bin",
+          "offset": 32768,
+          "sha256": "aaae2888c5a6a348004b5b436f47abb25ae32e72d9003902955a998eda723edd",
+          "size": 3072
+        },
+        {
+          "path": "esp32c5/boot_app0.bin",
+          "offset": 57344,
+          "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0",
+          "size": 8192
+        },
+        {
+          "path": "esp32c5/application.bin",
+          "offset": 65536,
+          "sha256": "56f8aac3441a76caea0cf196573de7622756c0cca65b384999607dfd5c03b341",
+          "size": 1783904
+        }
+      ]
+    },
+    {
+      "id": "esp32c6",
+      "label": "ESP32-C6",
+      "chip": "esp32c6",
+      "board": "ESP32C6 Dev Module",
+      "minFlashMB": 4,
+      "usbCdc": true,
+      "flashFreq": "80m",
+      "parts": [
+        {
+          "path": "esp32c6/bootloader.bin",
+          "offset": 0,
+          "sha256": "df4f545cc24eb6060600110dfbfc4fb810a8cac2f5025d3dce618318f125fcab",
+          "size": 19872
+        },
+        {
+          "path": "esp32c6/partitions.bin",
+          "offset": 32768,
+          "sha256": "aaae2888c5a6a348004b5b436f47abb25ae32e72d9003902955a998eda723edd",
+          "size": 3072
+        },
+        {
+          "path": "esp32c6/boot_app0.bin",
+          "offset": 57344,
+          "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0",
+          "size": 8192
+        },
+        {
+          "path": "esp32c6/application.bin",
+          "offset": 65536,
+          "sha256": "975b15df81c19d468001b39379fb49b6ecc08b3821eb82033cae8a03edc36eff",
+          "size": 1735296
+        }
+      ]
+    },
+    {
+      "id": "esp32",
+      "label": "ESP32",
+      "chip": "esp32",
+      "board": "ESP32 Dev Module",
+      "minFlashMB": 4,
+      "usbCdc": false,
+      "flashFreq": "80m",
+      "parts": [
+        {
+          "path": "esp32/bootloader.bin",
+          "offset": 4096,
+          "sha256": "7784e3c3f38fa4c4334f478131488d8ba2a88ce623adca939f4cb8f019607f31",
+          "size": 23488
+        },
+        {
+          "path": "esp32/partitions.bin",
+          "offset": 32768,
+          "sha256": "aaae2888c5a6a348004b5b436f47abb25ae32e72d9003902955a998eda723edd",
+          "size": 3072
+        },
+        {
+          "path": "esp32/boot_app0.bin",
+          "offset": 57344,
+          "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0",
+          "size": 8192
+        },
+        {
+          "path": "esp32/application.bin",
+          "offset": 65536,
+          "sha256": "daa04ad4d98712e714157bf4c6f1d323050ae08fd516eb372507b1fb6063460e",
+          "size": 1495312
+        }
+      ]
+    },
     {
       "id": "esp32c2",
       "label": "ESP32-C2 · 26 MHz",
@@ -35,8 +210,8 @@
         {
           "path": "esp32c2/application.bin",
           "offset": 65536,
-          "sha256": "eff70d414a80efdf0b235e77271db2d7ec206319bf5a23b7cd4d2a67a166d043",
-          "size": 1308384
+          "sha256": "63575b024417e1faffd41c8938ece70ef4bd68e18230e2c8a7574bbe367b958a",
+          "size": 1309552
         }
       ],
       "xtalMHz": 26
@@ -71,186 +246,11 @@
         {
           "path": "esp32c2-40/application.bin",
           "offset": 65536,
-          "sha256": "b6b625cb9c07093a9fe4930f459a57f16a80117e81ccb00787ebe1a77285f710",
-          "size": 1308336
+          "sha256": "ac0a02884f8e94ae016958dacb324da0e73663fcdbba9efdbfef653e3c8bbf8c",
+          "size": 1309488
         }
       ],
       "xtalMHz": 40
-    },
-    {
-      "id": "esp32c3",
-      "label": "ESP32-C3",
-      "chip": "esp32c3",
-      "board": "ESP32C3 Dev Module",
-      "minFlashMB": 4,
-      "usbCdc": true,
-      "flashFreq": "80m",
-      "parts": [
-        {
-          "path": "esp32c3/bootloader.bin",
-          "offset": 0,
-          "sha256": "a180b91d20d2094cda59871e79a8e1e3b69f1552f396090946de7503d93b8016",
-          "size": 18688
-        },
-        {
-          "path": "esp32c3/partitions.bin",
-          "offset": 32768,
-          "sha256": "aaae2888c5a6a348004b5b436f47abb25ae32e72d9003902955a998eda723edd",
-          "size": 3072
-        },
-        {
-          "path": "esp32c3/boot_app0.bin",
-          "offset": 57344,
-          "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0",
-          "size": 8192
-        },
-        {
-          "path": "esp32c3/application.bin",
-          "offset": 65536,
-          "sha256": "6e083158a92d749ad1fd076184e3adbab7206dbdc8b95ca6bd420a986a621ac5",
-          "size": 1572784
-        }
-      ]
-    },
-    {
-      "id": "esp32s3",
-      "label": "ESP32-S3",
-      "chip": "esp32s3",
-      "board": "ESP32S3 Dev Module",
-      "minFlashMB": 4,
-      "usbCdc": true,
-      "flashFreq": "80m",
-      "parts": [
-        {
-          "path": "esp32s3/bootloader.bin",
-          "offset": 0,
-          "sha256": "3ef75dd1e480cfca38a4a1d4cf72a19e802224dbc8cbeddf53727eb38b4743b1",
-          "size": 18720
-        },
-        {
-          "path": "esp32s3/partitions.bin",
-          "offset": 32768,
-          "sha256": "aaae2888c5a6a348004b5b436f47abb25ae32e72d9003902955a998eda723edd",
-          "size": 3072
-        },
-        {
-          "path": "esp32s3/boot_app0.bin",
-          "offset": 57344,
-          "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0",
-          "size": 8192
-        },
-        {
-          "path": "esp32s3/application.bin",
-          "offset": 65536,
-          "sha256": "363e28845ca30ac26258aa5e8e7e0325d6ecadd0d92e8eb6600cd23e91e05048",
-          "size": 1415072
-        }
-      ]
-    },
-    {
-      "id": "esp32c5",
-      "label": "ESP32-C5",
-      "chip": "esp32c5",
-      "board": "ESP32C5 Dev Module",
-      "minFlashMB": 4,
-      "usbCdc": true,
-      "flashFreq": "80m",
-      "parts": [
-        {
-          "path": "esp32c5/bootloader.bin",
-          "offset": 8192,
-          "sha256": "47aaf2f9047ca13e6ac16edc74a7e6b45d8b5ea115b803a5387a5c3779ed5808",
-          "size": 19920
-        },
-        {
-          "path": "esp32c5/partitions.bin",
-          "offset": 32768,
-          "sha256": "aaae2888c5a6a348004b5b436f47abb25ae32e72d9003902955a998eda723edd",
-          "size": 3072
-        },
-        {
-          "path": "esp32c5/boot_app0.bin",
-          "offset": 57344,
-          "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0",
-          "size": 8192
-        },
-        {
-          "path": "esp32c5/application.bin",
-          "offset": 65536,
-          "sha256": "f7f62fbe821f7155cf80c94cce9cf8730ddd60ff51f46d0840e42efad50f7776",
-          "size": 1782736
-        }
-      ]
-    },
-    {
-      "id": "esp32c6",
-      "label": "ESP32-C6",
-      "chip": "esp32c6",
-      "board": "ESP32C6 Dev Module",
-      "minFlashMB": 4,
-      "usbCdc": true,
-      "flashFreq": "80m",
-      "parts": [
-        {
-          "path": "esp32c6/bootloader.bin",
-          "offset": 0,
-          "sha256": "df4f545cc24eb6060600110dfbfc4fb810a8cac2f5025d3dce618318f125fcab",
-          "size": 19872
-        },
-        {
-          "path": "esp32c6/partitions.bin",
-          "offset": 32768,
-          "sha256": "aaae2888c5a6a348004b5b436f47abb25ae32e72d9003902955a998eda723edd",
-          "size": 3072
-        },
-        {
-          "path": "esp32c6/boot_app0.bin",
-          "offset": 57344,
-          "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0",
-          "size": 8192
-        },
-        {
-          "path": "esp32c6/application.bin",
-          "offset": 65536,
-          "sha256": "7fbff2b2d6151952f696579bf8f5dcf046d735a96513350ed6973ed7ecb7e29b",
-          "size": 1734112
-        }
-      ]
-    },
-    {
-      "id": "esp32",
-      "label": "ESP32",
-      "chip": "esp32",
-      "board": "ESP32 Dev Module",
-      "minFlashMB": 4,
-      "usbCdc": false,
-      "flashFreq": "80m",
-      "parts": [
-        {
-          "path": "esp32/bootloader.bin",
-          "offset": 4096,
-          "sha256": "7784e3c3f38fa4c4334f478131488d8ba2a88ce623adca939f4cb8f019607f31",
-          "size": 23488
-        },
-        {
-          "path": "esp32/partitions.bin",
-          "offset": 32768,
-          "sha256": "aaae2888c5a6a348004b5b436f47abb25ae32e72d9003902955a998eda723edd",
-          "size": 3072
-        },
-        {
-          "path": "esp32/boot_app0.bin",
-          "offset": 57344,
-          "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0",
-          "size": 8192
-        },
-        {
-          "path": "esp32/application.bin",
-          "offset": 65536,
-          "sha256": "3a563884be7cbebd65630a794f5095396d54fe7a8dcece31d6ece2d9b76bb947",
-          "size": 1494544
-        }
-      ]
     }
   ]
 }

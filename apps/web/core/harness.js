@@ -182,7 +182,7 @@ export function createHarness({store,onEvent=()=>{},capture=screenCapture,invoke
         const skill=call.name==='skills_load'?skills.find(item=>item.id===call.arguments?.id):null;
         const metadata=skill?{skillId:skill.id,skillName:skill.name||skill.id,skillPath:call.arguments?.path||'SKILL.md'}:{};
         const message=await store.addMessage(sessionId,{role:'tool',text:JSON.stringify(value),toolCallId:call.id,toolName:call.name,...metadata,...extras});run.settled.add(call.id);emit({type:'message',message});
-        const diagnostic=value&&['failed','error','cancelled','unknown'].includes(value.status)?{code:value.code||'tool_failed',message:String(value.message||'').slice(0,500),...(value.cancelReason?{cancelReason:value.cancelReason}:{}),...(value.reason?{reason:value.reason}:{}),...(value.timing&&typeof value.timing==='object'?{timing:value.timing}:{})}:undefined;
+        const diagnostic=value&&['failed','error','cancelled','unknown'].includes(value.status)?{code:value.code||'tool_failed',message:String(value.message||'').slice(0,500),...(value.cancelReason?{cancelReason:value.cancelReason}:{}),...(value.reason?{reason:value.reason}:{}),...(value.timing&&typeof value.timing==='object'?{timing:value.timing}:{}),...(value.transportError?{transportError:value.transportError}:{})}:undefined;
         await journal('tool.result',{callId:call.id,name:call.name,status:value?.status||'returned',...(diagnostic?{diagnostic}:{} )});return message;
       }
       try{

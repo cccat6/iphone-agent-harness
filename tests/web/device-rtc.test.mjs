@@ -116,3 +116,14 @@ test('temporary ICE disconnection can recover without replay; failed ICE closes 
  peer.iceConnectionState='failed';peer.emit('iceconnectionstatechange');assert.equal(transport.closed,true);
  const lost=await connected({timeoutMs:5});lost.peer.iceConnectionState='disconnected';lost.peer.emit('iceconnectionstatechange');await new Promise(resolve=>setTimeout(resolve,10));assert.equal(lost.transport.closed,true);
 });
+
+test('normal RTC requests survive a nine-second response delay within the reliable transport budget',async t=>{
+ t.mock.timers.enable({apis:['setTimeout']});const {transport,peer}=await connected();t.after(()=>transport.close());assert.equal(transport.requestTimeoutMs,30000);
+ const client=new DeviceClient({baseUrl,fetchImpl:transport.fetch,timeoutMs:transport.requestTimeoutMs});let settled=false;const pending=client.identity().finally(()=>{settled=true;});await until(()=>peer.channel.frames.length===1);
+ t.mock.timers.tick(8000);await new Promise(r=>setImmediate(r));assert.equal(settled,false);assert.equal(transport.ready,true);
+ t.mock.timers.tick(1000);respond(peer,{status:200,body:JSON.stringify({boardId:'board',bootId:'boot',hostname:'igent.local',publicKeyFingerprint:'c'.repeat(64)})});await pending;assert.equal(transport.ready,true);assert.equal(peer.channel.frames.length,1);
+});
+test('an individual deadline drains an uncertain mutation without replaying it or closing the live peer',async()=>{
+ const {transport,peer}=await connected();const controller=new AbortController(),pending=transport.fetch(baseUrl+'/v1/targets/phone/segments',{method:'POST',body:'{}',signal:controller.signal});const rejected=assert.rejects(pending,{code:'DEVICE_REQUEST_CANCELLED'});const sent=peer.channel.frames[0];controller.abort(Object.assign(new Error('request deadline'),{code:'DEVICE_TIMEOUT'}));await rejected;
+ assert.equal(transport.ready,true);const next=transport.fetch(baseUrl+'/v1/clock');assert.equal(peer.channel.frames.length,1);respond(peer,{status:202,body:'{}'},sent);await until(()=>peer.channel.frames.length===2);assert.equal(request(peer).path,'/v1/clock');respond(peer,{status:200,body:'{}'});await next;assert.equal(transport.ready,true);assert.equal(peer.channel.frames.filter(f=>f.id===sent.id).length,1);transport.close();
+});

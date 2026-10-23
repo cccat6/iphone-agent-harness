@@ -304,10 +304,10 @@ export async function executePhonePlan(input,{device,capture,context,signal,onEv
     let receipt;dispatched=true;inputState='unknown';mandatoryStages++;
     emit(onEvent,{type:'segment',phase:'submitting',segment});
     try{
-      const requestTimeout=integer(context.resultTimeoutMs,100,15000)?context.resultTimeoutMs:8000;
+      const requestTimeout=integer(context.resultTimeoutMs,100,30000)?context.resultTimeoutMs:8000;
       const receiptDone=receipt=>{try{const done=terminalReceipt(receipt,segment);if(done)inputState='released';return done;}catch(e){if(e.deviceFailure?.releaseSubmitted===true)inputState='released';throw e;}};
       try{receipt=await measured('submitMs',()=>within(device.submitSegment(segment,{signal:controller.signal}),now()+requestTimeout));await check();}
-      catch(e){if(e.code==='CLIPBOARD_COPY_REQUIRED'&&e.sent===false){inputState='released';throw e;}await check();emit(onEvent,{type:'segment',phase:'submission_uncertain',segmentId:segment.segmentId,message:String(e.message)});}
+      catch(e){if(e.code==='CLIPBOARD_COPY_REQUIRED'&&e.sent===false){inputState='released';throw e;}const code=/^DEVICE_[A-Z0-9_]{1,64}$/.test(e.code||'')?e.code:'DEVICE_SUBMISSION_UNCERTAIN';result.transportError={phase:'submit',code,durationMs:Math.round(timing.submitMs),unknown:e.sent!==false&&e.unknown!==false};emit(onEvent,{type:'segment',phase:'submission_uncertain',segmentId:segment.segmentId,code,message:String(e.message)});await check();}
       const receiptDeadline=now()+requestTimeout;
       const query={boardId:segment.boardId,bootId:segment.bootId,targetId:segment.targetId,clientId:segment.clientId,segmentId:segment.segmentId};
       while(true){

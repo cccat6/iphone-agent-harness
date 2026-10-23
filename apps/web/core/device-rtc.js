@@ -1,6 +1,9 @@
 import {createDeviceURL,isLocalDeviceHost} from './device.js';
 const encoder=new TextEncoder(),UUID=/^[a-f\d]{8}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{12}$/i;
 const MAX_REQUEST=12288,MAX_RESPONSE=16384,CHUNK=256,MAX_FRAME=512;
+// One SCTP retry sequence can exceed eight seconds. Keep a bounded association
+// deadline that permits transport recovery rather than cancelling it mid-retry.
+export const RTC_REQUEST_TIMEOUT_MS=30000;
 const error=(code)=>Object.assign(new Error(code),{code});
 export function validateRTCConfiguration(value,{fallbackHost=''}={}){
  const host=String(value?.ip||value?.host||fallbackHost).toLowerCase();
@@ -23,10 +26,11 @@ export function allowedRTCRequest(method,path){
  if(method==='POST')return path==='/v1/pair'||new RegExp(`^/v1/targets/${target}/(bind|segments|release|cancel|clipboard|clipboard/${target}/(cancel|chunks)|challenge/(start|confirm|cancel)|leases/(claim|renew))$`).test(path);
  return false;
 }
-// These requests cannot introduce a new held input. An aborted caller may leave
-// their response to drain, but input mutations must still fail closed.
-function canDrainCancelledRequest({method,path}){
- return method==='GET'||method==='POST'&&/^\/v1\/targets\/[A-Za-z0-9][A-Za-z0-9._:-]{0,79}\/(release|cancel|leases\/renew)$/.test(path);
+// Read-only/cleanup requests can drain after cancellation. A per-request
+// deadline leaves delivery uncertain, so drain without replay. Explicit Stop
+// still closes active input mutations and triggers the bridge release fence.
+function canDrainCancelledRequest({method,path},reason){
+ return reason?.code==='DEVICE_TIMEOUT'||method==='GET'||method==='POST'&&/^\/v1\/targets\/[A-Za-z0-9][A-Za-z0-9._:-]{0,79}\/(release|cancel|leases\/renew)$/.test(path);
 }
 function base64(bytes){let binary='';for(const value of bytes)binary+=String.fromCharCode(value);return btoa(binary);}
 export function encodeRTCFrames(id,value,type='req',n=1){
@@ -40,7 +44,7 @@ function decodeFrame(raw){
  const binary=atob(frame.data);if(binary.length<1||binary.length>CHUNK)throw error('DEVICE_RTC_PROTOCOL_ERROR');return {...frame,bytes:Uint8Array.from(binary,char=>char.charCodeAt(0))};
 }
 class SinglePortDeviceRTCTransport{
- constructor({baseUrl,rtc=null,defaults=null,bootstrapFetch=globalThis.fetch,Peer=globalThis.RTCPeerConnection,onDisconnect=()=>{},onProgress=()=>{},connectTimeoutMs=30000,timeoutMs=8000}={}){
+ constructor({baseUrl,rtc=null,defaults=null,bootstrapFetch=globalThis.fetch,Peer=globalThis.RTCPeerConnection,onDisconnect=()=>{},onProgress=()=>{},connectTimeoutMs=30000,timeoutMs=RTC_REQUEST_TIMEOUT_MS}={}){
   this.baseUrl=createDeviceURL(baseUrl);this.requestedRTC=rtc;this.defaults=defaults;this.bootstrapFetch=bootstrapFetch;this.Peer=Peer;this.onDisconnect=onDisconnect;this.onProgress=onProgress;this.connectTimeoutMs=Math.min(30000,connectTimeoutMs);this.timeoutMs=timeoutMs;this.closed=false;this.ready=false;this.queue=[];this.active=null;this.requestNumber=0;this.fetch=this.fetch.bind(this);
  }
  publishProgress(phase){
@@ -95,7 +99,7 @@ class SinglePortDeviceRTCTransport{
    id=crypto.randomUUID();envelope={method,path:target.pathname,headers,body:options.body||''};encodeRTCFrames(id,envelope,'req',2147483647);
   }catch(cause){return Promise.reject(cause);}
   if(options.signal?.aborted)return Promise.reject(error('DEVICE_REQUEST_CANCELLED'));if(this.queue.length>=8)return Promise.reject(error('DEVICE_RTC_BUSY'));
-  return new Promise((resolve,reject)=>{const entry={id,envelope,resolve,reject,signal:options.signal,seq:0,size:0,chunks:[]};entry.abort=()=>{if(this.active===entry){if(canDrainCancelledRequest(envelope)){entry.abandoned=true;entry.signal?.removeEventListener('abort',entry.abort);reject(error('DEVICE_REQUEST_CANCELLED'));}else this.close(error('DEVICE_REQUEST_CANCELLED'));return;}const index=this.queue.indexOf(entry);if(index>=0){this.queue.splice(index,1);entry.signal?.removeEventListener('abort',entry.abort);reject(error('DEVICE_REQUEST_CANCELLED'));}};entry.signal?.addEventListener('abort',entry.abort,{once:true});this.queue.push(entry);this.drain();});
+  return new Promise((resolve,reject)=>{const entry={id,envelope,resolve,reject,signal:options.signal,seq:0,size:0,chunks:[]};entry.abort=()=>{if(this.active===entry){if(canDrainCancelledRequest(envelope,entry.signal?.reason)){entry.abandoned=true;entry.signal?.removeEventListener('abort',entry.abort);reject(error('DEVICE_REQUEST_CANCELLED'));}else this.close(error('DEVICE_REQUEST_CANCELLED'));return;}const index=this.queue.indexOf(entry);if(index>=0){this.queue.splice(index,1);entry.signal?.removeEventListener('abort',entry.abort);reject(error('DEVICE_REQUEST_CANCELLED'));}};entry.signal?.addEventListener('abort',entry.abort,{once:true});this.queue.push(entry);this.drain();});
  }
  drain(){
   if(this.closed||this.active||!this.queue.length)return;const entry=this.queue.shift();this.active=entry;entry.timer=setTimeout(()=>this.close(error('DEVICE_RTC_TIMEOUT')),this.timeoutMs);
@@ -112,7 +116,7 @@ class SinglePortDeviceRTCTransport{
 export class DeviceRTCTransport{
  constructor(options={}){
   this.options=options;this.baseUrl=createDeviceURL(options.baseUrl);this.requestedRTC=options.rtc||null;this.defaults=options.defaults||null;this.bootstrapFetch=options.bootstrapFetch||globalThis.fetch;
-  this.connectTimeoutMs=Math.max(1,Math.min(30000,options.connectTimeoutMs??30000));this.hedgeDelayMs=Math.max(0,options.hedgeDelayMs??1500);
+  this.requestTimeoutMs=Math.max(1,Math.min(30000,options.timeoutMs??RTC_REQUEST_TIMEOUT_MS));this.connectTimeoutMs=Math.max(1,Math.min(30000,options.connectTimeoutMs??30000));this.hedgeDelayMs=Math.max(0,options.hedgeDelayMs??1500);
   this.closed=false;this.ready=false;this.attempts=[];this.winner=null;this.fetch=this.fetch.bind(this);
  }
  get pc(){return (this.winner||this.attempts.at(-1)?.transport)?.pc;}
@@ -139,7 +143,7 @@ export class DeviceRTCTransport{
   if(this.closed||this.ready||this.attempts.length>=this.ports.length)return;
   const port=this.ports[this.attempts.length],record={failed:false,transport:null};
   const configuration={...this.rtc,port};delete configuration.ports;
-  const transport=new SinglePortDeviceRTCTransport({...this.options,baseUrl:this.baseUrl,rtc:configuration,connectTimeoutMs:Math.max(1,this.deadline-Date.now()),onProgress:progress=>{
+  const transport=new SinglePortDeviceRTCTransport({...this.options,timeoutMs:this.requestTimeoutMs,baseUrl:this.baseUrl,rtc:configuration,connectTimeoutMs:Math.max(1,this.deadline-Date.now()),onProgress:progress=>{
    if(!this.closed&&(!this.winner||this.winner===transport)&&progress.phase!=='ready')try{this.options.onProgress?.({...progress,port});}catch{}
   },onDisconnect:reason=>{if(this.winner===transport)this.close(reason);}});
   record.transport=transport;this.attempts.push(record);

@@ -197,7 +197,7 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
     if(!tested?.paired)return false;
     if(refreshTask?.client===tested&&refreshTask.epoch===epoch)return refreshTask.promise;
     let deadlineExpired=false;
-    const abort=new AbortController(),cancel=()=>abort.abort(signal?.reason),timer=setTimeout(()=>{deadlineExpired=true;abort.abort();},8000);
+    const abort=new AbortController(),cancel=()=>abort.abort(signal?.reason),timer=setTimeout(()=>{deadlineExpired=true;abort.abort();},Math.max(8000,Math.min(30000,tested.timeoutMs||8000)));
     signal?.addEventListener('abort',cancel,{once:true});if(signal?.aborted)cancel();
     const current=()=>tested===client&&epoch===connectionEpoch&&!disposed;
     // Heartbeat and navigation reads retain the last confirmed visible state.
@@ -296,7 +296,7 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
       try{
        const clientId=await store.ensureDeviceClientId(configuration.baseUrl,{preferredId});await ready;if(!valid(current))return;
        resetChallenge();invalidateProof();client=null;targets=[];targetId='';setStatus('rtcReading');
-       const candidate=clientFactory({...configuration,...(bridge?{fetchImpl:bridge.fetch}:{})});
+       const candidate=clientFactory({...configuration,...(bridge?{fetchImpl:bridge.fetch,timeoutMs:bridge.requestTimeoutMs||30000}:{})});
        if(configuration.boardId){const identity=await candidate.identity({signal});if(identity.boardId!==configuration.boardId){candidate.clearCredentials();throw Object.assign(new Error('DEVICE_IDENTITY_MISMATCH'),{code:'DEVICE_IDENTITY_MISMATCH'});}}
        let saved=await store.getLocalCredential('device:'+configuration.baseUrl);
        // Preserve an existing board credential across the automatic hostname change.

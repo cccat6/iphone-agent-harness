@@ -39,6 +39,8 @@ The local settings page is `http://igent.local/settings`. Use it to change Wi-Fi
 
 The RTC callback dispatches local application routes. Commands travel directly between phone and bridge. After a connection loss, the browser checks receipt IDs before continuing.
 
+Validated DATA, acknowledgements and peer heartbeat requests maintain connection liveness. Idle connections use heartbeat probes. The browser allows up to 30 seconds for a response, including transport recovery. Connection diagnostics retain the SCTP close reason, UDP buffer drops, uptime and heap measurements.
+
 ## Local HTTP and the clipboard
 
 HTTP port 80 serves provisioning, `/settings`, status and Shortcut requests. USB output and the local manager's return link provide `rtc:{ip,port,fingerprint}`; the actual IP is supplied once Wi-Fi is connected.
