@@ -73,6 +73,7 @@ export async function discoverModels({protocol,baseUrl,credential='',accountId,f
 }
 export async function callModel({provider,credential,messages,tools=[],toolDefinitions=tools,purpose,hydrate,invalidateImages,signal,onDelta=()=>{},onRetry=()=>{},fetchImpl=fetch}) {
   if(provider?.protocol==='codex')return callCodexModel({provider,messages,tools,toolDefinitions,purpose,hydrate,invalidateImages,signal,onDelta,onRetry,fetchImpl});
+  const callStarted=performance.now(),timing={};let firstEventAt=null,firstContentAt=null,connectionStarted=null;const content=()=>{firstContentAt??=performance.now();};
   if(!provider?.baseUrl||!provider?.model)throw new Error('请先配置后端地址和模型');
   if(!['openai','anthropic'].includes(provider.protocol))throw new Error('不支持的后端协议');
   const base=new URL(provider.baseUrl);
@@ -113,12 +114,13 @@ export async function callModel({provider,credential,messages,tools=[],toolDefin
   const controller=new AbortController();const abort=()=>controller.abort(signal?.reason);signal?.addEventListener('abort',abort,{once:true});if(signal?.aborted)abort();
   const timer=setTimeout(()=>controller.abort(new Error('模型请求超过总时限')),provider.timeoutMs||180000);
   try {
-    let response=await fetchImpl(endpoint,{method:'POST',headers,body:JSON.stringify(payload),signal:controller.signal,credentials:'omit',referrerPolicy:'no-referrer'});
+    const send=async()=>{const at=performance.now(),body=JSON.stringify(payload);timing.requestBytes=new TextEncoder().encode(body).length;timing.serializeMs=(timing.serializeMs||0)+Math.round(performance.now()-at);timing.requestCount=(timing.requestCount||0)+1;connectionStarted=performance.now();timing.prepareMs=Math.round(connectionStarted-callStarted);const response=await fetchImpl(endpoint,{method:'POST',headers,body,signal:controller.signal,credentials:'omit',referrerPolicy:'no-referrer'});timing.responseHeadersMs=Math.round(performance.now()-connectionStarted);return response;};
+    timing.transport=isAnthropic?'anthropic-messages':'openai-chat';let response=await send();
     let imageReferenceFallback=false;
     if(!response.ok){const error=await readProviderFailure(response,{signal:controller.signal});if(error.code==='PROVIDER_IMAGE_REFERENCE_INVALID'&&typeof hydrate==='function'&&messages.some(m=>m.providerImageParts?.some(part=>typeof part==='object'))){
       await invalidateImages?.();const inline=messages.map(m=>{const row={...m};delete row.providerImageParts;return row;});await hydrate(inline);checkAbort(controller.signal);
       payload.messages=isAnthropic?anthropicMessages(inline,scope):openaiMessages(inline,scope,base.hostname==='api.deepseek.com');imageReferenceFallback=true;
-      response=await fetchImpl(endpoint,{method:'POST',headers,body:JSON.stringify(payload),signal:controller.signal,credentials:'omit',referrerPolicy:'no-referrer'});
+      response=await send();
     }else throw error;}
     if(!response.ok)throw await readProviderFailure(response,{signal:controller.signal});
     let text='',finish=null,ended=false,usage,reasoningContent='';const thinking=new Map();const calls=new Map();let opaqueBytes=128;
@@ -126,9 +128,9 @@ export async function callModel({provider,credential,messages,tools=[],toolDefin
     const addThinking=(index,b)=>{if(!Number.isInteger(index)||index<0||index>=PROVIDER_LIMITS.thinkingBlocks)throw providerError('Model block index exceeded its limit');if(thinking.has(index)||thinking.size>=PROVIDER_LIMITS.thinkingBlocks)throw providerError('Model protocol block count exceeded its limit');for(const key of ['thinking','signature','data'])if(b[key]!==undefined&&typeof b[key]!=='string')throw providerError('Invalid model protocol state','PROVIDER_RESPONSE_INVALID');const bytes=jsonBytes(b)+1;if(opaqueBytes+bytes>PROVIDER_LIMITS.stateBytes)throw providerError('Model protocol state exceeded its size limit');opaqueBytes+=bytes;thinking.set(index,{...b});};
     const addThinkingDelta=(index,key,chunk)=>{const b=thinking.get(index);if(!b||typeof chunk!=='string'||b[key]!==undefined&&typeof b[key]!=='string')throw providerError('Invalid thinking block boundary','PROVIDER_RESPONSE_INVALID');const old=b[key]||'',extra=encodedStringBytes(chunk)-(joinsPair(old,chunk)?8:0)+(Object.hasOwn(b,key)?0:jsonBytes(key)+4);if(opaqueBytes+extra>PROVIDER_LIMITS.stateBytes)throw providerError('Model protocol state exceeded its size limit');b[key]=old+chunk;opaqueBytes+=extra;};
     const addReasoning=chunk=>{if(typeof chunk!=='string')throw providerError('Invalid model protocol state','PROVIDER_RESPONSE_INVALID');const extra=encodedStringBytes(chunk)-(joinsPair(reasoningContent,chunk)?8:0);if(opaqueBytes+extra>PROVIDER_LIMITS.stateBytes)throw providerError('Model protocol state exceeded its size limit');reasoningContent+=chunk;opaqueBytes+=extra;};
-    const addText=chunk=>{if(chunk){text+=chunk;if(text.length>1000000)throw new Error('模型输出超过容量限制');try{onDelta(chunk);}catch{}}};
+    const addText=chunk=>{if(chunk){content();text+=chunk;if(text.length>1000000)throw new Error('模型输出超过容量限制');try{onDelta(chunk);}catch{}}};
     if(provider.stream===false) {
-      const data=JSON.parse(await readText(response,{maxBytes:2000000,signal:controller.signal}));usage=data.usage;
+      const data=JSON.parse(await readText(response,{maxBytes:2000000,signal:controller.signal}));firstEventAt=performance.now();content();usage=data.usage;
       if(isAnthropic){finish=data.stop_reason;for(const [index,b] of (data.content||[]).entries()){if(['thinking','redacted_thinking'].includes(b.type))addThinking(index,b);if(b.type==='text')addText(b.text);if(b.type==='tool_use')addCall(index,{id:b.id,name:b.name,args:JSON.stringify(b.input)});}}
       else {const choice=data.choices?.[0];if(!choice)throw new Error('后端没有返回候选回复');finish=choice.finish_reason;addReasoning(choice.message?.reasoning_content||'');addText(choice.message?.content);for(const c of choice.message?.tool_calls||[])addCall(c.id,{id:c.id,name:c.function?.name,args:c.function?.arguments});}
       ended=true;
@@ -136,7 +138,7 @@ export async function callModel({provider,credential,messages,tools=[],toolDefin
       if(!response.body)throw new Error('后端没有返回可读的响应流');
       for await(const raw of readSSE(response.body)) {
         if(raw==='[DONE]'){ended=true;break;}
-        const e=JSON.parse(raw);if(e.usage)usage={...usage,...e.usage};if(e.message?.usage)usage={...usage,...e.message.usage};
+        firstEventAt??=performance.now();const e=JSON.parse(raw);if(e.delta?.text||e.delta?.thinking||e.content_block?.type==='tool_use'||e.choices?.[0]?.delta?.reasoning_content||e.choices?.[0]?.delta?.tool_calls?.length)content();if(e.usage)usage={...usage,...e.usage};if(e.message?.usage)usage={...usage,...e.message.usage};
         if(e.error||e.type==='error')throw contextOverflowError(e)||new Error('后端返回流式错误');
         if(isAnthropic){
           if(e.type==='content_block_start'&&['thinking','redacted_thinking'].includes(e.content_block?.type))addThinking(e.index,e.content_block);
@@ -158,7 +160,8 @@ export async function callModel({provider,credential,messages,tools=[],toolDefin
     if(!(isAnthropic?['end_turn','tool_use','stop_sequence']:['stop','tool_calls']).includes(finish))throw new Error('模型拒绝、过滤或返回了尚不支持的结束状态：'+finish);
     const seenIds=new Set();const toolCalls=[...calls.values()].map(c=>{toolIdentity(c.id,'Tool ID',PROVIDER_LIMITS.toolIdChars);toolIdentity(c.name,'Tool name',PROVIDER_LIMITS.toolNameChars);if(seenIds.has(c.id))throw providerError('Duplicate tool call ID','PROVIDER_RESPONSE_INVALID');seenIds.add(c.id);if(typeof c.args!=='string'||utf8(c.args)>PROVIDER_LIMITS.toolArgumentBytes)throw providerError('Tool arguments exceeded their size limit');return {id:c.id,name:c.name,arguments:c.args?JSON.parse(c.args):(c.initial||{})};});
     const opaque={...(reasoningContent?{reasoningContent}:{}),...(thinking.size?{thinkingBlocks:[...thinking].sort((a,b)=>a[0]-b[0]).map(([i,v])=>v)}:{})};if(jsonBytes(opaque)>PROVIDER_LIMITS.stateBytes)throw providerError('Model protocol state exceeded its size limit');
-    return {text,toolCalls,finish,...(imageReferenceFallback?{imageReferenceFallback:true}:{}),...(Object.keys(opaque).length?{providerState:{...scope,...opaque}}:{}),...(usage?{usage,cache:cacheUsage(usage,isAnthropic)}:{})};
+    timing.firstEventMs=firstEventAt===null?null:Math.round(firstEventAt-connectionStarted);timing.firstContentMs=firstContentAt===null?null:Math.round(firstContentAt-connectionStarted);timing.streamMs=Math.max(0,Math.round(performance.now()-connectionStarted)-timing.responseHeadersMs);timing.totalMs=Math.round(performance.now()-callStarted);
+    return {text,toolCalls,finish,timing,...(imageReferenceFallback?{imageReferenceFallback:true}:{}),...(Object.keys(opaque).length?{providerState:{...scope,...opaque}}:{}),...(usage?{usage,cache:cacheUsage(usage,isAnthropic)}:{})};
   } catch(e) {if(credential&&String(e.message).includes(credential))throw new Error('模型通信失败，敏感错误已隐藏');throw e;}
   finally {clearTimeout(timer);signal?.removeEventListener('abort',abort);}
 }

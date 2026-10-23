@@ -14,11 +14,11 @@ The model proposes a bounded plan; the browser validates it and compiles timed i
 
 Input uses one HID pointer. Coordinates are 0–10000 over the full display, with explicit frame/orientation metadata. Stale frame, target or orientation invalidates continuation. Use the clipboard Shortcut for arbitrary Unicode text. Observe the result of keyboard shortcuts and wheel input in the target app.
 
-Plans have at most 30 steps and 15 seconds of execution budget. Device segments have at most 128 reports, 8192 UTF-8 bytes and five seconds, with three seconds maximum held input; negotiated capabilities may be stricter. A complete held gesture stays in one network request.
+The host assigns plan execution and delivery deadlines. Plans contain at most 30 steps within a 15-second execution window; gesture durations, settling and capture intervals remain explicit in the plan. Device segments have at most 128 reports, 8192 UTF-8 bytes and five seconds, with three seconds maximum held input; negotiated capabilities may be stricter. A complete held gesture stays in one network request.
 
 Post-release settling defaults are tap 250 ms, key 150 ms, Home 450 ms, drag/pointer sequence 350 ms and swipe 700 ms. `settleMs` may override 0–3000 ms and counts toward the plan budget. Pickers may need 1200–2000 ms and fresh frames. After waiting, use a fresh frame to check that the control has settled. A swipe's release velocity is set by its path timing.
 
-Each observation provides a short run-scoped reference for action plans and completion evidence, while retaining its original stored frame ID. A capture barrier persists a released frame before continuing. `review` returns to the model before a decision. Motion observation returns frames with their capture times. The runtime uses fresh observations to check the effect of submitted input.
+Each observation provides a short run-scoped reference for action plans and completion evidence, while retaining its original stored frame ID. The literal `latest` resolves to the most recent observation only while no subsequent input has invalidated it. A capture barrier persists a released frame before continuing. `review` returns to the model before a decision. Motion observation returns frames with their capture times. The runtime uses fresh observations to check the effect of submitted input.
 
 Cancel, lost sharing, disconnection, expiry or late execution stop dependent work and attempt release. Unknown delivery is reconciled before subsequent input. Use [gesture-correction](../../apps/web/skills/gesture-correction/SKILL.md) and [clock-and-time](../../apps/web/skills/clock-and-time/SKILL.md) for measured correction or supported direct entry.
 

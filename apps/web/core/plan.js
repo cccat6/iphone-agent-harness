@@ -208,7 +208,7 @@ function compileInputRun(plan,index,context,identity){
  for(let i=index;i<plan.steps.length&&eligible(plan.steps[i]);i++){
   const compiled=compileGesture(plan.steps[i],context),candidate=[...events,...compiled.events.map(event=>({...event,atMs:offset+event.atMs}))],duration=offset+compiled.durationMs;
   try{checkGestureLimits(candidate,duration,context.capabilities);checkRequestBytes(gestureEnvelope(plan,identity,index,{events:candidate,durationMs:duration,...(context.capabilities?.segmentEncoding==='gesture-v2'?{gesture:compactReports(candidate)}:{})}),context.capabilities);}catch(error){if(!events.length)throw error;break;}
-  events=candidate;durationMs=duration;end=i;offset=duration+actionSettleMs(plan.steps[i]);
+  events=candidate;durationMs=duration;end=i;offset=duration+Math.max(actionSettleMs(plan.steps[i]),continuousTaps?(context.capabilities?.reportIntervalMs||20):0);
  }
  return end>index?{events,durationMs,end,...(context.capabilities?.segmentEncoding==='gesture-v2'?{gesture:compactReports(events)}:{})}:null;
 }
