@@ -37,7 +37,7 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
   let client=null,proof=null,targets=[],targetId='',root=null,dialog=null,controller=null,operation=0,working=false;
   let challenge=null,nonce='',armed=false,challengeTimer=null,testWait=null,unsubscribe=null,settings={},statusKey='notPaired',statusDetail='',checkedAt=null;
   let legacyBinding=false,challengeCancellation=Promise.resolve(),bindingError=null,verifiedRTC=null,challengeMayExist=false,challengeRetryController=null;
-  let connectionActive=false,pendingSetup=null,connectionEpoch=0,monitorTimer=null,refreshTask=null,disposed=false,lastRefreshStarted=0,reconnectTimer=null,reconnectAttempts=0,reconnecting=false,connectionInFlight=false,connectAction=null,wantsConnection=false;
+  let connectionActive=false,pendingSetup=null,connectionEpoch=0,monitorTimer=null,refreshTask=null,disposed=false,lastRefreshStarted=0,reconnectTimer=null,reconnectAttempts=0,reconnecting=false,connectionInFlight=false,connectAction=null,wantsConnection=false,resumeAfterPageShow=false;
   let importError=null,progressTimer=null,progressStarted=0,informationEdit=0,informationSaving=null,pendingSetupSource='';
   function receiveSetupLink(){
     const source=globalThis.location?.href;if(!source||!new URLSearchParams(globalThis.location.hash?.slice(1)||'').has('device'))return false;
@@ -137,7 +137,7 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
   function begin(){if(working||isBusy())throw componentError('busy');working=true;startProgress();publish();controller?.abort();controller=new AbortController();const current=++operation;renderState();return {signal:controller.signal,current};}
   function valid(current){return !disposed&&current===operation&&!controller?.signal.aborted;}
   async function action(work){let current;try{const started=begin();current=started.current;await work(started);if(valid(current))renderState();}catch(rawError){const error=normalizedError(rawError);if((mounted()||current===operation)&&(current===undefined||current===operation)&&error.name!=='AbortError')setStatus('operationFailed',error);}finally{if(current===operation){working=false;stopProgress();publish();if(mounted())renderState();}}}
-  function close({abort=false}={}){const preserve=connectionInFlight||(working&&!armed&&!abort),keepConnection=Boolean(client?.paired&&transport&&!transport.closed);if(!preserve){stopProgress();operation++;controller?.abort();controller=null;working=false;resetChallenge();}unsubscribe?.();unsubscribe=null;dialog?.removeEventListener('close',close);root=null;dialog=null;publish();if(keepConnection)startMonitor();}
+  function close({abort=false}={}){const preserve=!abort&&(connectionInFlight||(working&&!armed)),keepConnection=Boolean(client?.paired&&transport&&!transport.closed);if(!preserve){stopProgress();operation++;controller?.abort();controller=null;working=false;resetChallenge();}unsubscribe?.();unsubscribe=null;dialog?.removeEventListener('close',close);root=null;dialog=null;publish();if(keepConnection)startMonitor();}
   const usableTarget=target=>target.connected&&target.encrypted&&target.hidSubscribed;
   function stopMonitor(){clearTimeout(monitorTimer);monitorTimer=null;}
   function startMonitor(){
@@ -382,8 +382,10 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
     });
     renderState();if(getState().connected)void checkConnection();return root;
   }
-  function destroy(){disposed=true;wantsConnection=false;connectAction=null;clearReconnect();stopMonitor();connectionEpoch++;globalThis.document?.removeEventListener?.('visibilitychange',foreground);globalThis.removeEventListener?.('pagehide',suspend);close({abort:true});transport?.close();transport=null;connectionActive=false;targets=[];invalidateProof();}
-  function suspend(){wantsConnection=false;clearReconnect();stopMonitor();connectionEpoch++;close();const previous=transport;transport=null;previous?.close();connectionActive=false;targets=[];invalidateProof();}
+  function destroy(){disposed=true;wantsConnection=false;resumeAfterPageShow=false;connectAction=null;clearReconnect();stopMonitor();connectionEpoch++;globalThis.document?.removeEventListener?.('visibilitychange',foreground);globalThis.removeEventListener?.('pagehide',suspend);globalThis.removeEventListener?.('pageshow',resume);close({abort:true});transport?.close();transport=null;connectionActive=false;targets=[];invalidateProof();}
+  function suspend(event){resumeAfterPageShow=event?.persisted===true&&wantsConnection;wantsConnection=false;clearReconnect();connectionEpoch++;close({abort:true});stopMonitor();const previous=transport;transport=null;previous?.close();connectionActive=false;targets=[];invalidateProof();}
+  function resume(event){if(disposed||event?.persisted!==true||!resumeAfterPageShow)return;resumeAfterPageShow=false;wantsConnection=true;scheduleReconnect();}
   globalThis.addEventListener?.('pagehide',suspend);
+  globalThis.addEventListener?.('pageshow',resume);
   return {open,dispose:close,destroy,receiveSetupLink,hasPendingSetup:()=>Boolean(pendingSetup||importError),getDevice:()=>getState().ready?client:null,getState,ensureReady,refreshConnection,refreshUI};
 }

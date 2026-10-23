@@ -5,7 +5,7 @@ import {openStore} from '../../apps/web/core/store.js';
 import {DeviceError} from '../../apps/web/core/device.js';
 const endpoint='http://igent.local',rtc={ip:'192.168.0.125',port:18948,fingerprint:'ab'.repeat(32)};
 async function fixture(t){
- const descriptors=new Map(['document','location','history'].map(key=>[key,Object.getOwnPropertyDescriptor(globalThis,key)])),fields=new Map(),updates=[],documentEvents=new Map();let reads=0,identities=0,pairs=0,bindings=0,opens=0,phone=true,subscribed=true,failure=null,pending=null,bridge=null,expired=false,challenges=0,cancellation=null,cancels=0,startErrors=[],busy=false,transportDisconnect;
+ const descriptors=new Map(['document','location','history','addEventListener','removeEventListener'].map(key=>[key,Object.getOwnPropertyDescriptor(globalThis,key)])),fields=new Map(),updates=[],documentEvents=new Map(),windowEvents=new Map();let reads=0,identities=0,pairs=0,bindings=0,opens=0,phone=true,subscribed=true,failure=null,pending=null,bridge=null,expired=false,challenges=0,cancellation=null,cancels=0,startErrors=[],busy=false,transportDisconnect;
  const field=key=>{if(!fields.has(key))fields.set(key,{value:'',checked:false,dataset:{},listeners:{},classList:{toggle(){}},addEventListener(name,fn){this.listeners[name]=fn;},replaceChildren(){},append(){},focus(){document.activeElement=this;}});return fields.get(key);};
  const root={isConnected:true,querySelector:field,querySelectorAll:()=>[],closest:()=>null},holder={querySelector:()=>root,contains:node=>node===root};
  Object.defineProperty(globalThis,'document',{configurable:true,value:{visibilityState:'visible',documentElement:{},querySelector:()=>({}),addEventListener(name,fn){documentEvents.set(name,fn);},removeEventListener(name){documentEvents.delete(name);},createElement:()=>({}),head:{append(){}}}});Object.defineProperty(globalThis,'location',{configurable:true,value:new URL('https://igent.cc/?session=saved')});Object.defineProperty(globalThis,'history',{configurable:true,value:{replaceState(){}}});
@@ -24,9 +24,10 @@ async function fixture(t){
   exportCredentials(){return {format:'fixture',baseUrl:endpoint,clientId:this.clientId,token:'fixture-token'};}
   status(){return {boardId:this.boardId,bootId:this.bootId,targetId:this.targetId,publicKeyFingerprint:'b'.repeat(64)};}
  }
+ Object.defineProperty(globalThis,'addEventListener',{configurable:true,value:(name,handler)=>windowEvents.set(name,handler)});Object.defineProperty(globalThis,'removeEventListener',{configurable:true,value:(name,handler)=>{if(windowEvents.get(name)===handler)windowEvents.delete(name);}});
  const store=await openStore({memory:true});await store.saveSettings({deviceEndpoint:endpoint,deviceRTC:rtc,deviceBoardId:'board'});
  const panel=createDevicePanel({store,capture:{active:false},isBusy:()=>busy,onDeviceChange:(device,summary)=>updates.push({...summary}),getPanelRoot:()=>holder,openPanel(a,b,html){field('[data-address]').value=/data-address[^>]+value="([^"]*)"/.exec(html)[1];},clientFactory:()=>new Client(),bridgeFactory:options=>{opens++;transportDisconnect=options.onDisconnect;bridge={open:async()=>{},close(){this.closed=true;},exportConfiguration:()=>rtc};return bridge;}});t.after(()=>panel.destroy());await panel.open();await field('[data-pair]').onclick();
- return {panel,field,updates,reads:()=>reads,identities:()=>identities,pairs:()=>pairs,bindings:()=>bindings,opens:()=>opens,closeTransport:()=>bridge.close(),disconnectTransport:()=>{bridge.close();transportDisconnect(new DeviceError('DEVICE_RTC_DISCONNECTED'));},setBusy:value=>busy=value,foreground:()=>documentEvents.get('visibilitychange')?.(),setPhone:value=>phone=value,setSubscribed:value=>subscribed=value,expireCredential(){expired=true;},startErrors:values=>startErrors=values,challenges:()=>challenges,cancels:()=>cancels,stallCancellation(){let resolve;cancellation=new Promise(done=>resolve=done);return ()=>{cancellation=null;resolve();};},setFailure:value=>failure=value,stall(){let resolve;pending=new Promise(done=>resolve=done);return ()=>{pending=null;resolve();};}};
+ return {panel,field,updates,pagehide:persisted=>windowEvents.get('pagehide')?.({persisted}),pageshow:persisted=>windowEvents.get('pageshow')?.({persisted}),windowEvents,reads:()=>reads,identities:()=>identities,pairs:()=>pairs,bindings:()=>bindings,opens:()=>opens,closeTransport:()=>bridge.close(),disconnectTransport:()=>{bridge.close();transportDisconnect(new DeviceError('DEVICE_RTC_DISCONNECTED'));},setBusy:value=>busy=value,foreground:()=>documentEvents.get('visibilitychange')?.(),setPhone:value=>phone=value,setSubscribed:value=>subscribed=value,expireCredential(){expired=true;},startErrors:values=>startErrors=values,challenges:()=>challenges,cancels:()=>cancels,stallCancellation(){let resolve;cancellation=new Promise(done=>resolve=done);return ()=>{cancellation=null;resolve();};},setFailure:value=>failure=value,stall(){let resolve;pending=new Promise(done=>resolve=done);return ()=>{pending=null;resolve();};}};
 }
 test('lifecycle status refresh rechecks an unavailable phone and recovers without input or re-enrollment',async t=>{
  const f=await fixture(t);assert.equal(f.panel.getState().ready,true);f.panel.dispose();f.setPhone(false);assert.equal(await f.panel.refreshConnection({force:true}),false);assert.equal(f.panel.getState().connected,true);assert.equal(f.panel.getState().bluetoothConnected,false);
@@ -107,4 +108,29 @@ test('exhausted background reconnects publish failure and allow an explicit retr
  assert.equal(f.opens(),5);assert.equal(f.panel.getState().status,'error');assert.equal(f.updates.at(-1).status,'error');
  t.mock.timers.tick(60000);await settle();assert.equal(f.opens(),5,'recovery stops after four attempts');
  f.setFailure(null);await f.panel.open();await f.field('[data-pair]').onclick();assert.equal(f.panel.getState().ready,true);assert.equal(f.opens(),6);
+});
+
+
+test('BFCache return reconnects the previously wanted bridge after its panel is closed, without replaying input',async t=>{
+ t.mock.timers.enable({apis:['setTimeout']});const f=await fixture(t),settle=async()=>{for(let i=0;i<100;i++)await Promise.resolve();};
+ f.panel.dispose();f.pagehide(true);assert.equal(f.panel.getState().connected,false);assert.equal(f.opens(),1);
+ f.pageshow(true);f.pageshow(true);t.mock.timers.tick(500);await settle();
+ assert.equal(f.opens(),2);assert.equal(f.panel.getState().ready,true);assert.equal(f.pairs(),1,'saved browser credential is reused');assert.equal(f.challenges(),0,'restoration sends no keyboard test');
+});
+test('BFCache return honors an explicit disconnect and ordinary navigation does not schedule restoration',async t=>{
+ t.mock.timers.enable({apis:['setTimeout']});const f=await fixture(t),settle=async()=>{for(let i=0;i<100;i++)await Promise.resolve();};
+ f.field('[data-disconnect]').onclick();f.pagehide(true);f.pageshow(true);t.mock.timers.tick(30000);await settle();assert.equal(f.opens(),1);assert.equal(f.panel.getState().connected,false);
+ await f.panel.open();await f.field('[data-pair]').onclick();assert.equal(f.opens(),2);f.pagehide(false);f.pageshow(true);t.mock.timers.tick(30000);await settle();assert.equal(f.opens(),2);
+});
+test('BFCache recovery waits for task cleanup and disposal removes its lifecycle listeners',async t=>{
+ t.mock.timers.enable({apis:['setTimeout']});const f=await fixture(t),settle=async()=>{for(let i=0;i<100;i++)await Promise.resolve();};
+ f.panel.dispose();f.setBusy(true);f.pagehide(true);f.pageshow(true);t.mock.timers.tick(3000);await settle();assert.equal(f.opens(),1);
+ f.setBusy(false);t.mock.timers.tick(1000);await settle();t.mock.timers.tick(500);await settle();assert.equal(f.opens(),2);assert.equal(f.panel.getState().ready,true);
+ f.pagehide(true);f.pageshow(true);f.panel.destroy();assert.equal(f.windowEvents.has('pagehide'),false);assert.equal(f.windowEvents.has('pageshow'),false);t.mock.timers.tick(30000);await settle();assert.equal(f.opens(),2);
+});
+test('BFCache suspension fences an unfinished connection before restoring one fresh peer',async t=>{
+ t.mock.timers.enable({apis:['setTimeout']});const f=await fixture(t),settle=async()=>{for(let i=0;i<100;i++)await Promise.resolve();};
+ const release=f.stall(),pending=f.field('[data-pair]').onclick();await settle();assert.equal(f.opens(),2);
+ f.pagehide(true);assert.equal(f.panel.getState().connected,false);f.pageshow(true);release();await pending;await settle();t.mock.timers.tick(1000);await settle();t.mock.timers.tick(500);await settle();
+ assert.equal(f.opens(),3);assert.equal(f.panel.getState().ready,true);assert.equal(f.challenges(),0);
 });
