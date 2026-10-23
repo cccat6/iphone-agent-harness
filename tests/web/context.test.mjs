@@ -175,3 +175,16 @@ test('production append-only image context retains all 40 frame references witho
 test('opaque provider replay bytes neither duplicate assistant tokens nor cause premature context compaction',async()=>{
  const plain=new Memory([{role:'user',text:'task'},{role:'assistant',text:'visible answer'}]);const opaque=new Memory([{role:'user',text:'task'},{role:'assistant',text:'visible answer',providerState:{kind:'codex-responses/1',items:[{type:'reasoning',encrypted_content:'x'.repeat(100000)},{type:'message',content:[{type:'output_text',text:'visible answer'}]}]}}]);const a=await run(plain,{settings:{triggerTokens:6000}}),b=await run(opaque,{settings:{triggerTokens:6000}});assert.equal(a.metrics.estimatedInputTokens,b.metrics.estimatedInputTokens);assert.equal(b.compacted,false);
 });
+
+test('subscription summary retains the complete cached prefix and leaves the recent tail verbatim',async()=>{
+ const store=new Memory(history(20)),calls=[],prefix=[{role:'system',text:'Stable procedures'}];
+ const before=await run(store,{settings:{triggerTokens:750000},preserveImagePrefix:true});
+ const result=await run(store,{settings:{triggerTokens:750000},preserveImagePrefix:true,force:true,forceReason:'manual',summaryContext:{prefix,lazyHydrate:true,hydrate:async rows=>rows,toolDefinitions:[]},invoke:async args=>{calls.push(args);return {text:'Recorded task evidence.',toolCalls:[]};}});
+ assert.equal(calls.length,1);assert.deepEqual(calls[0].messages.slice(prefix.length,-1),before.messages);assert.ok(result.metrics.summaryCacheTailMessages>0);assert.ok(result.messages.some(m=>m.seq>result.checkpoint.throughSeq));assert.equal(result.checkpoint.sourceMessageCount,result.checkpoint.throughSeq);assert.match(calls[0].messages.at(-1).text,/Recent exchanges.*remain verbatim/);
+});
+
+test('summary replay exceeding image transfer capacity retries once without dropping any source text or tool pairs',async()=>{
+ const store=new Memory(history(20)),calls=[],prefix=[{role:'system',text:'Stable procedures'}];
+ const result=await run(store,{settings:{triggerTokens:750000},preserveImagePrefix:true,force:true,forceReason:'manual',summaryContext:{prefix,lazyHydrate:true,hydrate:async rows=>rows,toolDefinitions:[]},invoke:async args=>{calls.push(structuredClone({...args,hydrate:undefined,onDelta:undefined}));if(calls.length===1)throw Object.assign(Error('wire capacity'),{code:'CONTEXT_TRANSPORT_LIMIT'});return {text:'All historical outcomes retained.',toolCalls:[]};}});
+ assert.equal(calls.length,2);assert.equal(result.metrics.summaryTransportFallback,true);assert.deepEqual(calls[0].messages.map(m=>m.text),calls[1].messages.map(m=>m.text));assert.ok(calls[0].messages.flatMap(m=>m.frameRefs||[]).length>1);assert.equal(calls[1].messages.flatMap(m=>m.frameRefs||[]).length,1);paired(calls[1].messages.slice(prefix.length,-1));assert.equal(store.framesRead,0);
+});

@@ -15,7 +15,8 @@ export class ResponseSocket{
  receive(raw){
   if(this.closed)return;
   let value;try{if(typeof raw!=='string'||raw.length>2000000)throw 0;value=JSON.parse(raw);}catch{this.close(failure('RESPONSE_SOCKET_EVENT_INVALID'));return;}
-  if(!this.ready){if(value.type==='iah.ready'){this.ready=true;clearTimeout(this.timer);this.resolveOpen();}else this.close(failure(value.error?.code||'RESPONSE_SOCKET_AUTH_FAILED',value.status));return;}
+  if(!this.ready){if(value.type==='iah.ready'){this.ready=true;clearTimeout(this.timer);this.lastPong=Date.now();this.heartbeat=setInterval(()=>{if(this.closed)return;if(Date.now()-this.lastPong>90000){this.close(failure('RESPONSE_SOCKET_HEARTBEAT_TIMEOUT'));return;}try{this.socket.send('{"type":"iah.ping"}');}catch{this.close(failure('RESPONSE_SOCKET_CLOSED'));}},20000);this.resolveOpen();}else this.close(failure(value.error?.code||'RESPONSE_SOCKET_AUTH_FAILED',value.status));return;}
+  if(value.type==='iah.pong'){this.lastPong=Date.now();return;}
   const a=this.active;if(!a){this.close(failure('RESPONSE_SOCKET_UNEXPECTED_EVENT'));return;}
   if(!a.started&&value.type==='error'){
    this.record=null;this.finish(a);a.resolve(Response.json(value,{status:Number.isInteger(value.status)&&value.status>=400&&value.status<=599?value.status:502}));return;
@@ -51,7 +52,7 @@ export class ResponseSocket{
   });
  }
  close(reason=failure('RESPONSE_SOCKET_CLOSED')){
-  if(this.closed)return;this.closed=true;this.record=null;clearTimeout(this.timer);this.rejectOpen(reason);
+  if(this.closed)return;this.closed=true;this.record=null;clearTimeout(this.timer);clearInterval(this.heartbeat);this.rejectOpen(reason);
   const a=this.active;if(a){this.finish(a);if(a.started)try{a.controller.error(reason);}catch{}else a.reject(reason);a.queue=[];}
   try{this.socket.close(1000,'client_closed');}catch{}
  }

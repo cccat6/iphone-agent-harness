@@ -166,19 +166,22 @@ export function compileGesture(step,context={}) {
   if(step.op==='home')events=[{atMs:0,kind:'consumer',usage:64},{atMs:100,kind:'consumer',usage:0}];
   if(step.op==='pointer_sequence')events=[pointer(0,0,step.events[0]),...step.events.map(e=>pointer(settle+e.atMs,e.phase==='up'?0:1,e))];
   if(step.op==='drag'||step.op==='swipe'){
-    const path=step.path,end=path.at(-1).tMs;
+    const path=step.path,end=path.at(-1).tMs,releaseGap=step.op==='swipe'?Math.min(interval,20):0;
+    const holdLimit=limit('maxHoldMs',1,3000,3000),motionEnd=step.op==='swipe'?Math.min(end,holdLimit-releaseGap):end;
+    if(motionEnd<1)fail('No room for a complete swipe and release');
     const times=new Set(path.map(p=>p.tMs));for(let t=interval;t<end;t+=interval)times.add(t);
     events=[pointer(0,0,path[0]),pointer(settle,1,path[0])];let at=0;
     for(const t of [...times].sort((a,b)=>a-b)){
-      // A fling lifts at its final moving point. Sending a held endpoint
-      // first creates a zero-distance down/up pair that can cancel inertia.
-      if(t===0||step.op==='swipe'&&t===end)continue;
+      if(t===0)continue;
       while(at+1<path.length&&path[at+1].tMs<t)at++;
       const a=path[at],b=path[Math.min(at+1,path.length-1)],fraction=(t-a.tMs)/(b.tMs-a.tMs);
       const p={x:Math.round(a.x+(b.x-a.x)*fraction),y:Math.round(a.y+(b.y-a.y)*fraction)};
-      events.push(pointer(settle+t,1,p));
+      events.push(pointer(settle+Math.round(t*motionEnd/end),1,p));
     }
-    events.push(pointer(settle+end+(step.endHoldMs||0),0,path.at(-1)));
+    // iOS can ignore changed absolute coordinates in a button-up report.
+    // Deliver the endpoint first, then lift shortly after it. A fling keeps
+    // its final movement close to release; a drag has its explicit hold.
+    events.push(pointer(settle+motionEnd+(step.endHoldMs||releaseGap),0,path.at(-1)));
   }
   const durationMs=events.at(-1).atMs;
   checkGestureLimits(events,durationMs,caps);
@@ -284,7 +287,7 @@ export async function executePhonePlan(input,{device,capture,context,signal,onEv
   if(deadline<=start)throw deadlineError();
   let failureCode=null,dispatched=false,inputState='released',stepIndex=0,deadlineExceeded=false,mandatoryStages=0,activeKeyRun=null;
   const result={version:1,planId:plan.planId,targetId:plan.targetId,status:'completed',outcome:'not_evaluated',inputState:'released',steps:[],frames:[]};
-  const timing={contextMs:0,submitMs:0,resultQueryMs:0,settleMs:0,capturePipelineMs:0,saveMs:0};
+  const timing={contextMs:0,submitMs:0,resultQueryMs:0,receiptWaitMs:0,settleMs:0,capturePipelineMs:0,saveMs:0,scheduledInputMs:0,deviceExecutionMs:0,deviceTimedSegments:0,maxInputLatenessMs:0,submitCount:0,resultQueryCount:0};
   const measured=async(key,operation)=>{const at=now();try{return await operation();}finally{timing[key]+=Math.max(0,now()-at);}};
   const expire=()=>{if(deadlineExceeded)return;deadlineExceeded=true;failureCode='PLAN_DEADLINE_EXCEEDED';if(!mandatoryStages&&!controller.signal.aborted)controller.abort(deadlineError());};
   const cancel=()=>{if(controller.signal.aborted)return;failureCode='USER_CANCELLED';controller.abort(abortError());};
@@ -306,7 +309,7 @@ export async function executePhonePlan(input,{device,capture,context,signal,onEv
     if(changes)for(const key of ['identityVerified','bindingVerified','leaseVerified','executionEnabled'])if(current[key]!==true)fail(`Execution permission lost: ${key}`,'unknown');
     return current;
   }
-  const wait=async(ms,{allowDeadline=false}={})=>{if(!allowDeadline)await check();await measured('settleMs',()=>sleep(ms,controller.signal));if(!allowDeadline)await check();};
+  const wait=async(ms,{allowDeadline=false,timingKey='settleMs'}={})=>{if(!allowDeadline)await check();await measured(timingKey,()=>sleep(ms,controller.signal));if(!allowDeadline)await check();};
   async function within(promise,endAt){
     let timer;const timeout=new Promise((_,reject)=>{timer=setTimeout(()=>{const e=new Error('Device result timed out');e.code='DEVICE_RESULT_TIMEOUT';e.cancelReason='device_result_timeout';reject(e);},Math.max(0,endAt-now()));});
     try{return await abortable(Promise.race([promise,timeout]),controller.signal);}finally{clearTimeout(timer);}
@@ -317,23 +320,24 @@ export async function executePhonePlan(input,{device,capture,context,signal,onEv
     segment.payloadHash=await hashSegment(segment);const latest=await check(),latestCaps=latest.capabilities||context.capabilities;operationAllowed(step.op,{capabilities:latestCaps});checkGestureLimits(segment.events,compiled.durationMs,latestCaps);checkRequestBytes(segment,latestCaps);
     if(!dispatched){const batch=validatePlan(plan,{...context,capabilities:latestCaps});if(!batch.valid)fail(batch.errors.join('; '));}
     context.validateSegment?.(segment);
-    let receipt;dispatched=true;if(activeKeyRun&&activeKeyRun.start===index)activeKeyRun.sent=true;inputState='unknown';mandatoryStages++;
+    let receipt;timing.scheduledInputMs+=compiled.durationMs;dispatched=true;if(activeKeyRun&&activeKeyRun.start===index)activeKeyRun.sent=true;inputState='unknown';mandatoryStages++;
     emit(onEvent,{type:'segment',phase:'submitting',segment});
     try{
       const requestTimeout=integer(context.resultTimeoutMs,100,30000)?context.resultTimeoutMs:8000;
-      const receiptDone=receipt=>{try{const done=terminalReceipt(receipt,segment);if(done)inputState='released';return done;}catch(e){if(e.deviceFailure?.releaseSubmitted===true)inputState='released';throw e;}};
-      try{receipt=await measured('submitMs',()=>within(device.submitSegment(segment,{signal:controller.signal}),now()+requestTimeout));await check();}
-      catch(e){if(e.code==='CLIPBOARD_COPY_REQUIRED'&&e.sent===false){inputState='released';throw e;}const code=/^DEVICE_[A-Z0-9_]{1,64}$/.test(e.code||'')?e.code:'DEVICE_SUBMISSION_UNCERTAIN';result.transportError={phase:'submit',code,durationMs:Math.round(timing.submitMs),unknown:e.sent!==false&&e.unknown!==false};emit(onEvent,{type:'segment',phase:'submission_uncertain',segmentId:segment.segmentId,code,message:String(e.message)});await check();}
+      let timedReceipt=false;const receiptTiming=receipt=>{if(timedReceipt)return;const start=receipt?.startedAtDeviceMs,end=receipt?.endedAtDeviceMs;if(Number.isSafeInteger(start)&&start>=0&&Number.isSafeInteger(end)&&end>=start&&end-start<=30000){timing.deviceExecutionMs+=end-start;timing.deviceTimedSegments++;timedReceipt=true;}if(Number.isInteger(receipt?.maxLatenessMs)&&receipt.maxLatenessMs>=0&&receipt.maxLatenessMs<=30000)timing.maxInputLatenessMs=Math.max(timing.maxInputLatenessMs,receipt.maxLatenessMs);};
+      const receiptDone=receipt=>{try{const done=terminalReceipt(receipt,segment);if(done){inputState='released';receiptTiming(receipt);}return done;}catch(e){if(e.deviceFailure){receiptTiming(e.deviceFailure);if(e.deviceFailure.releaseSubmitted===true)inputState='released';}throw e;}};
+      try{timing.submitCount++;receipt=await measured('submitMs',()=>within(device.submitSegment(segment,{signal:controller.signal}),now()+requestTimeout));await check();}
+      catch(e){if(e.code==='CLIPBOARD_COPY_REQUIRED'&&e.sent===false||e.code==='DEVICE_RESOURCE_BUSY'&&e.unknown===false){inputState='released';throw e;}const code=/^DEVICE_[A-Z0-9_]{1,64}$/.test(e.code||'')?e.code:'DEVICE_SUBMISSION_UNCERTAIN';result.transportError={phase:'submit',code,durationMs:Math.round(timing.submitMs),unknown:e.sent!==false&&e.unknown!==false};emit(onEvent,{type:'segment',phase:'submission_uncertain',segmentId:segment.segmentId,code,message:String(e.message)});await check();}
       const receiptDeadline=now()+requestTimeout;
       const query={boardId:segment.boardId,bootId:segment.bootId,targetId:segment.targetId,clientId:segment.clientId,segmentId:segment.segmentId};
       while(true){
         await check();
         if(receipt&&receiptDone(receipt)){inputState='released';emit(onEvent,{type:'segment',phase:'completed',receipt});return receipt;}
         if(now()>=receiptDeadline)fail('Device result unavailable; execution state unknown','DEVICE_RESULT_TIMEOUT');
-        try{receipt=await measured('resultQueryMs',()=>within(device.getResult(query,{signal:controller.signal}),receiptDeadline));await check();}
+        try{timing.resultQueryCount++;receipt=await measured('resultQueryMs',()=>within(device.getResult(query,{signal:controller.signal}),receiptDeadline));await check();}
         catch(e){await check();if(e.code==='DEVICE_RESULT_TIMEOUT'||e.code==='unknown'||e.code==='failed')throw e;fail('Device result query failed; no input was resent','DEVICE_RESULT_UNKNOWN');}
         if(receipt&&receiptDone(receipt)){inputState='released';emit(onEvent,{type:'segment',phase:'completed',receipt});return receipt;}
-        await wait(integer(context.pollIntervalMs,0,1000)?context.pollIntervalMs:100);
+        await wait(integer(context.pollIntervalMs,0,1000)?context.pollIntervalMs:100,{timingKey:'receiptWaitMs'});
       }
     }finally{mandatoryStages=Math.max(0,mandatoryStages-1);}
   }
@@ -406,12 +410,7 @@ export async function executePhonePlan(input,{device,capture,context,signal,onEv
     await cleanupRelease();
   }finally{clearTimeout(deadlineTimer);signal?.removeEventListener('abort',cancel);}
   const elapsedMs=executionElapsedMs??Math.max(0,now()-start),effectiveBudgetMs=Math.max(0,deadline-start);
-  result.timing={...Object.fromEntries(Object.entries(timing).map(([key,value])=>[key,Math.round(value)])),elapsedMs:Math.round(elapsedMs),maxExecutionMs:plan.maxExecutionMs,ttlMs:plan.ttlMs,effectiveBudgetMs:Math.round(effectiveBudgetMs),plannedWorkMs:validation.budgetMs,...(result.deadlineExceededAfterCompletion?{deadlineExceededAfterCompletion:true}:{})};
-  if(result.code==='PLAN_DEADLINE_EXCEEDED'){
-    // Advisory for a new plan only. It never extends this plan or authorizes a replay.
-    const estimate=Math.max(effectiveBudgetMs+1000,validation.budgetMs+timing.contextMs+timing.submitMs+timing.resultQueryMs+500);
-    result.timing.recommendedBudgetMs=Math.min(15000,Math.ceil(estimate/1000)*1000);result.timing.splitRequired=estimate>15000;result.timing.recommendationEstimated=true;
-  }
+  result.timing={...Object.fromEntries(Object.entries(timing).map(([key,value])=>[key,Math.round(value)])),elapsedMs:Math.round(elapsedMs),maxExecutionMs:plan.maxExecutionMs,ttlMs:plan.ttlMs,effectiveBudgetMs:Math.round(effectiveBudgetMs),...(result.deadlineExceededAfterCompletion?{deadlineExceededAfterCompletion:true}:{})};
   result.inputState=inputState;
   if(result.status!=='completed'){
     const code=result.code||'failed',restartRequired=code==='CAPTURE_RESTART_REQUIRED'||capture?.needsRestart===true;if(restartRequired)result.captureNeedsRestart=true;

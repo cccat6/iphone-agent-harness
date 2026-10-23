@@ -90,7 +90,14 @@ class SinglePortDeviceRTCTransport{
    if(frame.n!==entry.n||frame.seq!==entry.seq||(!frame.end&&frame.bytes.length!==CHUNK))throw error('DEVICE_RTC_PROTOCOL_ERROR');entry.seq++;entry.size+=frame.bytes.length;if(entry.size>MAX_RESPONSE)throw error('DEVICE_RTC_PROTOCOL_ERROR');entry.chunks.push(frame.bytes);if(!frame.end)return;
    const bytes=new Uint8Array(entry.size);let offset=0;for(const part of entry.chunks){bytes.set(part,offset);offset+=part.length;}let value;try{value=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes));}catch{throw error('DEVICE_RTC_PROTOCOL_ERROR');}
    if(!Number.isInteger(value?.status)||value.status<200||value.status>599||typeof value.body!=='string')throw error('DEVICE_RTC_PROTOCOL_ERROR');
-   const response=entry.abandoned?null:new Response(value.status===204?null:value.body,{status:value.status,headers:{'content-type':'application/json'}});this.active=null;clearTimeout(entry.timer);entry.signal?.removeEventListener('abort',entry.abort);if(!entry.abandoned)entry.resolve(response);this.drain();
+   let rejectedBeforeDispatch=false;if(value.status===503){try{const body=JSON.parse(value.body);rejectedBeforeDispatch=body.error==='rpc_memory_unavailable'&&body.notExecuted===true;}catch{}}
+   if(rejectedBeforeDispatch&&!entry.abandoned&&(entry.admissionRetries||0)<2){
+    entry.admissionRetries=(entry.admissionRetries||0)+1;
+    // The bridge explicitly rejected this request before dispatch. Retain its
+    // action ID and payload; only the monotonic RPC attempt number advances.
+    entry.retryTimer=setTimeout(()=>{entry.retryTimer=null;if(this.closed||this.active!==entry)return;if(entry.abandoned){this.active=null;clearTimeout(entry.timer);this.drain();return;}this.sendEntry(entry);},entry.admissionRetries*100);return;
+   }
+   const response=entry.abandoned?null:new Response(value.status===204?null:value.body,{status:value.status,headers:{'content-type':'application/json','x-iah-rpc-attempts':String((entry.admissionRetries||0)+1)}});this.active=null;clearTimeout(entry.timer);clearTimeout(entry.retryTimer);entry.signal?.removeEventListener('abort',entry.abort);if(!entry.abandoned)entry.resolve(response);this.drain();
   }catch(cause){this.close(cause);}
  }
  fetch(url,options={}){
@@ -103,11 +110,15 @@ class SinglePortDeviceRTCTransport{
  }
  drain(){
   if(this.closed||this.active||!this.queue.length)return;const entry=this.queue.shift();this.active=entry;entry.timer=setTimeout(()=>this.close(error('DEVICE_RTC_TIMEOUT')),this.timeoutMs);
+  this.sendEntry(entry);
+ }
+ sendEntry(entry){
+  if(this.closed||this.active!==entry)return;entry.seq=0;entry.size=0;entry.chunks=[];
   try{if(this.channel.readyState!=='open')throw error('DEVICE_RTC_CLOSED');entry.n=++this.requestNumber;if(entry.n>2147483647)throw error('DEVICE_RTC_CLOSED');const frames=encodeRTCFrames(entry.id,entry.envelope,'req',entry.n);for(const frame of frames)this.channel.send(frame);}catch(cause){this.close(cause?.code?cause:error('DEVICE_RTC_DISCONNECTED'));}
  }
  close(reason=error('DEVICE_RTC_CLOSED')){
   if(this.closed)return;const wasReady=this.ready;this.closed=true;this.ready=false;clearTimeout(this.openTimer);clearTimeout(this.disconnectTimer);this.controller?.abort();this.openSignal?.removeEventListener('abort',this.openAbort);
-  const pending=[...(this.active?[this.active]:[]),...this.queue];this.active=null;this.queue=[];for(const entry of pending){clearTimeout(entry.timer);entry.signal?.removeEventListener('abort',entry.abort);entry.reject(reason);}try{this.channel?.close();}catch{}try{this.pc?.close();}catch{}this.rejectOpen?.(reason);if(wasReady)this.onDisconnect(reason);
+  const pending=[...(this.active?[this.active]:[]),...this.queue];this.active=null;this.queue=[];for(const entry of pending){clearTimeout(entry.timer);clearTimeout(entry.retryTimer);entry.signal?.removeEventListener('abort',entry.abort);entry.reject(reason);}try{this.channel?.close();}catch{}try{this.pc?.close();}catch{}this.rejectOpen?.(reason);if(wasReady)this.onDisconnect(reason);
  }
 }
 

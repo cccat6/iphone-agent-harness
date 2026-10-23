@@ -18,7 +18,19 @@ struct Fixture{Sctp s;std::vector<Bytes> sent;std::vector<std::string> messages;
 std::vector<std::string> frames(const std::string& request,uint32_t n=1,const std::string& id="12345678-1234-4234-8234-123456789abc"){std::vector<std::string> result;unsigned seq=0;for(size_t at=0;at<request.size();at+=256){size_t size=std::min<size_t>(256,request.size()-at);JsonDocument d;d["v"]=1;d["type"]="req";d["id"]=id;d["n"]=n;d["seq"]=seq++;d["end"]=at+size==request.size();d["data"]=Rpc::encode(reinterpret_cast<const uint8_t*>(request.data()+at),size);std::string f;serializeJson(d,f);assert(f.size()<=512);result.push_back(f);}return result;}
 bool feedRpc(Rpc& rpc,const std::string& s){return rpc.input(reinterpret_cast<const uint8_t*>(s.data()),s.size(),10);}
 std::string request(size_t bodySize=0){JsonDocument d;d["method"]="POST";d["path"]="/v1/test";d["headers"].to<JsonObject>();d["body"]=std::string(bodySize,'a');std::string s;serializeJson(d,s);return s;}
+static void* limitedRequestResize(void* value,size_t size){return size>1025?nullptr:std::realloc(value,size);}
 int main(){
+
+ // An 8 KiB body is linked into the owned wire buffer, even with a JSON
+ // allocator that refuses allocations large enough to duplicate that body.
+ {struct SmallJsonAllocator:ArduinoJson::Allocator{size_t largest=0;void* allocate(size_t n)override{largest=std::max(largest,n);return n<=8192?std::malloc(n):nullptr;}void deallocate(void* p)override{std::free(p);}void* reallocate(void* p,size_t n)override{largest=std::max(largest,n);return n<=8192?std::realloc(p,n):nullptr;}} allocator;
+  const auto text=request(8192);iah::rtc::Request bytes;assert(bytes.append(reinterpret_cast<const uint8_t*>(text.data()),text.size()));JsonDocument document(&allocator);assert(iah::rtc::parseEnvelope(document,bytes));const auto body=document["body"].as<JsonString>();assert(body.size()==8192&&body.isStatic());assert(body.c_str()>=bytes.data()&&body.c_str()+body.size()<bytes.data()+bytes.size());assert(allocator.largest<8192);
+ }
+ // Escaped field names and Unicode bodies survive ownership moves. Invalid
+ // escapes, surrogate pairs, NUL and duplicate bodies are rejected.
+ {for(const auto& text:std::vector<std::string>{R"({"method":"POST","path":"/v1/test","headers":{},"bo\u0064y":"line\n\"\\\u4f60\u597d\ud83d\ude00"})",R"({"body":"line\n\"\\\u4f60\u597d\ud83d\ude00","headers":{},"path":"/v1/test","method":"POST"})"}){iah::rtc::Request bytes;assert(bytes.append(reinterpret_cast<const uint8_t*>(text.data()),text.size()));JsonDocument doc;assert(iah::rtc::parseEnvelope(doc,bytes));iah::rtc::RequestMessage message(std::move(bytes),std::move(doc));assert(message.envelope["body"].as<std::string>()=="line\n\"\\你好😀");}}
+ {for(const auto& body:{R"(\x01)",R"(\u0000)",R"(\ud800)",R"(\udc00)",R"(\ud800\u0041)","raw\ncontrol"}){const auto text=std::string(R"({"method":"POST","path":"/v1/test","headers":{},"body":")")+body+R"("})";iah::rtc::Request bytes;assert(bytes.append(reinterpret_cast<const uint8_t*>(text.data()),text.size()));JsonDocument doc;assert(!iah::rtc::parseEnvelope(doc,bytes));}}
+ {const std::string text=R"({"method":"POST","path":"/v1/test","headers":{},"body":"a","body":"b"})";iah::rtc::Request bytes;assert(bytes.append(reinterpret_cast<const uint8_t*>(text.data()),text.size()));JsonDocument doc;assert(!iah::rtc::parseEnvelope(doc,bytes));}
  // Each reliable RPC fragment requests an immediate SACK. A lost packet
  // retransmits the identical TSN and payload rather than a new command.
  {Fixture f;f.init();assert(f.s.sendText(reinterpret_cast<const uint8_t*>("ack-now"),7,10));const auto first=f.sent.back();assert((first[13]&0x08)!=0);assert((first[13]&0x03)==0x03);f.s.tick(310);assert(f.sent.back()==first);f.feed(ack(500),311);assert(!f.s.pending()&&f.s.established());}
@@ -56,8 +68,8 @@ int main(){
  // A single task scratch can be overwritten between peers: reordered SCTP
  // fragments and incomplete RPC requests must already own their bytes.
  {Fixture a,b;a.init(100);b.init(200);Rpc one,two;std::string gotA,gotB;
-  one.dispatch([&](const std::string& text){gotA=text;return std::string("{\"status\":200,\"body\":\"{}\"}");});
-  two.dispatch([&](const std::string& text){gotB=text;return std::string("{\"status\":200,\"body\":\"{}\"}");});
+  one.dispatch([&](iah::rtc::RequestMessage packet){std::string text;serializeJson(packet.envelope,text);gotA=text;return std::string("{\"status\":200,\"body\":\"{}\"}");});
+  two.dispatch([&](iah::rtc::RequestMessage packet){std::string text;serializeJson(packet.envelope,text);gotB=text;return std::string("{\"status\":200,\"body\":\"{}\"}");});
   a.s.callbacks([&](const uint8_t* p,size_t n){a.sent.emplace_back(p,p+n);return true;},[&](const uint8_t* p,size_t n){assert(one.input(p,n,10));},[]{});
   b.s.callbacks([&](const uint8_t* p,size_t n){b.sent.emplace_back(p,p+n);return true;},[&](const uint8_t* p,size_t n){assert(two.input(p,n,10));},[]{});
   const auto textA=request(600),textB=request(601);const auto framesA=frames(textA),framesB=frames(textB);
@@ -78,16 +90,16 @@ int main(){
  {Fixture f;f.init(0xffffffff);f.feed(data(0,1,"b"));f.feed(data(0xffffffff,0,"a"));assert((f.messages==std::vector<std::string>{"a","b"}));}
  {Fixture f;f.init();f.s.tick(15001);assert(f.sent.back()[12]==4);Bytes body(f.sent.back().begin()+16,f.sent.back().end());f.feed(packet(5,body),15002);f.s.tick(45000);assert(f.s.established());Bytes sd(4);Sctp::write32(sd.data(),499);f.feed(packet(7,sd),45001);assert(f.s.state()==Sctp::State::Closing&&f.sent.back()[12]==8);f.feed(packet(14),45002);assert(f.closed==1);}
  {Fixture f;f.init();f.feed(data(100,2,"wrong sequence"));assert(f.messages.empty()&&f.closed==1);}
- {Rpc rpc;unsigned called=0;rpc.dispatch([&](const std::string&){called++;return std::string("{\"status\":200,\"body\":\"{\\\"ok\\\":true}\"}");});auto pieces=frames(request(600));for(size_t i=0;i<pieces.size();i++){assert(feedRpc(rpc,pieces[i]));assert(called==(i+1==pieces.size()?1:0));}assert(rpc.completed()==1);assert(!feedRpc(rpc,pieces[0]));Fixture f;f.init();for(unsigned i=0;i<20&&rpc.busy();i++){assert(rpc.tick(f.s,20+i));if(f.s.pending()){auto p=f.sent.back();JsonDocument frame;assert(!deserializeJson(frame,reinterpret_cast<char*>(p.data()+28),Sctp::read16(p.data()+14)-16));assert(frame["n"]==1);f.feed(ack(Sctp::read32(p.data()+16)),20+i);}}assert(!rpc.busy());assert(!feedRpc(rpc,pieces[0])&&called==1);assert(!feedRpc(rpc,frames(request(),3)[0]));assert(feedRpc(rpc,frames(request(),2)[0])&&called==2);}
- {Rpc rpc;unsigned called=0;rpc.dispatch([&](const std::string&){called++;return std::string("{}");});auto pieces=frames(request(600));assert(feedRpc(rpc,pieces[0]));assert(!feedRpc(rpc,pieces[2]));assert(!called);}
+ {Rpc rpc;unsigned called=0;rpc.dispatch([&](iah::rtc::RequestMessage){called++;return std::string("{\"status\":200,\"body\":\"{\\\"ok\\\":true}\"}");});auto pieces=frames(request(600));for(size_t i=0;i<pieces.size();i++){assert(feedRpc(rpc,pieces[i]));assert(called==(i+1==pieces.size()?1:0));}assert(rpc.completed()==1);assert(!feedRpc(rpc,pieces[0]));Fixture f;f.init();for(unsigned i=0;i<20&&rpc.busy();i++){assert(rpc.tick(f.s,20+i));if(f.s.pending()){auto p=f.sent.back();JsonDocument frame;assert(!deserializeJson(frame,reinterpret_cast<char*>(p.data()+28),Sctp::read16(p.data()+14)-16));assert(frame["n"]==1);f.feed(ack(Sctp::read32(p.data()+16)),20+i);}}assert(!rpc.busy());assert(!feedRpc(rpc,pieces[0])&&called==1);assert(!feedRpc(rpc,frames(request(),3)[0]));assert(feedRpc(rpc,frames(request(),2)[0])&&called==2);}
+ {Rpc rpc;unsigned called=0;rpc.dispatch([&](iah::rtc::RequestMessage){called++;return std::string("{}");});auto pieces=frames(request(600));assert(feedRpc(rpc,pieces[0]));assert(!feedRpc(rpc,pieces[2]));assert(!called);}
  {std::array<uint8_t,256> out{};size_t n=0;assert(!Rpc::decode("AB==",4,out.data(),n));assert(!Rpc::decode("AA=A",4,out.data(),n));assert(!Rpc::decode("AAAA====",8,out.data(),n));std::string original(256,'x');auto encoded=Rpc::encode(reinterpret_cast<const uint8_t*>(original.data()),original.size());assert(Rpc::decode(encoded.data(),encoded.size(),out.data(),n)&&n==256);}
- {Rpc rpc;unsigned called=0;std::string received;JsonDocument response;response["status"]=200;response["body"]=std::string(15000,'z');std::string expected;serializeJson(response,expected);rpc.dispatch([&](const std::string& s){called++;received=s;return expected;});auto text=request(Rpc::RequestLimit-request().size());assert(text.size()==Rpc::RequestLimit);auto pieces=frames(text);assert(pieces.size()==48);for(auto& f:pieces)assert(feedRpc(rpc,f));assert(called==1&&received==text);Fixture f;f.init();std::string assembled;unsigned seq=0;for(unsigned loop=0;loop<100&&rpc.busy();loop++){assert(rpc.tick(f.s,100+loop));if(f.s.pending()){auto p=f.sent.back();size_t length=Sctp::read16(p.data()+14)-16;assert(length<=512);JsonDocument frame;assert(!deserializeJson(frame,p.data()+28,length));assert(frame["seq"].as<unsigned>()==seq++&&frame["n"]==1);std::array<uint8_t,256> bytes{};size_t decoded=0;auto encoded=frame["data"].as<JsonString>();assert(Rpc::decode(encoded.c_str(),encoded.size(),bytes.data(),decoded));assert(frame["end"].as<bool>()||decoded==256);assembled.append(reinterpret_cast<char*>(bytes.data()),decoded);f.feed(ack(Sctp::read32(p.data()+16)),100+loop);}}assert(!rpc.busy()&&assembled==expected&&seq>48);}
- {Rpc rpc;unsigned called=0;rpc.dispatch([&](const std::string&){called++;return std::string("{}");});assert(!feedRpc(rpc,frames(request(),0)[0]));assert(!feedRpc(rpc,frames(request(),2)[0]));auto pieces=frames(request(500));assert(feedRpc(rpc,pieces[0]));Fixture f;f.init();assert(!rpc.tick(f.s,30011));assert(!called);}
+ {Rpc rpc;unsigned called=0;std::string received;JsonDocument response;response["status"]=200;response["body"]=std::string(15000,'z');std::string expected;serializeJson(response,expected);rpc.dispatch([&](iah::rtc::RequestMessage packet){std::string s;serializeJson(packet.envelope,s);called++;received=s;return expected;});auto text=request(Rpc::RequestLimit-request().size());assert(text.size()==Rpc::RequestLimit);auto pieces=frames(text);assert(pieces.size()==48);for(auto& f:pieces)assert(feedRpc(rpc,f));assert(called==1&&received==text);Fixture f;f.init();std::string assembled;unsigned seq=0;for(unsigned loop=0;loop<100&&rpc.busy();loop++){assert(rpc.tick(f.s,100+loop));if(f.s.pending()){auto p=f.sent.back();size_t length=Sctp::read16(p.data()+14)-16;assert(length<=512);JsonDocument frame;assert(!deserializeJson(frame,p.data()+28,length));assert(frame["seq"].as<unsigned>()==seq++&&frame["n"]==1);std::array<uint8_t,256> bytes{};size_t decoded=0;auto encoded=frame["data"].as<JsonString>();assert(Rpc::decode(encoded.c_str(),encoded.size(),bytes.data(),decoded));assert(frame["end"].as<bool>()||decoded==256);assembled.append(reinterpret_cast<char*>(bytes.data()),decoded);f.feed(ack(Sctp::read32(p.data()+16)),100+loop);}}assert(!rpc.busy()&&assembled==expected&&seq>48);}
+ {Rpc rpc;unsigned called=0;rpc.dispatch([&](iah::rtc::RequestMessage){called++;return std::string("{}");});assert(!feedRpc(rpc,frames(request(),0)[0]));assert(!feedRpc(rpc,frames(request(),2)[0]));auto pieces=frames(request(500));assert(feedRpc(rpc,pieces[0]));Fixture f;f.init();assert(!rpc.tick(f.s,30011));assert(!called);}
  {Rpc rpc;auto p=frames(request())[0];JsonDocument frame;assert(!deserializeJson(frame,p));frame["end"]=false;std::string shortPart;serializeJson(frame,shortPart);assert(!feedRpc(rpc,shortPart));}
  {Fixture f;f.init();auto p=data(100,0,"unordered");p[13]=7;Sctp::checksum(p.data(),p.size());f.feed(p);assert(f.messages.empty());f.feed(data(100,0,"ordered"));Bytes cookie(f.cookie.begin(),f.cookie.end());f.feed(packet(10,cookie));assert(f.s.cumulative()==100&&f.messages.size()==1&&f.sent.back()[12]==11);}
  {uint32_t seed=0x321c0de;for(unsigned i=0;i<800;i++){Fixture f;f.init();Bytes p=(i%2)?data(100,0,"boundary"):ack(500);for(unsigned j=0;j<4;j++){seed=seed*1664525+1013904223;p[seed%p.size()]^=uint8_t(seed>>24);}if(i%3)Sctp::checksum(p.data(),p.size());if(i%7==0)p.resize((seed>>8)%p.size());f.feed(p);}}
  {for(unsigned order=0;order<3;order++){
-   Fixture f;f.init();Rpc rpc;unsigned calls=0;bool rejected=false;rpc.dispatch([&](const std::string&){calls++;return std::string("{\"status\":200,\"body\":\"{}\"}");});
+   Fixture f;f.init();Rpc rpc;unsigned calls=0;bool rejected=false;rpc.dispatch([&](iah::rtc::RequestMessage){calls++;return std::string("{\"status\":200,\"body\":\"{}\"}");});
    f.s.callbacks([&](const uint8_t* p,size_t n){f.sent.emplace_back(p,p+n);return true;},[&](const uint8_t* p,size_t n){if(!rpc.input(p,n,10))rejected=true;},[&]{f.closed++;});
    f.feed(data(100,0,frames(request(),1)[0]));assert(calls==1&&!rejected);assert(rpc.tick(f.s,10));assert(!rpc.busy()&&f.s.pending());Bytes tail=f.sent.back();
    Bytes next=data(101,1,frames(request(),2)[0]);Bytes sack=ack(500);
@@ -130,7 +142,7 @@ int main(){
  }}
  // Application RPC frames may themselves be fragmented by SCTP.
  {Fixture f;f.init();Rpc rpc;unsigned calls=0;bool rejected=false;const auto text=frames(request())[0];
-  rpc.dispatch([&](const std::string& received){assert(received==request());++calls;return std::string("{\"status\":200,\"body\":\"{}\"}");});
+  rpc.dispatch([&](iah::rtc::RequestMessage packet){std::string received;serializeJson(packet.envelope,received);assert(received==request());++calls;return std::string("{\"status\":200,\"body\":\"{}\"}");});
   f.s.callbacks([&](const uint8_t* p,size_t n){f.sent.emplace_back(p,p+n);return true;},[&](const uint8_t* p,size_t n){if(!rpc.input(p,n,10))rejected=true;},[&]{++f.closed;});
   f.feed(fragment(101,0,text.substr(80),1));f.feed(fragment(100,0,text.substr(0,80),2));
   assert(calls==1&&!rejected&&!f.closed);assert(rpc.tick(f.s,11)&&f.s.pending());
@@ -141,7 +153,7 @@ int main(){
  {for(unsigned mode=0;mode<3;++mode){
    Fixture f;f.init();Rpc rpc;unsigned calls=0;bool rejected=false;
    const auto encoded=request(7000);const auto pieces=frames(encoded);assert(pieces.size()>Sctp::Window);
-   rpc.dispatch([&](const std::string& received){assert(received==encoded);++calls;return std::string("{\"status\":200,\"body\":\"{}\"}");});
+   rpc.dispatch([&](iah::rtc::RequestMessage packet){std::string received;serializeJson(packet.envelope,received);assert(received==encoded);++calls;return std::string("{\"status\":200,\"body\":\"{}\"}");});
    f.s.callbacks([&](const uint8_t* p,size_t n){f.sent.emplace_back(p,p+n);return true;},[&](const uint8_t* p,size_t n){if(!rpc.input(p,n,100))rejected=true;},[&]{++f.closed;});
    auto payload=[&](size_t i){return data(uint32_t(100+i),uint16_t(i),pieces[i]);};
    if(mode==0){ // Two ~480-byte messages in each SCTP datagram.
@@ -161,7 +173,7 @@ int main(){
  // Exercise the real SCTP DATA callback, not just a standalone elapsed check.
  {for(uint32_t outerNow:{uint32_t(1000),uint32_t(0xfffffffe)}){
    Fixture f;f.init();Rpc rpc;unsigned calls=0;bool rejected=false;uint32_t clock=outerNow;
-   rpc.dispatch([&](const std::string& encoded){assert(encoded==request());++calls;++clock;return std::string("{\"status\":200,\"body\":\"{}\"}");});
+   rpc.dispatch([&](iah::rtc::RequestMessage packet){std::string encoded;serializeJson(packet.envelope,encoded);assert(encoded==request());++calls;++clock;return std::string("{\"status\":200,\"body\":\"{}\"}");});
    f.s.callbacks([&](const uint8_t* p,size_t n){f.sent.emplace_back(p,p+n);return true;},[&](const uint8_t* p,size_t n){++clock;if(!rpc.input(p,n,clock))rejected=true;},[&]{++f.closed;});
    f.feed(data(100,0,frames(request())[0]),outerNow);
    assert(calls==1&&!rejected&&rpc.completed()==1&&clock==uint32_t(outerNow+2));
@@ -176,7 +188,7 @@ int main(){
  // including across millis() wrap. A slightly stale time is not an expiry.
  {for(uint32_t started:{uint32_t(1001),uint32_t(0xfffffff0)}){
    Fixture f;f.init();Rpc rpc;unsigned calls=0;
-   rpc.dispatch([&](const std::string&){++calls;return std::string("{}");});
+   rpc.dispatch([&](iah::rtc::RequestMessage){++calls;return std::string("{}");});
    const auto first=frames(request(600))[0];
    assert(rpc.input(reinterpret_cast<const uint8_t*>(first.data()),first.size(),started));
    assert(rpc.tick(f.s,uint32_t(started-1)));
@@ -186,14 +198,22 @@ int main(){
   }}
  // Two live peers can reuse request numbers independently; resetting one leaves the other live.
  {Fixture first,second;first.init();second.init();Rpc a,b;unsigned calledA=0,calledB=0;
-  a.dispatch([&](const std::string&){++calledA;return std::string("{\"status\":200,\"body\":\"first\"}");});
-  b.dispatch([&](const std::string&){++calledB;return std::string("{\"status\":200,\"body\":\"second\"}");});
+  a.dispatch([&](iah::rtc::RequestMessage){++calledA;return std::string("{\"status\":200,\"body\":\"first\"}");});
+  b.dispatch([&](iah::rtc::RequestMessage){++calledB;return std::string("{\"status\":200,\"body\":\"second\"}");});
   const auto same=frames(request(),1)[0];assert(feedRpc(a,same));assert(feedRpc(b,same));assert(calledA==1&&calledB==1);
   assert(a.tick(first.s,20)&&b.tick(second.s,20));assert(first.s.pending()&&second.s.pending());
   first.feed(ack(500),21);assert(!first.s.pending()&&second.s.pending());
   a.reset();first.s.reset(22,888,600,first.cookie);assert(second.s.established()&&b.completed()==1);
   second.feed(ack(500),23);assert(feedRpc(b,frames(request(),2)[0]));assert(calledB==2&&calledA==1);
   assert(feedRpc(a,same));assert(calledA==2&&b.completed()==2);
+ }
+ {
+  Fixture f;f.init();Rpc rpc(limitedRequestResize);unsigned dispatched=0;
+  rpc.dispatch([&](iah::rtc::RequestMessage){++dispatched;return std::string("{\"status\":200,\"body\":\"ok\"}");});
+  auto chunks=frames(request(2200));for(size_t i=0;i<chunks.size();i++){assert(feedRpc(rpc,chunks[i]));if(i+1<chunks.size())assert(rpc.tick(f.s,50+i));}
+  assert(dispatched==0&&rpc.completed()==1);assert(rpc.tick(f.s,100));
+  auto packet=f.sent.back();JsonDocument frame;assert(!deserializeJson(frame,packet.data()+28,Sctp::read16(packet.data()+14)-16));auto encoded=frame["data"].as<JsonString>();std::array<uint8_t,256> bytes{};size_t size=0;assert(Rpc::decode(encoded.c_str(),encoded.size(),bytes.data(),size));JsonDocument response;assert(!deserializeJson(response,bytes.data(),size));assert(response["status"]==503);JsonDocument body;assert(!deserializeJson(body,response["body"].as<const char*>()));assert(body["error"]=="rpc_memory_unavailable"&&body["notExecuted"]==true);
+  f.feed(ack(Sctp::read32(packet.data()+16)),101);assert(feedRpc(rpc,frames(request(),2)[0]));assert(dispatched==1&&rpc.completed()==2&&f.s.established());
  }
  std::cout<<"RTC protocol: loss/reorder/duplicate/CRC/vtag/cookie/heartbeat/close/monotonic RPC/clock rollover cases passed\n";
 }

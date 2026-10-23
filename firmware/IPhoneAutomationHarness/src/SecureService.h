@@ -1,4 +1,5 @@
 #pragma once
+#include "RtcRequest.h"
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <WebServer.h>
@@ -37,7 +38,7 @@ class SecureService {
  uint64_t challengeNext_=0;size_t challengeEvent_=0;uint16_t challengeHandle_=InvalidHandle;
  struct Request {
   httpd_req_t* http=nullptr; httpd_method_t method=HTTP_GET; String uri,body,authorization,requestOrigin,trustedPeerIp;
-  size_t content_len=0; size_t rtcPeer=2; bool rtc=false; int responseStatus=500; String responseBody;
+  size_t content_len=0; size_t rtcPeer=2; bool rtc=false,memoryUnavailable=false; int responseStatus=500; String responseBody;
   explicit Request(httpd_req_t* source):http(source),method(static_cast<httpd_method_t>(source->method)),uri(source->uri),content_len(source->content_len){}
   Request()=default;
  };
@@ -55,9 +56,9 @@ class SecureService {
   BufferedJsonWriter<decltype(sink)> writer(sink);serializeJson(doc,writer);if(!writer.finish())return ESP_FAIL;
   auto result=httpd_resp_send_chunk(h,nullptr,0);return result==ESP_OK?ESP_FAIL:result;
  }
- esp_err_t error(Request* r,int code,const char* value){JsonDocument d;d["error"]=value;d["boardId"]=board_;d["bootId"]=boot_;return send(r,code,d);}
+ esp_err_t error(Request* r,int code,const char* value){JsonDocument d;if(r->rtc&&r->memoryUnavailable){code=503;value="rpc_memory_unavailable";d["notExecuted"]=true;}d["error"]=value;d["boardId"]=board_;d["bootId"]=boot_;return send(r,code,d);}
  struct Reader {httpd_req_t* req;size_t left;uint8_t bytes[256];size_t at=0,size=0;int read(){if(at==size){if(!left)return -1;int count=httpd_req_recv(req,(char*)bytes,std::min(left,sizeof(bytes)));if(count<=0){left=0;return -1;}left-=count;at=0;size=count;}return bytes[at++];}size_t readBytes(char* output,size_t count){size_t n=0;for(;n<count;n++){int c=read();if(c<0)break;output[n]=(char)c;}return n;}};
- bool read(Request* r,JsonDocument& doc,size_t limit=2048){if(r->rtc){if(!r->body.length()||r->body.length()>limit)return false;return strictJsonObject(doc,r->body.c_str(),r->body.length());}if(r->content_len<=0||r->content_len>limit)return false;Reader reader{r->http,r->content_len};auto e=deserializeJson(doc,reader,DeserializationOption::NestingLimit(8));if(e||!doc.is<JsonObject>())return false;for(int c=reader.read();c>=0;c=reader.read())if(c!=32&&c!=9&&c!=10&&c!=13)return false;return reader.left==0;}
+ bool read(Request* r,JsonDocument& doc,size_t limit=2048){if(r->rtc){if(!r->body.length()||r->body.length()>limit)return false;return strictJsonObject(doc,r->body.c_str(),r->body.length(),8,&r->memoryUnavailable);}if(r->content_len<=0||r->content_len>limit)return false;Reader reader{r->http,r->content_len};auto e=deserializeJson(doc,reader,DeserializationOption::NestingLimit(8));if(e||!doc.is<JsonObject>())return false;for(int c=reader.read();c>=0;c=reader.read())if(c!=32&&c!=9&&c!=10&&c!=13)return false;return reader.left==0;}
  Grant* authenticate(Request* r){String auth=header(r,"Authorization");if(auth.length()!=71||!auth.startsWith("Bearer "))return nullptr;String token=auth.substring(7);return auth_.authenticate(sha256Hex(token).c_str(),origin_.c_str());}
  bool saveGrantAt(size_t slot,const Grant& grant){
   if(slot>=MaxClients||!grant.active)return false;
@@ -313,7 +314,7 @@ class SecureService {
    if(r->content_len>WireMaxRequestBytes)return error(r,413,"segment_request_too_large");
    JsonDocument body;if(!read(r,body,WireMaxRequestBytes))return error(r,400,"invalid_segment_json");
    auto segment=std::unique_ptr<Segment>(new(std::nothrow)Segment);String why;
-   if(!segment||!parseSegment(body.as<JsonObjectConst>(),*segment,why))return error(r,400,segment?why.c_str():"memory_unavailable");
+   if(!segment){r->memoryUnavailable=true;return error(r,503,"memory_unavailable");}if(!parseSegment(body.as<JsonObjectConst>(),*segment,why))return error(r,400,why.c_str());
    if(segment->targetId!=target.c_str()||segment->clientId!=grant.clientId)return error(r,403,"wrong_target_or_client");
    return lockedReply(r,[&](JsonDocument& d)->Decision{
     if(maintenance_||auth_.active(now()))return {409,"binding_in_progress"};auto accepted=core_.accept(*segment,now());
@@ -376,16 +377,18 @@ class SecureService {
   JsonDocument network;network["ssid"]=ssid;network["password"]=wifiPassword;network["origin"]=origin;String stored;serializeJson(network,stored);if(!previousCredentialsOverride_){previousNetwork_=prefs_.getString("network","");loadSavedNetwork_(previousSsid_,previousPassword_);}candidateNetwork_=stored;candidateSsid_=ssid;candidatePassword_=wifiPassword;candidateOrigin_=origin;startCandidate_=true;wifiJoin_.begin(now(),wifiEpoch_.load());return true;
  }
  public:
- String dispatchRtc(String encoded,const String& peerIp="",size_t peer=0){
-  JsonDocument envelope;Request request;request.rtc=true;request.rtcPeer=peer;request.requestOrigin=origin_;request.trustedPeerIp=peerIp;
+ String dispatchRtc(rtc::RequestMessage message,const String& peerIp="",size_t peer=0){
+  JsonDocument envelope=std::move(message.envelope);rtc::Request encoded=std::move(message.bytes);Request request;request.rtc=true;request.rtcPeer=peer;request.requestOrigin=origin_;request.trustedPeerIp=peerIp;
   auto failed=[&](const char* message){JsonDocument value;value["status"]=400;String body;JsonDocument e;e["error"]=message;serializeJson(e,body);value["body"]=body;String result;serializeJson(value,result);return result;};
-  if(peer>=2||encoded.length()>12288||!strictJsonObject(envelope,encoded.c_str(),encoded.length(),5)||!fields(envelope.as<JsonObjectConst>(),{"method","path","headers","body"})||!plainJsonString(envelope["method"])||!plainJsonString(envelope["path"])||!plainJsonString(envelope["body"])||!envelope["headers"].is<JsonObject>())return failed("invalid_rpc");
-  String method=envelope["method"]|"";request.uri=envelope["path"]|"";
+  auto unavailable=[&](){envelope.clear();encoded.clear();return String("{\"status\":503,\"body\":\"{\\\"error\\\":\\\"rpc_memory_unavailable\\\",\\\"notExecuted\\\":true}\"}");};
+  auto copyString=[](String& output,JsonString input){return output.reserve(input.size())&&output.concat(input.c_str(),input.size())&&output.length()==input.size();};
+  if(peer>=2||encoded.size()>12288||!envelope.is<JsonObject>()||!fields(envelope.as<JsonObjectConst>(),{"method","path","headers","body"})||!plainJsonString(envelope["method"])||!plainJsonString(envelope["path"])||!plainJsonString(envelope["body"])||!envelope["headers"].is<JsonObject>())return failed("invalid_rpc");
+  String method=envelope["method"]|"";if(envelope["path"].as<JsonString>().size()>256)return failed("invalid_rpc_route");if(!copyString(request.uri,envelope["path"].as<JsonString>()))return unavailable();
   if((method!="GET"&&method!="POST")||!request.uri.startsWith("/v1/")||request.uri.indexOf('?')>=0||request.uri.indexOf('#')>=0||request.uri.indexOf("..")>=0)return failed("invalid_rpc_route");
-  request.method=method=="GET"?HTTP_GET:HTTP_POST;request.body=envelope["body"]|"";request.content_len=request.body.length();
+  request.method=method=="GET"?HTTP_GET:HTTP_POST;if(request.method==HTTP_POST&&!copyString(request.body,envelope["body"].as<JsonString>()))return unavailable();request.content_len=request.body.length();
   auto headers=envelope["headers"].as<JsonObjectConst>();for(JsonPairConst item:headers){if(!plainJsonString(item.value()))return failed("invalid_rpc_header");String name=item.key().c_str();name.toLowerCase();if(name!="authorization"&&name!="content-type"&&name!="accept"&&name!="x-request-id")return failed("invalid_rpc_header");if(name=="authorization")request.authorization=item.value().as<String>();}
   if(request.authorization.length()>256)return failed("invalid_rpc_credential");
-  envelope.clear();encoded=static_cast<const char*>(nullptr); // nullptr releases the pinned Arduino String allocation.
+  envelope.clear();encoded.clear(); // Release the owned wire bytes before the application parses its body.
   // The response String owns this linked view through synchronous serialization.
   handle(&request);request.body=static_cast<const char*>(nullptr);JsonDocument response;response["status"]=request.responseStatus;response["body"]=JsonString(request.responseBody.c_str(),request.responseBody.length(),true);String result;serializeJson(response,result);return result;
  }

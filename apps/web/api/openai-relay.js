@@ -103,7 +103,7 @@ export function serveResponseSocket(request,{fetchImpl=globalThis.fetch,origin='
   if(closed)return;
   if(!ready){if(authenticating){fail('RELAY_NOT_READY',400);return;}authenticating=true;void authenticate(event.data);return;}
   if(typeof event.data!=='string'||event.data.length>16000000){fail('RELAY_REQUEST_LIMIT',413);return;}
-  idle();try{upstream.send(event.data);}catch{fail('RELAY_UPSTREAM_UNAVAILABLE');}
+  idle();if(event.data==='{"type":"iah.ping"}'){try{socket.send('{"type":"iah.pong"}');}catch{close();}return;}try{upstream.send(event.data);}catch{fail('RELAY_UPSTREAM_UNAVAILABLE');}
  });
  socket.addEventListener('close',()=>close(1000,'RELAY_CLIENT_CLOSED'));
  socket.addEventListener('error',()=>close());

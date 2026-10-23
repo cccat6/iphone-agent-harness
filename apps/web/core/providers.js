@@ -71,8 +71,8 @@ export async function discoverModels({protocol,baseUrl,credential='',accountId,f
   const models=[];let pages=0;
   while(true){const r=await fetchImpl(url,{headers,credentials:'omit',referrerPolicy:'no-referrer',signal:signal?AbortSignal.any([signal,AbortSignal.timeout(20000)]):AbortSignal.timeout(20000)});checkAbort(signal);if(!r.ok){if([401,402,403].includes(r.status))throw await readProviderFailure(r,{signal});throw Object.assign(new Error(`PROVIDER_MODELS_HTTP (HTTP ${r.status})`),{code:'PROVIDER_MODELS_HTTP',status:r.status});}const data=JSON.parse(await readText(r,{maxBytes:2000000,signal}));checkAbort(signal);const entries=data.data||data.models;if(!Array.isArray(entries))throw new Error('模型目录没有返回有效列表');for(const m of entries)if(typeof m.id==='string'&&!models.some(v=>v.id===m.id))models.push({id:m.id,name:m.display_name||m.name||m.id,...modelContextMetadata(m),...modelReasoningMetadata(m)});if(models.length>2000)throw new Error('模型目录超过限额');if(!data.has_more)return models;if(!data.last_id||++pages>=20)throw new Error('模型目录分页不完整');url.searchParams.set('after_id',data.last_id);}
 }
-export async function callModel({provider,credential,messages,tools=[],toolDefinitions=tools,purpose,hydrate,signal,onDelta=()=>{},onRetry=()=>{},fetchImpl=fetch}) {
-  if(provider?.protocol==='codex')return callCodexModel({provider,messages,tools,toolDefinitions,purpose,hydrate,signal,onDelta,onRetry,fetchImpl});
+export async function callModel({provider,credential,messages,tools=[],toolDefinitions=tools,purpose,hydrate,invalidateImages,signal,onDelta=()=>{},onRetry=()=>{},fetchImpl=fetch}) {
+  if(provider?.protocol==='codex')return callCodexModel({provider,messages,tools,toolDefinitions,purpose,hydrate,invalidateImages,signal,onDelta,onRetry,fetchImpl});
   if(!provider?.baseUrl||!provider?.model)throw new Error('请先配置后端地址和模型');
   if(!['openai','anthropic'].includes(provider.protocol))throw new Error('不支持的后端协议');
   const base=new URL(provider.baseUrl);
@@ -113,7 +113,13 @@ export async function callModel({provider,credential,messages,tools=[],toolDefin
   const controller=new AbortController();const abort=()=>controller.abort(signal?.reason);signal?.addEventListener('abort',abort,{once:true});if(signal?.aborted)abort();
   const timer=setTimeout(()=>controller.abort(new Error('模型请求超过总时限')),provider.timeoutMs||180000);
   try {
-    const response=await fetchImpl(endpoint,{method:'POST',headers,body:JSON.stringify(payload),signal:controller.signal,credentials:'omit',referrerPolicy:'no-referrer'});
+    let response=await fetchImpl(endpoint,{method:'POST',headers,body:JSON.stringify(payload),signal:controller.signal,credentials:'omit',referrerPolicy:'no-referrer'});
+    let imageReferenceFallback=false;
+    if(!response.ok){const error=await readProviderFailure(response,{signal:controller.signal});if(error.code==='PROVIDER_IMAGE_REFERENCE_INVALID'&&typeof hydrate==='function'&&messages.some(m=>m.providerImageParts?.some(part=>typeof part==='object'))){
+      await invalidateImages?.();const inline=messages.map(m=>{const row={...m};delete row.providerImageParts;return row;});await hydrate(inline);checkAbort(controller.signal);
+      payload.messages=isAnthropic?anthropicMessages(inline,scope):openaiMessages(inline,scope,base.hostname==='api.deepseek.com');imageReferenceFallback=true;
+      response=await fetchImpl(endpoint,{method:'POST',headers,body:JSON.stringify(payload),signal:controller.signal,credentials:'omit',referrerPolicy:'no-referrer'});
+    }else throw error;}
     if(!response.ok)throw await readProviderFailure(response,{signal:controller.signal});
     let text='',finish=null,ended=false,usage,reasoningContent='';const thinking=new Map();const calls=new Map();let opaqueBytes=128;
     const addCall=(index,c)=>{if(isAnthropic&&(!Number.isInteger(index)||index<0||index>=PROVIDER_LIMITS.thinkingBlocks))throw providerError('Model block index exceeded its limit');if(calls.has(index)||calls.size>=PROVIDER_LIMITS.toolCalls)throw providerError('Tool call count exceeded its limit');toolIdentity(c.id,'Tool ID',PROVIDER_LIMITS.toolIdChars);toolIdentity(c.name,'Tool name',PROVIDER_LIMITS.toolNameChars);if(typeof c.args!=='string'||utf8(c.args)>PROVIDER_LIMITS.toolArgumentBytes)throw providerError('Tool arguments exceeded their size limit');if(c.initial!==undefined&&jsonBytes(c.initial)>PROVIDER_LIMITS.toolArgumentBytes)throw providerError('Tool arguments exceeded their size limit');c.argsBytes=utf8(c.args);calls.set(index,c);};
@@ -152,7 +158,7 @@ export async function callModel({provider,credential,messages,tools=[],toolDefin
     if(!(isAnthropic?['end_turn','tool_use','stop_sequence']:['stop','tool_calls']).includes(finish))throw new Error('模型拒绝、过滤或返回了尚不支持的结束状态：'+finish);
     const seenIds=new Set();const toolCalls=[...calls.values()].map(c=>{toolIdentity(c.id,'Tool ID',PROVIDER_LIMITS.toolIdChars);toolIdentity(c.name,'Tool name',PROVIDER_LIMITS.toolNameChars);if(seenIds.has(c.id))throw providerError('Duplicate tool call ID','PROVIDER_RESPONSE_INVALID');seenIds.add(c.id);if(typeof c.args!=='string'||utf8(c.args)>PROVIDER_LIMITS.toolArgumentBytes)throw providerError('Tool arguments exceeded their size limit');return {id:c.id,name:c.name,arguments:c.args?JSON.parse(c.args):(c.initial||{})};});
     const opaque={...(reasoningContent?{reasoningContent}:{}),...(thinking.size?{thinkingBlocks:[...thinking].sort((a,b)=>a[0]-b[0]).map(([i,v])=>v)}:{})};if(jsonBytes(opaque)>PROVIDER_LIMITS.stateBytes)throw providerError('Model protocol state exceeded its size limit');
-    return {text,toolCalls,finish,...(Object.keys(opaque).length?{providerState:{...scope,...opaque}}:{}),...(usage?{usage,cache:cacheUsage(usage,isAnthropic)}:{})};
+    return {text,toolCalls,finish,...(imageReferenceFallback?{imageReferenceFallback:true}:{}),...(Object.keys(opaque).length?{providerState:{...scope,...opaque}}:{}),...(usage?{usage,cache:cacheUsage(usage,isAnthropic)}:{})};
   } catch(e) {if(credential&&String(e.message).includes(credential))throw new Error('模型通信失败，敏感错误已隐藏');throw e;}
   finally {clearTimeout(timer);signal?.removeEventListener('abort',abort);}
 }

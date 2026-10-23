@@ -15,6 +15,7 @@
 #include <mbedtls/pk.h>
 #include <mbedtls/md.h>
 #include "RtcIdentity.h"
+#include "RtcTlsServer.h"
 #include "RtcSctp.h"
 #include "RtcRpc.h"
 #include "RtcUdpSend.h"
@@ -24,11 +25,11 @@ namespace iah {
 // that task; the application owns locking and board/client/writer authorization.
 class RtcBridge {
  public:
-  using Dispatch=std::function<String(String)>;
+  using Dispatch=std::function<String(rtc::RequestMessage)>;
   using Disconnect=std::function<void()>;
   using CanReplace=std::function<bool()>;
   using WireBuffer=std::array<uint8_t,2048>;
-  explicit RtcBridge(WireBuffer& wire,uint16_t localPort=RtcIdentity::port):localPort_(localPort),wire_(wire){}
+  explicit RtcBridge(WireBuffer& wire,RtcTlsServer& tls,uint16_t localPort=RtcIdentity::port):localPort_(localPort),tls_(tls),wire_(wire){}
   RtcBridge(const RtcBridge&)=delete;RtcBridge& operator=(const RtcBridge&)=delete;
   static const char* fingerprint(){return RtcIdentity::fingerprint;}
   static uint16_t port(){return RtcIdentity::port;}
@@ -56,31 +57,24 @@ class RtcBridge {
    udp_=socket(AF_INET,SOCK_DGRAM,IPPROTO_UDP);if(udp_<0){lastError_=-errno;return false;}
    sockaddr_in local{};local.sin_family=AF_INET;local.sin_port=htons(localPort_);local.sin_addr.s_addr=INADDR_ANY;
    if(bind(udp_,reinterpret_cast<sockaddr*>(&local),sizeof(local))<0||fcntl(udp_,F_SETFL,O_NONBLOCK)<0){lastError_=-errno;close(udp_);udp_=-1;return false;}
-   mbedtls_ssl_init(&ssl_);mbedtls_ssl_config_init(&conf_);mbedtls_ssl_cookie_init(&cookie_);mbedtls_entropy_init(&entropy_);mbedtls_ctr_drbg_init(&rng_);mbedtls_x509_crt_init(&cert_);mbedtls_pk_init(&key_);initialized_=true;
-   const unsigned char personalization[]="iah-direct-v2";
-   int r=mbedtls_ctr_drbg_seed(&rng_,mbedtls_entropy_func,&entropy_,personalization,sizeof(personalization)-1);
-   if(!r)r=mbedtls_x509_crt_parse(&cert_,reinterpret_cast<const unsigned char*>(RtcIdentity::certificate),sizeof(RtcIdentity::certificate));
-   if(!r)r=mbedtls_pk_parse_key(&key_,reinterpret_cast<const unsigned char*>(RtcIdentity::privateKey),sizeof(RtcIdentity::privateKey),nullptr,0,mbedtls_ctr_drbg_random,&rng_);
-   if(!r)r=mbedtls_ssl_config_defaults(&conf_,MBEDTLS_SSL_IS_SERVER,MBEDTLS_SSL_TRANSPORT_DATAGRAM,MBEDTLS_SSL_PRESET_DEFAULT);
-   if(r){lastError_=r;stop();return false;}
-   mbedtls_ssl_conf_rng(&conf_,mbedtls_ctr_drbg_random,&rng_);mbedtls_ssl_conf_authmode(&conf_,MBEDTLS_SSL_VERIFY_NONE);
-   mbedtls_ssl_conf_min_tls_version(&conf_,MBEDTLS_SSL_VERSION_TLS1_2);mbedtls_ssl_conf_max_tls_version(&conf_,MBEDTLS_SSL_VERSION_TLS1_2);
-   if((r=mbedtls_ssl_conf_own_cert(&conf_,&cert_,&key_))||(r=mbedtls_ssl_cookie_setup(&cookie_,mbedtls_ctr_drbg_random,&rng_))){lastError_=r;stop();return false;}
-   mbedtls_ssl_conf_dtls_cookies(&conf_,mbedtls_ssl_cookie_write,mbedtls_ssl_cookie_check,&cookie_);mbedtls_ssl_conf_handshake_timeout(&conf_,1000,8000);
-   if((r=mbedtls_ssl_setup(&ssl_,&conf_))){lastError_=r;stop();return false;}tlsConfigured_=true;
+   int r=tls_.begin();if(r){lastError_=r;stop();return false;}
+   mbedtls_ssl_init(&ssl_);initialized_=true;
+   if((r=mbedtls_ssl_setup(&ssl_,tls_.config()))){lastError_=r;stop();return false;}tlsConfigured_=true;
    mbedtls_ssl_set_bio(&ssl_,this,sendUdp,receiveUdp,nullptr);mbedtls_ssl_set_timer_cb(&ssl_,this,setTimer,getTimer);mbedtls_ssl_set_mtu(&ssl_,1200);
    sctp_.callbacks([this](const uint8_t* p,size_t n){if(!dtlsReady_)return false;int result=mbedtls_ssl_write(&ssl_,p,n);if(result!=int(n)){lastError_=result;closePending_=true;return false;}return true;},
     [this](const uint8_t* p,size_t n){if(closePending_)return;if(!rpc_.input(p,n,millis())){lastError_=-100001;closePending_=true;}completedRequests_=rpc_.completed();},[this]{if(lastError_==0)lastError_=-100002;closePending_=true;});
-   rpc_.dispatch([this](std::string request){if(!dispatch_)return std::string("{\"status\":503,\"body\":\"{}\"}");String input(request.c_str());std::string().swap(request);String result=dispatch_(std::move(input));return std::string(result.c_str(),result.length());});
+   rpc_.dispatch([this](rtc::RequestMessage request){if(!dispatch_)return std::string("{\"status\":503,\"body\":\"{}\"}");String result=dispatch_(std::move(request));return std::string(result.c_str(),result.length());});
    lastError_=0;ready_=true;return true;
   }
   void loop(){
    if(!ready_)return;uint32_t now=millis();if(WiFi.status()!=WL_CONNECTED){if(peerKnown_)clearPeer();return;}
    if(!peerKnown_){sockaddr_in from{};socklen_t length=sizeof(from);int n=recvfrom(udp_,wire_.data(),wire_.size(),0,reinterpret_cast<sockaddr*>(&from),&length);if(n>0)stun(wire_.data(),n,from,now);if(replacementPending_)applyReplacement();return;}
    if(!dtlsReady_){
+    if(!tls_.claimHandshake(this))return;
+    if(!handshakeActive_){handshakeActive_=true;handshakeStarted_=now;}
     if(now-handshakeStarted_>20000){clearPeer();return;}
     int result=mbedtls_ssl_handshake(&ssl_);if(replacementPending_){applyReplacement();return;}
-    if(result==0){dtlsReady_=true;dtlsStarted_=lastPeerActivity_=now;}
+    if(result==0){dtlsReady_=true;dtlsStarted_=lastPeerActivity_=now;handshakeActive_=false;tls_.releaseHandshake(this);}
     else if(result==MBEDTLS_ERR_SSL_HELLO_VERIFY_REQUIRED){if(mbedtls_ssl_session_reset(&ssl_)||mbedtls_ssl_set_client_transport_id(&ssl_,reinterpret_cast<const uint8_t*>(&peer_),sizeof(peer_)))closePending_=true;}
     else if(result!=MBEDTLS_ERR_SSL_WANT_READ&&result!=MBEDTLS_ERR_SSL_WANT_WRITE){lastError_=result;closePending_=true;}
    }else{
@@ -99,7 +93,7 @@ class RtcBridge {
    if(closePending_)clearPeer();
   }
   void stop(){
-   if(initialized_){if(tlsConfigured_)clearPeer();mbedtls_ssl_free(&ssl_);mbedtls_ssl_config_free(&conf_);mbedtls_ssl_cookie_free(&cookie_);mbedtls_x509_crt_free(&cert_);mbedtls_pk_free(&key_);mbedtls_ctr_drbg_free(&rng_);mbedtls_entropy_free(&entropy_);initialized_=false;tlsConfigured_=false;}
+   if(initialized_){if(tlsConfigured_)clearPeer();mbedtls_ssl_free(&ssl_);initialized_=false;tlsConfigured_=false;}
    if(udp_>=0){close(udp_);udp_=-1;}ready_=false;
   }
  private:
@@ -135,11 +129,12 @@ class RtcBridge {
    if(replacing){nextPeer_=from;std::memcpy(nextPassword_,username,serverLength);nextPassword_[serverLength]=0;replacementPending_=true;}return true;
   }
   void clearPeer(){
+   tls_.releaseHandshake(this);handshakeActive_=false;
    bool notify=connected_.load()||rpc_.completed()>0;
    if(peerKnown_){closeCount_++;lastCloseAt_=millis();lastCloseError_=lastError_.load();lastSctpFailure_=static_cast<int>(sctp_.failure());}
    if(dtlsReady_)mbedtls_ssl_close_notify(&ssl_);mbedtls_ssl_session_reset(&ssl_);
    peerKnown_=dtlsReady_=replacementPending_=closePending_=false;connected_=false;timerFinal_=0;password_[0]=0;rpc_.reset();
-   std::array<uint8_t,16> cookie{};mbedtls_ctr_drbg_random(&rng_,cookie.data(),cookie.size());sctp_.reset(millis(),esp_random(),esp_random(),cookie);
+   std::array<uint8_t,16> cookie{};tls_.random(cookie.data(),cookie.size());sctp_.reset(millis(),esp_random(),esp_random(),cookie);
    if(notify&&disconnected_)disconnected_();
   }
   void applyReplacement(){
@@ -150,10 +145,10 @@ class RtcBridge {
    if(mbedtls_ssl_set_client_transport_id(&ssl_,reinterpret_cast<const uint8_t*>(&peer_),sizeof(peer_)))clearPeer();
   }
   const uint16_t localPort_;
-  Dispatch dispatch_;Disconnect disconnected_;CanReplace canReplace_;std::atomic<bool>ready_{false},connected_{false};std::atomic<bool>dtlsReady_{false};bool initialized_=false,tlsConfigured_=false,peerKnown_=false,replacementPending_=false,closePending_=false;
+  Dispatch dispatch_;Disconnect disconnected_;CanReplace canReplace_;std::atomic<bool>ready_{false},connected_{false};std::atomic<bool>dtlsReady_{false};bool handshakeActive_=false,initialized_=false,tlsConfigured_=false,peerKnown_=false,replacementPending_=false,closePending_=false;
   std::atomic<int>lastError_{0},lastChunk_{-1},lastAbort_{0};std::atomic<unsigned>completedRequests_{0},maxSctpBytes_{0},dataFlagsSeen_{0};int udp_=-1;sockaddr_in peer_{},nextPeer_{};char password_[257]{},nextPassword_[257]{};uint32_t lastPeerActivity_=0,handshakeStarted_=0,dtlsStarted_=0,timerStart_=0,timerIntermediate_=0,timerFinal_=0;
   std::atomic<unsigned>droppedDatagrams_{0},closeCount_{0},maxHeartbeatBytes_{0};std::atomic<int>lastDatagramError_{0},lastCloseError_{0},lastSctpFailure_{0};std::atomic<uint32_t>lastCloseAt_{0};
-  mbedtls_ssl_context ssl_{};mbedtls_ssl_config conf_{};mbedtls_ssl_cookie_ctx cookie_{};mbedtls_entropy_context entropy_{};mbedtls_ctr_drbg_context rng_{};mbedtls_x509_crt cert_{};mbedtls_pk_context key_{};
+  mbedtls_ssl_context ssl_{};RtcTlsServer& tls_;
   // Both slots are serviced serially by the same task. Input callbacks copy
   // complete frames into their own SCTP/RPC state before the next loop call.
   WireBuffer& wire_;rtc::Sctp sctp_;rtc::Rpc rpc_;

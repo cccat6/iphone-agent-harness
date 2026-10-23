@@ -43,6 +43,9 @@ static_assert(iah::MaxEvents==128,"board report storage must match LAN limit");
 // No relay credentials, model traffic or screenshots are stored on the board.
 namespace {
 using namespace iah;
+std::atomic<uint32_t> heapAllocationFailures{0},lastFailedAllocationBytes{0};bool allocationHookRegistered=false;
+void allocationFailed(size_t size,uint32_t,const char*){lastFailedAllocationBytes.store(static_cast<uint32_t>(size),std::memory_order_relaxed);heapAllocationFailures.fetch_add(1,std::memory_order_relaxed);}
+
 NimBLECharacteristic *mouseReport=nullptr,*keyboardReport=nullptr,*consumerReport=nullptr;
 struct Peer {uint16_t handle=InvalidHandle;uint32_t epoch=0;bool encrypted=false,bonded=false,connectSeen=false;uint8_t reports=0;char identity[32]{};uint16_t pointerX=5000,pointerY=5000;bool pointerKnown=false;};
 Peer peers[MaxTargets];portMUX_TYPE peersMux=portMUX_INITIALIZER_UNLOCKED;uint32_t nextPeerEpoch=0;std::atomic_bool bondStateDirty{true};
@@ -51,6 +54,8 @@ Peer peers[MaxTargets];portMUX_TYPE peersMux=portMUX_INITIALIZER_UNLOCKED;uint32
 // JSON allocation and USB output happen exclusively in loop().
 enum class BleEventKind:uint8_t {Connect,Authentication,Identity,Disconnect,Subscription};
 struct BleDiagnosticEvent {uint32_t sequence=0,atMs=0;uint16_t handle=InvalidHandle,value=0;int reason=0;BleEventKind kind=BleEventKind::Connect;bool encrypted=false,bonded=false,authenticated=false;uint8_t keySize=0,reportBit=0;};
+struct BleTxStats {std::atomic<uint32_t> completed{0},failed{0},lastAt{0};std::atomic<int> lastCode{0};};
+BleTxStats bleTxStats[3];
 constexpr size_t BleDiagnosticCapacity=16;
 BleDiagnosticEvent bleEvents[BleDiagnosticCapacity];size_t bleEventNext=0,bleEventCount=0;uint32_t bleEventSequence=0;
 void recordBleEvent(BleEventKind kind,const NimBLEConnInfo& info,int reason=0,uint8_t reportBit=0,uint16_t value=0){
@@ -143,6 +148,7 @@ SemaphoreHandle_t coreMutex=nullptr;
 iah::SecureService* secureService=nullptr;
 constexpr size_t RtcPeerSlots=2;
 iah::RtcBridge::WireBuffer rtcWire;
+iah::RtcTlsServer rtcTlsServer;
 iah::RtcBridge* rtcBridges[RtcPeerSlots]{};TaskHandle_t rtcTaskHandle=nullptr;
 void rtcTask(void*){
  bool initialized[RtcPeerSlots]{};uint64_t retryAt[RtcPeerSlots]{};
@@ -153,7 +159,7 @@ void rtcTask(void*){
    auto* bridge=rtcBridges[slot];if(!bridge)continue;
    if(!network){if(initialized[slot])bridge->stop();initialized[slot]=false;retryAt[slot]=0;continue;}
    if(!initialized[slot]&&now>=retryAt[slot]){
-    initialized[slot]=bridge->begin([slot,bridge](String request){return secureService->dispatchRtc(std::move(request),bridge->peerAddress(),slot);},[slot]{secureService->rtcDisconnected(slot);},[slot]{return secureService->rtcCanReplace(slot);});
+    initialized[slot]=bridge->begin([slot,bridge](iah::rtc::RequestMessage request){return secureService->dispatchRtc(std::move(request),bridge->peerAddress(),slot);},[slot]{secureService->rtcDisconnected(slot);},[slot]{return secureService->rtcCanReplace(slot);});
     if(!initialized[slot])retryAt[slot]=static_cast<uint64_t>(esp_timer_get_time())/1000+2000;
    }
    if(initialized[slot])bridge->loop();
@@ -162,6 +168,8 @@ void rtcTask(void*){
  }
 }
 void rtcDiagnostic(JsonDocument& out){
+ out["allocationHookRegistered"]=allocationHookRegistered;out["heapAllocationFailures"]=heapAllocationFailures.load(std::memory_order_relaxed);out["lastFailedAllocationBytes"]=lastFailedAllocationBytes.load(std::memory_order_relaxed);
+
  unsigned readyCount=0,connectedCount=0,dtlsCount=0,totalRequests=0,maxBytes=0,flags=0;
  auto peers=out["rtcPeers"].to<JsonArray>();
  for(size_t slot=0;slot<RtcPeerSlots;slot++){
@@ -247,6 +255,13 @@ class DeviceCallbacks:public NimBLEDeviceCallbacks {
 class ReportCallbacks:public NimBLECharacteristicCallbacks {
  uint8_t bit_;
  public:explicit ReportCallbacks(uint8_t report):bit_(1u<<(report-1)){}
+ void onStatus(NimBLECharacteristic*,int code)override{
+  // NimBLE 2.5.1 does not populate ConnInfo for NOTIFY_TX; keep accurate
+  // per-report totals instead of attributing that empty handle to a phone.
+  auto& stats=bleTxStats[bit_==1?0:bit_==2?1:2];
+  if(code==0)stats.completed.fetch_add(1,std::memory_order_relaxed);else stats.failed.fetch_add(1,std::memory_order_relaxed);
+  stats.lastCode.store(code,std::memory_order_relaxed);stats.lastAt.store(millis(),std::memory_order_relaxed);
+ }
  void onSubscribe(NimBLECharacteristic*,NimBLEConnInfo& info,uint16_t value)override{
   recordBleEvent(BleEventKind::Subscription,info,0,bit_,value);
   updatePeer(info);portENTER_CRITICAL(&peersMux);
@@ -378,7 +393,8 @@ void bleDiagnostic(){
  out["advertising"]=advertising&&advertising->isAdvertising();out["connectedCount"]=server?server->getConnectedCount():0;out["numBonds"]=NimBLEDevice::getNumBonds();
  auto reportHandles=out["reportHandles"].to<JsonObject>();
  if(mouseReport)reportHandles["pointer"]=mouseReport->getHandle();if(keyboardReport)reportHandles["keyboard"]=keyboardReport->getHandle();if(consumerReport)reportHandles["consumer"]=consumerReport->getHandle();
- auto peerRows=out["peers"].to<JsonArray>();for(const auto& peer:peerSnapshot){if(peer.handle==InvalidHandle)continue;auto row=peerRows.add<JsonObject>();row["handle"]=peer.handle;row["epoch"]=peer.epoch;row["encrypted"]=peer.encrypted;row["bonded"]=peer.bonded;row["identityResolved"]=peer.identity[0]!=0;row["reports"]=peer.reports;}
+ auto txRows=out["txReports"].to<JsonArray>();for(size_t i=0;i<3;i++){auto row=txRows.add<JsonObject>();row["reportId"]=i+1;row["completed"]=bleTxStats[i].completed.load(std::memory_order_relaxed);row["failed"]=bleTxStats[i].failed.load(std::memory_order_relaxed);row["lastCode"]=bleTxStats[i].lastCode.load(std::memory_order_relaxed);row["lastAtMs"]=bleTxStats[i].lastAt.load(std::memory_order_relaxed);}
+ auto peerRows=out["peers"].to<JsonArray>();for(const auto& peer:peerSnapshot){if(peer.handle==InvalidHandle)continue;auto row=peerRows.add<JsonObject>();row["handle"]=peer.handle;row["epoch"]=peer.epoch;row["encrypted"]=peer.encrypted;row["bonded"]=peer.bonded;row["identityResolved"]=peer.identity[0]!=0;row["reports"]=peer.reports;auto info=server->getPeerInfoByHandle(peer.handle);row["connectionIntervalUs"]=unsigned(info.getConnInterval())*1250;row["connectionLatency"]=info.getConnLatency();row["pointerKnown"]=peer.pointerKnown;if(peer.pointerKnown){row["pointerX"]=peer.pointerX;row["pointerY"]=peer.pointerY;}}
  out["freeHeap"]=ESP.getFreeHeap();out["minFreeHeap"]=ESP.getMinFreeHeap();out["largestFreeBlock"]=heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT);
  out["eventTotal"]=total;auto eventRows=out["events"].to<JsonArray>();
  for(size_t i=0;i<count;i++){const auto& event=events[i];auto row=eventRows.add<JsonObject>();row["sequence"]=event.sequence;row["atMs"]=event.atMs;row["handle"]=event.handle;
@@ -429,6 +445,7 @@ void configureSerial(){
 }
 }
 void setup(){
+ allocationHookRegistered=heap_caps_register_failed_alloc_callback(allocationFailed)==ESP_OK;
  Serial.begin(115200);preferences.begin("iah-product",false);const auto migration=iah::removeObsoleteTlsStorage(preferences);if(migration.removed||!migration.complete)Serial.printf("{\"event\":\"obsolete_tls_storage_cleanup\",\"removed\":%u,\"complete\":%s}\n",unsigned(migration.removed),migration.complete?"true":"false");coreMutex=xSemaphoreCreateMutex();
  char id[32];snprintf(id,sizeof(id),"iah-%012llx",(unsigned long long)ESP.getEfuseMac());boardId=id;
  snprintf(id,sizeof(id),"boot-%08lx%08lx",(unsigned long)esp_random(),(unsigned long)esp_random());bootId=id;hostname=readBridgeSettings(preferences.getString("bridgeSettings", "").c_str()).hostname.c_str();
@@ -440,7 +457,7 @@ void setup(){
  if(ssid.length()){WiFi.mode(WIFI_STA);configureWifiStability();applySavedPower();WiFi.begin(ssid.c_str(),password.c_str());}
  startBle();sink.beginRouting();
  secureService=new SecureService(*core,sink,preferences,coreMutex,boardId,bootId,hostname,wifiGotIps,savedNetwork);secureService->begin(ssid.isEmpty());
- for(size_t slot=0;slot<RtcPeerSlots;slot++){rtcBridges[slot]=new(std::nothrow) iah::RtcBridge(rtcWire,iah::RtcBridge::port()+slot);if(!rtcBridges[slot])Serial.printf("{\"event\":\"rtc_peer_allocation_failed\",\"slot\":%u}\n",unsigned(slot));}
+ for(size_t slot=0;slot<RtcPeerSlots;slot++){rtcBridges[slot]=new(std::nothrow) iah::RtcBridge(rtcWire,rtcTlsServer,iah::RtcBridge::port()+slot);if(!rtcBridges[slot])Serial.printf("{\"event\":\"rtc_peer_allocation_failed\",\"slot\":%u}\n",unsigned(slot));}
  if(xTaskCreatePinnedToCore(rtcTask,"iah-rtc",8192,nullptr,1,&rtcTaskHandle,0)!=pdPASS)Serial.println("{\"event\":\"rtc_task_failed\"}");
 JsonDocument boot;iah::firmware::addIdentity(boot);serializeJson(boot,Serial);Serial.println();
 }

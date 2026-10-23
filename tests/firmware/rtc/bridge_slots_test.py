@@ -8,12 +8,12 @@ import tempfile
 root=Path(__file__).resolve().parents[3]
 source=(root/'firmware/IPhoneAutomationHarness/main.cpp').read_text()
 bridge=(root/'firmware/IPhoneAutomationHarness/src/RtcBridge.h').read_text()
-assert 'explicit RtcBridge(WireBuffer& wire,uint16_t localPort=RtcIdentity::port):localPort_(localPort),wire_(wire){}' in bridge
+assert 'explicit RtcBridge(WireBuffer& wire,RtcTlsServer& tls,uint16_t localPort=RtcIdentity::port):localPort_(localPort),tls_(tls),wire_(wire){}' in bridge
 assert 'WireBuffer& wire_;' in bridge
 assert 'iah::RtcBridge::WireBuffer rtcWire;' in source
 assert 'local.sin_port=htons(localPort_)' in bridge
 assert 'const uint16_t localPort_;' in bridge
-assert 'new(std::nothrow) iah::RtcBridge(rtcWire,iah::RtcBridge::port()+slot)' in source
+assert 'new(std::nothrow) iah::RtcBridge(rtcWire,rtcTlsServer,iah::RtcBridge::port()+slot)' in source
 assert 'Do not use application traffic as a second idle timeout' in bridge
 assert 'lastPeerActivity_)>60000' not in bridge
 scheduler=source[source.index('void rtcTask(void*){'):source.index('\nvoid rtcDiagnostic(',source.index('void rtcTask(void*){'))]
@@ -26,6 +26,7 @@ program=r'''
 #include <stdexcept>
 #include <cstdio>
 using String=std::string;
+namespace iah { namespace rtc { using RequestMessage=std::string; } }
 constexpr size_t RtcPeerSlots=2;
 constexpr int WL_CONNECTED=3;
 static bool online=true;

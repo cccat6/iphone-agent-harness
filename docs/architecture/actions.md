@@ -23,3 +23,6 @@ A capture barrier persists a released frame before continuing. `review` returns 
 Cancel, lost sharing, disconnection, expiry or late execution stop dependent work and attempt release. Unknown delivery is reconciled before subsequent input. Use [gesture-correction](../../apps/web/skills/gesture-correction/SKILL.md) and [clock-and-time](../../apps/web/skills/clock-and-time/SKILL.md) for measured correction or supported direct entry.
 
 [Plan schema](../../specs/action-plan.schema.json) · [Examples](../../specs/examples/)
+
+
+The compiler sends the last absolute position while pressed, then sends button-up separately after a short report gap. This preserves the endpoint on iOS. Gesture timing records scheduled and device-reported input time separately from RPC time, receipt polling, settling and capture. Input execution overlaps receipt polling; those figures are not added to calculate wall time.

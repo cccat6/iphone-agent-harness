@@ -12,7 +12,7 @@ export function imageFileProvider(provider){
  if(provider.protocol==='anthropic'&&url.hostname==='api.anthropic.com')return {kind:'anthropic',url:'https://api.anthropic.com/v1/files'};
  return null;
 }
-function headersFor(config,credential,json=false){return config.kind==='deepseek'?{authorization:'Bearer '+credential,...(json?{accept:'application/json'}:{})}:{'x-api-key':credential,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'};}
+function headersFor(config,credential,json=false){return config.kind==='deepseek'?{authorization:'Bearer '+credential,...(json?{accept:'application/json'}:{})}:{'x-api-key':credential,'anthropic-version':'2026-10-21','anthropic-dangerous-direct-browser-access':'true'};}
 async function upload({config,credential,frame,signal,fetchImpl}){
  let blob=frame.blob;if(!blob&&frame.dataUrl){const match=/^data:(image\/(?:jpeg|png|webp|gif));base64,(.+)$/.exec(frame.dataUrl);if(!match)return null;blob=new Blob([Uint8Array.from(atob(match[2]),c=>c.charCodeAt(0))],{type:match[1]});}
  if(!blob||blob.size>5000000)return null;
@@ -29,6 +29,7 @@ async function upload({config,credential,frame,signal,fetchImpl}){
  }
  return {fileId:data.id,expiresAt,bytes:blob.size};
 }
+export async function invalidateProviderImageReuse(provider,credential){const config=imageFileProvider(provider);if(config&&credential){const scope=await digest(config.url+'\n'+credential);disabled.set(scope+'::'+provider.model,Infinity);}}
 // Resolve one local frame at a time. Only small provider file references remain
 // in the request; original JPEGs stay in the browser's paginated asset store.
 export async function hydrateProviderImages(messages,{store,provider,credential,signal,fetchImpl=globalThis.fetch,inlineLimit=12000000}={}){
@@ -38,8 +39,9 @@ export async function hydrateProviderImages(messages,{store,provider,credential,
   if(!message.frameRefs?.length)continue;const images=[],parts=[];
   for(const ref of message.frameRefs){
    checkAbort(signal);const frame=await store.getFrame(ref);checkAbort(signal);if(!frame)throw new Error('Local screenshot asset is missing');
-   let file=scope&&typeof store.saveFrameProviderFile==='function'&&(disabled.get(scope)||0)<Date.now()?frame.providerFiles?.[scope]:null;
-   if(scope&&typeof store.saveFrameProviderFile==='function'&&(disabled.get(scope)||0)<Date.now()&&expired(file)){
+   const available=scope&&typeof store.saveFrameProviderFile==='function'&&(disabled.get(scope)||0)<Date.now()&&(disabled.get(scope+'::'+provider.model)||0)<Date.now();
+   let file=available?frame.providerFiles?.[scope]:null;
+   if(available&&expired(file)){
     try{file=await upload({config,credential,frame,signal,fetchImpl});checkAbort(signal);if(file){await store.saveFrameProviderFile(ref,scope,file);uploaded++;uploadedBytes+=file.bytes;}else disabled.set(scope,Date.now()+180000);}
     catch(error){checkAbort(signal);disabled.set(scope,Date.now()+180000);file=null;}
    }else if(!expired(file))reused++;

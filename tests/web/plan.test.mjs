@@ -57,9 +57,9 @@ test('all schema fields, path times, capabilities and aggregate budgets are chec
  assert.equal(validatePlan(plan([tap()]),context({capabilities:{operations,maxEvents:0}})).valid,false);
 });
 
-test('swipe releases at its last moving timestamp; drag explicitly holds at end',()=>{
+test('swipe delivers the final position before a short independent release; drag holds deliberately',()=>{
  const s=compileGesture(swipe());const up=s.events.at(-1),move=s.events.at(-2);
- assert.equal(up.buttons,0);assert.equal(move.buttons,1);assert.ok(up.atMs>move.atMs);assert.ok(up.x!==move.x||up.y!==move.y);assert.equal(up.y,1000);assert.equal(s.events.filter(e=>e.atMs===up.atMs).length,1);
+ assert.equal(up.buttons,0);assert.equal(move.buttons,1);assert.ok(up.atMs>move.atMs);assert.equal(up.x,move.x);assert.equal(up.y,move.y);assert.equal(up.atMs-move.atMs,20);assert.ok(move.x!==s.events.at(-3).x||move.y!==s.events.at(-3).y);assert.equal(up.y,1000);assert.equal(s.events.filter(e=>e.atMs===up.atMs).length,1);
  const d=compileGesture({...swipe(),op:'drag',endHoldMs:200});assert.equal(d.events.at(-1).atMs-d.events.at(-2).atMs,200);
  assert.ok(s.events.length<=512&&s.durationMs<=5000);
  const long={...swipe(),op:'drag',path:[{x:1,y:1,tMs:0},{x:2,y:2,tMs:3000}],endHoldMs:1};assert.throws(()=>compileGesture(long),/held duration/);

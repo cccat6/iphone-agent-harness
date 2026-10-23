@@ -8,11 +8,14 @@
 #include <string>
 #include <utility>
 #include "RtcSctp.h"
+#include "RtcRequest.h"
+#include "StrictJson.h"
 namespace iah { namespace rtc {
 class Rpc {
  public:
   static constexpr size_t RequestLimit=12288,ResponseLimit=16384,Chunk=256;
-  using Dispatch=std::function<std::string(std::string)>;
+  using Dispatch=std::function<std::string(RequestMessage)>;
+  explicit Rpc(Request::Resize resize=std::realloc,Request::Free release=std::free):request_(resize,release){}
   void dispatch(Dispatch value){dispatch_=value;}
   void reset(){lastCompleted_=0;state_=State::Idle;release();}
   bool busy()const{return state_!=State::Idle;}
@@ -23,31 +26,31 @@ class Rpc {
    auto id=frame["id"].as<JsonString>();uint32_t n=frame["n"].as<uint32_t>();unsigned seq=frame["seq"].as<unsigned>();bool end=frame["end"].as<bool>();auto encoded=frame["data"].as<JsonString>();
    if(!uuid(id.c_str(),id.size())||!n||n>0x7fffffff||seq>=48)return false;
    std::array<uint8_t,Chunk> decoded{};size_t length=0;if(!decode(encoded.c_str(),encoded.size(),decoded.data(),length)||!length||(!end&&length!=Chunk))return false;
-   if(state_==State::Idle){if(seq!=0||lastCompleted_==0x7fffffff||n!=lastCompleted_+1)return false;id_.assign(id.c_str(),id.size());n_=n;sequence_=0;started_=now;state_=State::Collecting;}
-   if(n!=n_||id_.size()!=id.size()||std::memcmp(id_.data(),id.c_str(),id.size())||seq!=sequence_||request_.size()+length>RequestLimit)return false;
-   request_.append(reinterpret_cast<const char*>(decoded.data()),length);++sequence_;if(!end)return true;
+   if(state_==State::Idle){if(seq!=0||lastCompleted_==0x7fffffff||n!=lastCompleted_+1)return false;std::memcpy(id_.data(),id.c_str(),36);id_[36]=0;n_=n;sequence_=0;started_=now;state_=State::Collecting;}
+   if(n!=n_||id.size()!=36||std::memcmp(id_.data(),id.c_str(),36)||seq!=sequence_||request_.size()+length>RequestLimit)return false;
+   if(state_!=State::Discarding&&!request_.append(decoded.data(),length)){request_.clear();state_=State::Discarding;}++sequence_;if(!end)return true;
    // id/data JsonString views have been consumed. Release this frame's parser
    // storage before validating and dispatching the complete request.
    frame.clear();
    // Consume the monotonic request number BEFORE dispatch. No old number can
    // invoke a mutation again, including after an application error response.
    lastCompleted_=n_;
-   if(!validRequest(request_))reply_=error(400,"invalid_rpc_request");
-   else if(dispatch_)reply_=dispatch_(std::move(request_));else reply_=error(503,"bridge_not_ready");
-   std::string().swap(request_);
+   if(state_==State::Discarding){request_.clear();reply_=memoryError();}
+   else{JsonDocument envelope;const int valid=validRequest(request_,envelope);if(valid!=1){request_.clear();reply_=valid<0?memoryError():error(400,"invalid_rpc_request");}else if(dispatch_)reply_=dispatch_(RequestMessage(std::move(request_),std::move(envelope)));else{request_.clear();reply_=error(503,"bridge_not_ready");}}
+   request_.clear();
    if(reply_.size()>ResponseLimit)reply_=error(502,"bridge_response_too_large");
    else if(!validResponse(reply_))reply_=error(500,"bridge_response_invalid");
    state_=State::Sending;offset_=0;sequence_=0;waiting_=false;started_=now;return true;
   }
   bool tick(Sctp& sctp,uint32_t now){
    if(state_==State::Idle)return true;if(int32_t(now-started_)>30000)return false;
-   if(state_==State::Collecting)return true;
+   if(state_==State::Collecting||state_==State::Discarding)return true;
    if(waiting_){if(sctp.pending())return true;waiting_=false;}
    if(!sctp.idleToSend())return true;
    size_t size=reply_.size()-offset_;if(size>Chunk)size=Chunk;
    // UUID and counters are already validated; base64 contains no JSON escapes.
    // Build into the same bounded frame without a temporary string/document.
-   char bytes[513];const int prefix=std::snprintf(bytes,sizeof(bytes),"{\"v\":1,\"type\":\"res\",\"id\":\"%s\",\"n\":%lu,\"seq\":%u,\"end\":%s,\"data\":\"",id_.c_str(),static_cast<unsigned long>(n_),sequence_,offset_+size==reply_.size()?"true":"false");
+   char bytes[513];const int prefix=std::snprintf(bytes,sizeof(bytes),"{\"v\":1,\"type\":\"res\",\"id\":\"%s\",\"n\":%lu,\"seq\":%u,\"end\":%s,\"data\":\"",id_.data(),static_cast<unsigned long>(n_),sequence_,offset_+size==reply_.size()?"true":"false");
    if(prefix<0||static_cast<size_t>(prefix)+2>512)return false;
    const size_t encoded=encodeInto(reinterpret_cast<const uint8_t*>(reply_.data()+offset_),size,bytes+prefix,512-static_cast<size_t>(prefix)-2);if(!encoded)return false;
    const size_t length=static_cast<size_t>(prefix)+encoded+2;std::memcpy(bytes+length-2,"\"}",2);bytes[length]=0;
@@ -70,13 +73,17 @@ class Rpc {
    }return true;
   }
  private:
-  enum class State{Idle,Collecting,Sending};
+  enum class State{Idle,Collecting,Discarding,Sending};
   static size_t encodeInto(const uint8_t* p,size_t size,char* out,size_t capacity){static const char chars[]="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";const size_t required=(size+2)/3*4;if(required>capacity)return 0;size_t at=0;for(size_t i=0;i<size;i+=3){unsigned v=unsigned(p[i])<<16;if(i+1<size)v|=unsigned(p[i+1])<<8;if(i+2<size)v|=p[i+2];out[at++]=chars[v>>18];out[at++]=chars[v>>12&63];out[at++]=i+1<size?chars[v>>6&63]:'=';out[at++]=i+2<size?chars[v&63]:'=';}return at;}
   static bool uuid(const char* p,size_t n){if(n!=36)return false;for(size_t i=0;i<n;i++){if(i==8||i==13||i==18||i==23){if(p[i]!='-')return false;}else if(!((p[i]>='0'&&p[i]<='9')||(p[i]>='a'&&p[i]<='f')))return false;}return true;}
-  static bool validRequest(const std::string& text){if(text.empty()||text.find('\0')!=std::string::npos)return false;JsonDocument d;if(deserializeJson(d,text)||!d.is<JsonObject>()||d.size()!=4||!d["method"].is<const char*>()||!d["path"].is<const char*>()||!d["headers"].is<JsonObject>()||!d["body"].is<const char*>())return false;for(JsonPairConst h:d["headers"].as<JsonObjectConst>())if(!h.value().is<const char*>())return false;return true;}
+  static int validRequest(Request& text,JsonDocument& d){if(text.empty()||std::memchr(text.data(),0,text.size()))return 0;bool memory=false;if(!parseEnvelope(d,text,&memory))return memory?-1:0;return d.size()==4&&plainJsonString(d["method"])&&plainJsonString(d["path"])&&d["headers"].is<JsonObject>()&&plainJsonString(d["body"])&&validHeaders(d["headers"].as<JsonObjectConst>())?1:0;}
+
+  static bool validHeaders(JsonObjectConst headers){for(JsonPairConst h:headers)if(h.key().size()!=std::strlen(h.key().c_str())||!plainJsonString(h.value()))return false;return true;}
+  static std::string memoryError(){return "{\"status\":503,\"body\":\"{\\\"error\\\":\\\"rpc_memory_unavailable\\\",\\\"notExecuted\\\":true}\"}";}
+
   static bool validResponse(const std::string& text){JsonDocument d;return !deserializeJson(d,text)&&d.is<JsonObject>()&&d.size()==2&&d["status"].is<int>()&&d["status"].as<int>()>=100&&d["status"].as<int>()<=599&&d["body"].is<const char*>();}
   static std::string error(int status,const char* code){JsonDocument body;body["error"]=code;std::string b;serializeJson(body,b);JsonDocument response;response["status"]=status;response["body"]=b;std::string result;serializeJson(response,result);return result;}
-  void release(){std::string().swap(request_);std::string().swap(reply_);id_.clear();offset_=0;sequence_=0;waiting_=false;}
-  Dispatch dispatch_;State state_=State::Idle;uint32_t lastCompleted_=0,n_=0,started_=0;unsigned sequence_=0;size_t offset_=0;bool waiting_=false;std::string request_,reply_,id_;
+  void release(){request_.clear();std::string().swap(reply_);id_.fill(0);offset_=0;sequence_=0;waiting_=false;}
+  Dispatch dispatch_;State state_=State::Idle;uint32_t lastCompleted_=0,n_=0,started_=0;unsigned sequence_=0;size_t offset_=0;bool waiting_=false;Request request_;std::string reply_;std::array<char,37> id_{};
 };
 }}

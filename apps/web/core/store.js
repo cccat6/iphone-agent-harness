@@ -165,7 +165,7 @@ export async function openStore({memory=false,name=DB_NAME}={}){
     async updateProviderModels(id,models,{expectedConnection}={}){
       if(typeof id!=='string'||!Array.isArray(models))throw new Error('Invalid provider models');
       if(expectedConnection!==undefined&&(!expectedConnection||typeof expectedConnection!=='object'||Array.isArray(expectedConnection)))throw new Error('Invalid provider connection');
-      const fields=['protocol','baseUrl','flow','clientId','subscriptionRelayUrl','reuseImages'];
+      const fields=['protocol','baseUrl','flow','clientId','subscriptionRelayUrl'];
       const expected=expectedConnection===undefined?null:clone(Object.fromEntries(fields.map(key=>[key,expectedConnection[key]||''])));
       const saved=safeSettings(clone(models));
       return transaction(['settings'],'readwrite',async s=>{

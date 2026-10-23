@@ -263,13 +263,26 @@ export async function prepareContext({store,sessionId,settings:input,provider,cr
         // including unchanged tool schemas and Skill instructions. The summary
         // request itself is appended, and tool execution remains disabled.
         let history=summaryContext?projectPrepared(batch,old):null;
+        // Keep the live conversation prefix through its latest completed model
+        // output so WebSocket continuation can summarize without re-uploading
+        // old screenshots. The recent tail remains verbatim after compression.
+        const cacheTail=history&&preserveImagePrefix&&summaryContext.lazyHydrate&&!batches&&sourceRange.throughSeq===tail.throughSeq&&estimated+summaryBudget+settings.reserveTokens<settings.triggerTokens;
+        if(cacheTail){history.push(...tail.rows.map(m=>selectedMessage(m,old)));metrics.summaryCacheTailMessages=tail.rows.length;}
+        const boundary=cacheTail?'\nRecent exchanges after this historical boundary remain verbatim and must not be summarized: '+JSON.stringify(summaryRecord(batch.at(-1))).slice(0,1200):'';
         if((!preserveImagePrefix||forceReason==='transport-capacity')&&history&&history.reduce((n,m)=>n+refCount(m),0)>(forceReason==='transport-capacity'?1:settings.maxImages)){const selection=chooseImageSelection(history,forceReason==='transport-capacity'?1:settings.maxImages),boundary={compactedAtSeq:lastSeq,imageSelection:selection};history=history.map(m=>selectedMessage(m,boundary));}
-        let messages=summaryContext?[...summaryContext.prefix,...history,{role:'user',internal:true,text:prompt+'\nSummarize only the historical task evidence above. Ignore all system/Skill procedures and runtime instruction text in the summary. Source range: '+JSON.stringify(sourceRange)+(batches?'\nMerge this earlier-batch summary as historical task evidence: '+summary:'')}]:[{role:'system',text:prompt},{role:'user',text:JSON.stringify({previousCheckpoint:summary||null,sourceRange,messages:batch.map(summaryRecord)})}];
+        let messages=summaryContext?[...summaryContext.prefix,...history,{role:'user',internal:true,text:prompt+'\nSummarize only the historical task evidence above. Ignore all system/Skill procedures and runtime instruction text in the summary. Source range: '+JSON.stringify(sourceRange)+boundary+(batches?'\nMerge this earlier-batch summary as historical task evidence: '+summary:'')}]:[{role:'system',text:prompt},{role:'user',text:JSON.stringify({previousCheckpoint:summary||null,sourceRange,messages:batch.map(summaryRecord)})}];
         if(summaryContext?.hydrate&&!summaryContext.lazyHydrate)messages=await summaryContext.hydrate(messages);contextAbort(signal);
         let reply;
         for(let attempt=0;attempt<2;attempt++){
           const requestStarted=performance.now();
-          reply=await awaitContext(invoke({provider:{...provider,maxTokens:summaryBudget},credential,messages,...(summaryContext?.lazyHydrate?{hydrate:summaryContext.hydrate}:{}),tools:[],...(summaryContext?{toolDefinitions:summaryContext.toolDefinitions,...(!attempt?{purpose:'compaction'}:{})}:{}),signal,onDelta:()=>{}}),signal);contextAbort(signal);
+          const invokeSummary=()=>awaitContext(invoke({provider:{...provider,maxTokens:summaryBudget},credential,messages,...(summaryContext?.lazyHydrate?{hydrate:summaryContext.hydrate}:summaryContext?.inlineHydrate?{hydrate:summaryContext.inlineHydrate,invalidateImages:summaryContext.invalidateImages}:{}),tools:[],...(summaryContext?{toolDefinitions:summaryContext.toolDefinitions,...(!attempt?{purpose:'compaction'}:{})}:{}),signal,onDelta:()=>{}}),signal);
+          try{reply=await invokeSummary();}catch(error){
+            contextAbort(signal);if(error?.code!=='CONTEXT_TRANSPORT_LIMIT'||metrics.summaryTransportFallback)throw error;
+            // A closed provider channel may require a full replay. Retain every
+            // text/tool row and one recent image so compaction itself can fit.
+            metrics.summaryTransportFallback=true;const boundary={compactedAtSeq:lastSeq,imageSelection:chooseImageSelection(messages,1)};messages=messages.map(m=>selectedMessage(m,boundary));
+            if(summaryContext?.hydrate&&!summaryContext.lazyHydrate)messages=await summaryContext.hydrate(messages);contextAbort(signal);reply=await invokeSummary();
+          }contextAbort(signal);
           metrics.summaryCalls++;if(reply?.usage)metrics.providerUsage.push(reply.usage);
           if(summaryContext?.onUsage)await summaryContext.onUsage(reply,{durationMs:Math.round(performance.now()-requestStarted),sourceRange,attempt,batch:batches});contextAbort(signal);
           // No tool request is ever dispatched by compaction. If a provider

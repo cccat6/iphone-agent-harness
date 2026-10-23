@@ -127,3 +127,22 @@ test('an individual deadline drains an uncertain mutation without replaying it o
  const {transport,peer}=await connected();const controller=new AbortController(),pending=transport.fetch(baseUrl+'/v1/targets/phone/segments',{method:'POST',body:'{}',signal:controller.signal});const rejected=assert.rejects(pending,{code:'DEVICE_REQUEST_CANCELLED'});const sent=peer.channel.frames[0];controller.abort(Object.assign(new Error('request deadline'),{code:'DEVICE_TIMEOUT'}));await rejected;
  assert.equal(transport.ready,true);const next=transport.fetch(baseUrl+'/v1/clock');assert.equal(peer.channel.frames.length,1);respond(peer,{status:202,body:'{}'},sent);await until(()=>peer.channel.frames.length===2);assert.equal(request(peer).path,'/v1/clock');respond(peer,{status:200,body:'{}'});await next;assert.equal(transport.ready,true);assert.equal(peer.channel.frames.filter(f=>f.id===sent.id).length,1);transport.close();
 });
+
+test('explicit pre-dispatch memory rejection retries the same action payload with a new RPC attempt',async t=>{
+ const {transport,peer}=await connected();t.mock.timers.enable({apis:['setTimeout']});
+ const body=JSON.stringify({segmentId:'same-action',events:[{kind:'consumer',usage:0}]}),pending=transport.fetch(baseUrl+'/v1/targets/phone/segments',{method:'POST',body}),queued=transport.fetch(baseUrl+'/v1/clock');
+ const first=peer.channel.frames.at(-1);respond(peer,{status:503,body:JSON.stringify({error:'rpc_memory_unavailable',notExecuted:true})});
+ t.mock.timers.tick(99);assert.equal(peer.channel.frames.at(-1).n,1);t.mock.timers.tick(1);const second=peer.channel.frames.at(-1);assert.equal(second.id,first.id);assert.equal(second.n,2);
+ const attempt=n=>JSON.parse(Buffer.concat(peer.channel.frames.filter(frame=>frame.n===n).map(frame=>Buffer.from(frame.data,'base64'))).toString());assert.deepEqual(attempt(2),attempt(1));
+ respond(peer,{status:200,body:'{}'},second);const response=await pending;assert.equal(response.headers.get('x-iah-rpc-attempts'),'2');assert.equal(peer.channel.frames.at(-1).n,3);respond(peer,{status:200,body:'{}'});await queued;assert.equal(transport.ready,true);transport.close();
+});
+test('memory admission retries stop after three attempts and unproven failures never replay',async t=>{
+ const {transport,peer}=await connected();t.mock.timers.enable({apis:['setTimeout']});const pending=transport.fetch(baseUrl+'/v1/identity');
+ for(let i=0;i<3;i++){respond(peer,{status:503,body:JSON.stringify({error:'rpc_memory_unavailable',notExecuted:true})});if(i<2)t.mock.timers.tick((i+1)*100);}
+ const response=await pending;assert.equal(response.status,503);assert.equal(response.headers.get('x-iah-rpc-attempts'),'3');assert.equal(transport.requestNumber,3);t.mock.timers.tick(1000);assert.equal(transport.requestNumber,3);
+ const unknown=transport.fetch(baseUrl+'/v1/targets/phone/segments',{method:'POST',body:'{}'});respond(peer,{status:503,body:JSON.stringify({error:'rpc_memory_unavailable'})});assert.equal((await unknown).status,503);t.mock.timers.tick(500);assert.equal(transport.requestNumber,4);transport.close();
+});
+test('Stop during admission backoff prevents the next attempt',async t=>{
+ const {transport,peer}=await connected();t.mock.timers.enable({apis:['setTimeout']});const controller=new AbortController(),pending=transport.fetch(baseUrl+'/v1/targets/phone/segments',{method:'POST',body:'{}',signal:controller.signal}),rejected=assert.rejects(pending,{code:'DEVICE_REQUEST_CANCELLED'});
+ respond(peer,{status:503,body:JSON.stringify({error:'rpc_memory_unavailable',notExecuted:true})});controller.abort();await rejected;t.mock.timers.tick(1000);assert.equal(transport.requestNumber,1);assert.equal(transport.closed,true);
+});

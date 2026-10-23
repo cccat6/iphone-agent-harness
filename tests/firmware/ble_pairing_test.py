@@ -23,7 +23,7 @@ source=r'''
 #include <vector>
 constexpr int MaxTargets=2,InvalidHandle=65535,HID_MOUSE=962,BLE_HS_IO_NO_INPUT_OUTPUT=3;
 struct Addr{int type=1;std::string text="random-before-identity";int getType(){return type;}std::string toString(){return text;}bool isPublic(){return type==0;}bool isStatic(){return type==1;}};
-struct NimBLEConnInfo{uint16_t handle=7;bool encrypted=false,bonded=false;Addr addr;uint16_t getConnHandle()const{return handle;}Addr getIdAddress(){return addr;}bool isEncrypted()const{return encrypted;}bool isBonded()const{return bonded;}bool isAuthenticated()const{return false;}uint8_t getSecKeySize()const{return encrypted?16:0;}};
+struct NimBLEConnInfo{uint16_t handle=7;bool encrypted=false,bonded=false;Addr addr;uint16_t getConnHandle()const{return handle;}uint16_t getConnInterval()const{return 24;}uint16_t getConnLatency()const{return 0;}Addr getIdAddress(){return addr;}bool isEncrypted()const{return encrypted;}bool isBonded()const{return bonded;}bool isAuthenticated()const{return false;}uint8_t getSecKeySize()const{return encrypted?16:0;}};
 using portMUX_TYPE=int;
 #define portMUX_INITIALIZER_UNLOCKED 0
 #define portENTER_CRITICAL(x) ((void)(x))
@@ -38,7 +38,7 @@ int updates=0,newConnections=0;void updatePeer(NimBLEConnInfo& info,bool fresh=f
 struct NimBLEServer;
 struct NimBLEServerCallbacks{virtual ~NimBLEServerCallbacks()=default;virtual void onConnect(NimBLEServer*,NimBLEConnInfo&){};virtual void onAuthenticationComplete(NimBLEConnInfo&){};virtual void onIdentity(NimBLEConnInfo&){};virtual void onDisconnect(NimBLEServer*,NimBLEConnInfo&,int){}};
 struct NimBLECharacteristic{void setCallbacks(void*){}void setValue(const uint8_t*,size_t){}};NimBLECharacteristic *mouseReport=nullptr,*keyboardReport=nullptr,*consumerReport=nullptr;
-struct NimBLECharacteristicCallbacks{virtual ~NimBLECharacteristicCallbacks()=default;virtual void onSubscribe(NimBLECharacteristic*,NimBLEConnInfo&,uint16_t){}};
+struct NimBLECharacteristicCallbacks{virtual ~NimBLECharacteristicCallbacks()=default;virtual void onSubscribe(NimBLECharacteristic*,NimBLEConnInfo&,uint16_t){}virtual void onStatus(NimBLECharacteristic*,NimBLEConnInfo&,int){}virtual void onStatus(NimBLECharacteristic*,int){}};
 REPORT_CALLBACKS
 struct Advertising{bool scan=false;int advBytes=3,scanBytes=0,starts=0;std::string name;void setAppearance(int){advBytes+=4;}void addServiceUUID(int){advBytes+=4;}void enableScanResponse(bool value){scan=value;}bool setName(const char* value){name=value;(scan?scanBytes:advBytes)+=name.size()+2;return advBytes<=31&&scanBytes<=31;}bool start(){assert(advBytes<=31&&scanBytes<=31);starts++;return true;}};
 struct NimBLEServer{int count=1,disconnects=0;NimBLEServerCallbacks* cb=nullptr;int getConnectedCount(){return count;}void disconnect(uint16_t){disconnects++;}void updateConnParams(uint16_t,int,int,int,int){}void setCallbacks(NimBLEServerCallbacks* value){cb=value;}void advertiseOnDisconnect(bool){}void start(){}};
@@ -88,7 +88,7 @@ int main(){
  std::puts("BLE diagnostic ring: real callback flags, newest 16 events, wraparound and original event fields passed");
  // Replay the observed startup order: restored auth/CCCD before connect.
  for(auto& peer:peers)peer=Peer{};server.count=1;info.handle=1;info.encrypted=info.bonded=true;info.addr.text="static-a";
- ReportCallbacks pointer(1),keyboard(2),consumer(3);auto subscribe=[&](ReportCallbacks& callback,NimBLEConnInfo& peer,uint16_t value){static_cast<NimBLECharacteristicCallbacks&>(callback).onSubscribe(nullptr,peer,value);};
+ ReportCallbacks pointer(1),keyboard(2),consumer(3);pointer.onStatus(nullptr,0);pointer.onStatus(nullptr,9);assert(bleTxStats[0].completed==1&&bleTxStats[0].failed==1);auto subscribe=[&](ReportCallbacks& callback,NimBLEConnInfo& peer,uint16_t value){static_cast<NimBLECharacteristicCallbacks&>(callback).onSubscribe(nullptr,peer,value);};
  server.cb->onAuthenticationComplete(info);const auto earlyEpoch=peers[0].epoch;assert(earlyEpoch&&!peers[0].connectSeen);
  subscribe(pointer,info,1);subscribe(keyboard,info,1);subscribe(consumer,info,1);assert(peers[0].reports==7);
  server.cb->onConnect(&server,info);assert(peers[0].reports==7&&peers[0].epoch==earlyEpoch&&peers[0].connectSeen);

@@ -25,7 +25,7 @@ template<class Rpc> size_t probe(CountingAllocator& allocator,size_t requestSize
  Rpc rpc;size_t atDispatch=0,calls=0;
  std::string request="{\"method\":\"GET\",\"path\":\"/v1/identity\",\"headers\":{},\"body\":\"\"}";
  if(requestSize>request.size())request.insert(request.size()-2,requestSize-request.size(),'a');
- rpc.dispatch([&](const std::string& value){calls++;assert(value==request);atDispatch=allocator.active;return std::string("{\"status\":200,\"body\":\"{}\"}");});
+ rpc.dispatch([&](iah::rtc::RequestMessage packet){std::string value;serializeJson(packet.envelope,value);calls++;assert(value==request);atDispatch=allocator.active;return std::string("{\"status\":200,\"body\":\"{}\"}");});
  JsonDocument frame;frame["v"]=1;frame["type"]="req";frame["id"]="12345678-1234-4234-8234-123456789abc";frame["n"]=1;frame["seq"]=0;frame["end"]=true;frame["data"]=Rpc::encode(reinterpret_cast<const uint8_t*>(request.data()),request.size());std::string text;serializeJson(frame,text);
  assert(rpc.input(reinterpret_cast<const uint8_t*>(text.data()),text.size(),10));assert(calls==1&&allocator.active==0);return atDispatch;
 }
@@ -35,7 +35,7 @@ int main(){for(size_t bytes:{size_t{0},size_t{256}}){const auto before=probe<bas
 with tempfile.TemporaryDirectory(prefix='iah-rpc-allocation-') as temp:
  folder=Path(temp)
  for namespace in ['baseline','optimized']:
-  code=source.replace('namespace iah { namespace rtc {','namespace '+namespace+' { using iah::rtc::Sctp;').replace('\n}}','\n}')
+  code=source.replace('namespace iah { namespace rtc {','namespace '+namespace+' { using iah::rtc::Sctp;using iah::rtc::Request;using iah::rtc::RequestMessage;using iah::plainJsonString;').replace('\n}}','\n}')
   code=code.replace('JsonDocument frame;','JsonDocument frame(&'+namespace+'Allocator);',1)
   if namespace=='baseline':code=code.replace('   frame.clear();','',1)
   (folder/(namespace+'.h')).write_text(code)

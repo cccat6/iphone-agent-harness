@@ -11,3 +11,9 @@ BLE callbacks publish snapshots. Directed input checks the phone identity and co
 Clipboard text streams through a temporary bounded buffer. Screenshots, model credentials and conversation history stay in the browser.
 
 Configured capacity is two BLE connection/bond slots, eight saved browser clients and two independent WebRTC peers. One RPC runs at a time on each connection; each phone has one active writer.
+
+Both RTC sessions share one read-only TLS server configuration, certificate, key and RNG on their owner task. Session record buffers remain separate. A handshake owner serializes the temporary cryptographic work while established peers continue processing packets. Failed heap allocations are counted without allocating memory in the callback; serial diagnostics expose the count and requested size.
+
+SCTP DATA requests immediate acknowledgements, and loss recovery retransmits the original bytes and sequence number. RPC IDs, monotonic request numbers and action payload hashes distinguish transport recovery from a second physical action. Completed action receipts remain queryable after an uncertain response.
+
+RTC requests use a bounded, fallible receive buffer. The envelope body is decoded in that owned buffer and linked explicitly into the parsed document; ArduinoJson 7 otherwise copies parsed strings. Dispatch releases the envelope before parsing an action body. An allocation failure returns an explicit unexecuted response, allowing the browser to retry without replaying an uncertain input.
