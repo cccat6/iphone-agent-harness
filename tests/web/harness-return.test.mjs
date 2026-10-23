@@ -67,3 +67,22 @@ test('capture stop during return pauses with the completed goal and return-only 
  }}).run({sessionId:f.session.id,text:'Set the alarm.'});
  assert.equal(result.status,'paused');const checkpoint=(await f.store.getSession(f.session.id)).promptState.runResume;assert.equal(checkpoint.state,'paused');assert.equal(checkpoint.taskCompletion.phase,'return_to_harness');assert.equal(checkpoint.taskCompletion.goalSummary,'Alarm saved and verified.');assert.equal(f.state.physical,1);f.store.close();
 });
+
+test('fresh same-session Harness evidence at goal completion avoids a second model-driven return',async()=>{
+ const f=await fixture(),execute=f.options.executePlan;
+ await createHarness({...f.options,executePlan:async(...args)=>{const value=await execute(...args);f.state.visible=true;return value;},invoke:async request=>f.prefix(request)}).run({sessionId:f.session.id,text:'Open Clock, then return to this conversation.'});
+ const events=await f.events();assert.equal(f.state.turns,3);assert.equal(f.state.physical,1);assert.equal(events.at(-1).payload.returnStatus,'returned');assert.ok(events.some(e=>e.type==='task.returned_to_harness'&&e.payload.verifiedWithGoal===true));assert.equal((await f.store.getSession(f.session.id)).promptState.runResume,null);f.store.close();
+});
+
+test('input after a Harness screenshot invalidates the shortcut even when the same conversation is visible',async()=>{
+ const f=await fixture(),execute=f.options.executePlan;let oldFrame;
+ await createHarness({...f.options,executePlan:async(...args)=>{const value=await execute(...args);f.state.visible=true;return value;},invoke:async request=>{
+  f.state.turns++;
+  if(f.state.turns===1){f.state.visible=true;return call('observe-before-input','phone_observe');}
+  if(f.state.turns===2){oldFrame=lastFrame(request);const plan={version:1,planId:'after-frame',sessionId:f.session.id,boardId:'board',targetId:'phone',basedOnFrameId:oldFrame,orientationEpoch:1,ttlMs:15000,maxExecutionMs:15000,steps:[{id:'home',op:'home',settleMs:0}]};return call('move','phone_execute_plan',{plan});}
+  if(f.state.turns===3)return report('stale-goal-frame',oldFrame);
+  if(f.state.turns===4)return call('new-proof','phone_observe');
+  return report('fresh-proof',lastFrame(request));
+ }}).run({sessionId:f.session.id,text:'Navigate and return.'});
+ const events=await f.events();assert.equal(f.state.turns,5);assert.equal(f.state.physical,1);assert.ok(events.some(e=>e.type==='task.goal_completed'));assert.ok(!events.some(e=>e.type==='task.returned_to_harness'&&e.payload.verifiedWithGoal));assert.equal(events.at(-1).payload.returnStatus,'returned');f.store.close();
+});

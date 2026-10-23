@@ -261,9 +261,10 @@ export async function prepareContext({store,sessionId,settings:input,provider,cr
         if(summaryContext?.hydrate)messages=await summaryContext.hydrate(messages);contextAbort(signal);
         let reply;
         for(let attempt=0;attempt<2;attempt++){
+          const requestStarted=performance.now();
           reply=await awaitContext(invoke({provider:{...provider,maxTokens:summaryBudget},credential,messages,tools:[],...(summaryContext?{toolDefinitions:summaryContext.toolDefinitions,...(!attempt?{purpose:'compaction'}:{})}:{}),signal,onDelta:()=>{}}),signal);contextAbort(signal);
           metrics.summaryCalls++;if(reply?.usage)metrics.providerUsage.push(reply.usage);
-          if(summaryContext?.onUsage)await summaryContext.onUsage(reply);contextAbort(signal);
+          if(summaryContext?.onUsage)await summaryContext.onUsage(reply,{durationMs:Math.round(performance.now()-requestStarted),sourceRange,attempt,batch:batches});contextAbort(signal);
           // No tool request is ever dispatched by compaction. If a provider
           // ignores the plain-text instruction, retry once with native `none`.
           if(!summaryContext||!reply?.toolCalls?.length||attempt)break;

@@ -265,11 +265,12 @@ function toInput(messages,scope){
 }
 async function* events(body,signal,onReadError){const reader=body.getReader(),decoder=new TextDecoder('utf-8',{fatal:true});let pending='',ended=false;try{while(true){check(signal);let chunk;try{chunk=await awaitWithSignal(reader.read(),signal);}catch(error){check(signal);throw onReadError?onReadError(error):error;}const {done,value}=chunk;pending+=done?decoder.decode():decoder.decode(value,{stream:true});if(pending.length>CODEX_LIMITS.eventChars)throw new Error('订阅响应事件超过容量限制');let match;while((match=/\r?\n\r?\n/.exec(pending))){const block=pending.slice(0,match.index);pending=pending.slice(match.index+match[0].length);const data=block.split(/\r?\n/).filter(l=>l.startsWith('data:')).map(l=>l.slice(5).replace(/^ /,'')).join('\n');if(data&&data!=='[DONE]'){try{yield JSON.parse(data);}catch(e){if(e instanceof SyntaxError)throw new Error('订阅响应事件格式无效');throw e;}}}if(done){ended=true;if(pending.trim()&&!pending.trim().startsWith(':'))throw new Error('订阅响应流被截断');return;}}}finally{if(!ended)try{await reader.cancel();}catch{}reader.releaseLock();}}
 export async function callCodexModel({provider,messages,tools=[],toolDefinitions=tools,signal,onDelta=()=>{},onRetry=()=>{},fetchImpl=fetch,sessionId}={}){
+ const callStarted=networkNow(),timing={};let firstEventAt=null,firstContentAt=null;
  const id=provider?.accountId||provider?.codexAccountId||activeId,a=accounts.get(id);if(!a)throw new Error('请选择已登录的订阅账号');if(!provider?.model)throw new Error('请选择订阅模型');
  const controller=new AbortController(),abort=()=>controller.abort(signal?.reason);signal?.addEventListener('abort',abort,{once:true});if(signal?.aborted)abort();const timer=setTimeout(()=>controller.abort(new Error('订阅模型请求超时')),provider.timeoutMs||180000);const active=controller.signal;
  try{
   const endpoint=a.flow==='codex'?CODEX_ENDPOINTS.responses:normalizeSubscriptionRelay(provider.subscriptionRelayUrl)+'/responses';
-  const token=await accessToken(id,{signal:active,fetchImpl});check(active);if(accounts.get(id)!==a)throw new Error('请求前账号已更换');
+  const credentialStarted=networkNow(),token=await accessToken(id,{signal:active,fetchImpl});timing.credentialMs=Math.round(networkNow()-credentialStarted);check(active);if(accounts.get(id)!==a)throw new Error('请求前账号已更换');
   const stateScope={origin:a.flow==='chatgpt-plan'?endpoint:new URL(endpoint).origin,accountId:id,backendAccountId:a.accountId,clientId:a.clientId,model:provider.model,flow:a.flow};
   const useContinuation=provider.enableResponseContinuation===true&&provider.storeResponses===true;
   const previousEntry=useContinuation?[...messages].reverse().find(message=>message.role==='assistant'&&continuationState(message,stateScope)):null;
@@ -279,8 +280,15 @@ export async function callCodexModel({provider,messages,tools=[],toolDefinitions
   const wireTools=a.flow==='chatgpt-plan'&&functionTools.length?[{type:'namespace',name:CODEX_TOOL_NAMESPACE,description:'Tools for this Harness conversation.',tools:functionTools}]:functionTools;
   const payload={model:provider.model,store:provider.storeResponses===true,stream:true,include:['reasoning.encrypted_content'],instructions:messages.filter(m=>m.role==='system').map(m=>m.text).join('\n\n')||'You are a helpful assistant.',input:toInput(requestMessages,stateScope),tools:wireTools,tool_choice:tools.length?'auto':'none',parallel_tool_calls:true,...(previousResponseId?{previous_response_id:previousResponseId}: {})};
   if(a.flow==='chatgpt-plan'&&provider.promptCacheKey)payload.prompt_cache_key=provider.promptCacheKey;
+  const version=/^gpt-(\d+)(?:\.(\d+))?[-.]/.exec(provider.model+'-');
+  if(a.flow==='chatgpt-plan'&&version&&(Number(version[1])>=6||Number(version[1])===5&&Number(version[2])>=6)){
+   const prior=[...messages].reverse().find(message=>message.role==='assistant'&&continuationState(message,stateScope));
+   const comparison=prior&&continuationState(prior,stateScope).responseId;
+   if(typeof comparison==='string'&&/^[A-Za-z0-9_-]{1,200}$/.test(comparison))payload.prompt_cache_options={comparison_response_id:comparison};
+  }
   Object.assign(payload,reasoningParameters({...provider,protocol:'codex'}));
-  const connectionStarted=networkNow(),requestOptions={method:'POST',headers:headers(a,token,{sessionId:sessionId||provider.sessionId}),body:JSON.stringify(payload),signal:active,fetchImpl,...(a.flow==='chatgpt-plan'?{relayEndpoint:endpoint}:{})};
+  const serializeStarted=networkNow(),encoded=JSON.stringify(payload);timing.serializeMs=Math.round(networkNow()-serializeStarted);timing.prepareMs=Math.round(networkNow()-callStarted);
+  const connectionStarted=networkNow(),requestOptions={method:'POST',headers:headers(a,token,{sessionId:sessionId||provider.sessionId}),body:encoded,signal:active,fetchImpl,...(a.flow==='chatgpt-plan'?{relayEndpoint:endpoint}:{})};
   const retryDelays=[500,1000,2000,4000,8000];let response,connectionAttempts=0,recoveredNetwork=null;
   while(true){
    try{connectionAttempts++;response=await request(endpoint,requestOptions);if(previousResponseId&&response.status>=400&&response.status<500&&[400,404].includes(response.status)){try{await response.body?.cancel();}catch{}delete payload.previous_response_id;payload.input=toInput(messages,stateScope);requestOptions.body=JSON.stringify(payload);response=await request(endpoint,requestOptions);}break;}
@@ -291,6 +299,7 @@ export async function callCodexModel({provider,messages,tools=[],toolDefinitions
     throw relayFailure(facts);
    }
   }
+  timing.responseHeadersMs=Math.round(networkNow()-connectionStarted);
   if(recoveredNetwork)recoveredNetwork=safeNetworkDiagnostics({...recoveredNetwork,attempts:connectionAttempts,durationMs:Math.max(0,Math.min(3600000,networkNow()-connectionStarted)),recovered:true});
   const streamError=error=>relayStreamFailure(networkFacts('reading_response_stream',connectionStarted,error,connectionAttempts));
   if(!response.ok){const error=await readProviderFailure(response,{signal:active});if(['CONTEXT_WINDOW_EXCEEDED','PROVIDER_REGION_UNSUPPORTED'].includes(error.code))throw error;throw failure(response.status===401?'订阅登录失效，请刷新或重新登录':response.status===429?'订阅额度或速率达到限制':'订阅模型请求失败',response.status);}if(!response.body)throw a.flow==='chatgpt-plan'?streamError(new Error('missing stream')):new Error('订阅后端未返回响应流');
@@ -308,6 +317,8 @@ export async function callCodexModel({provider,messages,tools=[],toolDefinitions
    if(JSON.stringify([...finishedItems.values()].map(entry=>entry.item)).length>CODEX_LIMITS.stateChars)throw new Error('订阅协议状态超过容量限制');
   }
   for await(const e of events(response.body,active,a.flow==='chatgpt-plan'?streamError:undefined)){
+   const receivedAt=networkNow();firstEventAt??=receivedAt;
+   if(firstContentAt===null&&(/\.delta$/.test(e.type||'')||e.type==='response.output_item.added'&&e.item?.type==='function_call'))firstContentAt=receivedAt;
    check(active);if(e.type==='error'||e.type==='response.failed'||e.type==='response.incomplete'||e.type==='response.cancelled')throw contextOverflowError(e)||new Error('订阅响应未成功完成；未执行操作');
    if(e.type==='response.output_text.delta'){if(typeof e.delta!=='string'||text.length+e.delta.length>CODEX_LIMITS.textChars)throw new Error('订阅响应文本超过容量限制');text+=e.delta;emit(e.delta);}
    if(e.type==='response.output_item.added'&&e.item?.type==='function_call')saveCall(itemKey(e.item,e.output_index),{...e.item,arguments:e.item.arguments||''});
@@ -328,7 +339,8 @@ export async function callCodexModel({provider,messages,tools=[],toolDefinitions
   if(!text&&!toolCalls.length)throw new Error('订阅响应为空；未执行操作');
   const items=copy(completedItems.filter(i=>['reasoning','message','function_call'].includes(i.type)));
   const providerState={kind:'codex-responses/1',...stateScope,responseId:terminal.id||null,items};
-  return {text,toolCalls,finish:toolCalls.length?'tool_calls':'stop',usage:terminal.usage||null,cache:terminal.usage?{...cacheUsage(terminal.usage),diagnostics:terminal.prompt_cache_diagnostics||null,serviceTier:terminal.service_tier||null}:null,responseId:terminal.id||null,providerState,...(recoveredNetwork?{transportDiagnostics:recoveredNetwork}:{})};
+  timing.firstEventMs=firstEventAt===null?null:Math.round(firstEventAt-connectionStarted);timing.firstContentMs=firstContentAt===null?null:Math.round(firstContentAt-connectionStarted);timing.streamMs=Math.round(networkNow()-connectionStarted-timing.responseHeadersMs);timing.totalMs=Math.round(networkNow()-callStarted);
+  return {text,toolCalls,finish:toolCalls.length?'tool_calls':'stop',usage:terminal.usage||null,timing,cache:terminal.usage?{...cacheUsage(terminal.usage),diagnostics:terminal.prompt_cache_diagnostics||null,serviceTier:terminal.service_tier||null}:null,responseId:terminal.id||null,providerState,...(recoveredNetwork?{transportDiagnostics:recoveredNetwork}:{})};
  }catch(e){check(active);if(e.status||e.code==='CONTEXT_WINDOW_EXCEEDED'||e.code?.startsWith('SIWC_RELAY_'))throw e;throw new Error(['订阅响应','订阅协议','工具','请选择','请求前','订阅账号','登录'].some(p=>e.message?.startsWith(p))?e.message:'订阅通信失败；请检查登录、CORS 与网络');}
  finally{clearTimeout(timer);signal?.removeEventListener('abort',abort);}
 }

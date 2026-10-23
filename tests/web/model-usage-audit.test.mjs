@@ -41,3 +41,12 @@ test('run cache accounting includes compaction API usage using its own protocol 
  await store.addEvent(session.id,{runId:'r',type:'model.compaction_usage',payload:{protocol:'anthropic',model:'fixture',usage:{input_tokens:10,cache_read_input_tokens:90,cache_creation_input_tokens:0}}});
  const report=await inspectRunMetrics(store,{sessionId:session.id,runId:'r'});assert.equal(report.compactions.length,1);assert.equal(report.compactions[0].cache.inputTokens,100);assert.equal(report.cache.cacheHitRatio,.9);
 });
+
+test('inspection retains preparation, stream, cache diagnosis and nested latency without double-counting capture',async()=>{
+ const store=await openStore({memory:true}),s=await store.createSession();
+ const add=(type,payload)=>store.addEvent(s.id,{runId:'timed',type,payload});
+ await add('run.started',{});await add('model.started',{requestId:'m',preparation:{totalMs:100,imagesMs:20}});await add('model.usage',{requestId:'m',durationMs:500,timing:{responseHeadersMs:100,firstContentMs:200,totalMs:499},usage:{input_tokens:100,cached_tokens:90},cache:{diagnostics:{status:'cache_hit'}}});
+ await add('model.compaction_usage',{durationMs:80,sourceRange:{fromSeq:1,throughSeq:10},usage:{input_tokens:10,cached_tokens:0}});
+ await add('tool.result',{name:'phone_observe',status:'returned',durationMs:200});await add('capture.stage',{stage:'capture',durationMs:150});await add('tool.result',{name:'phone_execute_plan',status:'failed',durationMs:300});await add('run.ended',{status:'completed'});
+ const report=await inspectRunMetrics(store,{sessionId:s.id,runId:'timed',pageSize:2});assert.equal(report.requests[0].preparation.imagesMs,20);assert.equal(report.requests[0].timing.firstContentMs,200);assert.equal(report.requests[0].cacheDiagnostics.status,'cache_hit');assert.equal(report.compactions[0].sourceRange.throughSeq,10);assert.equal(report.latency.modelMs,500);assert.equal(report.latency.preparationMs,100);assert.equal(report.latency.compactionMs,80);assert.equal(report.latency.toolMs,500);assert.deepEqual(report.latency.byTool.phone_execute_plan,{calls:1,failed:1,durationMs:300});
+});
