@@ -1,7 +1,7 @@
 ---
 name: phone-navigation
 description: Navigate iPhone and iPad across apps using fresh full-display evidence, bounded taps and validated Home input.
-version: 0.3.2
+version: 0.3.3
 ---
 
 # phone-navigation
@@ -24,7 +24,7 @@ Open an app, change a known tab, go back through visible UI, dismiss an ordinary
 2. Choose the smallest supported operation. Prefer a visible back/button/tab. For Home, use the validated `home` operation, not Fn-H or a swipe from the screen edge.
 3. Batch only actions whose targets remain predictable. A transition that changes layout ends at a capture with `review:true`; do not use the pre-transition image to tap a newly revealed icon.
 4. After the plan completes, inspect the returned frame. If the destination has loaded and a distinctive title/content is visible, report that observation. If an overlay intercepts input, observe before trying another coordinate.
-5. For app launch via Home, first complete Home + review; only then locate the app icon in the new screenshot. Do not infer icon positions from a prior layout.
+5. For app launch, complete Home + review and use an immediately visible icon. If the app is not visible, prefer the Home screen Search control or a downward swipe beginning inside the Home content, then inspect the actual search field. Enter a short app-name prefix or supported initials, inspect the results and open the matching app. Extend the query or use its localized/English name if necessary. Search results establish the match; initials are not guaranteed for every locale. Avoid repeatedly traversing Home pages or treating a failed page swipe as proof that the app is absent.
 6. Locate the center of the icon or control in the **entire image** and use its actual width/height for normalization. The screenshot may be larger than the Harness viewport or shown as a thumbnail; browser CSS pixels, safe-area insets, and the visible pointer ring are not the coordinate reference. Do not add a guessed vertical offset. If the wrong app opens, inspect that outcome and return through a fresh Home review before choosing the icon again.
 7. For alarms, dates, or time wheels, have the full `clock-and-time` instructions loaded before adjusting values. Reuse a same-version load already in context; load missing related Skills together when their need is already clear. Precise numeric entry and verified selected values are preferable to guessing wheel positions.
 
@@ -48,3 +48,9 @@ A fresh image shows the expected app identity, title, selected tab or destinatio
 ## Budget and recovery
 
 Use one uncertain navigation transition per review boundary, then reassess the actual destination. Load `gesture-correction` after misses and adjust from fresh frames; no fixed transition/correction count limits the overall task. Stop on target changes, permission loss, unknown delivery or repeated unchanged UI; load `recovery` instead of replaying the navigation chain. This is an implementation recipe, not proof of compatibility with every app.
+
+## Home pages, Search and returning to Harness
+
+- Home pages snap between positions. A short slow held drag may leave the page between positions or snap back. For a page turn, use a substantial horizontal path within the icon area and lift while moving; check the selected page indicator and stable icon layout. Reverse the direction to return.
+- To reveal Home Search, begin below the status bar and inside the Home content, move downward, then release. A gesture beginning at the top edge can open notifications instead. Prefer the visible Search button when available. Identify the actual resulting screen before typing.
+- Harness is the current web conversation in Safari. Bring Safari forward, retain the existing tab, and open the active conversation if the session list is visible. A browser window, a different tab, or the session list alone does not verify the return. Do not reload or create a replacement conversation as a navigation shortcut.

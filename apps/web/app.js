@@ -206,6 +206,12 @@ function historyWindow(){return state.history||(state.history=createHistoryWindo
 async function refreshConversationPresentation(){state.history?.clear();state.history=null;if(state.current){applyHistory(await historyWindow().load(state.current.id));}renderMessages();}
 function applyHistory(page){if(!page)return false;state.messages=page.messages;state.hasOlder=page.hasOlder;state.hasNewer=page.hasNewer;state.messageLimit=page.messages.length;return true;}
 async function openSession(id,{fromSubmit=false,replaceDraft=false}={}) {
+  // Reopening the active conversation is a view change, not a task switch.
+  if(!fromSubmit&&(state.running||state.submitting)&&state.current?.id===id){
+    $('#app').classList.add('in-conversation');
+    state.navigation?.go({route:'harness',screen:'session',sessionId:id,panel:null,action:null});
+    renderRunControls();return state.current;
+  }
   if(state.submitting&&!fromSubmit)throw new Error('请先停止当前任务，再切换会话。');
   if(state.current)state.drafts.set(state.current.id,$('#message-input').value);else if(state.composerDraftActive)rememberComposerDraft();
   if(state.running&&state.current?.id!==id)throw new Error('请先停止当前任务，再切换会话。');

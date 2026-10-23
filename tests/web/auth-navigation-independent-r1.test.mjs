@@ -62,3 +62,14 @@ test('provider editor retains exact catalog reasoning metadata when applying and
  await ctx.apply([{id:'catalog-model',supported_reasoning_levels:[{effort:'low'},{effort:'ultra'}],default_reasoning_level:'low',context_window:1000000}]);
  assert.deepEqual(Array.from(state.providerModels[0].supportedReasoningEfforts),['low','ultra']);assert.equal(state.providerModels[0].defaultReasoningEffort,'low');assert.equal(state.providerModels[0].contextWindowTokens,1000000);assert.equal(editorForm.elements.model.value,'catalog-model');
 });
+
+test('reopening the running conversation from the list preserves task, streaming text and history state',async()=>{
+ const start=source.indexOf('async function openSession('),end=source.indexOf('\nasync function pageHistory(',start);
+ for(const submitting of [true,false]){
+  const classes=new Set(),moves=[],current={id:'active'},state={current,running:true,submitting,pending:'partial reply',messages:[{text:'history'}],drafts:new Map(),navigation:{go:view=>moves.push(view)},store:{getSession:()=>assert.fail('active conversation must not reload storage')}};
+  const nodes={'#app':{classList:{add:name=>classes.add(name)}},'#message-input':{value:'draft'}};let renders=0;
+  const context=vm.createContext({state,$:s=>nodes[s],renderRunControls:()=>renders++});vm.runInContext(source.slice(start,end)+'\nglobalThis.open=openSession;',context);
+  assert.equal(await context.open('active'),current);assert.equal(classes.has('in-conversation'),true);assert.equal(moves[0].sessionId,'active');assert.equal(state.pending,'partial reply');assert.equal(state.running,true);assert.equal(state.submitting,submitting);assert.equal(renders,1);
+  await assert.rejects(context.open('different'),/请先停止/);
+ }
+});

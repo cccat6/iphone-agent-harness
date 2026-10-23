@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "list-scroll",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Scroll phone content with bounded single-pointer swipes and verify direction, progress, settling and end-of-list conditions.",
   "entry": "SKILL.md",
   "protocolVersion": 1,
@@ -14,8 +14,8 @@
   "files": [
     {
       "path": "SKILL.md",
-      "sha256": "c986d7dce1849459cdf10dc67d67fa93c5e41b9a21b20a79b8f53dcb3e0f404c",
-      "bytes": 5056
+      "sha256": "4194b358ef7661aa08ac43e1c30f1fea0c25582c4cc651d21b3bd0370068399f",
+      "bytes": 5354
     }
   ]
 }

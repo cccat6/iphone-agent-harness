@@ -170,7 +170,9 @@ export function compileGesture(step,context={}) {
     const times=new Set(path.map(p=>p.tMs));for(let t=interval;t<end;t+=interval)times.add(t);
     events=[pointer(0,0,path[0]),pointer(settle,1,path[0])];let at=0;
     for(const t of [...times].sort((a,b)=>a-b)){
-      if(t===0)continue;
+      // A fling lifts at its final moving point. Sending a held endpoint
+      // first creates a zero-distance down/up pair that can cancel inertia.
+      if(t===0||step.op==='swipe'&&t===end)continue;
       while(at+1<path.length&&path[at+1].tMs<t)at++;
       const a=path[at],b=path[Math.min(at+1,path.length-1)],fraction=(t-a.tMs)/(b.tMs-a.tMs);
       const p={x:Math.round(a.x+(b.x-a.x)*fraction),y:Math.round(a.y+(b.y-a.y)*fraction)};

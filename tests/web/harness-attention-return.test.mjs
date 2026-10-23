@@ -128,3 +128,14 @@ for(const phase of ['attention','completion'])test(`${phase} return prose recove
  });
  const saved=await f.store.getSession(f.session.id);if(phase==='completion'){assert.equal(saved.promptState.runResume,null);assert.equal((await f.events()).at(-1).payload.status,'completed');}else{assert.ok(saved.promptState.runResume);}assert.equal(f.state.physical,0);f.store.close();
 });
+
+test('asking for help does not invalidate a known released input state before return navigation',async()=>{
+ const f=await fixture();await f.run((request,n)=>{if(n===1)return question();if(n===2)return call('return-home','phone_execute_plan',{plan:f.plan});if(n===3){f.state.visible=true;return call('verify-return','phone_observe');}return report('verified',lastFrame(request));});
+ assert.equal(f.state.turns,4);assert.equal(f.state.physical,1);assert.ok(!(await f.events()).some(e=>e.type==='tool.result'&&e.payload.diagnostic?.code==='FRESH_OBSERVATION_REQUIRED'));assert.equal((await f.events()).at(-1).payload.status,'needs_user');f.store.close();
+});
+
+test('an uncertain delivered input still requires fresh observation during attention return',async()=>{
+ const f=await fixture();f.options.executePlan=async()=>{f.state.physical++;return {status:'unknown',frames:[],steps:[]};};
+ await f.run((request,n)=>{if(n===1)return call('uncertain','phone_execute_plan',{plan:f.plan});if(n===2)return question();if(n===3)return call('must-observe','phone_execute_plan',{plan:{...f.plan,planId:'new-return-plan'}});if(n===4){f.state.visible=true;return call('reconcile','phone_observe');}return report('returned',lastFrame(request));});
+ assert.equal(f.state.physical,1);assert.ok((await f.events()).some(e=>e.type==='tool.result'&&e.payload.diagnostic?.code==='FRESH_OBSERVATION_REQUIRED'));assert.equal((await f.events()).at(-1).payload.status,'needs_user');f.store.close();
+});

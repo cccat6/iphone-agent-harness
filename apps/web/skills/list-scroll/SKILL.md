@@ -1,7 +1,7 @@
 ---
 name: list-scroll
 description: Scroll phone content with bounded single-pointer swipes and verify direction, progress, settling and end-of-list conditions.
-version: 0.3.1
+version: 0.3.2
 ---
 
 # list-scroll
@@ -23,7 +23,7 @@ Find an item in a list, reveal content or compare motion after a swipe. Prefer p
 1. Observe the screen. Identify the scrollable content rectangle and a persistent visual anchor; avoid tabs, sliders, horizontally draggable cards, interactive buttons and screen edges.
 2. Choose a moderate path wholly inside that region. To reveal content below, the pointer normally moves upward; describe the intended content movement and confirm it from images rather than relying on wording like “scroll up.”
 3. Use `swipe` when the pointer must release while moving. Its final timed path segment must have nonzero displacement; do not append an endpoint pause or duplicate last point. Use `drag` with endpoint hold when a deliberate non-inertial move is desired.
-4. End at a safe `capture` review. For rapid motion/inertia questions, load `temporal-observation` and use a supported `observe` node; a normal capture occurs after release.
+4. Review after release and settling. A single immediate image can catch an intermediate snap or inertial position. For a fast release, wheel or uncertain decay, request a small group of time-separated post-release frames and compare the same anchors in its last two images. Wait and observe again if the control is still moving. Use `observe` only when the task needs evidence during the complete motion; do not confuse those in-motion frames with a final settled value.
 5. Locate the anchor in the new frame. Compare which content became visible and whether the desired item appeared. Recompute coordinates after movement.
 6. A time/date picker wheel is not an ordinary list: load `clock-and-time`, inspect whether tapping its selected number exposes numeric editing, and verify exact values. Do not use long inertial swipes to estimate a time.
 7. If continued scrolling is predictable, batch at most two modest swipes with labelled captures; stop batching when content may insert, paginate, change orientation or reveal the target.

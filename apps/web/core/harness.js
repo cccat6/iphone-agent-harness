@@ -228,7 +228,7 @@ export function createHarness({store,onEvent=()=>{},capture=screenCapture,invoke
           if((await harnessState()).visible){attentionAttempted=true;await journal('task.attention_already_visible');return false;}
           let live;try{live=await context();}catch(error){checkAbort(runSignal);return false;}
           if(phoneInputError(live)||live.identityVerified!==true||live.bindingVerified!==true||live.leaseVerified!==true||live.executionEnabled!==true||live.inputState!=='released'||!(typeof executePlan==='function'||typeof device?.submitSegment==='function'))return false;
-          attentionAttempted=true;attentionReturn={phase:'return_for_attention',terminal:{...candidate,status:'needs_user'},originalStatus:candidate.status};recoveryRequired=true;noToolProgress=0;
+          attentionAttempted=true;attentionReturn={phase:'return_for_attention',terminal:{...candidate,status:'needs_user'},originalStatus:candidate.status};noToolProgress=0;
           await saveResume({version:1,state:'running',runId:run.id,goal:(goal||session?.goal||text).slice(0,4000),text:text.slice(0,4000),mode,reason:'return_for_attention',uncertainPlans:[...uncertainPlans].slice(-8)});
           await journal('task.attention_return_started',{reason:candidate.question||candidate.summary||'',originalStatus:candidate.status});
           emit({type:'status',status:'returning_to_harness'});return true;
@@ -274,7 +274,7 @@ export function createHarness({store,onEvent=()=>{},capture=screenCapture,invoke
           }
           const recoveredNetwork=safeNetworkDiagnostics(reply.transportDiagnostics);if(recoveredNetwork?.recovered===true)await journal('model.network_recovered',{network:recoveredNetwork});
           const metrics=usageMetrics(reply.usage,provider.protocol==='anthropic');
-          await journal('model.usage',{requestId,step:stepCount,protocol:provider.protocol,model:provider.model,responseId:reply.responseId||null,durationMs:Math.round(performance.now()-modelStartedAt),...(reply.timing?{timing:reply.timing}:{}),usage:reply.usage||null,...metrics,cache:{...(reply.cache||{}),...metrics.cache}});
+          await journal('model.usage',{requestId,step:stepCount,protocol:provider.protocol,model:provider.model,...(reply.actualModel?{actualModel:reply.actualModel}:{}),...(reply.reasoningContext?{reasoningContext:reply.reasoningContext}:{}),responseId:reply.responseId||null,durationMs:Math.round(performance.now()-modelStartedAt),...(reply.timing?{timing:reply.timing}:{}),usage:reply.usage||null,...metrics,cache:{...(reply.cache||{}),...metrics.cache}});
           if(reply.usage){const usage=requestContextUsage(reply.usage,provider,projected.metrics.lastSeq);if(usage)emit({type:'context',status:'usage',sessionId,modelId:contextModelId,snapshot:usage});}
           const calls=callsFrom(reply);
           if(stepCount===0)void generateSessionTitle({store,sessionId,provider,credential,invoke:titleInvoke,locale:getLocale(),signal:runSignal,onEvent:emit}).catch(()=>{});

@@ -12,7 +12,7 @@ function allowedOrigin(request,allowedOrigins){
 }
 function responseHeaders(origin){return new Headers({
  'Cache-Control':'no-store','Pragma':'no-cache','X-Content-Type-Options':'nosniff','Vary':'Origin',
- ...(origin?{'Access-Control-Allow-Origin':origin,'Access-Control-Allow-Methods':'GET, POST, OPTIONS','Access-Control-Allow-Headers':'Authorization, Content-Type, Accept','Access-Control-Expose-Headers':'X-Request-ID, Retry-After'}:{}),
+ ...(origin?{'Access-Control-Allow-Origin':origin,'Access-Control-Allow-Methods':'GET, POST, OPTIONS','Access-Control-Allow-Headers':'Authorization, Content-Type, Accept','Access-Control-Expose-Headers':'X-Request-ID, Retry-After, Server-Timing'}:{}),
 });}
 const reject=(origin,status,code)=>Response.json({error:{code,message:code}},{status,headers:responseHeaders(origin)});
 function cancelBody(body){try{void Promise.resolve(body?.cancel()).catch(()=>{});}catch{}}
@@ -40,10 +40,14 @@ export async function serveOpenAIRelay(request,{fetchImpl=globalThis.fetch,allow
  try{
   const headers=new Headers({Authorization:authorization,Accept:route.method==='GET'?'application/json':'text/event-stream','Accept-Encoding':'identity'});
   if(route.method==='POST')headers.set('Content-Type','application/json');
+  const upstreamStarted=performance.now();
   const pending=Promise.resolve(fetchImpl.call(globalThis,route.url,{method:route.method,headers,body:route.method==='POST'?request.body:undefined,signal:controller.signal,redirect:'manual',credentials:'omit',cache:'no-store'})).then(upstream=>{if(controller.signal.aborted){cancelBody(upstream.body);throw controller.signal.reason;}return upstream;});
   const upstream=await abortable(pending,controller.signal);
   if(upstream.status>=300&&upstream.status<400){cancelBody(upstream.body);finish();return reject(origin,502,'RELAY_UPSTREAM_REDIRECT');}
   const outgoing=responseHeaders(origin);
+  const timing=['iah-upstream;dur='+Math.max(0,Math.round(performance.now()-upstreamStarted))];
+  const processing=upstream.headers.get('openai-processing-ms');if(processing&&/^\d{1,7}(?:\.\d{1,3})?$/.test(processing)&&Number(processing)<=3600000)timing.push('iah-provider;dur='+Number(processing));
+  outgoing.set('Server-Timing',timing.join(', '));
   for(const name of ['content-type','content-encoding','x-request-id','retry-after']){const value=upstream.headers.get(name);if(value)outgoing.set(name,value);}
   if(!upstream.body){finish();return new Response(null,{status:upstream.status,headers:outgoing});}
   reader=upstream.body.getReader();

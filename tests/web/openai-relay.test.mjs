@@ -48,3 +48,10 @@ test('same-origin GET without an Origin header still forwards the user bearer',a
  assert.equal(response.status,200);assert.equal(calls,1);assert.equal(response.headers.get('access-control-allow-origin'),null);await response.json();
  const missing=await serveOpenAIRelay(new Request(prefix+'/models'),{fetchImpl:async()=>assert.fail('missing bearer')});assert.equal(missing.status,401);
 });
+
+test('relay exposes header latency and validated provider duration while streaming unchanged',async()=>{
+ for(const processing of ['12.5','12;desc="private"']){
+  const response=await serveOpenAIRelay(req(),{fetchImpl:async()=>new Response('streamed bytes',{headers:{'openai-processing-ms':processing,'server-timing':'private;desc="upstream metadata"'}})});
+  assert.match(response.headers.get('server-timing'),/^iah-upstream;dur=\d+(?:, iah-provider;dur=12\.5)?$/);assert.equal(response.headers.get('server-timing').includes('iah-provider'),processing==='12.5');assert.ok(response.headers.get('access-control-expose-headers').includes('Server-Timing'));assert.equal(await response.text(),'streamed bytes');
+ }
+});

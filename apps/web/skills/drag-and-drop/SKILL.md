@@ -1,7 +1,7 @@
 ---
 name: drag-and-drop
 description: Move one phone UI item with a complete bounded press–move–release trajectory, distinct from inertial scrolling.
-version: 0.3.1
+version: 0.3.2
 ---
 
 # drag-and-drop
@@ -24,7 +24,7 @@ Move a draggable item, adjust a slider precisely or perform an explicit single-p
 2. Decide whether the app needs an initial hold to pick up the item. Use a complete `pointer_sequence` to express down, optional stationary hold, timed moves, optional final hold and up. All phases must fit one bounded segment.
 3. Choose a path that avoids unwanted drop zones and edge auto-scroll. Start with a moderate duration and limit the total press to the runtime maximum (initial proposal: 3 seconds).
 4. Never press in one model call and wait to decide the release in another. If the route cannot be determined before pressing, observe first or ask the user; do not leave a pointer down while an LLM responds.
-5. Release at the destination. A short endpoint hold is appropriate for precise placement and intentionally removes release velocity. For a swipe, use the different `swipe` operation without that hold.
+5. Reach the destination while held, let movement stop, then release. A short endpoint hold is appropriate for precise placement and intentionally removes release velocity. For a swipe, use the different `swipe` operation without that hold.
 6. Normalize source and destination against the same complete frame. The compiler first positions with the button released for at least one reported device interval before down; it does not apply a hidden calibration offset. A precise drag uses an endpoint hold; a moving release intentionally allows inertia and is unsuitable for selecting an exact wheel value without follow-up verification.
 7. Review a fresh post-release image. If the item did not move, re-observe whether it is draggable and whether the current app requires a different supported gesture.
 

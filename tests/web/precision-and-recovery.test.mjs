@@ -20,7 +20,7 @@ test('first press leaves a released positioning interval before button-down',()=
 test('a moving release has no endpoint pause while a precise drag keeps its explicit hold',()=>{
  const motion={id:'swipe',op:'swipe',path:[{x:5000,y:8000,tMs:0},{x:5000,y:4500,tMs:160},{x:5000,y:2000,tMs:300}]};
  const swipe=compileGesture(motion,makeContext()).events,drag=compileGesture({...motion,op:'drag',endHoldMs:120},makeContext()).events;
- assert.equal(swipe.at(-1).atMs,swipe.at(-2).atMs);assert.equal(swipe.at(-1).buttons,0);assert.notEqual(swipe.at(-3).y,swipe.at(-2).y);
+ assert.equal(swipe.at(-1).atMs-swipe.at(-2).atMs,20);assert.notEqual(swipe.at(-1).y,swipe.at(-2).y);assert.equal(swipe.at(-1).buttons,0);assert.notEqual(swipe.at(-3).y,swipe.at(-2).y);
  assert.equal(drag.at(-1).atMs-drag.at(-2).atMs,120);
  assert.deepEqual(swipe.at(-1),{atMs:400,kind:'pointer',buttons:0,x:5000,y:2000});
 });

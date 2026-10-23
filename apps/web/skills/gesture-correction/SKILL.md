@@ -1,7 +1,7 @@
 ---
 name: gesture-correction
 description: Learn from observed pointer misses, scrolling overshoot and picker response, then refine gestures or use direct entry.
-version: 0.1.1
+version: 0.1.2
 ---
 
 # Gesture correction
@@ -29,3 +29,18 @@ This is guidance for the existing fixed phone tools, not executable code or an i
 When a submitted gesture is followed by a screenshot timeout, observe the current result before another gesture; retrying a screenshot does not authorize replaying input. Budget the gesture, settling, transport and review together, rather than repeatedly using a too-short plan deadline.
 
 Do not write device offsets or sensitivity settings based on these notes. They are evidence-grounded planning guidance, not measured hardware calibration constants. Do not store unrelated private content in a shared Skill.
+
+## Motion and release reference
+
+These are starting ranges for a first probe, not a fixed rhythm or a calibration shared by all apps. Express the whole down/move/up sequence in one plan so the ESP32 schedules its reports without a network round trip between points.
+
+| Intent | Initial approach | Release and evidence |
+| --- | --- | --- |
+| Turn a Home page | Horizontal travel of roughly half the display width over about 180–350 ms, inside the icon area | Use a moving release (`swipe`); verify a complete page snap and the page indicator |
+| Reveal Home Search | Prefer its visible button; otherwise a moderate downward movement starting in Home content, below the status bar | Inspect the resulting search field; an edge-origin gesture may reveal a different system surface |
+| Scroll a content list | Keep the path inside the content viewport; begin with moderate travel and speed | Moving release for inertia; stop-and-hold release for a controlled displacement |
+| Fine wheel or slider adjustment | Use the actual column/track bounds and a smaller held drag; start around 100–200 ms of endpoint hold | Read the selected value after settling; prefer verified direct numeric entry when available |
+
+Release velocity depends on the final part of the path, not only total duration. A fast initial movement followed by a slow approach or endpoint dwell is not a fling. For inertia, continue moving through release and omit any final hold. For controlled placement, arrive, keep the button held while motion stops, then release. HID button-up is the lift; do not send another held report at the same endpoint first.
+
+After a fast fling, a snapping page or a wheel change, distinguish a submitted release from a settled control. Choose a wait based on the observed speed and control: faster releases can need longer decay; a slow wheel may still animate for more than a second. Use a small time-separated frame group when settling is uncertain, comparing the same content anchors or selected row in the last two frames. If they still move, wait and observe again before computing the next coordinate or declaring an exact value. Store full frames; the control's visible bounds determine what to compare. Animated clocks, cursors and unrelated video are not motion of the target control.

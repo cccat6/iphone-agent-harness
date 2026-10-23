@@ -253,15 +253,22 @@ function continuationState(message,scope){
  return state?.kind==='codex-responses/1'&&state.origin===scope.origin&&state.accountId===scope.accountId&&state.backendAccountId===scope.backendAccountId&&state.clientId===scope.clientId&&state.model===scope.model&&state.flow===scope.flow&&typeof state.responseId==='string'&&state.responseId?state:null;
 }
 function toInput(messages,scope){
- const out=[],images=[];
+ const out=[];
  for(const m of messages){
   if(m.role==='system')continue;
-  if(m.role==='tool'){if(!m.toolCallId)throw new Error('工具结果缺少调用 ID');out.push({type:'function_call_output',call_id:m.toolCallId,output:m.text||' '});for(const image of m.images||[])images.push({type:'input_image',image_url:image,detail:'auto'});continue;}
-  if(images.length)out.push({role:'user',content:images.splice(0)});
+  if(m.role==='tool'){
+   if(!m.toolCallId)throw new Error('工具结果缺少调用 ID');
+   // Images belong to their tool result. A synthetic user message would start
+   // a new turn and change current-turn reasoning/cache behavior on the server.
+   const output=m.images?.length?[{type:'input_text',text:m.text||' '},...m.images.map(image=>({type:'input_image',image_url:image,detail:'auto'}))]:m.text||' ';
+   out.push({type:'function_call_output',call_id:m.toolCallId,output});continue;
+  }
   const replay=replayState(m,scope);if(replay){out.push(...replay);continue;}
-  const content=[];if(m.text)content.push({type:m.role==='assistant'?'output_text':'input_text',text:m.text});for(const image of m.images||[])content.push({type:'input_image',image_url:image,detail:'auto'});if(content.length)out.push({role:m.role,content});for(const c of m.toolCalls||[])out.push({type:'function_call',call_id:c.id,name:c.name,...(scope.flow==='chatgpt-plan'?{namespace:CODEX_TOOL_NAMESPACE}:{}),arguments:JSON.stringify(c.arguments)});
+  const role=m.runtimeContext&&m.internal?'developer':m.role,content=[];
+  if(m.text)content.push({type:role==='assistant'?'output_text':'input_text',text:m.text});for(const image of m.images||[])content.push({type:'input_image',image_url:image,detail:'auto'});
+  if(content.length)out.push({role,content});for(const c of m.toolCalls||[])out.push({type:'function_call',call_id:c.id,name:c.name,...(scope.flow==='chatgpt-plan'?{namespace:CODEX_TOOL_NAMESPACE}:{}),arguments:JSON.stringify(c.arguments)});
  }
- if(images.length)out.push({role:'user',content:images});return out;
+ return out;
 }
 async function* events(body,signal,onReadError){const reader=body.getReader(),decoder=new TextDecoder('utf-8',{fatal:true});let pending='',ended=false;try{while(true){check(signal);let chunk;try{chunk=await awaitWithSignal(reader.read(),signal);}catch(error){check(signal);throw onReadError?onReadError(error):error;}const {done,value}=chunk;pending+=done?decoder.decode():decoder.decode(value,{stream:true});if(pending.length>CODEX_LIMITS.eventChars)throw new Error('订阅响应事件超过容量限制');let match;while((match=/\r?\n\r?\n/.exec(pending))){const block=pending.slice(0,match.index);pending=pending.slice(match.index+match[0].length);const data=block.split(/\r?\n/).filter(l=>l.startsWith('data:')).map(l=>l.slice(5).replace(/^ /,'')).join('\n');if(data&&data!=='[DONE]'){try{yield JSON.parse(data);}catch(e){if(e instanceof SyntaxError)throw new Error('订阅响应事件格式无效');throw e;}}}if(done){ended=true;if(pending.trim()&&!pending.trim().startsWith(':'))throw new Error('订阅响应流被截断');return;}}}finally{if(!ended)try{await reader.cancel();}catch{}reader.releaseLock();}}
 export async function callCodexModel({provider,messages,tools=[],toolDefinitions=tools,signal,onDelta=()=>{},onRetry=()=>{},fetchImpl=fetch,sessionId}={}){
@@ -300,6 +307,7 @@ export async function callCodexModel({provider,messages,tools=[],toolDefinitions
    }
   }
   timing.responseHeadersMs=Math.round(networkNow()-connectionStarted);
+  const relayTiming=String(response.headers.get('server-timing')||'').slice(0,512);for(const [metric,field]of [['iah-upstream','relayUpstreamHeadersMs'],['iah-provider','providerProcessingMs']]){const match=new RegExp('(?:^|,)\\s*'+metric+';dur=(\\d{1,7}(?:\\.\\d{1,3})?)(?=,|$)').exec(relayTiming);if(match&&Number(match[1])<=3600000)timing[field]=Number(match[1]);}
   if(recoveredNetwork)recoveredNetwork=safeNetworkDiagnostics({...recoveredNetwork,attempts:connectionAttempts,durationMs:Math.max(0,Math.min(3600000,networkNow()-connectionStarted)),recovered:true});
   const streamError=error=>relayStreamFailure(networkFacts('reading_response_stream',connectionStarted,error,connectionAttempts));
   if(!response.ok){const error=await readProviderFailure(response,{signal:active});if(['CONTEXT_WINDOW_EXCEEDED','PROVIDER_REGION_UNSUPPORTED'].includes(error.code))throw error;throw failure(response.status===401?'订阅登录失效，请刷新或重新登录':response.status===429?'订阅额度或速率达到限制':'订阅模型请求失败',response.status);}if(!response.body)throw a.flow==='chatgpt-plan'?streamError(new Error('missing stream')):new Error('订阅后端未返回响应流');
@@ -340,7 +348,7 @@ export async function callCodexModel({provider,messages,tools=[],toolDefinitions
   const items=copy(completedItems.filter(i=>['reasoning','message','function_call'].includes(i.type)));
   const providerState={kind:'codex-responses/1',...stateScope,responseId:terminal.id||null,items};
   timing.firstEventMs=firstEventAt===null?null:Math.round(firstEventAt-connectionStarted);timing.firstContentMs=firstContentAt===null?null:Math.round(firstContentAt-connectionStarted);timing.streamMs=Math.round(networkNow()-connectionStarted-timing.responseHeadersMs);timing.totalMs=Math.round(networkNow()-callStarted);
-  return {text,toolCalls,finish:toolCalls.length?'tool_calls':'stop',usage:terminal.usage||null,timing,cache:terminal.usage?{...cacheUsage(terminal.usage),diagnostics:terminal.prompt_cache_diagnostics||null,serviceTier:terminal.service_tier||null}:null,responseId:terminal.id||null,providerState,...(recoveredNetwork?{transportDiagnostics:recoveredNetwork}:{})};
+  return {text,toolCalls,...(typeof terminal.model==='string'?{actualModel:terminal.model.slice(0,160)}:{}),...(['current_turn','all_turns'].includes(terminal.reasoning?.context)?{reasoningContext:terminal.reasoning.context}:{}),finish:toolCalls.length?'tool_calls':'stop',usage:terminal.usage||null,timing,cache:terminal.usage?{...cacheUsage(terminal.usage),diagnostics:terminal.prompt_cache_diagnostics||null,serviceTier:terminal.service_tier||null}:null,responseId:terminal.id||null,providerState,...(recoveredNetwork?{transportDiagnostics:recoveredNetwork}:{})};
  }catch(e){check(active);if(e.status||e.code==='CONTEXT_WINDOW_EXCEEDED'||e.code?.startsWith('SIWC_RELAY_'))throw e;throw new Error(['订阅响应','订阅协议','工具','请选择','请求前','订阅账号','登录'].some(p=>e.message?.startsWith(p))?e.message:'订阅通信失败；请检查登录、CORS 与网络');}
  finally{clearTimeout(timer);signal?.removeEventListener('abort',abort);}
 }

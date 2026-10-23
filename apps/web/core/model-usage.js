@@ -39,7 +39,7 @@ export async function inspectRunMetrics(store,{sessionId,runId,pageSize=128}={})
    if(event.type==='run.ended')end={at:event.createdAt,...p};
    if(event.type==='model.started'&&p.requestId)started.set(p.requestId,{at:event.createdAt,prefixHash:p.prefixHash,toolsHash:p.toolsHash,messageCount:p.messageCount,imageCount:p.imageCount,model:p.model,reasoningEffort:p.reasoningEffort,preparation:p.preparation});
    if(event.type==='model.failed')failed.push({...(started.get(p.requestId)||{}),seq:event.seq,at:event.createdAt,...p});
-   if(event.type==='model.usage')requests.push({...(started.get(p.requestId)||{}),seq:event.seq,at:event.createdAt,step:p.step,requestId:p.requestId||null,durationMs:p.durationMs??null,timing:p.timing||null,cacheDiagnostics:p.cache?.diagnostics||null,...usageMetrics(p.usage,p.protocol==='anthropic')});
+   if(event.type==='model.usage')requests.push({...(started.get(p.requestId)||{}),seq:event.seq,at:event.createdAt,step:p.step,actualModel:p.actualModel||null,reasoningContext:p.reasoningContext||null,requestId:p.requestId||null,durationMs:p.durationMs??null,timing:p.timing||null,cacheDiagnostics:p.cache?.diagnostics||null,...usageMetrics(p.usage,p.protocol==='anthropic')});
    if(event.type==='model.compaction_usage')compactions.push({seq:event.seq,at:event.createdAt,model:p.model,durationMs:p.durationMs??null,timing:p.timing||null,sourceRange:p.sourceRange||null,...usageMetrics(p.usage,p.protocol==='anthropic')});
    if(event.type==='capture.stage')stages.push({seq:event.seq,at:event.createdAt,...p});
    if(event.type==='tool.started'||event.type==='tool.result')tools.push({seq:event.seq,at:event.createdAt,type:event.type,...p});

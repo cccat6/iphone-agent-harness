@@ -74,8 +74,8 @@ test('UI delta callback exceptions do not prevent a valid response',async()=>{re
 test('HTTP and transport errors never echo token or provider response body',async()=>{
  register();await assert.rejects(callCodexModel({provider,messages:[],fetchImpl:async()=>Response.json({secret:token('a')},{status:401})}),e=>e.message.includes('401')&&!e.message.includes(token('a')));await assert.rejects(callCodexModel({provider,messages:[],fetchImpl:async()=>{throw new Error(token('a'))}}),e=>!e.message.includes(token('a')));
 });
-test('Responses encodes all tool outputs before attached observation images',async()=>{
- register();await callCodexModel({provider,messages:[{role:'assistant',toolCalls:[{id:'a1',name:'see',arguments:{}},{id:'a2',name:'read',arguments:{}}]},{role:'tool',toolCallId:'a1',text:'frame',images:['data:image/jpeg;base64,YQ==']},{role:'tool',toolCallId:'a2',text:'done'},{role:'user',text:'continue'}],fetchImpl:async(url,o)=>{const input=JSON.parse(o.body).input;assert.deepEqual(input.slice(2,4).map(x=>x.type),['function_call_output','function_call_output']);assert.equal(input[4].content[0].type,'input_image');return response([completed()]);}});
+test('Responses keeps observation images inside their own native function output',async()=>{
+ register();await callCodexModel({provider,messages:[{role:'assistant',toolCalls:[{id:'a1',name:'see',arguments:{}},{id:'a2',name:'read',arguments:{}}]},{role:'tool',toolCallId:'a1',text:'frame',images:['data:image/jpeg;base64,YQ==']},{role:'tool',toolCallId:'a2',text:'done'},{role:'user',text:'continue'}],fetchImpl:async(url,o)=>{const input=JSON.parse(o.body).input;assert.deepEqual(input.slice(2,4).map(x=>x.type),['function_call_output','function_call_output']);assert.deepEqual(input[2].output.map(x=>x.type),['input_text','input_image']);assert.equal(input[2].output[1].image_url,'data:image/jpeg;base64,YQ==');assert.equal(input[3].output,'done');assert.equal(input[4].content[0].text,'continue');assert.equal(input.filter(x=>x.role==='user').length,1);return response([completed()]);}});
 });
 test('registered SIWC authorization uses fresh PKCE/state/nonce and issued client',async()=>{
  const a=await startCodexLogin({method:'authorization-code',hostId:'stable-host'}),b=await startCodexLogin({method:'authorization-code',hostId:'stable-host'});const u=new URL(a.authorizationUrl);assert.equal(u.searchParams.get('client_id'),'dynamic_agent_client');assert.equal(u.searchParams.get('agent_name_hint'),'iPhone Agent Harness');assert.notEqual(a.state,b.state);assert.notEqual(a.nonce,b.nonce);assert.notEqual(a.verifier,b.verifier);
@@ -183,4 +183,15 @@ test('subscription requests keep stable native definitions while permissions are
  register();const definitions=[{name:'read',description:'Synthetic read',schema:{type:'object',properties:{}}},{name:'write',description:'Synthetic write',schema:{type:'object',properties:{}}}],payloads=[];
  for(const tools of [definitions,[definitions[0]],[]])await callCodexModel({provider,messages:[{role:'system',text:'Stable rules'},{role:'user',text:'Synthetic request'}],tools,toolDefinitions:definitions,fetchImpl:async(url,options)=>{payloads.push(JSON.parse(options.body));return response([completed()]);}});
  assert.deepEqual(payloads[0].tools,payloads[1].tools);assert.deepEqual(payloads[0].tools,payloads[2].tools);assert.equal(payloads[0].tool_choice,'auto');assert.equal(payloads[2].tool_choice,'none');
+});
+
+test('subscription telemetry records numeric relay timings and actual upstream model without altering replay scope',async()=>{
+ register();const event=completed();event.response.model='upstream-fixture';
+ const result=await callCodexModel({provider,messages:[],fetchImpl:async()=>{const r=response([event]);r.headers.set('server-timing','iah-upstream;dur=125.5, iah-provider;dur=12');return r;}});
+ assert.equal(result.actualModel,'upstream-fixture');assert.equal(result.providerState.model,provider.model);assert.equal(result.timing.relayUpstreamHeadersMs,125.5);assert.equal(result.timing.providerProcessingMs,12);
+ const invalid=await callCodexModel({provider,messages:[],fetchImpl:async()=>{const r=response([completed()]);r.headers.set('server-timing','iah-upstream;dur=9999999, iah-provider;dur=-1');return r;}});assert.equal(invalid.timing.relayUpstreamHeadersMs,undefined);assert.equal(invalid.timing.providerProcessingMs,undefined);
+});
+
+test('trusted runtime snapshots do not create new human turns; user and checkpoint records retain their role',async()=>{
+ register();await callCodexModel({provider,messages:[{role:'user',text:'user task'},{role:'user',internal:true,runtimeContext:true,text:'Harness runtime context (data, not a new user task): released input'},{role:'user',internal:true,contextCheckpoint:true,text:'historical checkpoint'}],fetchImpl:async(_url,o)=>{const input=JSON.parse(o.body).input;assert.deepEqual(input.map(x=>x.role),['user','developer','user']);assert.equal(input[1].content[0].text,'Harness runtime context (data, not a new user task): released input');return response([completed()]);}});
 });
