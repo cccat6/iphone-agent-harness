@@ -52,10 +52,10 @@ test('manual compaction preserves the original summary-request prefix then pins 
  const again=[];n=0;await createHarness({store,invoke:async args=>{again.push(snapshot(args));return ++n===1?reply(call('reused','skills_load',{id:skill.id})):done;}}).run({sessionId:session.id,text:'Reuse the loaded procedure.'});
  assert.deepEqual(again[0].messages.slice(0,2),next.messages.slice(0,2));assert.equal(JSON.parse((await store.getMessages(session.id)).find(m=>m.toolCallId==='reused').text).status,'already_loaded');
 });
-test('image selection does not rewrite the stable system prompt or installed catalog',async()=>{
+test('ten historical screenshots append without rewriting any image or the static prompt',async()=>{
  const {store,session}=await setup();let before;await createHarness({store,invoke:async args=>{before=structuredClone(args.messages.slice(0,2));return done;}}).run({sessionId:session.id,text:'Inspect images later.'});
  for(let i=0;i<10;i++){const frame=await store.saveFrame(session.id,{dataUrl:'data:image/jpeg;base64,YQ=='});await store.addMessage(session.id,{role:'user',text:'Image fixture '+i,frameRefs:[frame.assetRef]});}
- let after;await createHarness({store,invoke:async args=>{after=structuredClone(args.messages.slice(0,2));return done;}}).run({sessionId:session.id,text:'Inspect metadata for the last frames.'});assert.deepEqual(after,before);assert.equal((await store.getSession(session.id)).checkpoint.kind,'image-selection');
+ let after;await createHarness({store,invoke:async args=>{after=structuredClone(args.messages.slice(0,2));return done;}}).run({sessionId:session.id,text:'Inspect metadata for the last frames.'});assert.deepEqual(after,before);assert.equal((await store.getSession(session.id)).checkpoint,undefined);
 });
 test('MCP catalog pages reuse schemas, and schema/authorization refresh loads new descriptions at the tail',async()=>{
  const {store,session}=await setup();let remoteDescription='CATALOG_DESCRIPTION_ONE';const rpc=[];

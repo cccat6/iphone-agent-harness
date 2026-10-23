@@ -143,8 +143,8 @@ test('oversized subscription JSON and local opaque replay are rejected without e
  await assert.rejects(callCodexModel({provider,messages:[{role:'assistant',text:'ok',providerState:state}],fetchImpl:async()=>{calls++;return response([completed()]);}}),/容量/);assert.equal(calls,0);
 });
 test('aborting a pending response read cancels and unlocks the reader',async()=>{
- register();let began,cancelled=0;const entered=new Promise(r=>began=r),controller=new AbortController();const body=new ReadableStream({pull(){began();},cancel(){cancelled++;}});
- const pending=callCodexModel({provider,messages:[],signal:controller.signal,fetchImpl:async()=>new Response(body)});await entered;controller.abort();await assert.rejects(pending,{name:'AbortError'});assert.equal(cancelled,1);assert.equal(body.locked,false);
+ register();let began,cancelled=0;const entered=new Promise(r=>began=r),controller=new AbortController();const body=new ReadableStream({pull(){},cancel(){cancelled++;}});
+ const pending=callCodexModel({provider,messages:[],signal:controller.signal,fetchImpl:async()=>{const response=new Response(body);began();return response;}});await entered;controller.abort();await assert.rejects(pending,{name:'AbortError'});assert.equal(cancelled,1);assert.equal(body.locked,false);
 });
 
 

@@ -31,17 +31,18 @@ export async function* readSSE(body) {
     }
   } finally {try{await reader.cancel();}catch{}reader.releaseLock();}
 }
+const imageParts=m=>m.providerImageParts||m.images||[];
 function imageBlock(image){const match=/^data:([^;]+);base64,(.+)$/.exec(image);if(!match)throw new Error('图片必须为本地数据格式');return {type:'image',source:{type:'base64',media_type:match[1],data:match[2]}};}
 function anthropicMessages(messages,scope){
   const out=[],push=value=>{const last=out.at(-1);if(value.role==='user'&&last?.role==='user')last.content.push(...value.content);else out.push(value);};
   for(let i=0;i<messages.length;i++){
     const m=messages[i];if(m.role==='system')continue;
     if(m.role==='tool'){
-      const content=[];do{const t=messages[i];content.push({type:'tool_result',tool_use_id:t.toolCallId,content:[{type:'text',text:t.text||' '},...(t.images||[]).map(imageBlock)]});if(messages[i+1]?.role!=='tool')break;i++;}while(i<messages.length);
+      const content=[];do{const t=messages[i];content.push({type:'tool_result',tool_use_id:t.toolCallId,content:[{type:'text',text:t.text||' '},...imageParts(t).map(image=>typeof image==='string'?imageBlock(image):image)]});if(messages[i+1]?.role!=='tool')break;i++;}while(i<messages.length);
       push({role:'user',content});continue;
     }
     const state=stateFor(m,scope);
-    const content=[...(state?.thinkingBlocks||[]),...(m.text?[{type:'text',text:m.text}]:[]),...(m.images||[]).map(imageBlock),...(m.toolCalls||[]).map(t=>({type:'tool_use',id:t.id,name:t.name,input:t.arguments}))];
+    const content=[...(state?.thinkingBlocks||[]),...(m.text?[{type:'text',text:m.text}]:[]),...imageParts(m).map(image=>typeof image==='string'?imageBlock(image):image),...(m.toolCalls||[]).map(t=>({type:'tool_use',id:t.id,name:t.name,input:t.arguments}))];
     push({role:m.role,content:content.length?content:[{type:'text',text:' '}]});
   }return out;
 }
@@ -49,10 +50,10 @@ function openaiMessages(messages,scope,deepseek=false){
   const out=[];
   for(let i=0;i<messages.length;i++){
     const m=messages[i];if(m.role==='tool'){
-      const images=[];do{const t=messages[i];out.push({role:'tool',tool_call_id:t.toolCallId,content:t.text||''});images.push(...(t.images||[]));if(messages[i+1]?.role!=='tool')break;i++;}while(i<messages.length);
-      if(images.length)out.push({role:'user',content:[{type:'text',text:'Observation images for the preceding completed tool-result group.'},...images.map(url=>({type:'image_url',image_url:{url}}))]});continue;
+      const images=[];do{const t=messages[i];out.push({role:'tool',tool_call_id:t.toolCallId,content:t.text||''});images.push(...imageParts(t));if(messages[i+1]?.role!=='tool')break;i++;}while(i<messages.length);
+      if(images.length)out.push({role:'user',content:[{type:'text',text:'Observation images for the preceding completed tool-result group.'},...images.map(image=>typeof image==='string'?{type:'image_url',image_url:{url:image}}:image)]});continue;
     }
-    const content=m.images?.length?[{type:'text',text:m.text||''},...m.images.map(url=>({type:'image_url',image_url:{url}}))]:m.text||'';
+    const content=imageParts(m).length?[{type:'text',text:m.text||''},...imageParts(m).map(image=>typeof image==='string'?{type:'image_url',image_url:{url:image}}:image)]:m.text||'';
     out.push({role:m.role,content,...(m.role==='assistant'&&(stateFor(m,scope)?.reasoningContent!==undefined||deepseek)?{reasoning_content:stateFor(m,scope)?.reasoningContent||''}:{}),...(m.toolCalls?.length?{tool_calls:m.toolCalls.map(t=>({id:t.id,type:'function',function:{name:t.name,arguments:JSON.stringify(t.arguments)}}))}:{})});
   }return out;
 }
@@ -70,8 +71,8 @@ export async function discoverModels({protocol,baseUrl,credential='',accountId,f
   const models=[];let pages=0;
   while(true){const r=await fetchImpl(url,{headers,credentials:'omit',referrerPolicy:'no-referrer',signal:signal?AbortSignal.any([signal,AbortSignal.timeout(20000)]):AbortSignal.timeout(20000)});checkAbort(signal);if(!r.ok){if([401,402,403].includes(r.status))throw await readProviderFailure(r,{signal});throw Object.assign(new Error(`PROVIDER_MODELS_HTTP (HTTP ${r.status})`),{code:'PROVIDER_MODELS_HTTP',status:r.status});}const data=JSON.parse(await readText(r,{maxBytes:2000000,signal}));checkAbort(signal);const entries=data.data||data.models;if(!Array.isArray(entries))throw new Error('模型目录没有返回有效列表');for(const m of entries)if(typeof m.id==='string'&&!models.some(v=>v.id===m.id))models.push({id:m.id,name:m.display_name||m.name||m.id,...modelContextMetadata(m),...modelReasoningMetadata(m)});if(models.length>2000)throw new Error('模型目录超过限额');if(!data.has_more)return models;if(!data.last_id||++pages>=20)throw new Error('模型目录分页不完整');url.searchParams.set('after_id',data.last_id);}
 }
-export async function callModel({provider,credential,messages,tools=[],toolDefinitions=tools,purpose,signal,onDelta=()=>{},onRetry=()=>{},fetchImpl=fetch}) {
-  if(provider?.protocol==='codex')return callCodexModel({provider,messages,tools,toolDefinitions,signal,onDelta,onRetry,fetchImpl});
+export async function callModel({provider,credential,messages,tools=[],toolDefinitions=tools,purpose,hydrate,signal,onDelta=()=>{},onRetry=()=>{},fetchImpl=fetch}) {
+  if(provider?.protocol==='codex')return callCodexModel({provider,messages,tools,toolDefinitions,purpose,hydrate,signal,onDelta,onRetry,fetchImpl});
   if(!provider?.baseUrl||!provider?.model)throw new Error('请先配置后端地址和模型');
   if(!['openai','anthropic'].includes(provider.protocol))throw new Error('不支持的后端协议');
   const base=new URL(provider.baseUrl);
@@ -86,6 +87,7 @@ export async function callModel({provider,credential,messages,tools=[],toolDefin
   const endpoint=inference.href;
   const headers={'content-type':'application/json'};
   if(credential){if(isAnthropic)headers['x-api-key']=credential;else headers.authorization='Bearer '+credential;}
+  if(isAnthropic&&base.hostname==='api.deepseek.com'&&messages.some(message=>message.providerImageParts?.some(part=>typeof part==='object'&&part.source?.type==='file')))headers['anthropic-beta']='files-api-2025-04-14';
   if(isAnthropic){headers['anthropic-version']='2023-06-01';headers['anthropic-dangerous-direct-browser-access']='true';}
   const canonicalEndpoint=new URL(endpoint);canonicalEndpoint.hash='';
   const scope={kind:provider.protocol,origin:base.origin,endpoint:canonicalEndpoint.href,accountId:provider.accountId||provider.id||'',model:provider.model};

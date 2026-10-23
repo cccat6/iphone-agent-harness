@@ -1,7 +1,7 @@
 {
-  "builtAt": "2026-10-23T10:29:50.470812+00:00",
-  "firmwareVersion": "0.5.7",
-  "buildId": "5c5a412c1f2a941d",
+  "builtAt": "2026-10-23T12:38:44.053302+00:00",
+  "firmwareVersion": "0.5.8",
+  "buildId": "918a77ee7ef9204d",
   "dependencies": {
     "arduinoEsp32": "3.3.11",
     "NimBLE-Arduino": "2.5.1",
@@ -15,7 +15,7 @@
     "c2_sdk.components.lock": "de86c6e0b54dadef599400692273e5bd9b36564dc0ca90c85f3c0900e2b120de",
     "partitions/c2-2m.csv": "b49b7fc83f81c845f74e4a324a026c0acde081305d11d55912dc7c998ca57ba0"
   },
-  "sourceSha256": "5c5a412c1f2a941d54303acc0525dc891e093e970a7ff774a5bef3b9d5066464",
+  "sourceSha256": "918a77ee7ef9204dd0154dff7bc2341650746753e935e6ad2dfec7c4a059d556",
   "sourceFiles": {
     "IPhoneAutomationHarness.ino": "37feb9fe2dee7989b3a1ba21c34912238a03572f7c5338c471bf3cf66ee33167",
     "ResourceLimits.h": "0c3905448b154878a91e598108799c7390167a7cb432708a4f348f9f6e6eceee",
@@ -30,7 +30,7 @@
     "src/ClipboardWire.h": "7897c094a693c4036009c818ad0e3fb3fa7dae4c549ff798b4120c20c92ec4ad",
     "src/Core.h": "9496accd9d8d88922d92582ba7af82fa52cdb183c532fa36469035d61250989e",
     "src/CryptoUtils.h": "9e2eab4564cfc2bf5500fda4b1d125a5dc5e9610f7e0910a12bc0b9f8a63c3bd",
-    "src/FirmwareVersion.h": "daa036e0909ffa8e75f83d7a113522b448f596a6950fe427a8ea79261d201fbd",
+    "src/FirmwareVersion.h": "496357de3752bd4c9b6060ec71693d7cb17315926259ff81e8d616c79c1c0b1c",
     "src/HidReportMap.h": "4b962c2339efc8ad3aef14779bd501ed5f85b99590fd8004f27dcf0faba57482",
     "src/HtmlJson.h": "6882cd27144fe46335e8215f65b08c3545e7f4c1907d8b68fc97a6072a38360d",
     "src/HttpHtmlResponse.h": "74f9077f1abd92ad9b66d5a2a605c8a60ebfe9108008b17d5b356f30c4ed3e08",
@@ -39,7 +39,7 @@
     "src/RtcIdentity.h": "7c257108c7e66ef28f0d68308ac41682e0ba998f815c3001dd5a5026a2954918",
     "src/RtcPeerOwnership.h": "f0fa5cf57a2e2930b333cc928f0eb1805befe1c1d6ad18ea4459edbe36bd8db1",
     "src/RtcRpc.h": "fb22666fa024194930752a0c57929fa6ce62abaae9f41243ba8cb09138657a8f",
-    "src/RtcSctp.h": "0f3954239df3311d1105caabdf4218e57c772238baa4b4f57d48977be7833e50",
+    "src/RtcSctp.h": "47a92159410617100543473feb5c792ca8cacf98eb463f23815321157966c6a7",
     "src/RtcTls/RtcTlsConfig.h": "66af52262452ae8f547ba1f844b27b4a334c0fb4aba1e9978f164adaca7e929c",
     "src/RtcTls/aesce.h": "554a363178d24668d52a8036ecd403b43aa43ca02748fec168fea4079da6cf28",
     "src/RtcTls/aesni.h": "43dfab1deb659d5e3da152fdc6341c354a93135010bd27eae696d5b1a3d311d6",
@@ -158,7 +158,7 @@
           "mbedtls_ssl_handshake_server_step",
           "mbedtls_ssl_handshake_client_step"
         ],
-        "linkMapSha256": "45524224d3e17eb604d56b699c0ffe4b4a31b8480a93676d1f942f978e143317"
+        "linkMapSha256": "2128629f890dfcd61d096031693c9305ee3bed67b1971f9265680edc9018b5fa"
       }
     },
     {
@@ -183,7 +183,7 @@
           "mbedtls_ssl_handshake_server_step",
           "mbedtls_ssl_handshake_client_step"
         ],
-        "linkMapSha256": "90e37632ff43eb6de79122850dd4434abf28252447912dee5032c60292941b55"
+        "linkMapSha256": "60968ba7adeaa26d3e3c2e7621d5aa09b8fd502b5927f481f832a323a0b301ab"
       }
     },
     {
@@ -208,7 +208,7 @@
           "mbedtls_ssl_handshake_server_step",
           "mbedtls_ssl_handshake_client_step"
         ],
-        "linkMapSha256": "6757a988cb11d17c5a08106e3aea438450c8a8b5c5aa20e58a356fee615209ca"
+        "linkMapSha256": "08d6fa553a77358b954cb824765281ec67196eb5d216f4da0a893f3ac39a9161"
       }
     },
     {
@@ -233,7 +233,7 @@
           "mbedtls_ssl_handshake_server_step",
           "mbedtls_ssl_handshake_client_step"
         ],
-        "linkMapSha256": "59cae0cd88ef65347c1dc6d143f6d9ac3d6aaf3af0731ec43f55f9dbab6c5794"
+        "linkMapSha256": "0e7af59fce3846aa08891bfbea7d22da522beccca4dd0e2cd0299d3eba6bb65b"
       }
     },
     {
@@ -258,7 +258,7 @@
           "mbedtls_ssl_handshake_server_step",
           "mbedtls_ssl_handshake_client_step"
         ],
-        "linkMapSha256": "d2609d5b9b3a61552e0c8f7b224003c3c78d2df5db9e97de0cf1275b69fe3918"
+        "linkMapSha256": "d115a6a1513f5333633cf233d43da7a8bafffe37097cb7763b1092bfd47d8562"
       }
     },
     {
@@ -332,7 +332,7 @@
           "mbedtls_ssl_handshake_server_step",
           "mbedtls_ssl_handshake_client_step"
         ],
-        "linkMapSha256": "072b83c62559979ea33aa6a2764ddd7e29c65dece46908a6e9dde6d5b8d5cae9"
+        "linkMapSha256": "6daacfb46f1102a5918aedf9ca02e6a54fec97091d5212b18e648d7ee9079476"
       }
     },
     {
@@ -406,7 +406,7 @@
           "mbedtls_ssl_handshake_server_step",
           "mbedtls_ssl_handshake_client_step"
         ],
-        "linkMapSha256": "361da3cbd4428ec423f7811128743415113e17fa0ea2e506f3646182f2f7fd70"
+        "linkMapSha256": "0ad6757613399a8401548fd59505f01d3542bdf44aaf8bded1105f7649b69322"
       }
     }
   ]

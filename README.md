@@ -130,6 +130,8 @@ The browser sends the text to the ESP32 in small chunks over local WebRTC. The b
 
 Sessions, screenshots and credentials are saved in your browser; ordinary APIs connect directly to your provider. ChatGPT subscriptions use the project’s Cloudflare relay or your own stateless relay because of browser CORS, forwarding selected context, images, output and a short-lived access token. The relay application does not persist this traffic or log bodies or credentials.
 
+Screenshot reuse sends each selected image once to DeepSeek or Claude and uses its file ID in later requests. These provider files expire after one hour; the option can be changed per API connection.
+
 ## 🤝 Contribute
 
 Ideas, bug reports and improvements are welcome: [open an issue](https://github.com/cccat6/iphone-agent-harness/issues) or [send a pull request](https://github.com/cccat6/iphone-agent-harness/pulls). Share your custom skills in the [skill community](https://igent.cc/skills).

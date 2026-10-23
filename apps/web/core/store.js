@@ -151,7 +151,7 @@ export async function openStore({memory=false,name=DB_NAME}={}){
     async saveProvider(profile,credential,{signal}={}){
       if(!profile||typeof profile.id!=='string'||!profile.id||profile.id.length>80||!['openai','anthropic','codex'].includes(profile.protocol))throw new Error('Invalid provider profile');
       if(credential&&(!['api','codex'].includes(credential.kind)||(profile.protocol==='codex')!==(credential.kind==='codex')))throw new Error('Invalid provider credential');
-      const fields=['id','name','protocol','baseUrl','model','models','reasoningEffort','stream','accountId','flow','clientId','subscriptionRelayUrl'];
+      const fields=['id','name','protocol','baseUrl','model','models','reasoningEffort','stream','accountId','flow','clientId','subscriptionRelayUrl','reuseImages'];
       const saved=safeSettings(clone(Object.fromEntries(fields.filter(key=>Object.hasOwn(profile,key)).map(key=>[key,profile[key]]))));
       const secret=credential?clone(credential):null;
       return transaction(['settings'],'readwrite',async s=>{
@@ -165,7 +165,7 @@ export async function openStore({memory=false,name=DB_NAME}={}){
     async updateProviderModels(id,models,{expectedConnection}={}){
       if(typeof id!=='string'||!Array.isArray(models))throw new Error('Invalid provider models');
       if(expectedConnection!==undefined&&(!expectedConnection||typeof expectedConnection!=='object'||Array.isArray(expectedConnection)))throw new Error('Invalid provider connection');
-      const fields=['protocol','baseUrl','flow','clientId','subscriptionRelayUrl'];
+      const fields=['protocol','baseUrl','flow','clientId','subscriptionRelayUrl','reuseImages'];
       const expected=expectedConnection===undefined?null:clone(Object.fromEntries(fields.map(key=>[key,expectedConnection[key]||''])));
       const saved=safeSettings(clone(models));
       return transaction(['settings'],'readwrite',async s=>{
@@ -188,6 +188,10 @@ export async function openStore({memory=false,name=DB_NAME}={}){
       });
     },
     async saveFrame(sessionId,frame,metadata={}){const row=frameRecord(sessionId,frame,metadata);await transaction(['frames',...(metadata.runId?['sessions','events']:[])],'readwrite',async s=>{await s.frames.put(row);if(metadata.runId){const session=await s.sessions.get(sessionId);if(!session)throw new Error('对话不存在');await s.events.put({id:'frame-evidence:'+metadata.runId+':'+row.frameId,sessionId,runId:metadata.runId,seq:(session.eventSeq||0)+1,type:'frame.evidence',payload:{frameId:row.frameId,assetRef:row.assetRef,targetId:row.targetId,orientationEpoch:row.orientationEpoch},createdAt:Date.now()});session.eventSeq=(session.eventSeq||0)+1;await s.sessions.put(session);}});const {blob,dataUrl,...meta}=row;return meta;},
+    async saveFrameProviderFile(ref,scope,file){
+      if(!/^local-asset:/.test(ref)||!/^([a-f0-9]{64})$/.test(scope)||typeof file?.fileId!=='string'||!Number.isFinite(file.expiresAt))throw new Error('Invalid provider image reference');
+      return transaction(['frames'],'readwrite',async s=>{const id=ref.slice(12),row=await s.frames.get(id);if(!row)throw new Error('Local screenshot asset is missing');const entries=Object.entries(row.providerFiles||{}).filter(([key,value])=>key!==scope&&value?.expiresAt>Date.now()).slice(-3);row.providerFiles={...Object.fromEntries(entries),[scope]:clone(file)};await s.frames.put(row);});
+    },
     async getRunFrameEvidence(sessionId,runId,frameId){return transaction(['events'],'readonly',async s=>{const row=await s.events.get('frame-evidence:'+runId+':'+frameId);return row?.sessionId===sessionId&&row.runId===runId?row.payload:null;});},
     async hasRunFrame(sessionId,runId,frameId){return Boolean(await store.getRunFrameEvidence(sessionId,runId,frameId));},
     async reserveRunCall(sessionId,runId,callId){return transaction(['sessions','events'],'readwrite',async s=>{const session=await s.sessions.get(sessionId);if(session?.activeRun?.id!==runId||session.activeRun.expiresAt<=Date.now())throw new Error('运行所有权已失效');const id='run-call:'+runId+':'+callId;if(await s.events.get(id))return false;await s.events.put({id,sessionId,runId,seq:(session.eventSeq||0)+1,type:'tool.reserved',payload:{callId},createdAt:Date.now()});session.eventSeq=(session.eventSeq||0)+1;await s.sessions.put(session);return true;});},

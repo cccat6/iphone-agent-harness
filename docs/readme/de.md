@@ -130,6 +130,8 @@ Der Browser sendet den Text in kleinen Teilen per lokalem WebRTC an den ESP32. D
 
 Sitzungen, Screenshots und Zugangsdaten werden im Browser gespeichert; normale APIs verbinden sich direkt. ChatGPT-Abonnements nutzen wegen CORS den Cloudflare-Relay des Projekts oder deinen eigenen zustandslosen Relay für ausgewählten Kontext, Bilder, Ausgaben und ein kurzlebiges Zugriffstoken. Die Relay-Anwendung speichert diese Daten nicht und protokolliert keine Inhalte oder Zugangsdaten.
 
+Bei aktivierter Screenshot-Wiederverwendung wird jedes ausgewählte Bild einmal zu DeepSeek oder Claude hochgeladen. Weitere Anfragen verwenden die Datei-ID. Die Dateien beim Anbieter laufen nach einer Stunde ab; die Option gilt pro API-Verbindung.
+
 ## 🤝 Mitwirken
 
 Ideen und Fehler bitte als [Issue](https://github.com/cccat6/iphone-agent-harness/issues) melden, Verbesserungen als [Pull Request](https://github.com/cccat6/iphone-agent-harness/pulls) einreichen. Eigene Skills kannst du in der [Skill-Community](https://igent.cc/skills) teilen.

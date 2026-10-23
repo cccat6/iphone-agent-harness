@@ -130,6 +130,8 @@ flowchart LR
 
 對話、截圖與憑證儲存在瀏覽器，一般 API 直連服務商。ChatGPT 訂閱因瀏覽器跨來源限制，經專案的 Cloudflare 服務或自建無狀態服務轉送選定內容、圖片、輸出及短期存取權杖。轉送程式不持續儲存這些資料，也不記錄本文或憑證。
 
+開啟截圖重用後，選定截圖只向 DeepSeek 或 Claude 上傳一次，後續請求使用檔案 ID。服務商端檔案會在一小時後到期，可在對應 API 設定中關閉重用。
+
 ## 🤝 參與貢獻
 
 歡迎[提交 Issue](https://github.com/cccat6/iphone-agent-harness/issues)回報問題與建議，或[提交 PR](https://github.com/cccat6/iphone-agent-harness/pulls)改善專案。自製技能請在[技能社群](https://igent.cc/skills)分享。

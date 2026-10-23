@@ -130,6 +130,8 @@ flowchart LR
 
 会話・スクリーンショット・認証情報はブラウザーに保存し、通常のAPIは提供元に直接接続します。ChatGPTサブスクリプションはCORS制約のため、プロジェクトのCloudflare中継または自分のステートレス中継を使い、選択情報・画像・出力・短期アクセストークンを転送します。中継アプリはこれらを保存せず、本文や認証情報も記録しません。
 
+スクリーンショットの再利用を有効にすると、選択した画像を DeepSeek または Claude に一度アップロードし、以降はファイル ID を送信します。提供元のファイルは1時間後に期限切れになります。API 接続ごとに設定できます。
+
 ## 🤝 貢献する
 
 不具合やアイデアは[Issue](https://github.com/cccat6/iphone-agent-harness/issues)へ、改善は[プルリクエスト](https://github.com/cccat6/iphone-agent-harness/pulls)へ。自作スキルは[スキルコミュニティ](https://igent.cc/skills)で共有できます。

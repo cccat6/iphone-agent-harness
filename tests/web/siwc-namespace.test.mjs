@@ -34,6 +34,6 @@ test('plain plan conversations send no namespace object when there are no tools'
  await callCodexModel({provider,messages:[{role:'user',text:'Hello'}],fetchImpl:async(url,options)=>{const body=JSON.parse(options.body);assert.deepEqual(body.tools,[]);assert.equal(body.tool_choice,'none');return output([message]);}});
 });
 
-test('plan inference uses only standard headers even when a local session ID is supplied',async()=>{
- await callCodexModel({provider,messages:[],sessionId:'local-session-identifier',fetchImpl:async(url,options)=>{assert.equal(url,'https://igent.cc/api/openai/responses');assert.deepEqual(options.headers,{authorization:'Bearer fixture-plan-access','content-type':'application/json',accept:'text/event-stream'});assert.equal(options.redirect,'error');return output([message]);}});
+test('plan inference keeps native-only headers absent while passing stable cache affinity',async()=>{
+ await callCodexModel({provider,messages:[],sessionId:'local-session-identifier',fetchImpl:async(url,options)=>{assert.equal(url,'https://igent.cc/api/openai/responses');assert.deepEqual(options.headers,{authorization:'Bearer fixture-plan-access','content-type':'application/json',accept:'text/event-stream','session-id':'local-session-identifier'});assert.equal(options.redirect,'error');return output([message]);}});
 });

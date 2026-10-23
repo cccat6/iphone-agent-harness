@@ -130,6 +130,8 @@ El navegador envía el texto al ESP32 en pequeños bloques por WebRTC local. El 
 
 Las sesiones, capturas y credenciales se guardan en el navegador; las API normales se conectan directamente. Por CORS, ChatGPT usa el relé Cloudflare del proyecto o uno propio sin estado para el contexto seleccionado, imágenes, respuestas y un token temporal. La aplicación de relé no guarda estos datos ni registra contenidos o credenciales.
 
+La reutilización de capturas sube cada imagen elegida una vez a DeepSeek o Claude y después envía su ID. Los archivos del proveedor caducan en una hora. La opción se configura para cada conexión API.
+
 ## 🤝 Contribuye
 
 Comparte ideas y problemas en [Issues](https://github.com/cccat6/iphone-agent-harness/issues) o mejoras mediante un [pull request](https://github.com/cccat6/iphone-agent-harness/pulls). Publica tus propias habilidades en la [comunidad](https://igent.cc/skills).

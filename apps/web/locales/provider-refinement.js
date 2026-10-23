@@ -1,6 +1,7 @@
 // Provider editor labels and actionable connection feedback.
 export const PROVIDER_REFINEMENT_MESSAGES = {
   "en": {
+    "providerRefinement.imageReuse": "Reuse screenshots (stored by the AI provider for 1 hour)",
     "providerRefinement.endpoint": "API endpoint",
     "providerRefinement.openaiHint": "OpenAI-compatible: use a base such as https://api.example.com/v1. Full /chat/completions URLs also work; /chat and /completions are normalized automatically.",
     "providerRefinement.anthropicHint": "Anthropic-compatible: use https://api.example.com or the provider’s documented prefix (for DeepSeek: https://api.deepseek.com/anthropic). /v1/messages is also accepted.",
@@ -23,6 +24,7 @@ export const PROVIDER_REFINEMENT_MESSAGES = {
     "providerRefinement.connectionChanged": "This connection changed in another tab. Reopen it to refresh its models."
   },
   "zh-Hans": {
+    "providerRefinement.imageReuse": "复用截图（模型服务保留 1 小时）",
     "providerRefinement.endpoint": "API 端点",
     "providerRefinement.openaiHint": "OpenAI 风格：填写 https://api.example.com/v1 这样的基础端点，也支持完整的 /chat/completions 地址；末尾的 /chat 或 /completions 会自动处理。",
     "providerRefinement.anthropicHint": "Anthropic 风格：填写 https://api.example.com 或服务商提供的前缀（DeepSeek 为 https://api.deepseek.com/anthropic），也支持完整的 /v1/messages 地址。",
@@ -45,6 +47,7 @@ export const PROVIDER_REFINEMENT_MESSAGES = {
     "providerRefinement.connectionChanged": "此连接已在其他标签页修改，请重新打开后刷新模型。"
   },
   "zh-Hant": {
+    "providerRefinement.imageReuse": "重用截圖（模型服務保留 1 小時）",
     "providerRefinement.endpoint": "API 端點",
     "providerRefinement.openaiHint": "OpenAI 格式：填寫 https://api.example.com/v1 這樣的基礎端點，也支援完整的 /chat/completions 網址；結尾的 /chat 或 /completions 會自動處理。",
     "providerRefinement.anthropicHint": "Anthropic 格式：填寫 https://api.example.com 或服務商提供的前綴（DeepSeek 為 https://api.deepseek.com/anthropic），也支援完整的 /v1/messages 網址。",
@@ -67,6 +70,7 @@ export const PROVIDER_REFINEMENT_MESSAGES = {
     "providerRefinement.connectionChanged": "此連線已在其他分頁修改，請重新開啟後重新整理模型。"
   },
   "ja": {
+    "providerRefinement.imageReuse": "スクリーンショットを再利用（AI サービスで1時間保持）",
     "providerRefinement.endpoint": "API エンドポイント",
     "providerRefinement.openaiHint": "OpenAI 互換：https://api.example.com/v1 のようなベース URL を入力します。/chat/completions の完全な URL も使用でき、末尾の /chat や /completions は自動処理されます。",
     "providerRefinement.anthropicHint": "Anthropic 互換：https://api.example.com または提供元のプレフィックスを入力します（DeepSeek：https://api.deepseek.com/anthropic）。/v1/messages の完全な URL にも対応します。",
@@ -89,6 +93,7 @@ export const PROVIDER_REFINEMENT_MESSAGES = {
     "providerRefinement.connectionChanged": "別のタブで接続設定が変更されました。開き直してモデルを更新してください。"
   },
   "ru": {
+    "providerRefinement.imageReuse": "Повторно использовать снимки (хранение у провайдера ИИ — 1 час)",
     "providerRefinement.endpoint": "Конечная точка API",
     "providerRefinement.openaiHint": "Формат OpenAI: укажите базовый адрес, например https://api.example.com/v1. Полный /chat/completions тоже поддерживается; окончания /chat и /completions обрабатываются автоматически.",
     "providerRefinement.anthropicHint": "Формат Anthropic: укажите https://api.example.com или префикс провайдера (DeepSeek: https://api.deepseek.com/anthropic). Полный /v1/messages тоже поддерживается.",
@@ -111,6 +116,7 @@ export const PROVIDER_REFINEMENT_MESSAGES = {
     "providerRefinement.connectionChanged": "Настройки подключения изменены в другой вкладке. Откройте их заново и обновите модели."
   },
   "de": {
+    "providerRefinement.imageReuse": "Screenshots wiederverwenden (1 Stunde beim KI-Anbieter gespeichert)",
     "providerRefinement.endpoint": "API-Endpunkt",
     "providerRefinement.openaiHint": "OpenAI-kompatibel: Geben Sie eine Basis wie https://api.example.com/v1 ein. Vollständige /chat/completions-URLs funktionieren ebenfalls; /chat und /completions am Ende werden automatisch verarbeitet.",
     "providerRefinement.anthropicHint": "Anthropic-kompatibel: Verwenden Sie https://api.example.com oder das Präfix des Anbieters (DeepSeek: https://api.deepseek.com/anthropic). Vollständige /v1/messages-URLs sind ebenfalls möglich.",
@@ -133,6 +139,7 @@ export const PROVIDER_REFINEMENT_MESSAGES = {
     "providerRefinement.connectionChanged": "Die Verbindung wurde in einem anderen Tab geändert. Öffnen Sie sie erneut und aktualisieren Sie die Modelle."
   },
   "fr": {
+    "providerRefinement.imageReuse": "Réutiliser les captures (conservées 1 h par le fournisseur IA)",
     "providerRefinement.endpoint": "Point de terminaison API",
     "providerRefinement.openaiHint": "Compatible OpenAI : saisissez une base comme https://api.example.com/v1. Les URL complètes /chat/completions fonctionnent aussi ; les suffixes /chat et /completions sont traités automatiquement.",
     "providerRefinement.anthropicHint": "Compatible Anthropic : utilisez https://api.example.com ou le préfixe du fournisseur (DeepSeek : https://api.deepseek.com/anthropic). Les URL complètes /v1/messages sont aussi acceptées.",
@@ -155,6 +162,7 @@ export const PROVIDER_REFINEMENT_MESSAGES = {
     "providerRefinement.connectionChanged": "La connexion a été modifiée dans un autre onglet. Rouvrez-la pour actualiser les modèles."
   },
   "es": {
+    "providerRefinement.imageReuse": "Reutilizar capturas (el proveedor de IA las conserva 1 hora)",
     "providerRefinement.endpoint": "Endpoint de la API",
     "providerRefinement.openaiHint": "Compatible con OpenAI: introduce una base como https://api.example.com/v1. También se admite la URL completa /chat/completions; los sufijos /chat y /completions se procesan automáticamente.",
     "providerRefinement.anthropicHint": "Compatible con Anthropic: usa https://api.example.com o el prefijo del proveedor (DeepSeek: https://api.deepseek.com/anthropic). También se admite la URL completa /v1/messages.",

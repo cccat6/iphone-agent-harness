@@ -130,6 +130,8 @@ flowchart LR
 
 会话、截图和凭据保存在浏览器中，普通 API 直连服务商。ChatGPT 订阅因浏览器跨域限制，经项目的 Cloudflare 服务或自建无状态服务转发选定内容、图片、输出及短期访问令牌。转发程序不持久保存这些数据，也不记录正文或凭据。
 
+开启截图复用后，选定截图仅向 DeepSeek 或 Claude 上传一次，后续请求使用文件 ID。服务商端文件在一小时后到期，可在对应 API 设置中关闭复用。
+
 ## 🤝 参与贡献
 
 欢迎[提交 Issue](https://github.com/cccat6/iphone-agent-harness/issues)反馈问题与建议，也欢迎[提交 PR](https://github.com/cccat6/iphone-agent-harness/pulls)改进项目。自制技能请在[技能社区](https://igent.cc/skills)分享。

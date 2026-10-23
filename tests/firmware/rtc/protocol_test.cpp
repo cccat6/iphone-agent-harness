@@ -19,6 +19,10 @@ std::vector<std::string> frames(const std::string& request,uint32_t n=1,const st
 bool feedRpc(Rpc& rpc,const std::string& s){return rpc.input(reinterpret_cast<const uint8_t*>(s.data()),s.size(),10);}
 std::string request(size_t bodySize=0){JsonDocument d;d["method"]="POST";d["path"]="/v1/test";d["headers"].to<JsonObject>();d["body"]=std::string(bodySize,'a');std::string s;serializeJson(d,s);return s;}
 int main(){
+ // Each reliable RPC fragment requests an immediate SACK. A lost packet
+ // retransmits the identical TSN and payload rather than a new command.
+ {Fixture f;f.init();assert(f.s.sendText(reinterpret_cast<const uint8_t*>("ack-now"),7,10));const auto first=f.sent.back();assert((first[13]&0x08)!=0);assert((first[13]&0x03)==0x03);f.s.tick(310);assert(f.sent.back()==first);f.feed(ack(500),311);assert(!f.s.pending()&&f.s.established());}
+
  // Browser SCTP heartbeats carry opaque address/timing data exceeding 128B.
  // They may share a packet with DATA: rejecting the heartbeat must not make
  // an otherwise valid application message disappear on every retransmission.

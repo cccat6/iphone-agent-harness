@@ -166,3 +166,12 @@ test('image batch retention keeps an eight-frame observation group complete with
  store.add({role:'assistant',text:'Observe the full sequence.',toolCalls:[{id:'sequence',name:'phone_observe',arguments:{count:8}}]});const refs=Array.from({length:8},(_,i)=>'local-asset:sequence'+i);store.add({role:'tool',toolCallId:'sequence',text:'Eight captured frames.',frameRefs:refs});
  const result=await run(store,{settings:{schemaVersion:2,triggerTokens:750000,maxImages:8}});assert.equal(result.metrics.imageCount,8);assert.deepEqual(result.messages.at(-1).frameRefs,refs);paired(result.messages);
 });
+
+test('production append-only image context retains all 40 frame references without loading assets or rewriting a prefix',async()=>{
+ const store=new Memory([{role:'user',text:'Observe the ongoing task.'}]);let prior=[];
+ for(let i=0;i<40;i++){store.add({role:'assistant',text:'',toolCalls:[{id:'frame-call-'+i,name:'phone_observe',arguments:{}}]});store.add({role:'tool',text:'Observed '+i,toolCallId:'frame-call-'+i,frameRefs:['local-asset:'+i]});const result=await run(store,{settings:{triggerTokens:750000},preserveImagePrefix:true});assert.equal(result.compacted,false);assert.deepEqual(result.messages.slice(0,prior.length),prior);assert.equal(result.metrics.imageCount,i+1);prior=result.messages;}
+ assert.equal(store.framesRead,0);assert.equal(store.writes.length,0);
+});
+test('opaque provider replay bytes neither duplicate assistant tokens nor cause premature context compaction',async()=>{
+ const plain=new Memory([{role:'user',text:'task'},{role:'assistant',text:'visible answer'}]);const opaque=new Memory([{role:'user',text:'task'},{role:'assistant',text:'visible answer',providerState:{kind:'codex-responses/1',items:[{type:'reasoning',encrypted_content:'x'.repeat(100000)},{type:'message',content:[{type:'output_text',text:'visible answer'}]}]}}]);const a=await run(plain,{settings:{triggerTokens:6000}}),b=await run(opaque,{settings:{triggerTokens:6000}});assert.equal(a.metrics.estimatedInputTokens,b.metrics.estimatedInputTokens);assert.equal(b.compacted,false);
+});

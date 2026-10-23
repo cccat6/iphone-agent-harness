@@ -33,3 +33,7 @@ test('cache comparison is omitted after an account or model scope change and on 
  const first=await callCodexModel({provider:{...provider,model:'gpt-6-luna'},messages:[{role:'user',text:'first'}],fetchImpl:async()=>stream([{type:'response.completed',response:{id:'resp_before',status:'completed',output:[{type:'message',role:'assistant',content:[{type:'output_text',text:'answer'}]}]}}])});
  for(const model of ['gpt-6-sol','gpt-5.4','fixture'])await callCodexModel({provider:{...provider,model},messages:[{role:'assistant',text:first.text,providerState:first.providerState}],fetchImpl:async(_url,options)=>{assert.equal(JSON.parse(options.body).prompt_cache_options,undefined);return stream([{type:'response.completed',response:{status:'completed',output:[{type:'message',role:'assistant',content:[{type:'output_text',text:'done'}]}]}}]);}});
 });
+
+test('plan subscription uses the same stable key in cache routing body and session header',async()=>{
+ await callCodexModel({provider:{...provider,model:'gpt-6-luna',promptCacheKey:'iah:session-fixture',sessionId:'session-fixture'},messages:[{role:'user',text:'ok'}],fetchImpl:async(_url,o)=>{assert.equal(o.headers['session-id'],'iah:session-fixture');assert.equal(JSON.parse(o.body).prompt_cache_key,o.headers['session-id']);return stream([{type:'response.completed',response:{id:'response-affinity',status:'completed',output:[{type:'message',role:'assistant',content:[{type:'output_text',text:'ok'}]}]}}]);}});
+});

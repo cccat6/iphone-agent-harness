@@ -1,3 +1,4 @@
+import {imageFileProvider} from '../../apps/web/core/provider-images.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
@@ -13,7 +14,7 @@ function harness(protocol='openai'){
  const oldForm={elements:Object.fromEntries(['protocol','passphrase','baseUrl','model','secret','subscriptionRelayUrl'].map(name=>[name,{value:name==='protocol'?protocol:name==='passphrase'?'synthetic passphrase':''}]))};let currentForm=oldForm;
  const nodes=new Map(),calls=[];const $=selector=>{if(selector==='#provider-form')return currentForm;if(!nodes.has(selector))nodes.set(selector,{disabled:false,hidden:false,replaceChildren(){}});return nodes.get(selector);};
  const state={store:{},settings:{credentialVault:{original:{synthetic:true}}}},vaultPassphrases=new Map();
- const context=vm.createContext({state,$,editorForm:oldForm,provider:{id:'original'},providers:()=>[],getCodexAccount:()=>null,guard:f=>f,editorActive:()=>active&&currentForm===oldForm,isCodex:()=>currentForm.elements.protocol.value==='codex',invalidateModels(){},unsealCredentials:(cipher,passphrase)=>{decryptCount++;calls.push(['decrypt',passphrase]);return pending;},hasCodexAccount:()=>false,registerCodexAccount:(...args)=>calls.push(['codex',...args]),setCredential:(...args)=>calls.push(['api',...args]),saveProviderCredential:async()=>{},setLocalizedText(){},t:k=>k,vaultPassphrases,loginStatus:()=>calls.push(['loginStatus']),toast:()=>calls.push(['toast'])});
+ const context=vm.createContext({imageFileProvider,state,$,editorForm:oldForm,provider:{id:'original'},providers:()=>[],getCodexAccount:()=>null,guard:f=>f,editorActive:()=>active&&currentForm===oldForm,isCodex:()=>currentForm.elements.protocol.value==='codex',invalidateModels(){},unsealCredentials:(cipher,passphrase)=>{decryptCount++;calls.push(['decrypt',passphrase]);return pending;},hasCodexAccount:()=>false,registerCodexAccount:(...args)=>calls.push(['codex',...args]),setCredential:(...args)=>calls.push(['api',...args]),saveProviderCredential:async()=>{},setLocalizedText(){},t:k=>k,vaultPassphrases,loginStatus:()=>calls.push(['loginStatus']),toast:()=>calls.push(['toast'])});
  vm.runInContext('let unlockGeneration=0,login=null;\n'+source.slice(protocolStart,protocolEnd)+'\n'+source.slice(start,end),context);
  return {start:()=>$('#unlock-provider').onclick(),resolve,reject,calls,oldForm,vaultPassphrases,button:$('#unlock-provider'),get decryptCount(){return decryptCount;},cancel(){active=false;},replace(){currentForm={elements:{protocol:{value:'codex'},passphrase:{value:'replacement'}}};},protocol(value){oldForm.elements.protocol.value=value;vm.runInContext('protocolChanged(false)',context);}};
 }

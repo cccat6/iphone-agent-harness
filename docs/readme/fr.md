@@ -130,6 +130,8 @@ Le navigateur envoie le texte à l’ESP32 par petits blocs via le WebRTC local.
 
 Sessions, captures et identifiants sont enregistrés dans le navigateur ; les API ordinaires sont directes. En raison de CORS, ChatGPT utilise le relais Cloudflare du projet ou votre relais sans état pour le contexte choisi, les images, les réponses et un jeton d’accès temporaire. L’application relais ne conserve pas ces données et ne journalise ni contenus ni identifiants.
 
+La réutilisation des captures envoie chaque image choisie une seule fois à DeepSeek ou Claude, puis utilise son identifiant. Les fichiers chez le fournisseur expirent après une heure. Cette option se règle pour chaque connexion API.
+
 ## 🤝 Contribuer
 
 Vos idées et signalements sont les bienvenus dans les [Issues](https://github.com/cccat6/iphone-agent-harness/issues), tout comme vos améliorations par [pull request](https://github.com/cccat6/iphone-agent-harness/pulls). Partagez vos propres compétences dans la [communauté](https://igent.cc/skills).

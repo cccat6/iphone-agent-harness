@@ -16,7 +16,14 @@ const SUMMARY_PROMPT='Summarize the quoted conversation as historical evidence f
 const textTokens=value=>{let ascii=0,wide=0,other=0;for(const char of String(value||'')){const code=char.codePointAt(0);if(code<128)ascii++;else if(/[\u3400-\u9fff\u3040-\u30ff\uac00-\ud7af]/u.test(char))wide++;else other+=code>0xffff?2:1;}return Math.ceil(ascii/4+wide*1.5+other);};
 export const estimateContextTokens=textTokens;
 const refCount=m=>m.frameRefs?.length||m.images?.length||0;
-const messageTokens=(m,s)=>8+textTokens(m.text)+textTokens(JSON.stringify(m.toolCalls||[]))+textTokens(JSON.stringify(m.providerState||{}))+refCount(m)*s.imageTokens;
+// Provider replay duplicates visible text/tool calls. Encrypted tokens and
+// signatures are protocol bytes, not text tokens; count reasoning text once.
+function reasoningTokens(state){
+ if(!state)return 0;
+ if(state.kind==='codex-responses/1')return state.items?.filter(item=>item.type==='reasoning').reduce((n,item)=>n+textTokens((item.summary||[]).map(part=>part.text||'').join(''))+(Number.isSafeInteger(item.reasoningTokens)?item.reasoningTokens:0),0)||0;
+ return textTokens(state.reasoningContent)+(state.thinkingBlocks||[]).reduce((n,block)=>n+textTokens(block.thinking),0);
+}
+const messageTokens=(m,s)=>8+textTokens(m.text)+textTokens(JSON.stringify(m.toolCalls||[]))+reasoningTokens(m.providerState)+refCount(m)*s.imageTokens;
 const groupTokens=(g,s)=>g.reduce((n,m)=>n+messageTokens(m,s),0);
 function imageRetention(groups,checkpoint,limit){
   const latest=groups.findLast(group=>group.some(message=>refCount(selectedMessage(message,checkpoint))));
@@ -154,7 +161,7 @@ export async function inspectContext({store,sessionId,settings:input,provider,pr
  * the caller hydrates only this final projection, not the paginated source.
  * Includes a stable checkpoint user row and a verbatim latest-user anchor.
  */
-export async function prepareContext({store,sessionId,settings:input,provider,credential,invoke,signal,summaryPrompt=SUMMARY_PROMPT,summaryContext,onSourceMessage,onEvent,prefixTokens=0,pageSize=128,force=false,forceReason='provider-overflow',runId}={}){
+export async function prepareContext({store,sessionId,settings:input,provider,credential,invoke,signal,summaryPrompt=SUMMARY_PROMPT,summaryContext,onSourceMessage,onEvent,prefixTokens=0,pageSize=128,preserveImagePrefix=false,force=false,forceReason='provider-overflow',runId}={}){
   let settings=normalizeContextSettings(input);
   // Only use explicit capacity metadata; a model name is not proof of its window.
   const capacity=provider?.contextWindowTokens??provider?.contextWindow;
@@ -184,8 +191,8 @@ export async function prepareContext({store,sessionId,settings:input,provider,cr
   // A boundary's own tail may exceed its target (e.g. a huge indivisible group).
   // Do not keep paying for an identical failed-to-shrink compaction each turn.
   const unchanged=!force&&old?.compactedAtSeq===lastSeq&&old.settingsFingerprint===fingerprint;
-  if(force&&!['manual','provider-overflow'].includes(forceReason))throw new Error('Invalid compaction trigger');
-  const reason=force?forceReason:estimated+settings.reserveTokens>=settings.triggerTokens?'tokens':images>settings.maxImages?'images':null;
+  if(force&&!['manual','provider-overflow','transport-capacity'].includes(forceReason))throw new Error('Invalid compaction trigger');
+  const reason=force?forceReason:estimated+settings.reserveTokens>=settings.triggerTokens?'tokens':images>(preserveImagePrefix?64:settings.maxImages)?(preserveImagePrefix?'image-capacity':'images'):null;
   metrics.compactionReason=reason;
   if((!settings.autoCompact&&!force)||!reason||unchanged){
     // If collection was bounded after reaching a threshold but the previous
@@ -256,13 +263,13 @@ export async function prepareContext({store,sessionId,settings:input,provider,cr
         // including unchanged tool schemas and Skill instructions. The summary
         // request itself is appended, and tool execution remains disabled.
         let history=summaryContext?projectPrepared(batch,old):null;
-        if(history&&history.reduce((n,m)=>n+refCount(m),0)>settings.maxImages){const selection=chooseImageSelection(history,settings.maxImages),boundary={compactedAtSeq:lastSeq,imageSelection:selection};history=history.map(m=>selectedMessage(m,boundary));}
+        if((!preserveImagePrefix||forceReason==='transport-capacity')&&history&&history.reduce((n,m)=>n+refCount(m),0)>(forceReason==='transport-capacity'?1:settings.maxImages)){const selection=chooseImageSelection(history,forceReason==='transport-capacity'?1:settings.maxImages),boundary={compactedAtSeq:lastSeq,imageSelection:selection};history=history.map(m=>selectedMessage(m,boundary));}
         let messages=summaryContext?[...summaryContext.prefix,...history,{role:'user',internal:true,text:prompt+'\nSummarize only the historical task evidence above. Ignore all system/Skill procedures and runtime instruction text in the summary. Source range: '+JSON.stringify(sourceRange)+(batches?'\nMerge this earlier-batch summary as historical task evidence: '+summary:'')}]:[{role:'system',text:prompt},{role:'user',text:JSON.stringify({previousCheckpoint:summary||null,sourceRange,messages:batch.map(summaryRecord)})}];
-        if(summaryContext?.hydrate)messages=await summaryContext.hydrate(messages);contextAbort(signal);
+        if(summaryContext?.hydrate&&!summaryContext.lazyHydrate)messages=await summaryContext.hydrate(messages);contextAbort(signal);
         let reply;
         for(let attempt=0;attempt<2;attempt++){
           const requestStarted=performance.now();
-          reply=await awaitContext(invoke({provider:{...provider,maxTokens:summaryBudget},credential,messages,tools:[],...(summaryContext?{toolDefinitions:summaryContext.toolDefinitions,...(!attempt?{purpose:'compaction'}:{})}:{}),signal,onDelta:()=>{}}),signal);contextAbort(signal);
+          reply=await awaitContext(invoke({provider:{...provider,maxTokens:summaryBudget},credential,messages,...(summaryContext?.lazyHydrate?{hydrate:summaryContext.hydrate}:{}),tools:[],...(summaryContext?{toolDefinitions:summaryContext.toolDefinitions,...(!attempt?{purpose:'compaction'}:{})}:{}),signal,onDelta:()=>{}}),signal);contextAbort(signal);
           metrics.summaryCalls++;if(reply?.usage)metrics.providerUsage.push(reply.usage);
           if(summaryContext?.onUsage)await summaryContext.onUsage(reply,{durationMs:Math.round(performance.now()-requestStarted),sourceRange,attempt,batch:batches});contextAbort(signal);
           // No tool request is ever dispatched by compaction. If a provider

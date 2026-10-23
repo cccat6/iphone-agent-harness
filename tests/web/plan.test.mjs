@@ -184,3 +184,18 @@ test('pointer sequence rejects extra contacts, coordinate-changing release and z
 test('a stalled capture still respects an explicit small timeout and skips later input',async()=>{
  let late;const a=adapters({grab:q=>new Promise(resolve=>{late=()=>resolve({frameId:'late',targetId:q.targetId,orientationEpoch:q.orientationEpoch,requestedAtMs:1,readyAtMs:2,mediaTimeMs:null,width:10,height:10});})});const result=await executePhonePlan(plan([shot('timeout',{frames:{count:1,intervalMs:0,timeoutMs:100}}),tap('never')]),{...a,context:context()});assert.equal(result.status,'failed');assert.equal(result.frames.length,0);assert.equal(a.segments.length,0);assert.equal(result.steps.at(-1).status,'skipped');late();await tick();assert.equal(a.segments.length,0);
 });
+
+test('text keys share one scheduled segment with preserved release and settle intervals',async()=>{
+ const keys=[6,15,18,6,14].map((usage,i)=>({id:'char-'+i,op:'key',usage,modifiers:0,holdMs:80})),a=adapters();
+ const result=await executePhonePlan(plan([...keys,shot('text-proof')]),{...a,context:context()});assert.equal(result.status,'completed');assert.equal(a.segments.length,1);const events=a.segments[0].events;
+ assert.deepEqual(events.filter(e=>e.usages.length).map(e=>e.usages[0]),[6,15,18,6,14]);assert.equal(events.length,10);for(let i=2;i<events.length;i+=2)assert.equal(events[i].atMs-events[i-1].atMs,150);assert.deepEqual(events.at(-1).usages,[]);assert.equal(result.steps.filter(s=>s.status==='hid_submitted').length,5);assert.equal(result.frames.length,1);
+});
+test('text batches split at device limits, command keys and capture barriers',async()=>{
+ const key=(id,usage=4,modifiers=0)=>({id,op:'key',usage,modifiers,holdMs:40}),a=adapters();
+ const result=await executePhonePlan(plan([key('a'),key('b'),key('c'),shot('middle'),key('d'),key('command',4,8),key('e'),key('f')]),{...a,context:context({capabilities:{operations,maxEvents:4,maxSegmentMs:5000}})});
+ assert.equal(result.status,'completed');assert.equal(a.segments.length,5);assert.ok(a.segments.every(s=>s.events.length<=4));assert.equal(a.segments.find(s=>s.events[0].modifiers===8).events.length,2);
+});
+test('cancelled submitted text batches never label their remaining characters as unsent or replay input',async()=>{
+ const controller=new AbortController(),a=adapters({submit:()=>{controller.abort();throw Error('cancelled after send');}}),keys=[4,5,6].map((usage,i)=>({id:'char-'+i,op:'key',usage,modifiers:0,holdMs:40}));
+ const result=await executePhonePlan(plan([...keys,shot('after')]),{...a,context:context(),signal:controller.signal});assert.equal(result.status,'cancelled');assert.equal(a.segments.length,1);assert.deepEqual(result.steps.slice(0,3).map(s=>s.status),['unknown','unknown','unknown']);assert.equal(result.steps.at(-1).status,'skipped');assert.equal(a.releases.length,1);
+});

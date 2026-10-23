@@ -37,7 +37,9 @@ class Sctp {
   bool sendText(const uint8_t* data,size_t n,uint32_t now){
    if(!idleToSend()||!n||n>MaxMessage||peerWindow_<n)return false;
    txSize_=12+16+n;txSize_=(txSize_+3)&~size_t(3);tx_.fill(0);header(tx_.data(),remoteTag_);
-   auto* c=tx_.data()+12;c[0]=0;c[1]=3;write16(c+2,16+n);txTsn_=nextTx_++;lastTx_=txTsn_;write32(c+4,txTsn_);write16(c+8,0);write16(c+10,txSsn_++);write32(c+12,51);std::memcpy(c+16,data,n);checksum(tx_.data(),txSize_);
+   // B/E plus the SCTP I bit requests immediate SACKs. Stop-and-wait RPC
+   // fragments must not each wait for the browser delayed-ACK timer.
+   auto* c=tx_.data()+12;c[0]=0;c[1]=0x0b;write16(c+2,16+n);txTsn_=nextTx_++;lastTx_=txTsn_;write32(c+4,txTsn_);write16(c+8,0);write16(c+10,txSsn_++);write32(c+12,51);std::memcpy(c+16,data,n);checksum(tx_.data(),txSize_);
    txWaiting_=true;txRetries_=0;txRto_=300;txDeadline_=now+txRto_;if(!send_(tx_.data(),txSize_)){fail(Failure::SendFailure);return false;}return true;
   }
   void input(const uint8_t* p,size_t n,uint32_t now){

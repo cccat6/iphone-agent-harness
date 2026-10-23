@@ -55,3 +55,10 @@ test('relay exposes header latency and validated provider duration while streami
   assert.match(response.headers.get('server-timing'),/^iah-upstream;dur=\d+(?:, iah-provider;dur=12\.5)?$/);assert.equal(response.headers.get('server-timing').includes('iah-provider'),processing==='12.5');assert.ok(response.headers.get('access-control-expose-headers').includes('Server-Timing'));assert.equal(await response.text(),'streamed bytes');
  }
 });
+
+test('subscription cache affinity forwards only a bounded stable session identifier',async()=>{
+ let calls=0;const options={fetchImpl:async(_url,o)=>{calls++;assert.equal(o.headers.get('session-id'),'iah:session-fixture');assert.equal(o.headers.get('thread-id'),null);return Response.json({ok:true});}};
+ const r=await serveOpenAIRelay(req('responses',{method:'POST',headers:{'Content-Type':'application/json','Session-ID':'iah:session-fixture','Thread-ID':'do-not-forward'},body:'{}'}),options);assert.equal(r.status,200);await r.text();
+ const bad=await serveOpenAIRelay(req('responses',{method:'POST',headers:{'Content-Type':'application/json','Session-ID':'invalid id'},body:'{}'}),options);assert.equal(bad.status,400);assert.equal(calls,1);
+ const preflight=await serveOpenAIRelay(req('responses',{method:'OPTIONS',headers:{'Access-Control-Request-Method':'POST','Access-Control-Request-Headers':'authorization,content-type,session-id'}}));assert.equal(preflight.status,204);
+});
