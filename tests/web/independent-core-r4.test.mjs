@@ -25,7 +25,7 @@ for(const protocol of ['openai','anthropic'])for(const over of [false,true])test
 });
 
 test('independent R4: post-hash capability reduction rejects the whole batch before any input',async()=>{
- const plan={version:1,planId:'plan',sessionId:'session',boardId:'board',targetId:'phone',basedOnFrameId:'frame',orientationEpoch:1,ttlMs:15000,maxExecutionMs:1000,steps:[{id:'tap',op:'tap',point:{x:4000,y:5000},holdMs:100},{id:'home',op:'home'}]};
+ const plan={version:1,planId:'plan',sessionId:'session',boardId:'board',targetId:'phone',basedOnFrameId:'frame',orientationEpoch:1,ttlMs:15000,maxExecutionMs:1000,steps:[{id:'tap',op:'tap',point:{x:4000,y:5000},holdMs:100},{id:'home',op:'home',settleMs:0}]};
  const caps={operations:['tap','home'],maxHoldMs:3000,maxRequestBytes:8192};
  const context={mode:'task',sessionId:'session',boardId:'board',bootId:'boot',clientId:'client',targetId:'phone',leaseId:'lease',orientationEpoch:1,identityVerified:true,bindingVerified:true,leaseVerified:true,executionEnabled:true,inputState:'released',knownFrames:new Map([['frame',{targetId:'phone',orientationEpoch:1}]]),capabilities:caps};
  let checks=0,submissions=0;

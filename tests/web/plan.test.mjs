@@ -212,3 +212,19 @@ test('cancelled continuous taps reconcile the whole submitted batch without repl
  const controller=new AbortController(),a=adapters({submit:()=>{controller.abort();throw Error('cancelled after send');}}),taps=[1,2,3].map(n=>({...tap('continuous-'+n),settleMs:0}));
  const result=await executePhonePlan(plan([...taps,shot('after')]),{...a,signal:controller.signal,context:context({capabilities:{operations,segmentEncoding:'gesture-v2'}})});assert.equal(result.status,'cancelled');assert.equal(a.segments.length,1);assert.deepEqual(result.steps.slice(0,3).map(s=>s.status),['unknown','unknown','unknown']);assert.equal(result.steps.at(-1).status,'skipped');assert.equal(a.releases.length,1);
 });
+
+
+test('default Home settling delays the review capture through the app-switch animation window',async t=>{
+ t.mock.timers.enable({apis:['setTimeout']});let clock=0,submitted;const accepted=new Promise(resolve=>submitted=resolve),captures=[];
+ const a=adapters({submit:s=>{submitted();return receipt(s);},grab:async q=>{captures.push(clock);return {frameId:'home-review',targetId:q.targetId,orientationEpoch:q.orientationEpoch,requestedAtMs:clock,readyAtMs:clock,mediaTimeMs:null,width:1170,height:2532};}});
+ const running=executePhonePlan(plan([{id:'home',op:'home'},shot()]),{...a,context:context({now:()=>clock})});
+ await accepted;for(let i=0;i<100;i++)await Promise.resolve();clock=450;t.mock.timers.tick(450);for(let i=0;i<100;i++)await Promise.resolve();assert.deepEqual(captures,[],'early Home receipt does not imply a settled Home screen');
+ clock=1100;t.mock.timers.tick(650);const result=await running;assert.deepEqual(captures,[1100]);assert.equal(result.status,'completed');assert.equal(result.frames.length,1);
+});
+
+
+test('capture failure timeouts are not counted as planned waits, while actual sampling intervals remain budgeted',()=>{
+ const captures=[shot('first',{frames:{count:1,intervalMs:0,timeoutMs:10000}}),shot('second',{frames:{count:1,intervalMs:0,timeoutMs:10000}})];
+ const valid=validatePlan(plan([{id:'home',op:'home'},...captures]),context());assert.equal(valid.valid,true);assert.equal(valid.frameCount,2);
+ const overscheduled=validatePlan(plan([shot('spread',{frames:{count:8,intervalMs:1000,timeoutMs:10000}})],{maxExecutionMs:6000}),context());assert.equal(overscheduled.valid,false);assert.match(overscheduled.errors.join(),/execution\/TTL budget/);
+});

@@ -107,7 +107,7 @@ function checkGestureLimits(events,durationMs,caps={}){
  if(heldAt!==null)fail('Compiled input must end released');
 }
 
-export function actionSettleMs(step){return step.settleMs??({tap:250,key:150,home:450,drag:350,swipe:700,pointer_sequence:350}[step.op]||0);}
+export function actionSettleMs(step){return step.settleMs??({tap:250,key:150,home:1100,drag:350,swipe:700,pointer_sequence:350}[step.op]||0);}
 
 /** Complete preflight. No adapter calls, timers, hashing or input is performed. */
 export function validatePlan(plan,context) {
@@ -130,8 +130,9 @@ export function validatePlan(plan,context) {
       if(MUTATIONS.has(step.op)){
         const compiled=compileGesture(step.op==='observe'?step.motion:step,context);
         checkRequestBytes(gestureEnvelope(plan,context,index,compiled),context.capabilities);
-        budgetMs+=step.op==='observe'?Math.max(compiled.durationMs,step.frames.timeoutMs)+actionSettleMs(step.motion):compiled.durationMs+actionSettleMs(step);
-      }else budgetMs+=step.op==='wait'?step.durationMs:step.frames.timeoutMs;
+        // Capture timeouts bound failures; they are not scheduled delays.
+        budgetMs+=step.op==='observe'?Math.max(compiled.durationMs,(step.frames.count-1)*step.frames.intervalMs)+actionSettleMs(step.motion):compiled.durationMs+actionSettleMs(step);
+      }else budgetMs+=step.op==='wait'?step.durationMs:(step.frames.count-1)*step.frames.intervalMs;
     }
     if(frameCount>24)fail('Plan exceeds 24 frames');
     if(budgetMs>plan.maxExecutionMs||budgetMs>plan.ttlMs)fail('Plan exceeds execution/TTL budget');

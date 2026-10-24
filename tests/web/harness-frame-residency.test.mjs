@@ -24,3 +24,12 @@ test('a valid nine-frame plan stores references and emits no duplicate image pay
  for(const ref of result.frameRefs)assert.ok((await store.getFrame(ref)).blob);
  store.close();
 });
+
+
+test('opted-in phone runs provide fresh current-run evidence before the first model request',async()=>{
+ const store=await openStore({memory:true});await store.saveSettings({providers:[{id:'fixture',protocol:'openai',baseUrl:'https://fixture.invalid',model:'fixture'}],activeProviderId:'fixture',returnToHarness:false});const session=await store.createSession({mode:'task'});let calls=0,grabs=0;
+ const capture={active:true,orientationEpoch:1,grab:async()=>{grabs++;return {frameId:crypto.randomUUID(),blob:new Blob(['fixture'],{type:'image/jpeg'}),width:100,height:200,orientationEpoch:1,requestedAtMs:performance.now(),readyAtMs:performance.now()};}};
+ const context=()=>({identityVerified:true,bindingVerified:true,leaseVerified:true,executionEnabled:true,inputState:'released',targetId:'phone',clientId:'client',leaseId:'lease',boardId:'board',bootId:'boot',orientationEpoch:1,capabilities:{operations:['capture']}});
+ await createHarness({store,capture,initialObservation:true,getContext:context,invoke:async request=>{calls++;const current=request.messages.findLast(m=>m.frameRefs?.length);assert.match(current.text,/Current phone screen at the start of this run/);assert.equal(current.frameRefs.length,1);return {text:'Current screen inspected.',toolCalls:[]};}}).run({sessionId:session.id,text:'Inspect current phone'});
+ assert.equal(calls,1);assert.equal(grabs,1);store.close();
+});

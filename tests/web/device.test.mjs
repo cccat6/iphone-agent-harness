@@ -57,7 +57,7 @@ test('endRun releases only its own writer lease and never touches another run',a
 
 test('real plan executor and DeviceClient agree on wire identity, receipt and endRun release',async()=>{
  const {client,f}=await bound(),writerId='run-adapter';const base=await client.getExecutionContext({orientationEpoch:1,writerId,allowClaim:true});const context={...base,mode:'task',sessionId:'session-a',knownFrames:new Map([['frame-before',{targetId:'phone-a',orientationEpoch:1}]]),getState:async()=>({...await client.getExecutionContext({orientationEpoch:1,writerId,allowClaim:false}),mode:'task'})};
- const plan={version:1,planId:'plan-adapter',sessionId:'session-a',boardId:base.boardId,targetId:base.targetId,basedOnFrameId:'frame-before',orientationEpoch:1,ttlMs:15000,maxExecutionMs:1000,steps:[{id:'home',op:'home'}]};const result=await executePhonePlan(plan,{device:client,context});assert.equal(result.status,'completed');assert.equal(result.outcome,'not_evaluated');assert.equal(f.calls.filter(c=>c.path.endsWith('/segments')).length,1);assert.equal((await client.endRun({writerId})).leaseInvalidated,true);
+ const plan={version:1,planId:'plan-adapter',sessionId:'session-a',boardId:base.boardId,targetId:base.targetId,basedOnFrameId:'frame-before',orientationEpoch:1,ttlMs:15000,maxExecutionMs:1000,steps:[{id:'home',op:'home',settleMs:0}]};const result=await executePhonePlan(plan,{device:client,context});assert.equal(result.status,'completed');assert.equal(result.outcome,'not_evaluated');assert.equal(f.calls.filter(c=>c.path.endsWith('/segments')).length,1);assert.equal((await client.endRun({writerId})).leaseInvalidated,true);
 });
 
 test('renewal during running input never preserves an earlier released claim',async()=>{
