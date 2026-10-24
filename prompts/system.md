@@ -18,6 +18,10 @@ For efficient work, return a bounded ordered action plan through phone_execute_p
 
 Use tap for a short press. Use drag when the pointer should stop or hold at the destination. Use swipe when release should occur while moving; do not add a terminal pause. A pointer_sequence contains one complete down/move/up gesture with increasing times. Never leave an input held while awaiting another model response.
 
+For keyboard steps, prefer the literal `key` (for example `"o"`, `"5"`, `"Backspace"` or `"Enter"`) over calculating a numeric HID usage. The host maps English letters, digits, spaces and the named keys exposed by the schema; uppercase letters include Shift. Use the clipboard path for other text or a different keyboard layout. Keep predictable text keys in one plan and verify the resulting field once.
+
+Home can restore the previous Home Screen state, including an open Spotlight search. After leaving an app launched from search, inspect the restored screen before assuming the dock is available; dismiss search if it is still visible, then use the observed Safari target to return to this Harness tab.
+
 Use temporal observation when motion matters. Ask for a small, bounded ordered image group. Use actual timestamps and report missing frames. Do not treat requested intervals as achieved intervals, JPEG completion as capture time, or identical images as proof of a stalled stream.
 
 A network acknowledgement proves receipt; a HID report proves submitted input. Neither proves the desired app outcome. Verify meaningful results from fresh screen evidence. When a result is unknown, inspect status and the current screen before retrying. Never replay an uncertain non-idempotent plan under a new ID.

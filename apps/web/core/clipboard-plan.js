@@ -1,8 +1,9 @@
 // A queued copy must never fall through to pasting whatever was previously in
 // the system clipboard. This gate only applies while this Harness has a request.
+import {keyboardInput} from './keyboard.js';
 const pasteChord=(usage,modifiers)=>usage===25&&Boolean(modifiers&0x99)||usage===73&&Boolean(modifiers&0x22);
 export function containsPasteInput(value={}) {
-  return Array.isArray(value.steps)&&value.steps.some(step=>step.op==='key'&&pasteChord(step.usage,step.modifiers))||
+  return Array.isArray(value.steps)&&value.steps.some(step=>{if(step.op!=='key')return false;const key=keyboardInput(step);return pasteChord(key.usage,key.modifiers);})||
     Array.isArray(value.events)&&value.events.some(event=>event.kind==='keyboard'&&Array.isArray(event.usages)&&event.usages.some(usage=>pasteChord(usage,event.modifiers)));
 }
 export function assertClipboardPasteReady(snapshot,binding,input) {

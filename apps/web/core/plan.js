@@ -1,5 +1,6 @@
 import {boundedCaptureStage,captureTimeout} from './capture.js';
 import {assertBridgePresent} from './bridge-status.js';
+import {keyboardInput} from './keyboard.js';
 // Host-side phone plans. Device and capture adapters must be supplied by trusted
 // application code; model output can never enable execution or verify a target.
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$/;
@@ -36,7 +37,7 @@ function frames(value,label) {
 function stepShape(step,ids=new Set()) {
   if(!plain(step)||!OPS.has(step.op))fail('Unknown phone operation');
   const optionalSettle=MUTATIONS.has(step.op)&&step.op!=='observe';
-  const keys=FIELDS[step.op];shape(step,optionalSettle&&Object.hasOwn(step,'settleMs')?[...keys,'settleMs']:keys,step.op);
+  const keys=step.op==='key'&&Object.hasOwn(step,'key')?FIELDS.key.map(key=>key==='usage'?'key':key):FIELDS[step.op];shape(step,optionalSettle&&Object.hasOwn(step,'settleMs')?[...keys,'settleMs']:keys,step.op);
   if(Object.hasOwn(step,'settleMs')&&(!optionalSettle||!integer(step.settleMs,0,3000)))fail('Invalid post-action settleMs');
   if(!validId(step.id)||ids.has(step.id))fail(`${step.op}: missing or duplicate step ID`);
   ids.add(step.id);
@@ -61,7 +62,7 @@ function stepShape(step,ids=new Set()) {
       }else if(e.phase!=='move'||e.atMs<=previous.atMs)fail('Pointer sequence permits only strictly timed moves between down and up');
     });
   }
-  if(step.op==='key'&&(!integer(step.usage,4,231)||!integer(step.modifiers,0,255)||!integer(step.holdMs,40,1200)))fail('Invalid keyboard input');
+  if(step.op==='key'){keyboardInput(step);if(!integer(step.holdMs,40,1200))fail('Invalid keyboard input');}
   if(step.op==='wait'&&!integer(step.durationMs,0,2000))fail('Invalid wait');
   if(step.op==='capture'||step.op==='observe'){
     frames(step.frames,`${step.op}.frames`);
@@ -163,7 +164,7 @@ export function compileGesture(step,context={}) {
   const pointer=(atMs,buttons,p)=>({atMs,kind:'pointer',buttons,x:p.x,y:p.y});
   let events=[];
   if(step.op==='tap')events=[pointer(0,0,step.point),pointer(settle,1,step.point),pointer(settle+step.holdMs,0,step.point)];
-  if(step.op==='key')events=[{atMs:0,kind:'keyboard',modifiers:step.modifiers,usages:[step.usage]},{atMs:step.holdMs,kind:'keyboard',modifiers:0,usages:[]}];
+  if(step.op==='key'){const key=keyboardInput(step);events=[{atMs:0,kind:'keyboard',modifiers:key.modifiers,usages:[key.usage]},{atMs:step.holdMs,kind:'keyboard',modifiers:0,usages:[]}];}
   if(step.op==='home')events=[{atMs:0,kind:'consumer',usage:64},{atMs:100,kind:'consumer',usage:0}];
   if(step.op==='pointer_sequence')events=[pointer(0,0,step.events[0]),...step.events.map(e=>pointer(settle+e.atMs,e.phase==='up'?0:1,e))];
   if(step.op==='drag'||step.op==='swipe'){
@@ -190,7 +191,7 @@ export function compileGesture(step,context={}) {
   if(caps.segmentEncoding==='gesture-v2'){
     if(step.op==='home')gesture=['home'];
     else if(step.op==='tap')gesture=['tap',step.point.x,step.point.y,settle,step.holdMs];
-    else if(step.op==='key')gesture=['key',step.modifiers,step.usage,step.holdMs];
+    else if(step.op==='key'){const key=keyboardInput(step);gesture=['key',key.modifiers,key.usage,step.holdMs];}
     else if((step.op==='drag'||step.op==='swipe')&&step.path.length<=64){const hold=step.endHoldMs||(step.op==='swipe'?Math.min(interval,20):0);gesture=['path',settle,interval,durationMs-settle-hold,hold,step.path.map(p=>[p.x,p.y,p.tMs])];}
     else gesture=compactReports(events);
   }
@@ -203,7 +204,7 @@ function compactReports(events){return ['reports',events.map(e=>e.kind==='pointe
 // segment. Observation barriers and taps requesting a host wait stay separate.
 function compileInputRun(plan,index,context,identity){
  const continuousTaps=context.capabilities?.segmentEncoding==='gesture-v2'&&plan.steps[index]?.op==='tap';
- const eligible=step=>continuousTaps?step?.op==='tap'&&step.settleMs===0:step?.op==='key'&&[0,2,32,34].includes(step.modifiers)&&((step.usage>=4&&step.usage<=39)||step.usage===42||step.usage>=44&&step.usage<=56)&&actionSettleMs(step)>=(context.capabilities?.reportIntervalMs||20);
+ const eligible=step=>{if(continuousTaps)return step?.op==='tap'&&step.settleMs===0;if(step?.op!=='key')return false;const key=keyboardInput(step);return [0,2,32,34].includes(key.modifiers)&&((key.usage>=4&&key.usage<=39)||key.usage===42||key.usage>=44&&key.usage<=56)&&actionSettleMs(step)>=(context.capabilities?.reportIntervalMs||20);};
  if(!eligible(plan.steps[index]))return null;
  let events=[],offset=0,end=index,durationMs=0;
  for(let i=index;i<plan.steps.length&&eligible(plan.steps[i]);i++){

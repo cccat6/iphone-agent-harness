@@ -161,7 +161,7 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 3000,
-          "description": "Host wait after confirmed HID release, before the next action or capture. Defaults: tap 250, key 150, home 450, drag/pointer 350, swipe 700 ms. Increase for observed picker/inertial animation; use 0 for intentional double-tap/key sequences. This wait does not prove a fresh media frame or a settled UI."
+          "description": "Host wait after confirmed HID release, before the next action or capture. Defaults: tap 250, key 150, home 1100, drag/pointer 350, swipe 700 ms. Increase for observed picker/inertial animation; use 0 for intentional double-tap/key sequences. This wait does not prove a fresh media frame or a settled UI."
         }
       },
       "required": [
@@ -199,7 +199,7 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 3000,
-          "description": "Host wait after confirmed HID release, before the next action or capture. Defaults: tap 250, key 150, home 450, drag/pointer 350, swipe 700 ms. Increase for observed picker/inertial animation; use 0 for intentional double-tap/key sequences. This wait does not prove a fresh media frame or a settled UI."
+          "description": "Host wait after confirmed HID release, before the next action or capture. Defaults: tap 250, key 150, home 1100, drag/pointer 350, swipe 700 ms. Increase for observed picker/inertial animation; use 0 for intentional double-tap/key sequences. This wait does not prove a fresh media frame or a settled UI."
         }
       },
       "required": [
@@ -232,7 +232,7 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 3000,
-          "description": "Host wait after confirmed HID release, before the next action or capture. Defaults: tap 250, key 150, home 450, drag/pointer 350, swipe 700 ms. Increase for observed picker/inertial animation; use 0 for intentional double-tap/key sequences. This wait does not prove a fresh media frame or a settled UI."
+          "description": "Host wait after confirmed HID release, before the next action or capture. Defaults: tap 250, key 150, home 1100, drag/pointer 350, swipe 700 ms. Increase for observed picker/inertial animation; use 0 for intentional double-tap/key sequences. This wait does not prove a fresh media frame or a settled UI."
         }
       },
       "required": [
@@ -298,7 +298,7 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 3000,
-          "description": "Host wait after confirmed HID release, before the next action or capture. Defaults: tap 250, key 150, home 450, drag/pointer 350, swipe 700 ms. Increase for observed picker/inertial animation; use 0 for intentional double-tap/key sequences. This wait does not prove a fresh media frame or a settled UI."
+          "description": "Host wait after confirmed HID release, before the next action or capture. Defaults: tap 250, key 150, home 1100, drag/pointer 350, swipe 700 ms. Increase for observed picker/inertial animation; use 0 for intentional double-tap/key sequences. This wait does not prove a fresh media frame or a settled UI."
         }
       },
       "required": [
@@ -418,7 +418,7 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 3000,
-          "description": "Host wait after confirmed HID release, before the next action or capture. Defaults: tap 250, key 150, home 450, drag/pointer 350, swipe 700 ms. Increase for observed picker/inertial animation; use 0 for intentional double-tap/key sequences. This wait does not prove a fresh media frame or a settled UI."
+          "description": "Host wait after confirmed HID release, before the next action or capture. Defaults: tap 250, key 150, home 1100, drag/pointer 350, swipe 700 ms. Increase for observed picker/inertial animation; use 0 for intentional double-tap/key sequences. This wait does not prove a fresh media frame or a settled UI."
         }
       },
       "required": [
@@ -427,44 +427,89 @@
       ]
     },
     "key": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "id": {
-          "type": "string",
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$"
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$"
+            },
+            "op": {
+              "const": "key"
+            },
+            "modifiers": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 255
+            },
+            "holdMs": {
+              "type": "integer",
+              "minimum": 40,
+              "maximum": 1200
+            },
+            "settleMs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 3000,
+              "description": "Host wait after confirmed HID release, before the next action or capture. Defaults: tap 250, key 150, home 1100, drag/pointer 350, swipe 700 ms. Increase for observed picker/inertial animation; use 0 for intentional double-tap/key sequences. This wait does not prove a fresh media frame or a settled UI."
+            },
+            "key": {
+              "type": "string",
+              "pattern": "^(?:[A-Za-z0-9 ]|Enter|Escape|Backspace|Tab|Space|Insert|Home|PageUp|Delete|End|PageDown|ArrowRight|ArrowLeft|ArrowDown|ArrowUp)$",
+              "description": "Literal English letter, digit, space or named keyboard key. Prefer this to calculating HID usage codes. Uppercase letters include Shift; keyboard Home differs from the phone home operation."
+            }
+          },
+          "required": [
+            "id",
+            "op",
+            "key",
+            "modifiers",
+            "holdMs"
+          ]
         },
-        "op": {
-          "const": "key"
-        },
-        "usage": {
-          "type": "integer",
-          "minimum": 4,
-          "maximum": 231
-        },
-        "modifiers": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 255
-        },
-        "holdMs": {
-          "type": "integer",
-          "minimum": 40,
-          "maximum": 1200
-        },
-        "settleMs": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 3000,
-          "description": "Host wait after confirmed HID release, before the next action or capture. Defaults: tap 250, key 150, home 450, drag/pointer 350, swipe 700 ms. Increase for observed picker/inertial animation; use 0 for intentional double-tap/key sequences. This wait does not prove a fresh media frame or a settled UI."
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$"
+            },
+            "op": {
+              "const": "key"
+            },
+            "usage": {
+              "type": "integer",
+              "minimum": 4,
+              "maximum": 231
+            },
+            "modifiers": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 255
+            },
+            "holdMs": {
+              "type": "integer",
+              "minimum": 40,
+              "maximum": 1200
+            },
+            "settleMs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 3000,
+              "description": "Host wait after confirmed HID release, before the next action or capture. Defaults: tap 250, key 150, home 1100, drag/pointer 350, swipe 700 ms. Increase for observed picker/inertial animation; use 0 for intentional double-tap/key sequences. This wait does not prove a fresh media frame or a settled UI."
+            }
+          },
+          "required": [
+            "id",
+            "op",
+            "usage",
+            "modifiers",
+            "holdMs"
+          ]
         }
-      },
-      "required": [
-        "id",
-        "op",
-        "usage",
-        "modifiers",
-        "holdMs"
       ]
     },
     "step": {
