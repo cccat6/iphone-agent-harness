@@ -1,7 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
 import {firmwareVersionLabel,firmwarePublicationDate,firmwarePublicationLabel,loadFirmwarePublication} from '../../apps/web/core/firmware-publication.js';
 const manifest={firmwareVersion:'0.5.4-rtc-direct',buildId:'39089fb25006c859',manifestUrl:'https://igent.cc/firmware/manifest.json'},record={schemaVersion:1,firmwareVersion:manifest.firmwareVersion,buildId:manifest.buildId,publishedAt:'2026-10-21T10:38:33Z'};
 test('installer shows a plain version and a stable UTC publication date',()=>{assert.equal(firmwareVersionLabel(manifest.firmwareVersion),'0.5.4');assert.equal(firmwareVersionLabel('0.5.5'),'0.5.5');assert.equal(firmwarePublicationLabel(firmwarePublicationDate(manifest,record)),'2026-10-21 10:38:33 UTC');});
 test('publication metadata from another build or an invalid date is not displayed',()=>{for(const change of [{buildId:'old'},{firmwareVersion:'0.5.3-rtc-direct'},{publishedAt:'2026-02-30T10:38:33Z'},{publishedAt:'invalid'},{schemaVersion:2}])assert.equal(firmwarePublicationDate(manifest,{...record,...change}),null);});
 test('publication date is loaded from the static site and missing metadata does not block flashing',async()=>{let request;const result=await loadFirmwarePublication(manifest,{fetchImpl:async(url,options)=>{request={url:String(url),options};return Response.json(record);}});assert.equal(result.toISOString(),'2026-10-21T10:38:33.000Z');assert.equal(request.url,'https://igent.cc/firmware-publication.json');assert.equal(request.options.credentials,'omit');assert.equal(await loadFirmwarePublication(manifest,{fetchImpl:async()=>new Response('',{status:404})}),null);assert.equal(await loadFirmwarePublication(manifest,{fetchImpl:async()=>{throw Error('network');}}),null);});
+test('bundled installer publication metadata matches the actual firmware build',async()=>{
+ const read=path=>readFile(new URL(path,import.meta.url),'utf8').then(JSON.parse);
+ const [bundled,published]=await Promise.all([read('../../apps/web/firmware/manifest.json'),read('../../apps/web/firmware-publication.json')]);
+ assert.ok(firmwarePublicationDate(bundled,published),'The bundled firmware must display its matching release date');
+});
