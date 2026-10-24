@@ -22,7 +22,7 @@ test('native timeout keeps sharing, requires restart and never stacks another pe
  await assert.rejects(f.capture.grab({onDiagnostic:v=>diagnostics.push(v)}),{code:'CAPTURE_TIMEOUT',stage:'native_frame'});
  assert.equal(f.capture.active,true);assert.equal(f.capture.needsRestart,true);await assert.rejects(f.capture.grab(),{code:'CAPTURE_RESTART_REQUIRED'});assert.equal(f.nativeCalls,1);
  let closed=0;pending.resolve({width:10,height:20,close(){closed++;}});await turn();assert.equal(closed,1);assert.equal(f.capture.needsRestart,true);
- assert.deepEqual(Object.keys(diagnostics[0]).sort(),['durationMs','lastRecorderEventAgeMs','needsRestart','stage','status','trackMuted','trackState','visibility']);assert.equal(diagnostics[0].status,'timeout');
+ assert.deepEqual(Object.keys(diagnostics[0]).sort(),['durationMs','lastRecorderEventAgeMs','lastRecorderIssue','lastStop','needsRestart','recorderRecoveries','recorderState','stage','status','trackMuted','trackState','visibility']);assert.equal(diagnostics[0].status,'timeout');
  await f.capture.start();assert.equal(f.capture.needsRestart,false);assert.equal(f.capture.lastMediaEventAtMs,null);
 });
 test('concurrent native call fails busy without invalidating the owner; cancellation closes its late bitmap',async t=>{

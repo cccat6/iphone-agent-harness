@@ -25,39 +25,63 @@ export class ScreenCapture {
   #listeners=new Set();
   #lanes=new WeakMap();
   #sourceAbort=new AbortController();
+  #recorderTimer=null;
+  #recorderAttempts=0;
+  #lastRecoveryAtMs=0;
+  #awaitingRecorderData=false;
   needsRestart=false;
   constructor({timeoutMs=CAPTURE_FRAME_TIMEOUT_MS,stageTimeoutMs=10000}={}){this.timeoutMs=timeoutMs;this.stageTimeoutMs=stageTimeoutMs;}
-  diagnostics(){const track=this.stream?.getVideoTracks()[0];return {trackState:track?.readyState||'absent',trackMuted:track?.muted===true,visibility:globalThis.document?.visibilityState||'unknown',lastRecorderEventAgeMs:this.lastMediaEventAtMs===null?null:Math.max(0,performance.now()-this.lastMediaEventAtMs),needsRestart:this.needsRestart};}
+  diagnostics(){const track=this.stream?.getVideoTracks()[0];return {trackState:track?.readyState||'absent',trackMuted:track?.muted===true,recorderState:this.recorder?.state||(this.#recorderTimer!==null?'recovering':'absent'),recorderRecoveries:this.#recorderAttempts,visibility:globalThis.document?.visibilityState||'unknown',lastRecorderEventAgeMs:this.lastMediaEventAtMs===null?null:Math.max(0,performance.now()-this.lastMediaEventAtMs),needsRestart:this.needsRestart,lastRecorderIssue:this.lastRecorderIssue,lastStop:this.lastStop};}
   subscribe(listener){if(typeof listener!=='function')throw new TypeError('Capture listener must be a function');this.#listeners.add(listener);return ()=>this.#listeners.delete(listener);}
   #emit(event){for(const listener of [...this.#listeners])try{Promise.resolve(listener({...event,active:this.active,orientationEpoch:this.orientationEpoch})).catch(()=>{});}catch{}}
   stream=null;
   recorder=null;
   lastMediaEventAtMs=null;
+  lastRecorderIssue=null;
+  lastStop=null;
   orientationEpoch=0;
   dimensions=null;
   imageSettings=normalizeImageSettings();
   configure(settings){this.imageSettings=normalizeImageSettings(settings);}
   get active(){return Boolean(this.stream?.getVideoTracks().some(t=>t.readyState==='live'));}
+  #startRecorder(stream){
+    const recorder=new MediaRecorder(stream,MediaRecorder.isTypeSupported('video/mp4')?{mimeType:'video/mp4'}:{});this.recorder=recorder;
+    recorder.ondataavailable=event=>{
+      if(this.stream!==stream||this.recorder!==recorder)return;this.lastMediaEventAtMs=performance.now();
+      if(event?.data?.size>0){if(this.#awaitingRecorderData){this.#awaitingRecorderData=false;this.#emit({type:'recorder_recovered',attempt:this.#recorderAttempts});}if(this.#recorderAttempts&&performance.now()-this.#lastRecoveryAtMs>=60000)this.#recorderAttempts=0;}
+    };
+    recorder.onerror=event=>this.#recoverRecorder(stream,recorder,'recorder_error',event?.error);
+    recorder.onstop=()=>this.#recoverRecorder(stream,recorder,'recorder_stopped');
+    recorder.start(1000);
+  }
+  #recoverRecorder(stream,recorder,reason,error){
+    if(this.stream!==stream||this.recorder!==recorder)return;
+    this.lastRecorderIssue={at:Date.now(),reason,recorderState:recorder?.state||'absent',trackState:stream.getVideoTracks()[0]?.readyState||'absent',visibility:globalThis.document?.visibilityState||'unknown',...(error?{errorName:String(error.name||'Error').slice(0,100),errorMessage:String(error.message||'').slice(0,500)}:{})};
+    this.recorder=null;if(recorder){recorder.onerror=recorder.onstop=recorder.ondataavailable=null;if(recorder.state!=='inactive')try{recorder.stop();}catch{}}
+    if(!this.active){this.stop('track_ended');return;}
+    if(this.#recorderAttempts>=3){this.stop('recorder_recovery_exhausted');return;}
+    this.#recorderAttempts++;this.#lastRecoveryAtMs=performance.now();this.#awaitingRecorderData=true;
+    const delay=[0,250,1000][this.#recorderAttempts-1];
+    this.#recorderTimer=setTimeout(()=>{this.#recorderTimer=null;if(this.stream!==stream)return;if(!this.active){this.stop('track_ended');return;}try{this.#startRecorder(stream);}catch(cause){this.#recoverRecorder(stream,this.recorder,'recorder_start_failed',cause);}},delay);
+    this.#emit({type:'recorder_recovering',reason,attempt:this.#recorderAttempts});
+  }
   async start(){
     if(!navigator.mediaDevices?.getDisplayMedia)throw new Error('此浏览器没有屏幕共享能力；请使用支持的 Safari');
-    this.stop();const stream=await navigator.mediaDevices.getDisplayMedia({video:true,audio:false});this.stop();this.stream=stream;this.#sourceAbort=new AbortController();this.needsRestart=false;this.lastMediaEventAtMs=null;this.orientationEpoch++;this.dimensions=null;
+    this.stop('source_replaced');const stream=await navigator.mediaDevices.getDisplayMedia({video:true,audio:false});this.stop('source_replaced');this.stream=stream;this.#sourceAbort=new AbortController();this.needsRestart=false;this.lastMediaEventAtMs=null;this.#recorderAttempts=0;this.#awaitingRecorderData=false;this.orientationEpoch++;this.dimensions=null;
     try{
       if(!globalThis.MediaRecorder)throw new Error('缺少本项目已验证后台路径所需的媒体录制能力');
-      this.recorder=new MediaRecorder(this.stream,MediaRecorder.isTypeSupported('video/mp4')?{mimeType:'video/mp4'}:{});
       // Keep the same recording conditions as the physical probe, without
       // retaining a growing video. This does not guarantee background life.
-      this.recorder.ondataavailable=()=>{if(this.stream===stream)this.lastMediaEventAtMs=performance.now();};
-      const recorder=this.recorder;
-      recorder.onerror=()=>{if(this.recorder===recorder)this.stop('recorder_error');};
-      recorder.onstop=()=>{if(this.recorder===recorder)this.stop('recorder_stopped');};
-      this.recorder.start(1000);
+      this.#startRecorder(stream);
       stream.getVideoTracks()[0].addEventListener('ended',()=>{if(this.stream===stream)this.stop('track_ended');},{once:true});
       this.#emit({type:'started'});
       return this.stream;
-    }catch(e){this.stop();throw e;}
+    }catch(e){this.stop('capture_start_failed',e);throw e;}
   }
-  stop(reason='user_stopped'){
+  stop(reason='user_stopped',error){
     const stream=this.stream,recorder=this.recorder;if(!stream&&!recorder)return;
+    this.lastStop={at:Date.now(),reason,trackState:stream?.getVideoTracks()[0]?.readyState||'absent',recorderState:recorder?.state||'absent',visibility:globalThis.document?.visibilityState||'unknown',...(error?{errorName:String(error.name||'Error').slice(0,100),errorMessage:String(error.message||'').slice(0,500)}:{})};
+    clearTimeout(this.#recorderTimer);this.#recorderTimer=null;this.#awaitingRecorderData=false;
     // Fence async frame readers before recorder/track callbacks can re-enter.
     this.stream=null;this.recorder=null;this.needsRestart=false;this.lastMediaEventAtMs=null;this.orientationEpoch++;this.dimensions=null;this.#sourceAbort.abort(Object.assign(new Error('Screen sharing changed or stopped'),{code:'CAPTURE_SOURCE_CHANGED'}));
     if(recorder&&recorder.state!=='inactive')try{recorder.stop();}catch{}
