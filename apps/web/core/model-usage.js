@@ -31,13 +31,14 @@ export function usageMetrics(usage,anthropic=false){
 export async function inspectRunMetrics(store,{sessionId,runId,pageSize=128}={}){
  if(typeof sessionId!=='string'||!sessionId||typeof runId!=='string'||!runId)throw new TypeError('Session and run IDs are required');
  const session=await store.getSession(sessionId);if(!session)throw new Error('Session not found');
- const endSeq=session.eventSeq||0,requests=[],compactions=[],stages=[],tools=[],started=new Map(),failed=[];let afterSeq=0,start=null,end=null,pagesRead=0;
+ const endSeq=session.eventSeq||0,requests=[],compactions=[],stages=[],tools=[],imageTransfers=[],started=new Map(),failed=[];let afterSeq=0,start=null,end=null,pagesRead=0;
  while(afterSeq<endSeq){
   const rows=await store.getEvents(sessionId,{afterSeq,beforeSeq:endSeq+1,limit:Math.max(1,Math.min(512,pageSize)),direction:'next'});pagesRead++;if(!rows.length)break;
   for(const event of rows){if(event.runId!==runId)continue;const p=event.payload||{};
    if(event.type==='run.started')start=event.createdAt;
    if(event.type==='run.ended')end={at:event.createdAt,...p};
    if(event.type==='model.started'&&p.requestId)started.set(p.requestId,{at:event.createdAt,prefixHash:p.prefixHash,toolsHash:p.toolsHash,messageCount:p.messageCount,imageCount:p.imageCount,model:p.model,reasoningEffort:p.reasoningEffort,preparation:p.preparation});
+   if(event.type==='model.image_transfer')imageTransfers.push({seq:event.seq,at:event.createdAt,requestId:typeof p.requestId==='string'?p.requestId:null,uploaded:count(p.uploaded),reused:count(p.reused),uploadedBytes:count(p.uploadedBytes),inlineBytes:count(p.inlineBytes),durationMs:Number.isFinite(p.durationMs)&&p.durationMs>=0?p.durationMs:null});
    if(event.type==='model.failed')failed.push({...(started.get(p.requestId)||{}),seq:event.seq,at:event.createdAt,...p});
    if(event.type==='model.usage')requests.push({...(started.get(p.requestId)||{}),seq:event.seq,at:event.createdAt,step:p.step,actualModel:p.actualModel||null,reasoningContext:p.reasoningContext||null,requestId:p.requestId||null,durationMs:p.durationMs??null,timing:p.timing||null,cacheDiagnostics:p.cache?.diagnostics||null,...usageMetrics(p.usage,p.protocol==='anthropic')});
    if(event.type==='model.compaction_usage')compactions.push({seq:event.seq,at:event.createdAt,model:p.model,durationMs:p.durationMs??null,timing:p.timing||null,sourceRange:p.sourceRange||null,...usageMetrics(p.usage,p.protocol==='anthropic')});
@@ -53,6 +54,11 @@ export async function inspectRunMetrics(store,{sessionId,runId,pageSize=128}={})
  // Capture stages nest within tools, and compaction nests within preparation.
  // Keep these breakdowns separate so callers do not sum overlapping intervals.
  const measuredRequests=[...requests,...failed];
+ const transferByRequest=new Map(imageTransfers.filter(row=>row.requestId).map(row=>[row.requestId,row]));
+ for(const row of measuredRequests){const transfer=transferByRequest.get(row.requestId);if(transfer)row.imageTransfer=transfer;}
+ // Image preparation is inside model duration; report it separately rather
+ // than adding the same elapsed interval to the top-level latency again.
+ const timedTransfers=imageTransfers.filter(row=>row.durationMs!==null),images={reportedRequests:imageTransfers.length,timedRequests:timedTransfers.length,preparationMs:timedTransfers.length?sum(timedTransfers,row=>row.durationMs):null,uploadedImages:sum(imageTransfers,row=>row.uploaded),reusedReferences:sum(imageTransfers,row=>row.reused),uploadedBytes:sum(imageTransfers,row=>row.uploadedBytes),inlineBytes:sum(imageTransfers,row=>row.inlineBytes)};
  const latency={timedRequests:measuredRequests.filter(row=>Number.isFinite(row.durationMs)).length,timedPreparations:measuredRequests.filter(row=>Number.isFinite(row.preparation?.totalMs)).length,timedCompactions:compactions.filter(row=>Number.isFinite(row.durationMs)).length,timedTools:results.filter(row=>Number.isFinite(row.durationMs)).length,elapsedMs:start!==null&&end?Math.max(0,end.at-start):null,modelMs:sum(measuredRequests,row=>row.durationMs),preparationMs:sum(measuredRequests,row=>row.preparation?.totalMs),compactionMs:sum(compactions,row=>row.durationMs),toolMs:sum(results,row=>row.durationMs),byTool};
- return {sessionId,runId,start,end,pagesRead,requests,compactions,failedRequests:failed,captures:stages,tools,latency,cache:{reportedRequests:reported.length,unreportedRequests:allRequests.length-reported.length,inputTokens:input,cachedInputTokens:cached,cacheHitRatio:input>0?cached/input:null}};
+ return {sessionId,runId,start,end,pagesRead,requests,compactions,failedRequests:failed,captures:stages,tools,imageTransfers,images,latency,cache:{reportedRequests:reported.length,unreportedRequests:allRequests.length-reported.length,inputTokens:input,cachedInputTokens:cached,cacheHitRatio:input>0?cached/input:null}};
 }

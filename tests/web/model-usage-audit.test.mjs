@@ -27,6 +27,26 @@ test('usage journal is persisted and emitted with run/request identity even when
  const h=createHarness({store,onEvent:e=>events.push(e),invoke:async()=>({text:'ok',toolCalls:[]})});await h.run({sessionId:s.id,text:'hello'});
  const rows=await store.getEvents(s.id),started=rows.find(x=>x.type==='model.started'),usage=rows.find(x=>x.type==='model.usage');assert.equal(usage.runId,started.runId);assert.equal(usage.payload.requestId,started.payload.requestId);assert.equal(usage.payload.usageReported,false);assert.equal(usage.payload.cacheReported,false);assert.equal(usage.payload.cache.cachedInputTokens,null);assert.ok(usage.payload.durationMs>=0);
  assert.ok(events.some(x=>x.type==='diagnostic'&&x.event.id===usage.id));
+ const images=rows.find(x=>x.type==='model.image_transfer');assert.equal(images.payload.requestId,started.payload.requestId);assert.ok(Number.isFinite(images.payload.durationMs)&&images.payload.durationMs>=0);
+});
+
+test('image transfer inspection attributes retries and excludes another run without duplicating model latency',async()=>{
+ const store=await openStore({memory:true}),s=await store.createSession();
+ await store.addEvent(s.id,{runId:'old',type:'model.image_transfer',payload:{uploaded:99,uploadedBytes:99999,durationMs:99999}});
+ const add=(type,payload)=>store.addEvent(s.id,{runId:'images',type,payload});
+ await add('model.started',{requestId:'first'});
+ await add('model.image_transfer',{requestId:'first',uploaded:1,reused:4,uploadedBytes:1200,inlineBytes:0,durationMs:80,credential:'private-fixture'});
+ await add('model.failed',{requestId:'first',durationMs:500,code:'SIWC_RELAY_STREAM'});
+ await add('model.started',{requestId:'retry'});
+ await add('model.image_transfer',{requestId:'retry',uploaded:0,reused:5,uploadedBytes:0,inlineBytes:0,durationMs:12});
+ await add('model.usage',{requestId:'retry',durationMs:400,usage:{input_tokens:100,cached_tokens:90}});
+ const report=await inspectRunMetrics(store,{sessionId:s.id,runId:'images',pageSize:2});
+ assert.deepEqual(report.images,{reportedRequests:2,timedRequests:2,preparationMs:92,uploadedImages:1,reusedReferences:9,uploadedBytes:1200,inlineBytes:0});
+ assert.equal(report.failedRequests[0].imageTransfer.uploaded,1);assert.equal(report.requests[0].imageTransfer.reused,5);assert.equal(report.latency.modelMs,900);assert.equal(JSON.stringify(report).includes('private-fixture'),false);
+});
+test('legacy image records retain unknown preparation time instead of inventing zero latency',async()=>{
+ const store=await openStore({memory:true}),s=await store.createSession();await store.addEvent(s.id,{runId:'legacy',type:'model.image_transfer',payload:{requestId:'legacy',uploaded:0,reused:2,uploadedBytes:0,inlineBytes:0}});
+ const report=await inspectRunMetrics(store,{sessionId:s.id,runId:'legacy'});assert.equal(report.images.preparationMs,null);assert.equal(report.images.timedRequests,0);assert.equal(report.images.reusedReferences,2);
 });
 test('run inspection pages ordered session events and isolates runs, zero hits and unknown counts',async()=>{
  const store=await openStore({memory:true}),s=await store.createSession();
