@@ -29,9 +29,10 @@
 - **手机保持无线。** 给桥通电，放在房间角落或架子上，保持在手机的蓝牙范围内。
 - **使用日常 Wi-Fi。** 手机与桥连接家里或办公室的同一网络，打开 Safari 就能开始任务。
 
-https://github.com/user-attachments/assets/d72669a6-e150-40d7-ba2f-1d9586d9c2ea
+https://github.com/user-attachments/assets/7601869f-7cc6-445e-b64d-0073a8bf657d
 
-智能体在真实 iPhone 上设置闹钟。
+中文 iPhone 实机演示：选择蜜雪饮品、设置糖冰、进入结算，片尾展示收到的外卖和小票。视频经过剪辑。
+
 
 ## ⚙️ 工作原理
 

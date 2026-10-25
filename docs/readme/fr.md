@@ -29,9 +29,10 @@ Demandez à l’iPhone de lire un écran, saisir du texte, ajuster un contrôle 
 - **Le téléphone reste sans fil.** Laissez le pont alimenté sur une étagère à portée Bluetooth.
 - **Votre Wi-Fi habituel.** Connectez téléphone et pont au même réseau domestique ou professionnel et démarrez une tâche dans Safari.
 
-https://github.com/user-attachments/assets/d72669a6-e150-40d7-ba2f-1d9586d9c2ea
+https://github.com/user-attachments/assets/7601869f-7cc6-445e-b64d-0073a8bf657d
 
-Un agent règle une alarme sur un véritable iPhone.
+Démonstration en chinois sur un vrai iPhone : choix des boissons MIXUE, réglage des glaçons et du sucre, puis récapitulatif de commande. La vidéo montée se termine par les boissons livrées et le ticket.
+
 
 ## ⚙️ Fonctionnement
 

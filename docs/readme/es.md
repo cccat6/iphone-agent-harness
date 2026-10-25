@@ -29,9 +29,10 @@ Pide al iPhone que lea una pantalla, escriba texto, ajuste un control o siga un 
 - **El teléfono sigue inalámbrico.** Deja el puente alimentado en una estantería dentro del alcance de Bluetooth.
 - **Tu Wi-Fi habitual.** Conecta el teléfono y el puente a la misma red de casa u oficina y empieza una tarea en Safari.
 
-https://github.com/user-attachments/assets/d72669a6-e150-40d7-ba2f-1d9586d9c2ea
+https://github.com/user-attachments/assets/7601869f-7cc6-445e-b64d-0073a8bf657d
 
-Un agente configura una alarma en un iPhone real.
+Demostración en chino en un iPhone real: selección de bebidas MIXUE, ajuste de hielo y azúcar y acceso al resumen del pedido. El vídeo editado termina con las bebidas entregadas y el recibo.
+
 
 ## ⚙️ Cómo funciona
 

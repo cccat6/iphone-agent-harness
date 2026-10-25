@@ -29,9 +29,10 @@
 - **iPhoneはワイヤレス。** ブリッジはBluetoothの届く棚や部屋の隅で給電しておくだけ。
 - **普段のWi-Fiで利用。** iPhoneとブリッジを家やオフィスの同じネットワークにつなぎ、Safariでタスクを開始。
 
-https://github.com/user-attachments/assets/d72669a6-e150-40d7-ba2f-1d9586d9c2ea
+https://github.com/user-attachments/assets/7601869f-7cc6-445e-b64d-0073a8bf657d
 
-エージェントが実際のiPhoneでアラームを設定します。
+中国語の iPhone 実機デモ。MIXUE の商品選択、氷と甘さの調整、会計画面までを紹介し、最後に届いた商品とレシートを映しています。編集済みの動画です。
+
 
 ## ⚙️ 仕組み
 
