@@ -29,13 +29,23 @@ Pide al iPhone que lea una pantalla, escriba texto, ajuste un control o siga un 
 - **El teléfono sigue inalámbrico.** Deja el puente alimentado en una estantería dentro del alcance de Bluetooth.
 - **Tu Wi-Fi habitual.** Conecta el teléfono y el puente a la misma red de casa u oficina y empieza una tarea en Safari.
 
+<table>
+<tr><th>Pedir comida</th><th>Configurar una alarma</th></tr>
+<tr>
+<td width="50%" align="center">
+
 https://github.com/user-attachments/assets/7601869f-7cc6-445e-b64d-0073a8bf657d
 
-**La IA pide comida a domicilio desde el iPhone.** El agente selecciona bebidas MIXUE, ajusta el hielo y el azúcar y llega al resumen del pedido. Al final se muestra la entrega.
-
-**Configurar una alarma**
+</td>
+<td width="50%" align="center">
 
 https://github.com/user-attachments/assets/d72669a6-e150-40d7-ba2f-1d9586d9c2ea
+
+</td>
+</tr>
+</table>
+
+**La IA pide comida a domicilio desde el iPhone.** El agente selecciona bebidas MIXUE, ajusta el hielo y el azúcar y llega al resumen del pedido. Al final se muestra la entrega.
 
 
 ## ⚙️ Cómo funciona

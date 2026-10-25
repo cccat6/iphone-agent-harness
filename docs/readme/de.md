@@ -29,13 +29,23 @@ Dem iPhone eine Aufgabe in Alltagssprache geben: Bildschirm prüfen, Text eingeb
 - **Das Telefon bleibt kabellos.** Lass die Bridge mit Strom versorgt im Regal oder einer Zimmerecke in Bluetooth-Reichweite stehen.
 - **Dein gewohntes WLAN.** Verbinde Telefon und Bridge mit demselben Heim- oder Büronetz und starte die Aufgabe in Safari.
 
+<table>
+<tr><th>Essen bestellen</th><th>Wecker stellen</th></tr>
+<tr>
+<td width="50%" align="center">
+
 https://github.com/user-attachments/assets/7601869f-7cc6-445e-b64d-0073a8bf657d
 
-**KI bestellt Essen auf dem iPhone.** Der Agent wählt MIXUE-Getränke aus, stellt Eis und Zucker ein und geht zur Kasse. Am Ende ist die gelieferte Bestellung zu sehen.
-
-**Wecker stellen**
+</td>
+<td width="50%" align="center">
 
 https://github.com/user-attachments/assets/d72669a6-e150-40d7-ba2f-1d9586d9c2ea
+
+</td>
+</tr>
+</table>
+
+**KI bestellt Essen auf dem iPhone.** Der Agent wählt MIXUE-Getränke aus, stellt Eis und Zucker ein und geht zur Kasse. Am Ende ist die gelieferte Bestellung zu sehen.
 
 
 ## ⚙️ So funktioniert es

@@ -29,13 +29,23 @@
 - **iPhoneはワイヤレス。** ブリッジはBluetoothの届く棚や部屋の隅で給電しておくだけ。
 - **普段のWi-Fiで利用。** iPhoneとブリッジを家やオフィスの同じネットワークにつなぎ、Safariでタスクを開始。
 
+<table>
+<tr><th>デリバリーを注文</th><th>アラームを設定</th></tr>
+<tr>
+<td width="50%" align="center">
+
 https://github.com/user-attachments/assets/7601869f-7cc6-445e-b64d-0073a8bf657d
 
-**AI が iPhone でデリバリーを注文。** MIXUE の商品を選び、氷と甘さを設定して会計画面まで操作します。最後に届いた商品を紹介します。
-
-**アラームを設定**
+</td>
+<td width="50%" align="center">
 
 https://github.com/user-attachments/assets/d72669a6-e150-40d7-ba2f-1d9586d9c2ea
+
+</td>
+</tr>
+</table>
+
+**AI が iPhone でデリバリーを注文。** MIXUE の商品を選び、氷と甘さを設定して会計画面まで操作します。最後に届いた商品を紹介します。
 
 
 ## ⚙️ 仕組み

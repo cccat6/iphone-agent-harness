@@ -40,11 +40,21 @@ Harness 在 Safari 里运行，读取手机屏幕并调用模型，再通过 ESP
 GitHub：https://github.com/cccat6/iphone-agent-harness
 官网：https://igent.cc
 
+<table>
+<tr><th>自动点外卖</th><th>设置闹钟</th></tr>
+<tr>
+<td width="50%" align="center">
+
 https://github.com/user-attachments/assets/7601869f-7cc6-445e-b64d-0073a8bf657d
 
-**设置闹钟**
+</td>
+<td width="50%" align="center">
 
 https://github.com/user-attachments/assets/d72669a6-e150-40d7-ba2f-1d9586d9c2ea
+
+</td>
+</tr>
+</table>
 
 
 ## ⚙️ 工作原理

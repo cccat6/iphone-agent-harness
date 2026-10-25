@@ -29,13 +29,23 @@
 - **手機保持無線。** 讓橋持續供電，放在架上或房間角落，保持在手機的藍牙範圍內。
 - **使用日常 Wi-Fi。** 手機與橋連接家裡或辦公室的同一網路，開啟 Safari 即可開始任務。
 
+<table>
+<tr><th>自動點外送</th><th>設定鬧鐘</th></tr>
+<tr>
+<td width="50%" align="center">
+
 https://github.com/user-attachments/assets/7601869f-7cc6-445e-b64d-0073a8bf657d
 
-**AI 自動點外送。** 智慧體操作 iPhone 選擇蜜雪飲品、設定糖冰、進入結帳，片尾展示送到手裡的外送。
-
-**設定鬧鐘**
+</td>
+<td width="50%" align="center">
 
 https://github.com/user-attachments/assets/d72669a6-e150-40d7-ba2f-1d9586d9c2ea
+
+</td>
+</tr>
+</table>
+
+**AI 自動點外送。** 智慧體操作 iPhone 選擇蜜雪飲品、設定糖冰、進入結帳，片尾展示送到手裡的外送。
 
 
 ## ⚙️ 運作方式
