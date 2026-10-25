@@ -380,3 +380,14 @@ body.panel-route,.panel-route .panel-dialog[open]{background:#fbf8f6}
 
 /* A location request stays with its conversation until the user responds. */
 .location-request-panel{margin:8px 12px;padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:var(--soft);font-size:14px}.location-request-panel p{margin:0 0 10px}.location-request-panel .panel-actions{display:flex;gap:8px;flex-wrap:wrap}.location-request-panel .quiet-note{margin:10px 0 0}
+
+/* Keep both task demonstrations together, with room for playback on phones. */
+.site-hero{grid-template-columns:minmax(0,1fr) minmax(0,1.2fr)}
+.site-hero-media{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:start;gap:18px;width:100%;max-width:620px}
+.site-hero-media .alarm-demo{min-width:0;border-radius:18px}
+.site-hero-media .alarm-demo video{max-height:none}
+.site-hero-media .alarm-demo figcaption{display:block;padding:14px}
+.site-hero-media .alarm-demo h2{font-size:17px;line-height:1.4;margin:0 0 8px;font-weight:600}
+@media(max-width:1000px){.site-hero{gap:28px;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr)}.site-hero-media{max-width:620px}}
+@media(max-width:760px){.site-hero-media{width:100%;max-width:620px;gap:14px}.site-hero-media .alarm-demo video{max-height:none}}
+@media(max-width:460px){.site-hero-media{grid-template-columns:1fr;max-width:330px;gap:24px}}

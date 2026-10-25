@@ -33,6 +33,10 @@ https://github.com/user-attachments/assets/7601869f-7cc6-445e-b64d-0073a8bf657d
 
 **AI 自動點外送。** 智慧體操作 iPhone 選擇蜜雪飲品、設定糖冰、進入結帳，片尾展示送到手裡的外送。
 
+**設定鬧鐘**
+
+https://github.com/user-attachments/assets/d72669a6-e150-40d7-ba2f-1d9586d9c2ea
+
 
 ## ⚙️ 運作方式
 

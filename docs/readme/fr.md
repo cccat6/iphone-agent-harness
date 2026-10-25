@@ -33,6 +33,10 @@ https://github.com/user-attachments/assets/7601869f-7cc6-445e-b64d-0073a8bf657d
 
 **L’IA commande une livraison sur iPhone.** L’agent choisit les boissons MIXUE, règle les glaçons et le sucre, puis passe au récapitulatif. La vidéo se termine par la commande livrée.
 
+**Régler une alarme**
+
+https://github.com/user-attachments/assets/d72669a6-e150-40d7-ba2f-1d9586d9c2ea
+
 
 ## ⚙️ Fonctionnement
 

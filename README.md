@@ -33,6 +33,10 @@ https://github.com/user-attachments/assets/7601869f-7cc6-445e-b64d-0073a8bf657d
 
 **AI orders takeaway on an iPhone.** The agent selects MIXUE drinks, sets ice and sugar, and works through checkout. The video ends with the delivered order.
 
+**Set an alarm**
+
+https://github.com/user-attachments/assets/d72669a6-e150-40d7-ba2f-1d9586d9c2ea
+
 
 ## ⚙️ How it works
 

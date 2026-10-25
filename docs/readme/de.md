@@ -33,6 +33,10 @@ https://github.com/user-attachments/assets/7601869f-7cc6-445e-b64d-0073a8bf657d
 
 **KI bestellt Essen auf dem iPhone.** Der Agent wählt MIXUE-Getränke aus, stellt Eis und Zucker ein und geht zur Kasse. Am Ende ist die gelieferte Bestellung zu sehen.
 
+**Wecker stellen**
+
+https://github.com/user-attachments/assets/d72669a6-e150-40d7-ba2f-1d9586d9c2ea
+
 
 ## ⚙️ So funktioniert es
 

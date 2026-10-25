@@ -42,6 +42,10 @@ GitHub：https://github.com/cccat6/iphone-agent-harness
 
 https://github.com/user-attachments/assets/7601869f-7cc6-445e-b64d-0073a8bf657d
 
+**设置闹钟**
+
+https://github.com/user-attachments/assets/d72669a6-e150-40d7-ba2f-1d9586d9c2ea
+
 
 ## ⚙️ 工作原理
 

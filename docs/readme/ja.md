@@ -33,6 +33,10 @@ https://github.com/user-attachments/assets/7601869f-7cc6-445e-b64d-0073a8bf657d
 
 **AI が iPhone でデリバリーを注文。** MIXUE の商品を選び、氷と甘さを設定して会計画面まで操作します。最後に届いた商品を紹介します。
 
+**アラームを設定**
+
+https://github.com/user-attachments/assets/d72669a6-e150-40d7-ba2f-1d9586d9c2ea
+
 
 ## ⚙️ 仕組み
 

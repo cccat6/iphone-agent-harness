@@ -33,6 +33,10 @@ https://github.com/user-attachments/assets/7601869f-7cc6-445e-b64d-0073a8bf657d
 
 **La IA pide comida a domicilio desde el iPhone.** El agente selecciona bebidas MIXUE, ajusta el hielo y el azúcar y llega al resumen del pedido. Al final se muestra la entrega.
 
+**Configurar una alarma**
+
+https://github.com/user-attachments/assets/d72669a6-e150-40d7-ba2f-1d9586d9c2ea
+
 
 ## ⚙️ Cómo funciona
 
