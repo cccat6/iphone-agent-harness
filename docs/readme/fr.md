@@ -31,7 +31,7 @@ Demandez à l’iPhone de lire un écran, saisir du texte, ajuster un contrôle 
 
 https://github.com/user-attachments/assets/7601869f-7cc6-445e-b64d-0073a8bf657d
 
-Démonstration en chinois sur un vrai iPhone : choix des boissons MIXUE, réglage des glaçons et du sucre, puis récapitulatif de commande. La vidéo montée se termine par les boissons livrées et le ticket.
+**L’IA commande une livraison sur iPhone.** L’agent choisit les boissons MIXUE, règle les glaçons et le sucre, puis passe au récapitulatif. La vidéo se termine par la commande livrée.
 
 
 ## ⚙️ Fonctionnement

@@ -31,7 +31,7 @@ Pide al iPhone que lea una pantalla, escriba texto, ajuste un control o siga un 
 
 https://github.com/user-attachments/assets/7601869f-7cc6-445e-b64d-0073a8bf657d
 
-Demostración en chino en un iPhone real: selección de bebidas MIXUE, ajuste de hielo y azúcar y acceso al resumen del pedido. El vídeo editado termina con las bebidas entregadas y el recibo.
+**La IA pide comida a domicilio desde el iPhone.** El agente selecciona bebidas MIXUE, ajusta el hielo y el azúcar y llega al resumen del pedido. Al final se muestra la entrega.
 
 
 ## ⚙️ Cómo funciona

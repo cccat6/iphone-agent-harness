@@ -31,7 +31,7 @@ Give your iPhone a task in plain language: inspect a screen, enter text, adjust 
 
 https://github.com/user-attachments/assets/7601869f-7cc6-445e-b64d-0073a8bf657d
 
-Chinese-language demo on a real iPhone: choosing MIXUE drinks, setting ice and sugar, and reaching checkout. The edited video ends with the delivered drinks and receipt.
+**AI orders takeaway on an iPhone.** The agent selects MIXUE drinks, sets ice and sugar, and works through checkout. The video ends with the delivered order.
 
 
 ## ⚙️ How it works

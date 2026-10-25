@@ -31,7 +31,7 @@ Dem iPhone eine Aufgabe in Alltagssprache geben: Bildschirm prüfen, Text eingeb
 
 https://github.com/user-attachments/assets/7601869f-7cc6-445e-b64d-0073a8bf657d
 
-Demo auf einem echten iPhone auf Chinesisch: MIXUE-Getränke auswählen, Eis und Zucker einstellen und zur Kasse gehen. Die geschnittene Aufnahme endet mit den gelieferten Getränken und dem Beleg.
+**KI bestellt Essen auf dem iPhone.** Der Agent wählt MIXUE-Getränke aus, stellt Eis und Zucker ein und geht zur Kasse. Am Ende ist die gelieferte Bestellung zu sehen.
 
 
 ## ⚙️ So funktioniert es
