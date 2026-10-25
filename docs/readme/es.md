@@ -75,18 +75,19 @@ flowchart LR
 
 ## 🔌 Elige una placa
 
-Una ESP32-C3 básica cuesta unos **2 USD**. Selecciona el chip en el [instalador web](https://igent.cc/flash) y conecta la placa al ordenador con un cable USB de datos.
+Para una compra nueva, recomendamos **C6, S3 o C3**. Elige una placa de desarrollo completa con USB y antena integrada; este proyecto no necesita soldadura ni periféricos externos. Graba el firmware una vez con un cable USB de datos y el [instalador web](https://igent.cc/flash), configura el Wi-Fi y empareja Bluetooth. Después basta con alimentarla por USB.
 
-| Chip | Modelos compatibles |
-|---|---|
-| ESP32-C2 | Mínimo 2 MB · detección automática del cristal de 26/40 MHz |
-| ESP32-C3 | Todos los modelos* |
-| ESP32-C5 | Todos los modelos* |
-| ESP32-C6 | Todos los modelos* |
-| ESP32-S3 | Todos los modelos* |
-| ESP32 (classic) | Todos los modelos* |
+| Chip | Modelos / términos de búsqueda | Amazon EE. UU.: por placa en lote¹ | Taobao: presupuesto por placa¹ |
+|---|---|---|---|
+| **ESP32-C6** | `ESP32-C6 SuperMini` · `ESP32-C6-Zero` · `ESP32-C6-DevKitM-1` · `ESP32-C6-DevKitC-1` · `ESP32-C6-WROOM-1 N8` | US$4–8 | ¥25–45 |
+| **ESP32-S3** | `ESP32-S3-DevKitC-1 N8R2 / N8R8 / N16R8` · `ESP32-S3 SuperMini` · `ESP32-S3-Zero` · `ESP32-S3-WROOM-1 N16R8` | US$6–9 | ¥15–40 |
+| **ESP32-C3** | `ESP32-C3 SuperMini` · `ESP32-C3-MINI` · `ESP32-C3-Zero` · `ESP32-C3-DevKitM-1` · `ESP32-C3-MINI-1 N4` | US$3–5 | ¥6–20 |
 
-*Las imágenes actuales para C3, C5, C6, S3 y ESP32 clásico usan flash SPI estándar de al menos 4 MB.
+Añade **`development board USB-C`** en Amazon o **`开发板 Type-C 板载天线`** en Taobao. Al buscar módulos WROOM/MINI, incluye «placa de desarrollo» para evitar comprar un módulo suelto, un adaptador o una placa de expansión.
+
+¹ Presupuestos orientativos de placas básicas, octubre de 2026. Amazon: precio por placa en lotes de 3–5; se compra el lote completo. Una sola placa suele costar US$9–13. Taobao: estimaciones indexadas, no precios finales verificados por variante. Revisa envío e impuestos; los kits oficiales pueden costar más.
+
+**Sin limitar marcas ni nombres comerciales.** Otras placas con el mismo chip pueden usar el firmware correspondiente si tienen SPI Flash estándar (DIO) de **al menos 4 MB** y permiten grabar por USB. La PSRAM es opcional; los controles especiales de antena o alimentación pueden necesitar adaptación. También se admiten **C2** (2 MB mínimo, selección automática de 26/40 MHz), **C5 y ESP32 clásico**. S2, H2, P4 y C61 no están incluidos en el firmware actual. Son términos de búsqueda, no una lista de todas las variantes probadas.
 
 ## 🚀 Configura y prueba
 

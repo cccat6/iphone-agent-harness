@@ -75,18 +75,19 @@ flowchart LR
 
 ## 🔌 Choose a board
 
-A basic ESP32-C3 board costs roughly **US$2**. Pick your chip in the [browser installer](https://igent.cc/flash), plug it into your computer with a USB data cable, and flash.
+For a new purchase, start with **C6, S3 or C3**. Choose a complete USB development board with an onboard antenna; no soldering or external peripherals are needed for this project. Flash it once with a USB data cable using the [browser installer](https://igent.cc/flash), configure Wi-Fi and pair Bluetooth, then leave it powered over USB.
 
-| Chip | Supported models |
-|---|---|
-| ESP32-C2 | 2 MB minimum · 26/40 MHz crystal detected automatically |
-| ESP32-C3 | All models* |
-| ESP32-C5 | All models* |
-| ESP32-C6 | All models* |
-| ESP32-S3 | All models* |
-| ESP32 (classic) | All models* |
+| Chip | Model names / search keywords | Amazon US, per board in multipacks¹ | Taobao budget, per board¹ |
+|---|---|---|---|
+| **ESP32-C6** | `ESP32-C6 SuperMini` · `ESP32-C6-Zero` · `ESP32-C6-DevKitM-1` · `ESP32-C6-DevKitC-1` · `ESP32-C6-WROOM-1 N8` | US$4–8 | ¥25–45 |
+| **ESP32-S3** | `ESP32-S3-DevKitC-1 N8R2 / N8R8 / N16R8` · `ESP32-S3 SuperMini` · `ESP32-S3-Zero` · `ESP32-S3-WROOM-1 N16R8` | US$6–9 | ¥15–40 |
+| **ESP32-C3** | `ESP32-C3 SuperMini` · `ESP32-C3-MINI` · `ESP32-C3-Zero` · `ESP32-C3-DevKitM-1` · `ESP32-C3-MINI-1 N4` | US$3–5 | ¥6–20 |
 
-*The current images for C3, C5, C6, S3 and classic ESP32 use standard SPI flash with at least 4 MB capacity.
+Add **`development board USB-C`** on Amazon or **`开发板 Type-C 板载天线`** on Taobao. For WROOM/MINI module names, include “development board”: a bare module, adapter or expansion board is not a complete USB board.
+
+¹ Approximate basic-board budgets, Oct 2026. Amazon figures are per board in 3–5-packs; you pay for the whole pack. Single-board listings are often US$9–13. Taobao figures are indexed estimates, not verified SKU checkout prices. Variant, shipping and tax change the total; official kits may cost more.
+
+**Not a model whitelist.** Other brands and board names can use the same chip-specific firmware if they have compatible standard SPI flash (DIO), **4 MB or more**, and accessible USB flashing. PSRAM is optional; board-specific antenna/power controls may need adaptation. **C2** (2 MB+, automatic 26/40 MHz selection), **C5** and **classic ESP32** are also supported. S2, H2, P4 and C61 are not covered by the current firmware. These are shopping keywords, not a claim that every board variant has been tested.
 
 ## 🚀 Set up and try it
 
