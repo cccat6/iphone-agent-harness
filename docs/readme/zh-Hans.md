@@ -29,9 +29,18 @@
 - **手机保持无线。** 给桥通电，放在房间角落或架子上，保持在手机的蓝牙范围内。
 - **使用日常 Wi-Fi。** 手机与桥连接家里或办公室的同一网络，打开 Safari 就能开始任务。
 
-https://github.com/user-attachments/assets/7601869f-7cc6-445e-b64d-0073a8bf657d
+**ESP32 + 基于网页的 Harness，全自动操作 iPhone 点外卖**
 
-**AI 自动点外卖。** 智能体操作 iPhone 选择蜜雪饮品、设置糖冰、进入结算，片尾展示送到手里的外卖。
+Harness 在 Safari 里运行，读取手机屏幕并调用模型，再通过 ESP32 模拟蓝牙键盘和鼠标来操作 iPhone，也支持剪贴板同步。
+
+手机不用接线，也不用额外安装 App。ESP32 单独供电，和手机连接同一个 Wi-Fi 即可。
+
+支持自选模型和自定义技能，可以把常用操作流程写成技能重复使用。目前需要 iOS / iPadOS 27 或以上。
+
+GitHub：https://github.com/cccat6/iphone-agent-harness
+官网：https://igent.cc
+
+https://github.com/user-attachments/assets/7601869f-7cc6-445e-b64d-0073a8bf657d
 
 
 ## ⚙️ 工作原理
