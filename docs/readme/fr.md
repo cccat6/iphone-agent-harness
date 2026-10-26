@@ -77,7 +77,7 @@ flowchart LR
 
 La marque importe peu si la puce et la mémoire Flash correspondent au tableau. **C6, S3 et C3 sont recommandés**, sur une carte avec USB et antenne intégrée.
 
-| Puce | Flash | Noms de cartes / mots-clés | Prix indicatifs : Chine / AliExpress / Amazon US |
+| Puce | Flash | Noms de cartes / mots-clés | Prix indicatifs : Taobao / AliExpress / Amazon US |
 |---|---|---|---|
 | **ESP32-C6** | 4 MB+ | `SuperMini` · `Zero` · `DevKitM-1` · `DevKitC-1` · `WROOM-1 N8` | ¥10–15 / US$2–4 / US$14 (3 cartes) |
 | **ESP32-S3** | 4 MB+ | `DevKitC-1 N8R2 / N8R8 / N16R8` · `SuperMini` · `Zero` · `WROOM-1 N16R8` | ¥10–25 / US$3–7 / US$19 (3 cartes) |

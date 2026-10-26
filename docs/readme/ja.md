@@ -77,7 +77,7 @@ flowchart LR
 
 ブランドは問いません。下表のチップと Flash 条件を満たす、USB 端子と基板上アンテナのある開発ボードを選んでください。**おすすめは C6・S3・C3** です。
 
-| チップ | Flash | ボード名・検索キーワード | 参考価格：中国国内／AliExpress／Amazon US |
+| チップ | Flash | ボード名・検索キーワード | 参考価格：中国Taobao／AliExpress／Amazon US |
 |---|---|---|---|
 | **ESP32-C6** | 4 MB+ | `SuperMini` · `Zero` · `DevKitM-1` · `DevKitC-1` · `WROOM-1 N8` | ¥10–15 / US$2–4 / US$14 (3枚) |
 | **ESP32-S3** | 4 MB+ | `DevKitC-1 N8R2 / N8R8 / N16R8` · `SuperMini` · `Zero` · `WROOM-1 N16R8` | ¥10–25 / US$3–7 / US$19 (3枚) |

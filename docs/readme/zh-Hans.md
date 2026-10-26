@@ -86,7 +86,7 @@ flowchart LR
 
 不限定品牌，芯片和闪存满足下表即可。**推荐 C6、S3、C3**，选带 USB 接口和板载天线的开发板。
 
-| 芯片 | 闪存 | 常见板型／搜索关键词 | 参考价格：国内／AliExpress／Amazon 美国站 |
+| 芯片 | 闪存 | 常见板型／搜索关键词 | 参考价格：Taobao／AliExpress／Amazon 美国站 |
 |---|---|---|---|
 | **ESP32-C6** | 4 MB+ | `SuperMini` · `Zero` · `DevKitM-1` · `DevKitC-1` · `WROOM-1 N8` | ¥10–15 / US$2–4 / US$14 (3块) |
 | **ESP32-S3** | 4 MB+ | `DevKitC-1 N8R2 / N8R8 / N16R8` · `SuperMini` · `Zero` · `WROOM-1 N16R8` | ¥10–25 / US$3–7 / US$19 (3块) |
