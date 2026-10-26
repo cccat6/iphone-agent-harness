@@ -84,34 +84,18 @@ flowchart LR
 
 ## 🔌 选择开发板
 
-**完整支持范围**
+不限定品牌，芯片和闪存满足下表即可。**推荐 C6、S3、C3**，选带 USB 接口和板载天线的开发板。
 
-| 芯片 | 支持型号 |
-|---|---|
-| ESP32-C2 | 最低 2 MB · 自动识别 26/40 MHz 晶振 |
-| ESP32-C3 | 全部型号* |
-| ESP32-C5 | 全部型号* |
-| ESP32-C6 | 全部型号* |
-| ESP32-S3 | 全部型号* |
-| ESP32 (classic) | 全部型号* |
-
-*C3、C5、C6、S3 和经典 ESP32 的当前固件适用于容量至少 4 MB 的标准 SPI 闪存。
-
-**推荐选购：C6、S3、C3**
-
-新购优先选 **C6、S3 或 C3**。买带 USB 接口和板载天线的完整开发板，本项目不需要焊接或外接配件。首次用 USB 数据线连接电脑，在[网页烧录器](https://igent.cc/flash)烧录，配置 Wi-Fi、配对蓝牙后，平时只需 USB 供电。
-
-| 芯片 | 常见型号／搜索关键词 | Amazon 美国站，套装折合单块¹ | 淘宝单块参考预算¹ |
+| 芯片 | 闪存 | 常见板型／搜索关键词 | 参考价格 |
 |---|---|---|---|
-| **ESP32-C6** | `ESP32-C6 SuperMini` · `ESP32-C6-Zero` · `ESP32-C6-DevKitM-1` · `ESP32-C6-DevKitC-1` · `ESP32-C6-WROOM-1 N8` | US$4–8 | ¥25–45 |
-| **ESP32-S3** | `ESP32-S3-DevKitC-1 N8R2 / N8R8 / N16R8` · `ESP32-S3 SuperMini` · `ESP32-S3-Zero` · `ESP32-S3-WROOM-1 N16R8` | US$6–9 | ¥15–40 |
-| **ESP32-C3** | `ESP32-C3 SuperMini` · `ESP32-C3-MINI` · `ESP32-C3-Zero` · `ESP32-C3-DevKitM-1` · `ESP32-C3-MINI-1 N4` | US$3–5 | ¥6–20 |
+| **ESP32-C6** | 4 MB+ | `SuperMini` · `Zero` · `DevKitM-1` · `DevKitC-1` · `WROOM-1 N8` | Amazon US $10–13 · 淘宝 ¥25–45 |
+| **ESP32-S3** | 4 MB+ | `DevKitC-1 N8R2 / N8R8 / N16R8` · `SuperMini` · `Zero` · `WROOM-1 N16R8` | Amazon US $9–13 · 淘宝 ¥15–40 |
+| **ESP32-C3** | 4 MB+ | `SuperMini` · `MINI` · `Zero` · `DevKitM-1` · `MINI-1 N4` | Amazon US $9–11 · 淘宝 ¥6–20 |
+| ESP32-C2 | 2 MB 起 · 自动识别 26/40 MHz | 同样支持 | — |
+| ESP32-C5 | 4 MB+ | 同样支持 | — |
+| ESP32 (classic) | 4 MB+ | 同样支持 | — |
 
-Amazon 搜索时加 **`development board USB-C`**；淘宝加 **`开发板 Type-C 板载天线`**。搜 WROOM／MINI 模组名时也要加“开发板”，选完整板子，别误买裸模组、转接板或扩展底板。
-
-¹ 2026-10 基础板参考预算。Amazon 为 3～5 块套装折合单价，需整包购买，单买常见约 $9～13；淘宝为公开收录估算，未核实具体 SKU 到手价。规格、运费、税费另计，官方套件可能更贵。
-
-**不限品牌，也不限于表中的商品名。** 同芯片的其他开发板，满足标准 SPI Flash（DIO）、**至少 4 MB**、可通过 USB 烧录等条件，也可用对应固件；不要求 PSRAM，带特殊天线／电源控制的板子可能需要适配。**C2**（至少 2 MB，自动识别 26/40 MHz 晶振）、**C5、经典 ESP32** 也支持；当前固件不包含 S2、H2、P4、C61。这里列的是选购关键词，并非每个板型都已实测。
+使用标准 SPI 闪存（DIO）。搜索时组合“芯片名＋板型＋开发板”。没列出的板型满足条件也支持，不要求 PSRAM。
 
 ## 🚀 安装并开始使用
 

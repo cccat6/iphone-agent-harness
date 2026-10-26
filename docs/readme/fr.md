@@ -75,34 +75,18 @@ flowchart LR
 
 ## 🔌 Choisir une carte
 
-**Toutes les puces prises en charge**
+La marque importe peu si la puce et la mémoire Flash correspondent au tableau. **C6, S3 et C3 sont recommandés**, sur une carte avec USB et antenne intégrée.
 
-| Puce | Modèles compatibles |
-|---|---|
-| ESP32-C2 | 2 Mo minimum · quartz 26/40 MHz détecté automatiquement |
-| ESP32-C3 | Tous les modèles* |
-| ESP32-C5 | Tous les modèles* |
-| ESP32-C6 | Tous les modèles* |
-| ESP32-S3 | Tous les modèles* |
-| ESP32 (classic) | Tous les modèles* |
-
-*Les images actuelles pour C3, C5, C6, S3 et ESP32 classique utilisent une mémoire flash SPI standard d’au moins 4 Mo.
-
-**Achat conseillé : C6, S3 et C3**
-
-Pour un nouvel achat, privilégiez **C6, S3 ou C3**. Choisissez une carte de développement complète avec USB et antenne intégrée : ce projet ne nécessite ni soudure ni périphérique externe. Flashez-la une fois avec un câble USB de données et l’[installateur web](https://igent.cc/flash), configurez le Wi-Fi et l’appairage Bluetooth. Ensuite, une alimentation USB suffit.
-
-| Puce | Modèles / mots-clés | Amazon US : par carte en lot¹ | Taobao : budget par carte¹ |
+| Puce | Flash | Noms de cartes / mots-clés | Prix indicatifs |
 |---|---|---|---|
-| **ESP32-C6** | `ESP32-C6 SuperMini` · `ESP32-C6-Zero` · `ESP32-C6-DevKitM-1` · `ESP32-C6-DevKitC-1` · `ESP32-C6-WROOM-1 N8` | US$4–8 | ¥25–45 |
-| **ESP32-S3** | `ESP32-S3-DevKitC-1 N8R2 / N8R8 / N16R8` · `ESP32-S3 SuperMini` · `ESP32-S3-Zero` · `ESP32-S3-WROOM-1 N16R8` | US$6–9 | ¥15–40 |
-| **ESP32-C3** | `ESP32-C3 SuperMini` · `ESP32-C3-MINI` · `ESP32-C3-Zero` · `ESP32-C3-DevKitM-1` · `ESP32-C3-MINI-1 N4` | US$3–5 | ¥6–20 |
+| **ESP32-C6** | 4 MB+ | `SuperMini` · `Zero` · `DevKitM-1` · `DevKitC-1` · `WROOM-1 N8` | Amazon US $10–13 · Taobao ¥25–45 |
+| **ESP32-S3** | 4 MB+ | `DevKitC-1 N8R2 / N8R8 / N16R8` · `SuperMini` · `Zero` · `WROOM-1 N16R8` | Amazon US $9–13 · Taobao ¥15–40 |
+| **ESP32-C3** | 4 MB+ | `SuperMini` · `MINI` · `Zero` · `DevKitM-1` · `MINI-1 N4` | Amazon US $9–11 · Taobao ¥6–20 |
+| ESP32-C2 | 2 Mo min. · auto 26/40 MHz | Compatible | — |
+| ESP32-C5 | 4 MB+ | Compatible | — |
+| ESP32 (classic) | 4 MB+ | Compatible | — |
 
-Ajoutez **`development board USB-C`** sur Amazon ou **`开发板 Type-C 板载天线`** sur Taobao. Avec les noms de modules WROOM/MINI, précisez « carte de développement » pour éviter les modules nus, adaptateurs et cartes d’extension.
-
-¹ Budgets indicatifs de cartes simples, octobre 2026. Amazon : prix unitaire en lot de 3–5, à acheter en entier ; à l’unité, souvent US$9–13. Taobao : estimations indexées, prix final par référence non vérifié. Variante, livraison et taxes à vérifier ; les kits officiels peuvent coûter plus cher.
-
-**Aucune marque ni référence commerciale imposée.** D’autres cartes équipées de la même puce peuvent utiliser le firmware correspondant avec une mémoire SPI Flash standard (DIO) de **4 Mo minimum** et le flashage USB. La PSRAM est facultative ; une commande particulière de l’antenne ou de l’alimentation peut demander une adaptation. **C2** (2 Mo minimum, sélection automatique 26/40 MHz), **C5 et ESP32 classique** sont aussi pris en charge. S2, H2, P4 et C61 ne sont pas couverts par le firmware actuel. Ces noms sont des pistes de recherche, pas une liste de toutes les variantes testées.
+Mémoire SPI Flash standard (DIO). Recherchez le nom de la puce avec celui de la carte. Les autres cartes répondant à ces critères sont aussi compatibles ; la PSRAM est facultative.
 
 ## 🚀 Installer et essayer
 

@@ -75,34 +75,18 @@ flowchart LR
 
 ## 🔌 Board auswählen
 
-**Alle unterstützten Chips**
+Die Marke ist egal, solange Chip und Flash zur Tabelle passen. **Empfohlen sind C6, S3 und C3** als fertige Boards mit USB und integrierter Antenne.
 
-| Chip | Unterstützte Modelle |
-|---|---|
-| ESP32-C2 | Mindestens 2 MB · 26/40-MHz-Quarz automatisch erkannt |
-| ESP32-C3 | Alle Modelle* |
-| ESP32-C5 | Alle Modelle* |
-| ESP32-C6 | Alle Modelle* |
-| ESP32-S3 | Alle Modelle* |
-| ESP32 (classic) | Alle Modelle* |
-
-*Die aktuellen Images für C3, C5, C6, S3 und den klassischen ESP32 sind für Standard-SPI-Flash mit mindestens 4 MB ausgelegt.
-
-**Kaufempfehlung: C6, S3 und C3**
-
-Beim Neukauf empfehlen wir **C6, S3 oder C3**. Nimm ein fertiges Entwicklungsboard mit USB und integrierter Antenne; Löten und externe Peripherie sind für dieses Projekt nicht nötig. Einmal per USB-Datenkabel mit dem [Browser-Installer](https://igent.cc/flash) flashen, WLAN einrichten und Bluetooth koppeln. Danach genügt USB-Strom.
-
-| Chip | Modellnamen / Suchbegriffe | Amazon US: je Board im Mehrfachpack¹ | Taobao: Budget je Board¹ |
+| Chip | Flash | Boardnamen / Suchbegriffe | Richtpreise |
 |---|---|---|---|
-| **ESP32-C6** | `ESP32-C6 SuperMini` · `ESP32-C6-Zero` · `ESP32-C6-DevKitM-1` · `ESP32-C6-DevKitC-1` · `ESP32-C6-WROOM-1 N8` | US$4–8 | ¥25–45 |
-| **ESP32-S3** | `ESP32-S3-DevKitC-1 N8R2 / N8R8 / N16R8` · `ESP32-S3 SuperMini` · `ESP32-S3-Zero` · `ESP32-S3-WROOM-1 N16R8` | US$6–9 | ¥15–40 |
-| **ESP32-C3** | `ESP32-C3 SuperMini` · `ESP32-C3-MINI` · `ESP32-C3-Zero` · `ESP32-C3-DevKitM-1` · `ESP32-C3-MINI-1 N4` | US$3–5 | ¥6–20 |
+| **ESP32-C6** | 4 MB+ | `SuperMini` · `Zero` · `DevKitM-1` · `DevKitC-1` · `WROOM-1 N8` | Amazon US $10–13 · Taobao ¥25–45 |
+| **ESP32-S3** | 4 MB+ | `DevKitC-1 N8R2 / N8R8 / N16R8` · `SuperMini` · `Zero` · `WROOM-1 N16R8` | Amazon US $9–13 · Taobao ¥15–40 |
+| **ESP32-C3** | 4 MB+ | `SuperMini` · `MINI` · `Zero` · `DevKitM-1` · `MINI-1 N4` | Amazon US $9–11 · Taobao ¥6–20 |
+| ESP32-C2 | ab 2 MB · auto 26/40 MHz | Unterstützt | — |
+| ESP32-C5 | 4 MB+ | Unterstützt | — |
+| ESP32 (classic) | 4 MB+ | Unterstützt | — |
 
-Ergänze auf Amazon **`development board USB-C`**, auf Taobao **`开发板 Type-C 板载天线`**. Bei WROOM-/MINI-Modulnamen immer „development board“ hinzufügen, damit du kein einzelnes Modul, Adapter- oder Erweiterungsboard kaufst.
-
-¹ Richtwerte für einfache Boards, Oktober 2026. Amazon: Stückpreis im 3–5er-Pack; bezahlt wird das ganze Pack. Einzelboards häufig US$9–13. Taobao: indexierte Schätzwerte, keine geprüften SKU-Endpreise. Variante, Versand und Steuern beachten; offizielle Kits können teurer sein.
-
-**Keine Beschränkung auf diese Marken oder Produktnamen.** Andere Boards mit demselben Chip können die passende Firmware nutzen, wenn sie Standard-SPI-Flash (DIO) mit **mindestens 4 MB** und USB zum Flashen haben. PSRAM ist optional; spezielle Antennen-/Stromsteuerungen können Anpassungen benötigen. **C2** (ab 2 MB, automatische 26/40-MHz-Auswahl), **C5 und klassischer ESP32** werden ebenfalls unterstützt. S2, H2, P4 und C61 sind von der aktuellen Firmware nicht abgedeckt. Die Namen sind Suchhilfen, keine Liste vollständig getesteter Boardvarianten.
+Standard-SPI-Flash (DIO). Suche nach Chipname und Boardname zusammen. Andere passende Boardmodelle werden ebenfalls unterstützt; PSRAM ist nicht erforderlich.
 
 ## 🚀 Einrichten und ausprobieren
 
