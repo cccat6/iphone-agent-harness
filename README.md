@@ -75,6 +75,21 @@ flowchart LR
 
 ## 🔌 Choose a board
 
+**Supported chips**
+
+| Chip | Supported models |
+|---|---|
+| ESP32-C2 | 2 MB minimum · 26/40 MHz crystal detected automatically |
+| ESP32-C3 | All models* |
+| ESP32-C5 | All models* |
+| ESP32-C6 | All models* |
+| ESP32-S3 | All models* |
+| ESP32 (classic) | All models* |
+
+*The current images for C3, C5, C6, S3 and classic ESP32 use standard SPI flash with at least 4 MB capacity.
+
+**Recommended purchases: C6, S3 and C3**
+
 For a new purchase, start with **C6, S3 or C3**. Choose a complete USB development board with an onboard antenna; no soldering or external peripherals are needed for this project. Flash it once with a USB data cable using the [browser installer](https://igent.cc/flash), configure Wi-Fi and pair Bluetooth, then leave it powered over USB.
 
 | Chip | Model names / search keywords | Amazon US, per board in multipacks¹ | Taobao budget, per board¹ |

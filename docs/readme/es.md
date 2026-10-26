@@ -75,6 +75,21 @@ flowchart LR
 
 ## 🔌 Elige una placa
 
+**Todos los chips compatibles**
+
+| Chip | Modelos compatibles |
+|---|---|
+| ESP32-C2 | Mínimo 2 MB · detección automática del cristal de 26/40 MHz |
+| ESP32-C3 | Todos los modelos* |
+| ESP32-C5 | Todos los modelos* |
+| ESP32-C6 | Todos los modelos* |
+| ESP32-S3 | Todos los modelos* |
+| ESP32 (classic) | Todos los modelos* |
+
+*Las imágenes actuales para C3, C5, C6, S3 y ESP32 clásico usan flash SPI estándar de al menos 4 MB.
+
+**Compra recomendada: C6, S3 y C3**
+
 Para una compra nueva, recomendamos **C6, S3 o C3**. Elige una placa de desarrollo completa con USB y antena integrada; este proyecto no necesita soldadura ni periféricos externos. Graba el firmware una vez con un cable USB de datos y el [instalador web](https://igent.cc/flash), configura el Wi-Fi y empareja Bluetooth. Después basta con alimentarla por USB.
 
 | Chip | Modelos / términos de búsqueda | Amazon EE. UU.: por placa en lote¹ | Taobao: presupuesto por placa¹ |

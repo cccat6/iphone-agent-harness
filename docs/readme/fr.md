@@ -75,6 +75,21 @@ flowchart LR
 
 ## 🔌 Choisir une carte
 
+**Toutes les puces prises en charge**
+
+| Puce | Modèles compatibles |
+|---|---|
+| ESP32-C2 | 2 Mo minimum · quartz 26/40 MHz détecté automatiquement |
+| ESP32-C3 | Tous les modèles* |
+| ESP32-C5 | Tous les modèles* |
+| ESP32-C6 | Tous les modèles* |
+| ESP32-S3 | Tous les modèles* |
+| ESP32 (classic) | Tous les modèles* |
+
+*Les images actuelles pour C3, C5, C6, S3 et ESP32 classique utilisent une mémoire flash SPI standard d’au moins 4 Mo.
+
+**Achat conseillé : C6, S3 et C3**
+
 Pour un nouvel achat, privilégiez **C6, S3 ou C3**. Choisissez une carte de développement complète avec USB et antenne intégrée : ce projet ne nécessite ni soudure ni périphérique externe. Flashez-la une fois avec un câble USB de données et l’[installateur web](https://igent.cc/flash), configurez le Wi-Fi et l’appairage Bluetooth. Ensuite, une alimentation USB suffit.
 
 | Puce | Modèles / mots-clés | Amazon US : par carte en lot¹ | Taobao : budget par carte¹ |
