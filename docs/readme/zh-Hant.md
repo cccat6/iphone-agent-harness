@@ -77,11 +77,11 @@ flowchart LR
 
 不限品牌，晶片與快閃記憶體符合下表即可。**推薦 C6、S3、C3**，選帶 USB 接口與板載天線的開發板。
 
-| 晶片 | 快閃記憶體 | 常見板型／搜尋關鍵字 | 參考價格：中國大陸／AliExpress |
+| 晶片 | 快閃記憶體 | 常見板型／搜尋關鍵字 | 參考價格：中國大陸／AliExpress／Amazon 美國站 |
 |---|---|---|---|
-| **ESP32-C6** | 4 MB+ | `SuperMini` · `Zero` · `DevKitM-1` · `DevKitC-1` · `WROOM-1 N8` | ¥10–15 / US$2–4 |
-| **ESP32-S3** | 4 MB+ | `DevKitC-1 N8R2 / N8R8 / N16R8` · `SuperMini` · `Zero` · `WROOM-1 N16R8` | ¥10–25 / US$3–7 |
-| **ESP32-C3** | 4 MB+ | `SuperMini` · `MINI` · `Zero` · `DevKitM-1` · `MINI-1 N4` | ¥3–10 / US$2–5 |
+| **ESP32-C6** | 4 MB+ | `SuperMini` · `Zero` · `DevKitM-1` · `DevKitC-1` · `WROOM-1 N8` | ¥10–15 / US$2–4 / US$14 (3片) |
+| **ESP32-S3** | 4 MB+ | `DevKitC-1 N8R2 / N8R8 / N16R8` · `SuperMini` · `Zero` · `WROOM-1 N16R8` | ¥10–25 / US$3–7 / US$19 (3片) |
+| **ESP32-C3** | 4 MB+ | `SuperMini` · `MINI` · `Zero` · `DevKitM-1` · `MINI-1 N4` | ¥3–10 / US$2–5 / US$12 (3片) |
 | ESP32-C2 | 2 MB 起 · 自動識別 26/40 MHz | 同樣支援 | — |
 | ESP32-C5 | 4 MB+ | 同樣支援 | — |
 | ESP32 (classic) | 4 MB+ | 同樣支援 | — |

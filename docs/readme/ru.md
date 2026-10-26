@@ -77,11 +77,11 @@ flowchart LR
 
 Марка не важна: ориентируйтесь на чип и Flash из таблицы. **Рекомендуем C6, S3 и C3**, готовые платы с USB и встроенной антенной.
 
-| Чип | Flash | Названия плат / поисковые запросы | Ориентир: Китай / AliExpress |
+| Чип | Flash | Названия плат / поисковые запросы | Ориентир: Китай / AliExpress / Amazon US |
 |---|---|---|---|
-| **ESP32-C6** | 4 MB+ | `SuperMini` · `Zero` · `DevKitM-1` · `DevKitC-1` · `WROOM-1 N8` | ¥10–15 / US$2–4 |
-| **ESP32-S3** | 4 MB+ | `DevKitC-1 N8R2 / N8R8 / N16R8` · `SuperMini` · `Zero` · `WROOM-1 N16R8` | ¥10–25 / US$3–7 |
-| **ESP32-C3** | 4 MB+ | `SuperMini` · `MINI` · `Zero` · `DevKitM-1` · `MINI-1 N4` | ¥3–10 / US$2–5 |
+| **ESP32-C6** | 4 MB+ | `SuperMini` · `Zero` · `DevKitM-1` · `DevKitC-1` · `WROOM-1 N8` | ¥10–15 / US$2–4 / US$14 (3 шт.) |
+| **ESP32-S3** | 4 MB+ | `DevKitC-1 N8R2 / N8R8 / N16R8` · `SuperMini` · `Zero` · `WROOM-1 N16R8` | ¥10–25 / US$3–7 / US$19 (3 шт.) |
+| **ESP32-C3** | 4 MB+ | `SuperMini` · `MINI` · `Zero` · `DevKitM-1` · `MINI-1 N4` | ¥3–10 / US$2–5 / US$12 (3 шт.) |
 | ESP32-C2 | от 2 МБ · авто 26/40 МГц | Поддерживается | — |
 | ESP32-C5 | 4 MB+ | Поддерживается | — |
 | ESP32 (classic) | 4 MB+ | Поддерживается | — |
