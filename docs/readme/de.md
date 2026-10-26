@@ -77,11 +77,11 @@ flowchart LR
 
 Die Marke ist egal, solange Chip und Flash zur Tabelle passen. **Empfohlen sind C6, S3 und C3** als fertige Boards mit USB und integrierter Antenne.
 
-| Chip | Flash | Boardnamen / Suchbegriffe | Richtpreise |
+| Chip | Flash | Boardnamen / Suchbegriffe | Richtpreise: China / AliExpress |
 |---|---|---|---|
-| **ESP32-C6** | 4 MB+ | `SuperMini` · `Zero` · `DevKitM-1` · `DevKitC-1` · `WROOM-1 N8` | Amazon US $10–13 · Taobao ¥25–45 |
-| **ESP32-S3** | 4 MB+ | `DevKitC-1 N8R2 / N8R8 / N16R8` · `SuperMini` · `Zero` · `WROOM-1 N16R8` | Amazon US $9–13 · Taobao ¥15–40 |
-| **ESP32-C3** | 4 MB+ | `SuperMini` · `MINI` · `Zero` · `DevKitM-1` · `MINI-1 N4` | Amazon US $9–11 · Taobao ¥6–20 |
+| **ESP32-C6** | 4 MB+ | `SuperMini` · `Zero` · `DevKitM-1` · `DevKitC-1` · `WROOM-1 N8` | ¥10–15 / US$2–4 |
+| **ESP32-S3** | 4 MB+ | `DevKitC-1 N8R2 / N8R8 / N16R8` · `SuperMini` · `Zero` · `WROOM-1 N16R8` | ¥10–25 / US$3–7 |
+| **ESP32-C3** | 4 MB+ | `SuperMini` · `MINI` · `Zero` · `DevKitM-1` · `MINI-1 N4` | ¥3–10 / US$2–5 |
 | ESP32-C2 | ab 2 MB · auto 26/40 MHz | Unterstützt | — |
 | ESP32-C5 | 4 MB+ | Unterstützt | — |
 | ESP32 (classic) | 4 MB+ | Unterstützt | — |

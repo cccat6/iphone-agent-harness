@@ -86,11 +86,11 @@ flowchart LR
 
 不限定品牌，芯片和闪存满足下表即可。**推荐 C6、S3、C3**，选带 USB 接口和板载天线的开发板。
 
-| 芯片 | 闪存 | 常见板型／搜索关键词 | 参考价格 |
+| 芯片 | 闪存 | 常见板型／搜索关键词 | 参考价格：国内／AliExpress |
 |---|---|---|---|
-| **ESP32-C6** | 4 MB+ | `SuperMini` · `Zero` · `DevKitM-1` · `DevKitC-1` · `WROOM-1 N8` | Amazon US $10–13 · 淘宝 ¥25–45 |
-| **ESP32-S3** | 4 MB+ | `DevKitC-1 N8R2 / N8R8 / N16R8` · `SuperMini` · `Zero` · `WROOM-1 N16R8` | Amazon US $9–13 · 淘宝 ¥15–40 |
-| **ESP32-C3** | 4 MB+ | `SuperMini` · `MINI` · `Zero` · `DevKitM-1` · `MINI-1 N4` | Amazon US $9–11 · 淘宝 ¥6–20 |
+| **ESP32-C6** | 4 MB+ | `SuperMini` · `Zero` · `DevKitM-1` · `DevKitC-1` · `WROOM-1 N8` | ¥10–15 / US$2–4 |
+| **ESP32-S3** | 4 MB+ | `DevKitC-1 N8R2 / N8R8 / N16R8` · `SuperMini` · `Zero` · `WROOM-1 N16R8` | ¥10–25 / US$3–7 |
+| **ESP32-C3** | 4 MB+ | `SuperMini` · `MINI` · `Zero` · `DevKitM-1` · `MINI-1 N4` | ¥3–10 / US$2–5 |
 | ESP32-C2 | 2 MB 起 · 自动识别 26/40 MHz | 同样支持 | — |
 | ESP32-C5 | 4 MB+ | 同样支持 | — |
 | ESP32 (classic) | 4 MB+ | 同样支持 | — |
