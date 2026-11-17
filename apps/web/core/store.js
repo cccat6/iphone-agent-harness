@@ -2,6 +2,7 @@ import {projectToolActivity} from './tool-activity.js';
 import {validateMessageMetadata} from './message-metadata.js';
 import {createDeviceURL} from './device.js';
 import {imageData} from './attachments.js';
+import {getDefaultModelSelection,modelSelectionParts,profileModels} from './models.js';
 const DB_NAME='iphone-automation-harness', VERSION=3;
 const SESSION_LIST_INDEX='listOrder',SESSION_LIST_KEY='_listKey';
 const uid=()=>crypto.randomUUID();
@@ -158,6 +159,7 @@ export async function openStore({memory=false,name=DB_NAME}={}){
         const old=(await s.settings.get('settings'))?.value||{},list=Array.isArray(old.providers)?[...old.providers]:[],index=list.findIndex(item=>item.id===saved.id);
         if(index<0)list.push(saved);else list[index]=saved;
         const value={...old,providers:list,activeProviderId:list.some(item=>item.id===old.activeProviderId)?old.activeProviderId:saved.id};
+        value.defaultModelSelection=getDefaultModelSelection(value);
         if(secret)await s.settings.put({id:localCredentialId('provider:'+saved.id),value:secret});
         await s.settings.put({id:'settings',value});return value;
       },{signal});
@@ -175,8 +177,21 @@ export async function openStore({memory=false,name=DB_NAME}={}){
         // Check the request's connection in the write transaction: another tab
         // may have changed it after the caller read settings.
         if(expected&&fields.some(key=>(profile[key]||'')!==expected[key]))return old;
-        const providers=[...list];providers[index]={...profile,models:saved,model:profile.model||saved[0]?.id||''};
-        const value={...old,providers};await s.settings.put({id:'settings',value});return value;
+        const providers=[...list];providers[index]={...profile,models:saved};
+        const value={...old,providers};
+        value.defaultModelSelection=getDefaultModelSelection(value);
+        await s.settings.put({id:'settings',value});return value;
+      });
+    },
+    async setDefaultModelSelection(selection){
+      const {providerId,modelId}=modelSelectionParts(selection);
+      return transaction(['settings'],'readwrite',async s=>{
+        const old=(await s.settings.get('settings'))?.value||{};
+        const provider=(old.providers||[]).find(profile=>profile.id===providerId);
+        if(!provider||!modelId||!profileModels(provider).some(model=>model.id===modelId))throw new Error('MODEL_NOT_AVAILABLE');
+        const value={...old,defaultModelSelection:providerId+'::'+modelId,activeProviderId:providerId};
+        await s.settings.put({id:'settings',value});
+        return value;
       });
     },
     async removeProvider(id){
@@ -184,7 +199,17 @@ export async function openStore({memory=false,name=DB_NAME}={}){
       return transaction(['settings'],'readwrite',async s=>{
         const old=(await s.settings.get('settings'))?.value||{},providers=(Array.isArray(old.providers)?old.providers:[]).filter(profile=>profile.id!==id),credentialVault={...old.credentialVault};delete credentialVault[id];
         const value={...old,providers,credentialVault,activeProviderId:old.activeProviderId===id?providers[0]?.id||'':old.activeProviderId||''};
+        value.defaultModelSelection=getDefaultModelSelection(value);
         await s.settings.delete(localCredentialId('provider:'+id));await s.settings.put({id:'settings',value});return value;
+      });
+    },
+    async saveSubscriptionRefresh(id,tokens){
+      const value={kind:'codex',tokens:clone(tokens)};
+      return transaction(['settings'],'readwrite',async s=>{
+        const settings=(await s.settings.get('settings'))?.value;
+        if(!settings?.providers?.some(profile=>profile.id===id&&profile.protocol==='codex'))return false;
+        await s.settings.put({id:localCredentialId('provider:'+id),value});
+        return true;
       });
     },
     async saveFrame(sessionId,frame,metadata={}){const row=frameRecord(sessionId,frame,metadata);await transaction(['frames',...(metadata.runId?['sessions','events']:[])],'readwrite',async s=>{await s.frames.put(row);if(metadata.runId){const session=await s.sessions.get(sessionId);if(!session)throw new Error('对话不存在');await s.events.put({id:'frame-evidence:'+metadata.runId+':'+row.frameId,sessionId,runId:metadata.runId,seq:(session.eventSeq||0)+1,type:'frame.evidence',payload:{frameId:row.frameId,assetRef:row.assetRef,targetId:row.targetId,orientationEpoch:row.orientationEpoch},createdAt:Date.now()});session.eventSeq=(session.eventSeq||0)+1;await s.sessions.put(session);}});const {blob,dataUrl,...meta}=row;return meta;},

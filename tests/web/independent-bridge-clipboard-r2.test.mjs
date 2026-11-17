@@ -2,15 +2,15 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import vm from 'node:vm';
+import {modelSelectionParts as selectionParts} from '../../apps/web/core/models.js';
 import {createHistoryWindow} from '../../apps/web/core/history-window.js';
 const app=await readFile(new URL('../../apps/web/app.js',import.meta.url),'utf8');
 function fixture(existing,{failure=null,ready=false}={}){
  const calls=[],nodes=new Map();
  const $=selector=>{if(!nodes.has(selector))nodes.set(selector,{value:selector==='#message-input'?'Can you explain this?':selector==='#mode-select'?'chat':'provider::chosen-model',textContent:'',hidden:false});return nodes.get(selector);};
  const state={settings:{activeProviderId:'different-settings-default'},submitting:false,running:false,current:existing?{id:'s',mode:'chat'}:null,drafts:new Map(),runGeneration:0,devicePanel:{ensureReady:async()=>ready},store:{updateSession:async()=>{},getMessages:async()=>[],getSession:async()=>({id:'s',title:'S'})},harness:{run:async x=>{calls.push(x);if(failure)throw failure;}}};
- const sandbox={deviceSessionAvailable:()=>ready,conversationFollow:()=>({follow(){}}),capture:{active:true},createHistoryWindow,state,$,getBrowserCompatibility:()=>({supportedForHarness:true}),selectedProvider:()=>({id:'provider',name:'Selected personal API'}),showDevices:async()=>calls.push('devices'),toast:()=>{},t:x=>x,setRunning:value=>{state.running=value;},AbortController,resizeInput(){},refreshSessions:async()=>{},renderMessages(){},renderRunControls(){},renderReasoningOptions(){},report:error=>{throw error;}};
+ const sandbox={selectionParts,deviceSessionAvailable:()=>ready,conversationFollow:()=>({follow(){}}),capture:{active:true},createHistoryWindow,state,$,getBrowserCompatibility:()=>({supportedForHarness:true}),selectedProvider:()=>({id:'provider',name:'Selected personal API'}),showDevices:async()=>calls.push('devices'),toast:()=>{},t:x=>x,setRunning:value=>{state.running=value;},AbortController,resizeInput(){},refreshSessions:async()=>{},renderMessages(){},renderRunControls(){},renderReasoningOptions(){},report:error=>{throw error;}};
  vm.runInNewContext(app.slice(app.indexOf('function historyWindow()'),app.indexOf('async function openSession(')),sandbox);
- vm.runInNewContext(app.slice(app.indexOf('function selectionParts('),app.indexOf('function profileModels(')),sandbox);
  vm.runInNewContext(app.slice(app.indexOf('async function sendMessage('),app.indexOf('function renderClipboard()')),sandbox);
  return {state,calls,send:()=>sandbox.sendMessage({preventDefault(){}})};
 }

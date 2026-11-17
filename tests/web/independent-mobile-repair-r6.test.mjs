@@ -28,7 +28,7 @@ test('model-list save finishing after same-editor endpoint invalidation does not
  const h=harness(),running=h.start();h.invalidate();h.resolve();await running;assert.equal(h.dropdown.innerHTML,'original');assert.equal(h.dropdown.disabled,true);assert.equal(h.form.elements.model.value,'');
 });
 test('model-list save in active unchanged editor populates fetched models',async()=>{
- const h=harness(),running=h.start();h.resolve();await running;assert.match(h.dropdown.innerHTML,/original-model/);assert.equal(h.dropdown.disabled,false);assert.equal(h.dropdown.value,'original-model');assert.equal(h.form.elements.model.value,'original-model');assert.equal(h.calls.filter(c=>c[0]==='save').length,1);assert.equal(h.calls.filter(c=>c[0]==='status').length,1);
+ const h=harness(),running=h.start();h.resolve();await running;assert.match(h.dropdown.innerHTML,/original-model/);assert.equal(h.dropdown.disabled,false);assert.equal(h.dropdown.value,'');assert.equal(h.form.elements.model.value,'');assert.equal(h.calls.filter(c=>c[0]==='save').length,1);assert.equal(h.calls.filter(c=>c[0]==='status').length,1);
 });
 
 test('all discovered models remain configured even when the default field names another model',async()=>{
@@ -41,7 +41,7 @@ test('all discovered models remain configured even when the default field names 
 });
 
 test('new provider model discovery updates controls without ever writing the account list',async()=>{
- const h=harness({saved:false});await h.start([{id:'draft-model'}]);assert.equal(h.calls.filter(call=>call[0]==='save').length,0);assert.equal(h.form.elements.model.value,'draft-model');assert.match(h.dropdown.innerHTML,/draft-model/);assert.equal(h.dropdown.value,'draft-model');assert.equal(h.dropdown.disabled,false);
+ const h=harness({saved:false});await h.start([{id:'draft-model'}]);assert.equal(h.calls.filter(call=>call[0]==='save').length,0);assert.equal(h.form.elements.model.value,'');assert.match(h.dropdown.innerHTML,/draft-model/);assert.equal(h.dropdown.value,'');assert.equal(h.dropdown.disabled,false);
 });
 
 test('a changed connection returned by the atomic update never populates stale editor models',async()=>{

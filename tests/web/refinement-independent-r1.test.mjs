@@ -1,3 +1,4 @@
+import {getDefaultModelSelection,modelSelectionParts as selectionParts,profileModels} from '../../apps/web/core/models.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
@@ -30,7 +31,7 @@ test('a paused send finishes with an enabled Continue button',async()=>{
  state.store={updateSession:async()=>{},getSession:async()=>saved};
  state.harness={run:async()=>{state.capturePaused=true;return {status:'paused'};}};
  $('#message-input').value='Set my alarm.';
- vm.runInContext(section('function selectionParts(', '\nfunction profileModels('),context);
+ context.selectionParts=selectionParts;
  vm.runInContext(section('async function sendMessage(', '\nfunction renderClipboard('),context);
  await context.sendMessage({preventDefault(){}});
  assert.equal(state.submitting,false);
@@ -60,7 +61,8 @@ test('a retired session model falls back to a real available option, while valid
  let options=[],value='';const modelSelect={set innerHTML(html){options=[...html.matchAll(/<option value="([^"]*)"/g)].map(match=>({value:match[1]}));value=options[0]?.value||'';},get options(){return options;},set value(next){value=options.some(option=>option.value===next)?next:'';},get value(){return value;},setAttribute(){}};
  const state={current:{modelId:'p::retired'},settings:{activeProviderId:'p',providers:[{id:'p',name:'Test API',model:'one',models:[{id:'one'},{id:'two'}]}]}};
  const context=vm.createContext({state,$:()=>modelSelect,providers:()=>state.settings.providers,modelContextMetadata:()=>({}),modelReasoningMetadata:()=>({}),renderReasoningOptions(){},t:key=>key,escapeHTML:value=>String(value||'')});
- vm.runInContext(section('function selectionParts(', '\nfunction dateLabel(')+'\n'+section('function renderModelOptions()', '\nfunction renderReasoningOptions('),context);
+ Object.assign(context,{getDefaultModelSelection,selectionParts,profileModels,selectedProvider:()=>state.settings.providers.find(p=>p.id===selectionParts(modelSelect.value).providerId)});
+ vm.runInContext(section('function renderModelOptions()', '\nfunction contextMeterState('),context);
  context.renderModelOptions();assert.equal(modelSelect.value,'p::one');assert.match(modelSelect.title,/one/);assert.equal(options.some(option=>option.value===''),false);
  state.current.modelId='p::two';context.renderModelOptions();assert.equal(modelSelect.value,'p::two');assert.match(modelSelect.title,/two/);
 });

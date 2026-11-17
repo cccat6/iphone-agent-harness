@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {indexedDB,IDBKeyRange,IDBObjectStore} from 'fake-indexeddb';
 import {openStore} from '../../apps/web/core/store.js';
+import {getDefaultModelSelection,resolveModelSelection} from '../../apps/web/core/models.js';
 globalThis.indexedDB=indexedDB;globalThis.IDBKeyRange=IDBKeyRange;
 const plan={id:'plan-a',name:'ChatGPT',protocol:'codex',flow:'chatgpt-plan',clientId:'oaiapp_fixture',accountId:'plan-a',model:'',models:[],stream:true};
 const credential={kind:'codex',tokens:{access_token:'synthetic-plan-access',refresh_token:'synthetic-refresh',id_token:'synthetic-id',flow:'chatgpt-plan',clientId:'oaiapp_fixture',identityVerified:true}};
@@ -26,7 +27,7 @@ test('concurrent saves merge the current list instead of replacing an older snap
 test('late model discovery never removes another account or creates a deleted draft',async t=>{
  const {store}=await fixture(t);await store.saveProvider(plan,credential);
  await Promise.all([store.saveProvider({...plan,id:'plan-b',accountId:'plan-b'},credential),store.updateProviderModels(plan.id,[{id:'model-x',name:'X'}])]);
- let saved=await store.getSettings();assert.equal(saved.providers.length,2);assert.equal(saved.providers.find(p=>p.id===plan.id).model,'model-x');
+ let saved=await store.getSettings();assert.equal(saved.providers.length,2);assert.equal(saved.providers.find(p=>p.id===plan.id).model,'');assert.equal(saved.defaultModelSelection,'plan-a::model-x');
  await store.removeProvider(plan.id);await store.updateProviderModels(plan.id,[{id:'late'}]);saved=await store.getSettings();assert.deepEqual(saved.providers.map(p=>p.id),['plan-b']);assert.equal(await store.getLocalCredential('provider:'+plan.id),null);assert.equal(saved.activeProviderId,'plan-b');
  await store.updateProviderModels('unsaved-draft',[{id:'another'}]);assert.equal((await store.getSettings()).providers.length,1);
 });
@@ -34,6 +35,27 @@ test('explicit model choice and other settings survive catalog updates and delet
  const {store}=await fixture(t);await store.saveProvider({...plan,model:'chosen',reasoningEffort:'high'},credential);await store.saveSettings({language:'ja',credentialVault:{[plan.id]:{old:true},keep:{old:true}}});
  await store.updateProviderModels(plan.id,[{id:'new-default'}]);const saved=await store.getSettings();assert.equal(saved.providers[0].model,'chosen');assert.equal(saved.providers[0].reasoningEffort,'high');
  const removed=await store.removeProvider(plan.id);assert.equal(removed.language,'ja');assert.deepEqual(removed.credentialVault,{keep:{old:true}});assert.equal(removed.activeProviderId,'');
+});
+test('one global model spans accounts and survives catalog refresh, edit and reopen',async t=>{
+ const {store,name}=await fixture(t);
+ const api={id:'api-b',protocol:'openai',baseUrl:'https://test.invalid/v1',model:'first',models:[{id:'first'},{id:'shared'}]};
+ await store.saveSettings({providers:[{...plan,model:'shared',models:['shared']},api],activeProviderId:plan.id});
+ assert.equal(getDefaultModelSelection(await store.getSettings()),'plan-a::shared');
+ await store.setDefaultModelSelection('api-b::shared');
+ await store.updateProviderModels(api.id,[{id:'catalog-head'},{id:'shared'}]);
+ await store.saveProvider({...plan,model:'edited'},credential);
+ store.close();
+ const reopened=await openStore({name});t.after(()=>reopened.close());
+ const settings=await reopened.getSettings();
+ assert.equal(settings.defaultModelSelection,'api-b::shared');
+ assert.equal(resolveModelSelection(settings).id,api.id);
+ assert.equal(resolveModelSelection(settings).model,'shared');
+ assert.equal(resolveModelSelection(settings,'plan-a::edited').id,plan.id);
+ await assert.rejects(reopened.setDefaultModelSelection('api-b::missing'),/MODEL_NOT_AVAILABLE/);
+ assert.equal((await reopened.removeProvider(api.id)).defaultModelSelection,'plan-a::edited');
+ assert.equal((await reopened.removeProvider(plan.id)).defaultModelSelection,'');
+ assert.equal(await reopened.saveSubscriptionRefresh(plan.id,credential.tokens),false);
+ assert.equal(await reopened.getLocalCredential('provider:'+plan.id),null);
 });
 test('cancelled saves leave neither a profile nor a credential',async t=>{
  const {store}=await fixture(t),controller=new AbortController();controller.abort();

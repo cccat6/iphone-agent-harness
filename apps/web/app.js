@@ -31,7 +31,7 @@ import { createDeviceClipboard } from './core/device-clipboard.js';
 import { mountClipboardPanel } from './ui/clipboard.js';
 import { screenCapture, normalizeImageSettings } from './core/capture.js';
 import { normalizeContextSettings } from './core/context.js';
-import { modelContextMetadata, resolveModelSelection } from './core/models.js';
+import { getDefaultModelSelection, modelContextMetadata, modelSelectionParts as selectionParts, profileModels } from './core/models.js';
 import { unsealCredentials } from './core/auth.js';
 import { createMCPAccess } from './core/mcp.js';
 import { mountSessionSearch } from './ui/session-search.js';
@@ -58,11 +58,7 @@ clipboard.subscribe(snapshot=>{if(!snapshot||snapshot.status!=='awaiting_user_ac
 registerErrorCatalog(BACKUP_ERRORS);
 setCodexRefreshStorage({
   load:async id=>(await state.store?.getLocalCredential('provider:'+id))?.tokens,
-  save:async(id,tokens)=>{
-    const latest=await state.store.getSettings();
-    if(!latest.providers?.some(profile=>profile.id===id&&profile.protocol==='codex'))return;
-    await saveProviderCredential(state.store,id,{kind:'codex',tokens});
-  }
+  save:(id,tokens)=>state.store.saveSubscriptionRefresh(id,tokens)
 });
 let toastTimer,toastNode;
 const modeLabel=()=>t('interaction.assistant');
@@ -82,19 +78,6 @@ function report(error) { console.error(error); toast(error); }
 function guard(fn) { return async (...args) => { try { await fn(...args); } catch(error) { report(error); } }; }
 function communityEndpoint(){return SITE_CONFIG.communityEndpoint||'';}
 function providers() { return Array.isArray(state.settings.providers) ? state.settings.providers : []; }
-function selectionParts(value) {
-  const raw=String(value||'');const separator=raw.indexOf('::');
-  return separator<0?{providerId:raw,modelId:''}:{providerId:raw.slice(0,separator),modelId:raw.slice(separator+2)};
-}
-function profileModels(profile) {
-  const models=new Map();
-  for(const entry of Array.isArray(profile.models)?profile.models:[]) {
-    const id=typeof entry==='string'?entry:entry?.id;
-    if(typeof id==='string'&&id.trim())models.set(id,{id,name:typeof entry==='object'?(entry.name||id):id,...modelContextMetadata(typeof entry==='object'?entry:{}),...modelReasoningMetadata(typeof entry==='object'?entry:{})});
-  }
-  if(profile.model&&!models.has(profile.model))models.set(profile.model,{id:profile.model,name:profile.model});
-  return [...models.values()];
-}
 function selectedProvider() { const {providerId}=selectionParts($('#model-select').value);return providers().find(provider=>provider.id===providerId); }
 function dateLabel(value) { const date=new Date(value); return Number.isNaN(+date)?'':new Intl.DateTimeFormat(getLocale(),{month:'short',day:'numeric'}).format(date); }
 function shortId() { return crypto.randomUUID ? crypto.randomUUID() : `id-${Date.now()}-${Math.random().toString(16).slice(2)}`; }
@@ -158,11 +141,11 @@ async function sessionRowAction(action,id){
   await performSessionAction(action,session);
 }
 function renderModelOptions() {
-  const current=state.current?.modelId||(state.composerDraftActive?state.composerDraft?.modelId:'')||state.settings.activeProviderId||'';
+  const current=state.current?.modelId||(state.composerDraftActive?state.composerDraft?.modelId:'')||getDefaultModelSelection(state.settings);
   const parts=selectionParts(current);const profile=providers().find(item=>item.id===parts.providerId);
   const selected=profile?`${profile.id}::${parts.modelId||profile.model||profileModels(profile)[0]?.id||''}`:'';
   $('#model-select').innerHTML=(providers().some(item=>profileModels(item).length)?'':`<option value="" disabled>${t('status.configureModel')}</option>`)+providers().map(item=>`<optgroup label="${escapeHTML(item.name||t('provider.unnamed'))}">${profileModels(item).map(model=>`<option value="${escapeHTML(item.id+'::'+model.id)}">${escapeHTML(model.name)} · ${escapeHTML(item.name||t('provider.account'))}</option>`).join('')}</optgroup>`).join('');
-  $('#model-select').value=selected||$('#model-select').options[0]?.value||'';if(!$('#model-select').value&&$('#model-select').options.length)$('#model-select').value=$('#model-select').options[0].value;$('#model-select').setAttribute('aria-label',t('session.model'));
+  $('#model-select').value=selected;if(!$('#model-select').value)$('#model-select').value=getDefaultModelSelection(state.settings);$('#model-select').setAttribute('aria-label',t('session.model'));
   const resolved=selectedProvider();$('#model-select').title=resolved?`${resolved.name} · ${selectionParts($('#model-select').value).modelId}`:t('provider.chooseAccountModel');renderReasoningOptions();
 }
 function contextMeterState(){return {sessionId:state.current?.id||null,modelId:$('#model-select')?.value||'',busy:state.running||state.submitting||state.contextCompacting===true};}
@@ -188,10 +171,13 @@ function updateModeDescription() { const status=$('#mode-description');const act
 async function changeReasoningSelection(){const profile=selectedProvider();if(!profile||state.running||state.submitting||state.contextCompacting)return;const model=selectionParts($('#model-select').value).modelId||profile.model,key=profile.id+'::'+model,value=normalizeReasoningEffort({...profile,model},$('#reasoning-select').value);if(!value)return;if(state.current){const id=state.current.id,reasoningEfforts={...state.current.reasoningEfforts,[key]:value};await state.store.updateSession(id,{reasoningEfforts});if(state.current?.id===id)state.current.reasoningEfforts=reasoningEfforts;}else if(state.composerDraftActive&&state.composerDraft){state.composerDraft.reasoningEfforts={...state.composerDraft.reasoningEfforts,[key]:value};rememberComposerDraft();}else state.settings=await state.store.saveSettings({reasoningEfforts:{...state.settings.reasoningEfforts,[key]:value}});renderReasoningOptions();}
 async function changeModelSelection(){const selection=$('#model-select').value,resolved=selectedProvider();$('#model-select').title=resolved?`${resolved.name} · ${selectionParts(selection).modelId}`:t('provider.chooseAccountModel');renderReasoningOptions();if(state.current){const id=state.current.id;await state.store.updateSession(id,{modelId:selection});if(state.current?.id===id)state.current.modelId=selection;}else if(state.composerDraftActive&&state.composerDraft){state.composerDraft.modelId=selection;rememberComposerDraft();}}
 function rememberComposerDraft(){if(!state.composerDraftActive||state.current||!state.composerDraft)return;state.composerDraft.text=$('#message-input').value;saveComposerDraft(state.composerDraft);}
-function openComposerDraft({focus=false,navigation=true}={}){
+function openComposerDraft({focus=false,navigation=true,useDefaultModel=false}={}){
   if(state.running||state.submitting)throw new Error(t('session.stopBeforeImport'));
   rememberRouteDraft();state.sessionOpenGeneration=(state.sessionOpenGeneration||0)+1;
-  state.composerDraft ||= loadComposerDraft()||{text:'',modelId:$('#model-select').value||state.settings.activeProviderId||providers()[0]?.id||'',reasoningEfforts:{}};
+  state.composerDraft ||= loadComposerDraft()||{text:'',modelId:'',reasoningEfforts:{}};
+  // A deliberate New session starts with the current global default. History
+  // restoration still restores an explicitly selected model for that draft.
+  if(useDefaultModel)state.composerDraft.modelId='';
   state.current=null;state.composerDraftActive=true;state.messages=[];state.hasOlder=state.hasNewer=false;state.history?.clear();state.pending=null;state.lastError=null;state.capturePaused=false;
   clipboard.clear();state.clipboardView?.destroy();$('#clipboard-panel').replaceChildren();$('#app').classList.add('in-conversation');$('#session-title').textContent=t('session.new');$('#session-subtitle').textContent='';$('#session-menu').hidden=true;
   $('#message-input').value=state.composerDraft.text;resizeInput();renderModelOptions();renderSessions();renderMessages({forceFollow:true});saveComposerDraft(state.composerDraft);
@@ -200,7 +186,17 @@ function openComposerDraft({focus=false,navigation=true}={}){
 async function newSession(){
   if(state.running||state.submitting)throw new Error(t('session.stopBeforeImport'));if(state.draftOpening)return state.draftOpening;
   const request=state.sessionOpenGeneration=(state.sessionOpenGeneration||0)+1;
-  const task=(async()=>{const ready=await state.devicePanel?.ensureReady?.();if(request!==state.sessionOpenGeneration)return null;if(!ready){await showDevices();toast(t('device.startHint'));return null;}return openComposerDraft({focus:true});})().finally(()=>{if(state.draftOpening===task)state.draftOpening=null;});state.draftOpening=task;return task;
+  const task=(async()=>{
+    const ready=await state.devicePanel?.ensureReady?.();
+    if(request!==state.sessionOpenGeneration)return null;
+    if(!ready){await showDevices();toast(t('device.startHint'));return null;}
+    const settings=await state.store.getSettings();
+    if(request!==state.sessionOpenGeneration)return null;
+    state.settings=settings;
+    return openComposerDraft({focus:true,useDefaultModel:true});
+  })().finally(()=>{if(state.draftOpening===task)state.draftOpening=null;});
+  state.draftOpening=task;
+  return task;
 }
 function historyWindow(){return state.history||(state.history=createHistoryWindow(state.store,{includeInternal:!!state.settings.developerMode}));}
 async function refreshConversationPresentation(){state.history?.clear();state.history=null;if(state.current){applyHistory(await historyWindow().load(state.current.id));}renderMessages();}
@@ -402,13 +398,77 @@ async function showSettings(section='home') {
     return;
   }
   if(section==='accounts'){
-    panel(t('settings.accounts'),'',`    <div class="panel-actions" style="margin-top:8px"><button id="add-provider" class="secondary-button">${systemTextHTML('settings.addAccount')}</button></div>
-    ${list.length?list.map(provider=>`<div class="provider-card"><div class="card-title"><span data-no-i18n>${escapeHTML(provider.name||provider.model||t('provider.unnamed'))}</span></div><div class="card-detail">${systemTextHTML(provider.protocol==='codex'?(provider.flow==='chatgpt-plan'?'siwc.accountType':'provider.codex'):provider.protocol==='anthropic'?'provider.anthropic':'provider.openai')} · <span data-model-count>${systemTextHTML('provider.modelCount',{count:profileModels(provider).length})}</span>${provider.baseUrl?`<br><span data-no-i18n>${escapeHTML(provider.baseUrl)}</span>`:''}${credentialStates.get(provider.id)?.status==='saved'?'':`<br>${systemTextHTML(credentialStates.get(provider.id)?.messageKey||'provider.noCredential')}`}</div><div class="provider-model-chips">${profileModels(provider).map(model=>`<span class="provider-model-chip" data-no-i18n title="${escapeHTML(model.id)}">${escapeHTML(model.name||model.id)}</span>`).join('')}</div><div class="provider-card-status quiet-note" data-provider-status="${escapeHTML(provider.id)}" role="status"></div><div class="card-actions"><button data-provider-edit="${escapeHTML(provider.id)}">${systemTextHTML('common.edit')}</button><button data-provider-refresh="${escapeHTML(provider.id)}">${systemTextHTML('providerRefinement.refreshModels')}</button><button class="danger" data-provider-delete="${escapeHTML(provider.id)}">${systemTextHTML('common.remove')}</button></div></div>`).join(''):`<div class="empty-card">${systemTextHTML('settings.noAccounts')}</div>`}
-    <div id="provider-editor"></div>
-<div id="panel-status" class="status-box" hidden></div>`);
-  const accountsGeneration=state.panelGeneration;
-  $('#add-provider').onclick=()=>renderProviderForm();
-  $$('[data-provider-edit]').forEach(button=>button.onclick=()=>renderProviderForm(providers().find(provider=>provider.id===button.dataset.providerEdit)));
+    const accountTitle=provider=>provider.name||t('provider.unnamed');
+    const card=provider=>{
+      const id=escapeHTML(provider.id);
+      return `<div class="provider-card" data-provider-card="${id}">
+        <div class="card-title"><span data-no-i18n>${escapeHTML(provider.name||provider.model||t('provider.unnamed'))}</span>
+          <span class="provider-default-badge" data-provider-default hidden>★ ${systemTextHTML('providerRefinement.defaultModel')}</span>
+        </div>
+        <div class="card-detail">${systemTextHTML(provider.protocol==='codex'?(provider.flow==='chatgpt-plan'?'siwc.accountType':'provider.codex'):provider.protocol==='anthropic'?'provider.anthropic':'provider.openai')}
+          · <span data-model-count></span>${provider.baseUrl?`<br><span data-no-i18n>${escapeHTML(provider.baseUrl)}</span>`:''}${credentialStates.get(provider.id)?.status==='saved'?'':`<br>${systemTextHTML(credentialStates.get(provider.id)?.messageKey||'provider.noCredential')}`}
+        </div>
+        <div class="provider-model-chips"></div>
+        <div class="provider-card-status quiet-note" data-provider-status role="status"></div>
+        <div class="card-actions">
+          <button type="button" data-provider-edit="${id}">${systemTextHTML('common.edit')}</button>
+          <button type="button" data-provider-refresh="${id}">${systemTextHTML('providerRefinement.refreshModels')}</button>
+          <button type="button" class="danger" aria-expanded="false" data-provider-delete="${id}">${systemTextHTML('common.remove')}</button>
+        </div>
+        <div class="provider-remove-confirm" data-provider-confirm hidden>
+          <p id="provider-remove-prompt-${id}">${systemTextHTML('confirm.removeProvider')}</p>
+          <div class="card-actions" role="group" aria-labelledby="provider-remove-prompt-${id}">
+            <button type="button" data-provider-cancel-delete>${systemTextHTML('common.cancel')}</button>
+            <button type="button" class="danger" data-provider-confirm-delete="${id}">${systemTextHTML('common.remove')}</button>
+          </div>
+        </div>
+      </div>`;
+    };
+    panel(t('settings.accounts'),'',
+      `<label class="field account-default-field" id="account-default-field" hidden>
+        <span>${systemTextHTML('providerRefinement.changeDefaultModel')}</span>
+        <select id="account-default-model"></select>
+      </label>
+      <div class="panel-actions" style="margin-top:8px"><button id="add-provider" type="button" class="secondary-button">${systemTextHTML('settings.addAccount')}</button></div>
+      ${list.length?list.map(card).join(''):`<div class="empty-card">${systemTextHTML('settings.noAccounts')}</div>`}
+      <div id="provider-editor"></div><div id="panel-status" class="status-box" hidden></div>`);
+    const accountsGeneration=state.panelGeneration;
+    const defaultPicker=$('#account-default-model');
+    const renderAccountModels=()=>{
+      const selected=getDefaultModelSelection(state.settings);
+      const {providerId:defaultProviderId,modelId:defaultModelId}=selectionParts(selected);
+      defaultPicker.innerHTML=providers().map(profile=>{
+        const models=profileModels(profile);
+        return models.length?`<optgroup data-no-i18n label="${escapeHTML(accountTitle(profile))}">${models.map(model=>`<option data-no-i18n value="${escapeHTML(profile.id+'::'+model.id)}">${escapeHTML(model.name)}</option>`).join('')}</optgroup>`:'';
+      }).join('');
+      defaultPicker.value=selected;
+      $('#account-default-field').hidden=!selected;
+      for(const element of $$('[data-provider-card]')){
+        const profile=providers().find(item=>item.id===element.dataset.providerCard);
+        if(!profile)continue;
+        const isDefaultAccount=profile.id===defaultProviderId,models=profileModels(profile);
+        element.querySelector('[data-provider-default]').hidden=!isDefaultAccount;
+        element.querySelector('.provider-model-chips').innerHTML=models.map(model=>{
+          const isDefault=isDefaultAccount&&model.id===defaultModelId;
+          return `<span class="provider-model-chip${isDefault?' is-default':''}" data-no-i18n title="${escapeHTML(model.id)}">${escapeHTML(model.name)}${isDefault?' <span aria-hidden="true">★</span>':''}</span>`;
+        }).join('');
+        setLocalizedText(element.querySelector('[data-model-count]'),()=>t('provider.modelCount',{count:models.length}));
+      }
+    };
+    renderAccountModels();
+    defaultPicker.onchange=guard(async()=>{
+      if(defaultPicker.disabled)return;
+      const selection=defaultPicker.value;
+      defaultPicker.disabled=true;
+      try{
+        state.settings=await state.store.setDefaultModelSelection(selection);
+        renderModelOptions();
+      }finally{
+        if(accountsGeneration===state.panelGeneration){renderAccountModels();defaultPicker.disabled=false;}
+      }
+    });
+    $('#add-provider').onclick=()=>renderProviderForm();
+    $$('[data-provider-edit]').forEach(button=>button.onclick=()=>renderProviderForm(providers().find(provider=>provider.id===button.dataset.providerEdit)));
   $$('[data-provider-refresh]').forEach(button=>button.onclick=guard(async()=>{
     if(button.disabled)return;state.modelsAbort?.abort();const controller=new AbortController();state.modelsAbort=controller;
     const id=button.dataset.providerRefresh,profile=providers().find(item=>item.id===id),card=button.closest('.provider-card'),status=card.querySelector('[data-provider-status]');
@@ -422,11 +482,44 @@ async function showSettings(section='home') {
       const connection=value=>JSON.stringify([value?.protocol,value?.baseUrl||'',value?.flow||'',value?.clientId||'',value?.subscriptionRelayUrl||'']);
       if(!latest||connection(latest)!==connection(profile))return;
       const models=found.map(model=>({id:model.id,name:model.name||model.id,...modelContextMetadata(model),...modelReasoningMetadata(model)}));
-      const settings=await state.store.updateProviderModels(id,models,{expectedConnection:profile});if(!current())return;state.settings=settings;if(connection(settings.providers?.find(item=>item.id===id))!==connection(profile))throw new Error(t('providerRefinement.connectionChanged'));renderModelOptions();const catalog=profileModels(settings.providers.find(item=>item.id===id));card.querySelector('.provider-model-chips').innerHTML=catalog.map(model=>`<span class="provider-model-chip" data-no-i18n title="${escapeHTML(model.id)}">${escapeHTML(model.name||model.id)}</span>`).join('');setLocalizedText(card.querySelector('[data-model-count]'),()=>t('provider.modelCount',{count:catalog.length}));setLocalizedText(status,()=> '');
+      const settings=await state.store.updateProviderModels(id,models,{expectedConnection:profile});if(!current())return;state.settings=settings;if(connection(settings.providers?.find(item=>item.id===id))!==connection(profile))throw new Error(t('providerRefinement.connectionChanged'));renderModelOptions();renderAccountModels();setLocalizedText(status,()=> '');
     }catch(error){if(current())setLocalizedText(status,()=>t('common.failed',{detail:localizeError(error)}));}
     finally{if(button.isConnected){button.disabled=false;if(controller.signal.aborted&&accountsGeneration===state.panelGeneration)setLocalizedText(status,()=> '');}}
   }));
-  $$('[data-provider-delete]').forEach(button=>button.onclick=guard(async()=>{if(!confirm(t('confirm.removeProvider')))return;state.settings=await state.store.removeProvider(button.dataset.providerDelete);setCredential(button.dataset.providerDelete,'');removeCodexAccount(button.dataset.providerDelete);renderModelOptions();if(accountsGeneration===state.panelGeneration)await showSettings('accounts');}));
+  $$('[data-provider-delete]').forEach(button=>{
+    const card=button.closest('.provider-card');
+    const confirmation=card.querySelector('[data-provider-confirm]');
+    const cancel=card.querySelector('[data-provider-cancel-delete]');
+    const remove=card.querySelector('[data-provider-confirm-delete]');
+    const status=card.querySelector('[data-provider-status]');
+    button.onclick=()=>{
+      confirmation.hidden=false;
+      button.setAttribute('aria-expanded','true');
+      cancel.focus();
+    };
+    cancel.onclick=()=>{
+      confirmation.hidden=true;
+      button.setAttribute('aria-expanded','false');
+      button.focus();
+    };
+    remove.onclick=async()=>{
+      if(remove.disabled)return;
+      remove.disabled=cancel.disabled=button.disabled=true;
+      const id=button.dataset.providerDelete;
+      state.modelsAbort?.abort();
+      try{
+        state.settings=await state.store.removeProvider(id);
+        setCredential(id,'');
+        removeCodexAccount(id);
+        renderModelOptions();
+        if(accountsGeneration===state.panelGeneration)await showSettings('accounts');
+      }catch(error){
+        if(card.isConnected)setLocalizedText(status,()=>t('common.failed',{detail:localizeError(error)}));
+      }finally{
+        if(card.isConnected)remove.disabled=cancel.disabled=button.disabled=false;
+      }
+    };
+  });
   }else if(section==='mcp'){
     panel(t('mcp.title'),'','<div id="mcp-settings" class="standalone-mcp"></div>');
     state.mcpPanel.mount($('#mcp-settings'),{servers:state.settings.mcpServers,endpoint:state.settings.mcpEndpoint||''});$('#mcp-settings details').open=true;
@@ -471,13 +564,13 @@ function renderProviderForm(provider={}) {
   const loginStatus=message=>{if(editorActive())setLocalizedText($('#codex-login-status'),()=>localizeError(message));};
   const modelsStatus=({key,variables={},error})=>{if(editorActive())setLocalizedText($('#models-status'),()=>error?t('common.failed',{detail:localizeError(error)}):key?t(key,variables):'');};
   state.nextPanelView={kind:'provider',id:provider.id||null};panel(t(provider.id?'provider.edit':'provider.add'),'', '<div id="provider-editor"></div>');
-  $('#provider-editor').innerHTML=`<form id="provider-form" class="provider-form" autocomplete="off"><label class="field"><span>显示名称</span><input name="name" placeholder="例如：DeepSeek · 个人账号" value="${escapeHTML(provider.name)}" required maxlength="80"></label><label class="field"><span>账号接口</span><select name="protocol"><option value="openai" ${!['anthropic','codex'].includes(provider.protocol)?'selected':''}>OpenAI 风格 API</option><option value="anthropic" ${provider.protocol==='anthropic'?'selected':''}>Anthropic 风格 API</option><option value="codex" ${provider.protocol==='codex'?'selected':''}>${systemTextHTML('siwc.accountType')}</option></select></label><label class="field" id="provider-endpoint-field"><span>${systemTextHTML('providerRefinement.endpoint')}</span><input name="baseUrl" type="url" inputmode="url" autocapitalize="none" spellcheck="false" placeholder="https://api.example.com/v1" value="${escapeHTML(provider.baseUrl)}"></label><div id="codex-controls" class="provider-auth-section"><p class="quiet-note" id="codex-legacy-note" hidden>${systemTextHTML('siwc.legacy')}</p><div class="provider-auth-overview"><div class="panel-actions provider-auth-actions"><button id="start-codex-login" class="secondary-button" type="button">${systemTextHTML('siwc.start')}</button><button id="cancel-codex-login" class="secondary-button" type="button" hidden>${systemTextHTML('siwc.cancel')}</button></div><div id="codex-login-status" class="quiet-note provider-auth-status" role="status">${systemTextHTML(provider.id&&hasCodexAccount(provider.id)?'auth.loggedIn':'auth.loggedOut')}</div></div><div id="codex-verification"></div><label class="field" id="codex-callback-field" hidden><span id="codex-callback-label"></span><textarea id="codex-callback" rows="3" maxlength="32768" autocomplete="off" autocapitalize="none" spellcheck="false"></textarea><small id="codex-callback-help"></small></label><button id="complete-codex-login" class="secondary-button" type="button" hidden>${systemTextHTML('siwc.finish')}</button><div id="subscription-relay-settings" class="provider-advanced-settings"><details><summary>${systemTextHTML('siwc.relayAdvanced')}</summary><p class="quiet-note">${systemTextHTML('siwc.relayHelp')}</p><label class="field"><span>${systemTextHTML('siwc.relayLabel')}</span><input name="subscriptionRelayUrl" type="url" inputmode="url" autocapitalize="none" spellcheck="false" value="${escapeHTML(provider.subscriptionRelayUrl)}" placeholder="${escapeHTML(SITE_CONFIG.subscriptionRelayUrl)}"></label></details></div></div><label class="field"><span>${systemTextHTML('providerRefinement.defaultModel')}</span><div class="provider-model-picker"><input name="model" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="${escapeHTML(t('providerRefinement.modelPlaceholder'))}" value="${escapeHTML(provider.model)}"><select id="provider-model-choice" name="modelChoice" class="provider-model-choice" aria-label="${escapeHTML(t('providerRefinement.chooseModel'))}" ${state.providerModels.length?'':'disabled'}><option value="">${systemTextHTML('providerRefinement.chooseModel')}</option>${state.providerModels.map(model=>`<option data-no-i18n value="${escapeHTML(model.id)}" ${model.id===provider.model?'selected':''}>${escapeHTML(model.name||model.id)}</option>`).join('')}</select><span class="provider-model-arrow" aria-hidden="true"></span></div></label><div class="panel-actions" style="margin-top:-4px"><button id="discover-models" class="secondary-button" type="button">获取模型</button></div><div id="models-status" class="quiet-note" role="status"></div><label class="field" id="provider-secret-field"><span>API 密钥</span><input name="secret" type="password" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="${provider.id&&hasCredential(provider.id)?t('providerRefinement.secretSaved'):t('providerRefinement.secretPlaceholder')}"></label>${state.settings.credentialVault?.[provider.id]&&!hasCredential(provider.id)&&!hasCodexAccount(provider.id)?`<details class="provider-legacy"><summary>${systemTextHTML('providerRefinement.legacyHelp')}</summary><label class="field"><span>本地解锁口令</span><input name="passphrase" type="password" autocomplete="off"></label><button id="unlock-provider" type="button" class="secondary-button">解锁已有凭据</button></details>`:''}<label class="check-field" id="provider-image-reuse-field"><input name="reuseImages" type="checkbox" ${provider.reuseImages!==false?'checked':''}> ${systemTextHTML('providerRefinement.imageReuse')}</label><label class="check-field" id="provider-stream-field"><input name="stream" type="checkbox" ${provider.stream!==false?'checked':''}> 流式接收回复</label><div class="panel-actions"><button class="primary" type="submit">${systemTextHTML('providerRefinement.save')}</button></div></form>`;
+  $('#provider-editor').innerHTML=`<form id="provider-form" class="provider-form" autocomplete="off"><label class="field"><span>显示名称</span><input name="name" placeholder="例如：DeepSeek · 个人账号" value="${escapeHTML(provider.name)}" required maxlength="80"></label><label class="field"><span>账号接口</span><select name="protocol"><option value="openai" ${!['anthropic','codex'].includes(provider.protocol)?'selected':''}>OpenAI 风格 API</option><option value="anthropic" ${provider.protocol==='anthropic'?'selected':''}>Anthropic 风格 API</option><option value="codex" ${provider.protocol==='codex'?'selected':''}>${systemTextHTML('siwc.accountType')}</option></select></label><label class="field" id="provider-endpoint-field"><span>${systemTextHTML('providerRefinement.endpoint')}</span><input name="baseUrl" type="url" inputmode="url" autocapitalize="none" spellcheck="false" placeholder="https://api.example.com/v1" value="${escapeHTML(provider.baseUrl)}"></label><div id="codex-controls" class="provider-auth-section"><p class="quiet-note" id="codex-legacy-note" hidden>${systemTextHTML('siwc.legacy')}</p><div class="provider-auth-overview"><div class="panel-actions provider-auth-actions"><button id="start-codex-login" class="secondary-button" type="button">${systemTextHTML('siwc.start')}</button><button id="cancel-codex-login" class="secondary-button" type="button" hidden>${systemTextHTML('siwc.cancel')}</button></div><div id="codex-login-status" class="quiet-note provider-auth-status" role="status">${systemTextHTML(provider.id&&hasCodexAccount(provider.id)?'auth.loggedIn':'auth.loggedOut')}</div></div><div id="codex-verification"></div><label class="field" id="codex-callback-field" hidden><span id="codex-callback-label"></span><textarea id="codex-callback" rows="3" maxlength="32768" autocomplete="off" autocapitalize="none" spellcheck="false"></textarea><small id="codex-callback-help"></small></label><button id="complete-codex-login" class="secondary-button" type="button" hidden>${systemTextHTML('siwc.finish')}</button><div id="subscription-relay-settings" class="provider-advanced-settings"><details><summary>${systemTextHTML('siwc.relayAdvanced')}</summary><p class="quiet-note">${systemTextHTML('siwc.relayHelp')}</p><label class="field"><span>${systemTextHTML('siwc.relayLabel')}</span><input name="subscriptionRelayUrl" type="url" inputmode="url" autocapitalize="none" spellcheck="false" value="${escapeHTML(provider.subscriptionRelayUrl)}" placeholder="${escapeHTML(SITE_CONFIG.subscriptionRelayUrl)}"></label></details></div></div><label class="field"><span>${systemTextHTML('providerRefinement.modelIdLabel')}</span><div class="provider-model-picker"><input name="model" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="${escapeHTML(t('providerRefinement.modelPlaceholder'))}" value="${escapeHTML(provider.model)}"><select id="provider-model-choice" name="modelChoice" class="provider-model-choice" aria-label="${escapeHTML(t('providerRefinement.chooseModel'))}" ${state.providerModels.length?'':'disabled'}><option value="">${systemTextHTML('providerRefinement.chooseModel')}</option>${state.providerModels.map(model=>`<option data-no-i18n value="${escapeHTML(model.id)}" ${model.id===provider.model?'selected':''}>${escapeHTML(model.name||model.id)}</option>`).join('')}</select><span class="provider-model-arrow" aria-hidden="true"></span></div></label><div class="panel-actions" style="margin-top:-4px"><button id="discover-models" class="secondary-button" type="button">获取模型</button></div><div id="models-status" class="quiet-note" role="status"></div><label class="field" id="provider-secret-field"><span>API 密钥</span><input name="secret" type="password" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="${provider.id&&hasCredential(provider.id)?t('providerRefinement.secretSaved'):t('providerRefinement.secretPlaceholder')}"></label>${state.settings.credentialVault?.[provider.id]&&!hasCredential(provider.id)&&!hasCodexAccount(provider.id)?`<details class="provider-legacy"><summary>${systemTextHTML('providerRefinement.legacyHelp')}</summary><label class="field"><span>本地解锁口令</span><input name="passphrase" type="password" autocomplete="off"></label><button id="unlock-provider" type="button" class="secondary-button">解锁已有凭据</button></details>`:''}<label class="check-field" id="provider-image-reuse-field"><input name="reuseImages" type="checkbox" ${provider.reuseImages!==false?'checked':''}> ${systemTextHTML('providerRefinement.imageReuse')}</label><label class="check-field" id="provider-stream-field"><input name="stream" type="checkbox" ${provider.stream!==false?'checked':''}> 流式接收回复</label><div class="panel-actions"><button class="primary" type="submit">${systemTextHTML('providerRefinement.save')}</button></div></form>`;
   const editorForm=$('#provider-form');editorForm.addEventListener('submit',event=>event.preventDefault());const editorActive=()=>state.providerEditorToken===editorToken&&$('#provider-form')===editorForm&&$('#panel-dialog').open;
   editorForm.elements.modelChoice.onchange=()=>{if(editorForm.elements.modelChoice.value)editorForm.elements.model.value=editorForm.elements.modelChoice.value;};editorForm.elements.model.oninput=()=>{editorForm.elements.modelChoice.value=state.providerModels.some(model=>model.id===editorForm.elements.model.value)?editorForm.elements.model.value:'';};
-  const invalidateModels=()=>{modelSequence++;state.modelsAbort?.abort();state.providerModels=[];if($('#discover-models'))$('#discover-models').disabled=isCodex()&&(!provider.id||!hasCodexAccount(provider.id));modelsStatus({});editorForm.elements.modelChoice.innerHTML=`<option value="">${escapeHTML(t('providerRefinement.chooseModel'))}</option>`;editorForm.elements.modelChoice.disabled=true;};
+  const invalidateModels=()=>{modelSequence++;state.modelsAbort?.abort();state.providerModels=[];editorForm.elements.model.required=!isCodex();if($('#discover-models'))$('#discover-models').disabled=isCodex()&&(!provider.id||!hasCodexAccount(provider.id));modelsStatus({});editorForm.elements.modelChoice.innerHTML=`<option value="">${escapeHTML(t('providerRefinement.chooseModel'))}</option>`;editorForm.elements.modelChoice.disabled=true;};
   editorForm.elements.baseUrl.addEventListener('input',invalidateModels);editorForm.elements.subscriptionRelayUrl.addEventListener('input',invalidateModels);
   $('#provider-form').elements.baseUrl.addEventListener('input',()=>{$('#provider-image-reuse-field').hidden=!imageFileProvider({protocol:$('#provider-form').elements.protocol.value,baseUrl:$('#provider-form').elements.baseUrl.value});});
-  const protocolChanged=(initial=false)=>{if(!initial){invalidateModels();unlockGeneration++;if($('#unlock-provider'))$('#unlock-provider').disabled=false;}if(!initial)state.codexLoginUI?.cancel({quiet:true});state.codexAbort?.abort();const codex=isCodex(),form=$('#provider-form');$('#provider-endpoint-field').hidden=codex;form.elements.baseUrl.placeholder=form.elements.protocol.value==='anthropic'?'https://api.example.com':'https://api.example.com/v1';form.elements.baseUrl.required=!codex;form.elements.baseUrl.disabled=codex;form.elements.model.required=!codex;form.elements.subscriptionRelayUrl.disabled=!codex;$('#subscription-relay-settings').hidden=!codex||Boolean(provider.id&&providers().some(item=>item.id===provider.id)&&(getCodexAccount(provider.id)?.flow||provider.flow)!=='chatgpt-plan');form.elements.subscriptionRelayUrl.disabled=$('#subscription-relay-settings').hidden;$('#provider-secret-field').hidden=codex;form.elements.secret.disabled=codex;$('#provider-stream-field').hidden=codex;$('#provider-image-reuse-field').hidden=!imageFileProvider({protocol:form.elements.protocol.value,baseUrl:form.elements.baseUrl.value});$('#codex-controls').hidden=!codex;$('#discover-models').disabled=codex&&(!provider.id||!hasCodexAccount(provider.id));$('#complete-codex-login').hidden=true;$('#cancel-codex-login').hidden=true;$('#codex-verification').replaceChildren();$('#start-codex-login').disabled=false;};
+  const protocolChanged=(initial=false)=>{if(!initial){invalidateModels();unlockGeneration++;if($('#unlock-provider'))$('#unlock-provider').disabled=false;}if(!initial)state.codexLoginUI?.cancel({quiet:true});state.codexAbort?.abort();const codex=isCodex(),form=$('#provider-form');$('#provider-endpoint-field').hidden=codex;form.elements.baseUrl.placeholder=form.elements.protocol.value==='anthropic'?'https://api.example.com':'https://api.example.com/v1';form.elements.baseUrl.required=!codex;form.elements.baseUrl.disabled=codex;form.elements.model.required=!codex&&!state.providerModels?.length;form.elements.subscriptionRelayUrl.disabled=!codex;$('#subscription-relay-settings').hidden=!codex||Boolean(provider.id&&providers().some(item=>item.id===provider.id)&&(getCodexAccount(provider.id)?.flow||provider.flow)!=='chatgpt-plan');form.elements.subscriptionRelayUrl.disabled=$('#subscription-relay-settings').hidden;$('#provider-secret-field').hidden=codex;form.elements.secret.disabled=codex;$('#provider-stream-field').hidden=codex;$('#provider-image-reuse-field').hidden=!imageFileProvider({protocol:form.elements.protocol.value,baseUrl:form.elements.baseUrl.value});$('#codex-controls').hidden=!codex;$('#discover-models').disabled=codex&&(!provider.id||!hasCodexAccount(provider.id));$('#complete-codex-login').hidden=true;$('#cancel-codex-login').hidden=true;$('#codex-verification').replaceChildren();$('#start-codex-login').disabled=false;};
   $('#provider-form').elements.protocol.onchange=()=>protocolChanged(false);protocolChanged(true);
   const applyModels=async (list,{sequence=modelSequence,relayUrl}={})=>{
     const current=()=>editorActive()&&sequence===modelSequence&&(relayUrl===undefined||editorForm.elements.subscriptionRelayUrl.value===relayUrl);if(!current())return;
@@ -491,7 +584,7 @@ function renderProviderForm(provider={}) {
       if(!current())return;const latest=state.settings.providers?.find(item=>item.id===provider.id);if(!latest||['protocol','baseUrl','flow','clientId','subscriptionRelayUrl'].some(key=>(latest[key]||'')!==(savedProfile[key]||'')))throw new Error(t('providerRefinement.connectionChanged'));renderModelOptions();
     }
     if(!current())return;state.providerModels=models;
-    if(!form.elements.model.value)form.elements.model.value=models[0].id;
+    form.elements.model.required=false;
     if(form.elements.modelChoice){form.elements.modelChoice.innerHTML=`<option value="">${escapeHTML(t('providerRefinement.chooseModel'))}</option>`+models.map(model=>`<option data-no-i18n value="${escapeHTML(model.id)}">${escapeHTML(model.name||model.id)}</option>`).join('');form.elements.modelChoice.disabled=false;form.elements.modelChoice.value=models.some(model=>model.id===form.elements.model.value)?form.elements.model.value:'';}
     modelsStatus({});
   };

@@ -68,7 +68,33 @@ test('subscription relay settings are localized and used consistently by discove
  assert.match(editor,/name="subscriptionRelayUrl" type="url"/);assert.match(editor,/relayUrl=editorForm.elements.subscriptionRelayUrl.value/);assert.match(editor,/updated.subscriptionRelayUrl=.*normalizeSubscriptionRelay/);assert.match(editor,/subscriptionRelayUrl.disabled=\$\('#subscription-relay-settings'\).hidden/);
  for(const dictionary of Object.values(messages))for(const key of ['relayHelp','relayAdvanced','relayLabel','relayDefault'])assert.ok(dictionary['siwc.'+key]);
 });
-test('account cards expose model chips and refresh, without default-account controls',async()=>{const source=await readFile(new URL('../../apps/web/app.js',import.meta.url),'utf8'),cards=source.slice(source.indexOf("  if(section==='accounts'){"),source.indexOf("  }else if(section==='mcp'){"));assert.match(cards,/provider-model-chips/);assert.match(cards,/data-provider-refresh/);assert.doesNotMatch(cards,/data-provider-default|common.default/);assert.match(source,/select id="provider-model-choice" name="modelChoice"/);assert.match(source,/elements.modelChoice.onchange/);for(const dictionary of Object.values(messages))for(const key of ['refreshModels','chooseModel','noModels'])assert.ok(dictionary['providerRefinement.'+key]);assert.equal(messages['zh-Hans']['providerRefinement.save'],'保存');assert.equal(messages.en['providerRefinement.save'],'Save');});
-test('explicit model dropdown updates the default input while manually typed IDs remain usable',async()=>{
+test('account cards show the global default selection with an account badge and model chip',async()=>{const source=await readFile(new URL('../../apps/web/app.js',import.meta.url),'utf8'),cards=source.slice(source.indexOf("  if(section==='accounts'){"),source.indexOf("  }else if(section==='mcp'){"));assert.match(cards,/provider-model-chips/);assert.match(cards,/data-provider-refresh/);assert.equal([...cards.matchAll(/<select id="account-default-model"/g)].length,1);assert.match(cards,/data-provider-default hidden/);assert.doesNotMatch(cards,/data-provider-default-open|data-provider-default-editor/);assert.match(cards,/provider-model-chip[^\n]*is-default/);assert.match(cards,/data-provider-confirm-delete/);assert.doesNotMatch(cards,/\bconfirm\(/);assert.match(source,/select id="provider-model-choice" name="modelChoice"/);assert.match(source,/elements.modelChoice.onchange/);for(const dictionary of Object.values(messages))for(const key of ['refreshModels','chooseModel','noModels','modelIdLabel'])assert.ok(dictionary['providerRefinement.'+key]);assert.equal(messages['zh-Hans']['providerRefinement.save'],'保存');assert.equal(messages.en['providerRefinement.save'],'Save');});
+test('explicit model dropdown updates the provider’s model ID input while manually typed IDs remain usable',async()=>{
  const {default:vm}=await import('node:vm'),source=await readFile(new URL('../../apps/web/app.js',import.meta.url),'utf8'),start=source.indexOf('  editorForm.elements.modelChoice.onchange='),end=source.indexOf('\n  const invalidateModels=',start),editorForm={elements:{modelChoice:{value:'model-b'},model:{value:''}}},state={providerModels:[{id:'model-a'},{id:'model-b'}]};assert.ok(start>=0&&end>start);vm.runInNewContext(source.slice(start,end),{editorForm,state});editorForm.elements.modelChoice.onchange();assert.equal(editorForm.elements.model.value,'model-b');editorForm.elements.model.value='my-private-model';editorForm.elements.model.oninput();assert.equal(editorForm.elements.modelChoice.value,'');assert.equal(editorForm.elements.model.value,'my-private-model');editorForm.elements.model.value='model-a';editorForm.elements.model.oninput();assert.equal(editorForm.elements.modelChoice.value,'model-a');
+});
+
+test('Remove opens an inline confirmation and commits only after the second click',async()=>{
+ const {default:vm}=await import('node:vm');
+ const source=await readFile(new URL('../../apps/web/app.js',import.meta.url),'utf8');
+ const start=source.indexOf("  $$('[data-provider-delete]')");
+ const end=source.indexOf("  }else if(section==='mcp'){",start);
+ const node=()=>({hidden:true,disabled:false,focus(){},setAttribute(){}});
+ const confirmation=node(),cancel=node(),remove=node(),status=node(),button=node(),calls=[];
+ const fields={'[data-provider-confirm]':confirmation,'[data-provider-cancel-delete]':cancel,'[data-provider-confirm-delete]':remove,'[data-provider-status]':status};
+ const card={isConnected:true,querySelector:key=>fields[key]};
+ Object.assign(button,{closest:()=>card,dataset:{providerDelete:'test-account'}});
+ const state={panelGeneration:1,store:{async removeProvider(id){calls.push(['remove',id]);return {providers:[]};}}};
+ vm.runInNewContext(source.slice(start,end),{
+  $$:()=>[button],state,accountsGeneration:1,
+  setCredential:(id,key)=>calls.push(['key',id,key]),removeCodexAccount:id=>calls.push(['subscription',id]),
+  renderModelOptions(){},async showSettings(section){calls.push(['show',section]);}
+ });
+ button.onclick();
+ assert.equal(confirmation.hidden,false);
+ assert.deepEqual(calls,[]);
+ cancel.onclick();
+ assert.equal(confirmation.hidden,true);
+ button.onclick();
+ await remove.onclick();
+ assert.deepEqual(calls,[['remove','test-account'],['key','test-account',''],['subscription','test-account'],['show','accounts']]);
 });

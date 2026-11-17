@@ -22,8 +22,8 @@ for(const memory of [true,false]){
  });
  test(mode+': optional guard preserves old API, handles default empty fields, and never revives removed profiles',async t=>{
   const {store}=await fixture(t),minimal={id:'api',protocol:'openai',baseUrl:'https://api.invalid/v1',model:''};await store.saveProvider(minimal,null);
-  let saved=await store.updateProviderModels(minimal.id,[{id:'first'}],{expectedConnection:{...minimal,flow:'',clientId:'',subscriptionRelayUrl:''}});assert.equal(saved.providers[0].model,'first');
-  saved=await store.updateProviderModels(minimal.id,[{id:'unguarded'}]);assert.equal(saved.providers[0].models[0].id,'unguarded');assert.equal(saved.providers[0].model,'first');
+  let saved=await store.updateProviderModels(minimal.id,[{id:'first'}],{expectedConnection:{...minimal,flow:'',clientId:'',subscriptionRelayUrl:''}});assert.equal(saved.providers[0].model,'');
+  saved=await store.updateProviderModels(minimal.id,[{id:'unguarded'}]);assert.equal(saved.providers[0].models[0].id,'unguarded');assert.equal(saved.providers[0].model,'');
   await store.removeProvider(minimal.id);saved=await store.updateProviderModels(minimal.id,[{id:'late'}],{expectedConnection:minimal});assert.deepEqual(saved.providers,[]);
  });
  test(mode+': connection expectation is captured when the request is queued',async t=>{

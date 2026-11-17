@@ -208,6 +208,12 @@ body.harness-surface{position:fixed;inset:0;overflow:hidden}
 .card-actions button:hover{background:#f2efed}.card-actions button.danger{background:#fff;border-color:#e8d9d7}
 .provider-model-chips{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0 0}
 .provider-model-chip{max-width:100%;border:1px solid #e8e3e0;border-radius:7px;background:#f8f6f5;padding:5px 8px;font-size:12px;line-height:1.4;overflow-wrap:anywhere;color:#5a474f}
+.provider-card .card-title{display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:5px 12px}
+.provider-default-badge{color:var(--accent);font-size:12px;font-weight:650}
+.provider-model-chip.is-default{color:var(--accent);border-color:#ecc6ba;background:#fff1ea;font-weight:650}
+.provider-remove-confirm{margin-top:12px;padding:12px;border:1px solid #ead9d5;border-radius:9px;background:#fff8f6}
+.provider-remove-confirm p{margin:0;font-size:13px;line-height:1.5}
+.provider-remove-confirm .card-actions{margin-top:8px}
 @media(prefers-reduced-motion:reduce){.session-search-wrap{animation:none!important}}
 
 .provider-model-picker{position:relative;display:block}

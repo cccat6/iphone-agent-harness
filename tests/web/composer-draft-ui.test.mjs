@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import {openStore} from '../../apps/web/core/store.js';
+import {getDefaultModelSelection,profileModels} from '../../apps/web/core/models.js';
 import {loadComposerDraft,saveComposerDraft,clearComposerDraft} from '../../apps/web/ui/composer-draft.js';
 const source=fs.readFileSync(new URL('../../apps/web/app.js',import.meta.url),'utf8');
 const deferred=()=>{let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve};};
@@ -13,15 +14,30 @@ async function fixture(t){
  const field=key=>{if(!fields.has(key)){const classes=new Set();fields.set(key,{value:'',textContent:'',hidden:false,style:{},classList:{add:v=>classes.add(v),remove:v=>classes.delete(v),contains:v=>classes.has(v)},replaceChildren(){},focus(){},setAttribute(){}});}return fields.get(key);};field('#model-select').value='test::flash';
  const store=await openStore({memory:true}),create=store.createSessionWithMessage;store.createSessionWithMessage=(...args)=>{calls.created++;return create(...args);};
  const state={store,settings:{activeProviderId:'test',providers:[{id:'test',name:'Test',model:'flash'}]},current:null,composerDraft:null,composerDraftActive:false,drafts:new Map(),messages:[],sessions:[],running:false,submitting:false,sessionOpenGeneration:0,runGeneration:0,devicePanel:{ensureReady:async()=>{calls.bridge++;return true;}},harness:{run:async value=>calls.run.push(value)},navigation:{go:(view,options)=>calls.navigation.push({view,options})}};
+ await store.saveSettings(state.settings);
  const capture={active:true,start(){this.active=true;return Promise.resolve();}},provider={id:'test',name:'Test',model:'flash'};
  const context={state,capture,$:field,$$:()=>[],t:key=>key,loadComposerDraft,saveComposerDraft,clearComposerDraft,clipboard:{clear(){}},historyWindow:()=>({clear(){},load:async id=>({messages:await store.getMessages(id,{includeImages:false}),hasOlder:false,hasNewer:false}),snapshot:()=>({messages:state.messages,hasOlder:false,hasNewer:false})}),applyHistory:page=>{if(page)state.messages=page.messages;},providers:()=>state.settings.providers,selectedProvider:()=>provider,selectionParts:value=>({providerId:value.split('::')[0],modelId:value.split('::')[1]}),normalizeReasoningEffort:(p,v)=>v,renderModelOptions(){if(state.composerDraftActive)field('#model-select').value=state.composerDraft.modelId;},renderReasoningOptions(){},updateModeDescription(){},resizeInput(){},renderSessions(){},renderClipboard(){},renderMessages(){},renderRunControls(){},setRunning:value=>state.running=value,refreshSessions:async()=>{state.sessions=await store.listSessions();},showDevices:async()=>calls.devices++,showSettings:async()=>calls.settings++,toast(){},report:error=>calls.reports.push(error),conversationFollow:()=>({follow(){}}),getBrowserCompatibility:()=>({supportedForHarness:true}),renderPlatform(){},deviceSessionAvailable:()=>true,showLatestConversation:async()=>{},AbortController,URL,URLSearchParams,location:new URL('https://igent.cc/'),routeHref:route=>route==='harness'?'/':'/'+route,closeNavigationDialog(){},refreshBridgeAfterNavigation(){}};
  context.canonicalRoutes={harness:'',main:'main',skills:'skills',flash:'flash'};
- vm.createContext(context);vm.runInContext(segment('async function changeReasoningSelection','function historyWindow()')+segment('async function openSession(','async function pageHistory(')+segment('async function resumeRun(','async function sendMessage(')+segment('async function sendMessage(','function renderClipboard(')+segment('function navigationURL(','function refreshBridgeAfterNavigation(')+segment('function rememberRouteDraft(','function onNavigationClick('),context);
+ Object.assign(context,{getDefaultModelSelection,profileModels,escapeHTML:String});
+ vm.createContext(context);vm.runInContext(segment('function renderModelOptions()', 'function contextMeterState()')+segment('async function changeReasoningSelection','function historyWindow()')+segment('async function openSession(','async function pageHistory(')+segment('async function resumeRun(','async function sendMessage(')+segment('async function sendMessage(','function renderClipboard(')+segment('function navigationURL(','function refreshBridgeAfterNavigation(')+segment('function rememberRouteDraft(','function onNavigationClick('),context);
  return {state,store,field,calls,context,capture,saved};
 }
 test('new conversation opens one unsaved draft, preserves its text and has no conversation menu',async t=>{
  const f=await fixture(t),ready=deferred();f.state.devicePanel.ensureReady=()=>{f.calls.bridge++;return ready.promise;};const first=f.context.newSession(),second=f.context.newSession();ready.resolve(true);await Promise.all([first,second]);assert.equal(f.calls.bridge,1);assert.equal(f.calls.created,0);assert.equal((await f.store.listSessions()).length,0);assert.equal(f.state.current,null);assert.equal(f.field('#session-menu').hidden,true);
  f.field('#message-input').value='keep this unsent text';f.context.rememberComposerDraft();await f.context.newSession();assert.equal(f.field('#message-input').value,'keep this unsent text');assert.equal(loadComposerDraft().text,'keep this unsent text');assert.equal(f.calls.created,0);
+});
+test('New session selects the latest global model over a saved draft and keeps it for the first send',async t=>{
+ const f=await fixture(t);
+ await f.store.saveProvider({id:'other',name:'Other API',protocol:'openai',model:'first',models:['first','chosen']},null);
+ await f.store.setDefaultModelSelection('other::chosen');
+ saveComposerDraft({text:'Keep this draft text',modelId:'test::flash',reasoningEfforts:{}});
+ await f.context.newSession();
+ assert.equal(f.field('#model-select').value,'other::chosen');
+ assert.equal(f.field('#message-input').value,'Keep this draft text');
+ assert.equal(loadComposerDraft().modelId,'','the draft inherits the global model until explicitly overridden');
+ await f.context.sendMessage({preventDefault(){}});
+ assert.equal(f.calls.run[0].modelId,'other::chosen');
+ assert.equal((await f.store.getSession(f.state.current.id)).modelId,'other::chosen');
 });
 test('draft navigation and tab-local storage restore text, selected model and effort without a bridge request',async t=>{
  const f=await fixture(t);f.context.openComposerDraft();f.field('#message-input').value='draft after settings';f.field('#model-select').value='test::other';await f.context.changeModelSelection();f.field('#reasoning-select').value='high';await f.context.changeReasoningSelection();assert.equal(f.state.composerDraft.reasoningEfforts['test::other'],'high');assert.equal((await f.store.listSessions()).length,0);

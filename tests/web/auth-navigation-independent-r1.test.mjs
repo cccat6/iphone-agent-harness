@@ -60,7 +60,7 @@ test('provider editor retains exact catalog reasoning metadata when applying and
  const ctx=vm.createContext({state,modelSequence:0,editorActive:()=>true,provider:{},providers:()=>[],editorForm,modelContextMetadata,modelReasoningMetadata,$:selector=>nodes[selector],escapeHTML:String,modelsStatus(){}});
  const start=source.indexOf('  const applyModels='),end=source.indexOf("  $('#discover-models').onclick",start);assert.ok(start>=0&&end>start);vm.runInContext(source.slice(start,end)+'\nglobalThis.apply=applyModels;',ctx);
  await ctx.apply([{id:'catalog-model',supported_reasoning_levels:[{effort:'low'},{effort:'ultra'}],default_reasoning_level:'low',context_window:1000000}]);
- assert.deepEqual(Array.from(state.providerModels[0].supportedReasoningEfforts),['low','ultra']);assert.equal(state.providerModels[0].defaultReasoningEffort,'low');assert.equal(state.providerModels[0].contextWindowTokens,1000000);assert.equal(editorForm.elements.model.value,'catalog-model');
+ assert.deepEqual(Array.from(state.providerModels[0].supportedReasoningEfforts),['low','ultra']);assert.equal(state.providerModels[0].defaultReasoningEffort,'low');assert.equal(state.providerModels[0].contextWindowTokens,1000000);assert.equal(editorForm.elements.model.value,'');
 });
 
 test('reopening the running conversation from the list preserves task, streaming text and history state',async()=>{
