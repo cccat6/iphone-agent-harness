@@ -393,13 +393,17 @@ class SecureService {
   handle(&request);request.body=static_cast<const char*>(nullptr);JsonDocument response;response["status"]=request.responseStatus;response["body"]=JsonString(request.responseBody.c_str(),request.responseBody.length(),true);String result;serializeJson(response,result);return result;
  }
  void rtcDisconnected(size_t peer=0){
-  if(peer>=2)return;CoreLock lock(mutex_);
+  if(peer>=2)return;
+  CoreLock lock(mutex_);
   if(rtcChallengePeer_==int(peer)){releaseChallenge();invalidateChallenge();}
   for(const auto& target:core_.targets())if(rtcOwners_.owns(peer,target.id,target.lease.id)){auto client=target.lease.clientId;core_.cancel(target.id,client,now());}
-  if(clipboardPeer_==int(peer))clearClipboard();rtcOwners_.clear(peer);
+  if(clipboardPeer_==int(peer))clearClipboard();
+  rtcOwners_.clear(peer);
  }
  bool rtcCanReplace(size_t peer=0){
-  if(peer>=2)return false;CoreLock lock(mutex_);if(maintenance_)return false;
+  if(peer>=2)return false;
+  CoreLock lock(mutex_);
+  if(maintenance_)return false;
   if(rtcChallengePeer_==int(peer)&&auth_.active(now()))return false;
   for(const auto& target:core_.targets())if(rtcOwners_.owns(peer,target.id,target.lease.id)&&(target.running||target.lease.expiresAt>now()))return false;
   return true;
