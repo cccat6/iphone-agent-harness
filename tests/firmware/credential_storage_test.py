@@ -21,6 +21,7 @@ program=r'''
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <map>
 #include <string>
 #include "ADMISSION_HEADER"
