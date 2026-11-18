@@ -13,11 +13,26 @@ import tarfile
 import urllib.request
 ROOT=Path(__file__).resolve().parents[1]
 LOCK=Path(__file__).with_name('c2_sdk.lock.json')
+CONSTRAINTS_NAME='espidf.constraints.v5.5.txt'
 DEFAULT_CACHE=Path.home()/'.cache/iphone-agent-harness/c2-sdk'
 
 def digest(path):return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 def recipe():return json.loads(LOCK.read_text())
-def provenance(xtal=26):return {'format':'iah-c2-sdk-build/1','recipeSha256':digest(LOCK),'bootstrapSha256':digest(__file__),'componentsLockSha256':digest(LOCK.with_name('c2_sdk.components.lock')),'repositories':recipe()['repositories'],'toolchainVersion':recipe()['toolchainVersion'],'matrix':recipe()['matrix'],'xtalMHz':xtal}
+def pinned_constraints():
+    snapshot=LOCK.with_name(CONSTRAINTS_NAME)
+    expected=recipe()['constraints']['sha256']
+    if digest(snapshot)!=expected:raise RuntimeError('ESP-IDF Python constraints snapshot differs from the pinned recipe')
+    return snapshot,expected
+
+def seed_constraints(tools_path):
+    snapshot,expected=pinned_constraints()
+    tools_path.mkdir(parents=True,exist_ok=True)
+    constraints=tools_path/CONSTRAINTS_NAME
+    # A fresh copy prevents ESP-IDF from refreshing the constraints from its mutable URL.
+    shutil.copyfile(snapshot,constraints)
+    return constraints,expected
+
+def provenance(xtal=26):return {'format':'iah-c2-sdk-build/1','recipeSha256':digest(LOCK),'bootstrapSha256':digest(__file__),'componentsLockSha256':digest(LOCK.with_name('c2_sdk.components.lock')),'constraintsSha256':pinned_constraints()[1],'repositories':recipe()['repositories'],'toolchainVersion':recipe()['toolchainVersion'],'matrix':recipe()['matrix'],'xtalMHz':xtal}
 def sdk_path(cache=DEFAULT_CACHE,xtal=26):return Path(cache).expanduser().resolve()/'sdks'/('esp32c2-'+str(xtal))
 def sdk_files(output):
     return {p.relative_to(output).as_posix():digest(p) for p in sorted(output.rglob('*')) if p.is_file() and p.name!='iah-sdk-provenance.json'}
@@ -108,13 +123,12 @@ def main():
     # from getopts. Enable that existing option; no SDK source is changed.
     entry=builder/'build.sh';script=entry.read_text();script=script.replace('getopts ":A:I:i:c:t:b:D:sde"','getopts ":A:I:i:c:t:b:D:sden"');entry.write_text(script)
     tools=gnu_tools(cache,env,args.jobs)
-    python_env=cache/'python-env';python_env.mkdir(exist_ok=True)
+    constraints,constraints_sha=seed_constraints(cache/'idf-tools')
+    python_env=cache/('python-env-'+constraints_sha[:16]);python_env.mkdir(exist_ok=True)
     env.update(IDF_PATH=str(builder/'esp-idf'),IDF_PYTHON_ENV_PATH=str(python_env),IDF_TOOLS_PATH=str(cache/'idf-tools'),IDF_TARGET='esp32c2',CHIP_VARIANT='esp32c2',CMAKE_BUILD_PARALLEL_LEVEL=str(args.jobs))
     python=python_env/('Scripts/python.exe' if os.name=='nt' else 'bin/python')
     if not python.is_file():run([sys.executable,builder/'esp-idf/tools/idf_tools.py','install-python-env','--features','core'],env=env)
-    constraints=cache/'idf-tools/espidf.constraints.v5.5.txt';constraints.parent.mkdir(parents=True,exist_ok=True)
-    if not constraints.is_file():urllib.request.urlretrieve(recipe()['constraints']['url'],constraints)
-    if digest(constraints)!=recipe()['constraints']['sha256']:raise RuntimeError('ESP-IDF Python constraints changed; update the pinned recipe explicitly')
+    if digest(constraints)!=constraints_sha:raise RuntimeError('ESP-IDF changed the pinned Python constraints during installation')
     # Prefer the exact official compiler already installed by Boards Manager.
     base=Path.home()/('Library/Arduino15' if sys.platform=='darwin' else '.arduino15')/'packages/esp32/tools/esp-rv32/2601'
     compiler=args.toolchain or base

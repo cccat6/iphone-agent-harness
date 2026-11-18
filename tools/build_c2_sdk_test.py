@@ -78,10 +78,17 @@ class C2CacheTests(unittest.TestCase):
 
  def main_fixture(self,change=None):
   temporary=tempfile.TemporaryDirectory(prefix='iah-c2-offline-');self.addCleanup(temporary.cleanup);root=Path(temporary.name);module=load();bootstrap=root/'bootstrap.py';shutil.copyfile(ROOT/'tools/build_c2_sdk.py',bootstrap);module.__file__=str(bootstrap);module.LOCK=root/'c2_sdk.lock.json';recipe=json.loads((ROOT/'tools/c2_sdk.lock.json').read_text());constraints=b'pinned offline constraints\n';recipe['constraints']['sha256']=hashlib.sha256(constraints).hexdigest();module.LOCK.write_text(json.dumps(recipe));shutil.copyfile(ROOT/'tools/c2_sdk.components.lock',root/'c2_sdk.components.lock')
-  cache=root/'cache';builder=cache/'lib-builder';(builder/'configs').mkdir(parents=True);(builder/'configs/builds.json').write_text('{"targets":[]}');(builder/'configs/defconfig.esp32c2').write_text('CONFIG_XTAL_FREQ_26=y\nCONFIG_XTAL_FREQ=26\n');(builder/'build.sh').write_text('getopts ":A:I:i:c:t:b:D:sde"');python=cache/'python-env'/('Scripts/python.exe'if os.name=='nt'else'bin/python');python.parent.mkdir(parents=True);python.write_text('offline placeholder');compiler=root/'compiler';(compiler/'bin').mkdir(parents=True);(compiler/'bin/riscv32-esp-elf-gcc').write_text('offline placeholder');constraintfile=cache/'idf-tools/espidf.constraints.v5.5.txt';constraintfile.parent.mkdir(parents=True);constraintfile.write_bytes(b'wrong'if change=='constraints'else constraints);calls=[]
+  (root/module.CONSTRAINTS_NAME).write_bytes(b'wrong' if change=='constraints' else constraints)
+  cache=root/'cache';builder=cache/'lib-builder';(builder/'configs').mkdir(parents=True);(builder/'configs/builds.json').write_text('{"targets":[]}');(builder/'configs/defconfig.esp32c2').write_text('CONFIG_XTAL_FREQ_26=y\nCONFIG_XTAL_FREQ=26\n');(builder/'build.sh').write_text('getopts ":A:I:i:c:t:b:D:sde"');python=cache/('python-env-'+recipe['constraints']['sha256'][:16])/('Scripts/python.exe'if os.name=='nt'else'bin/python');python.parent.mkdir(parents=True);compiler=root/'compiler';(compiler/'bin').mkdir(parents=True);(compiler/'bin/riscv32-esp-elf-gcc').write_text('offline placeholder');constraintfile=cache/'idf-tools'/module.CONSTRAINTS_NAME;constraintfile.parent.mkdir(parents=True);calls=[]
+  if change!='fresh-python':python.write_text('offline placeholder');constraintfile.write_bytes(b'stale cache')
   module.checkout=lambda git,spec,destination,env,recursive=False:Path(destination).mkdir(parents=True,exist_ok=True);module.gnu_tools=lambda *args:None
   def run(command,**kwargs):
+   if 'install-python-env' in command:
+    self.assertEqual(constraintfile.read_bytes(),constraints)
+    python.write_text('offline placeholder')
+    return ''
    if '--version'in list(map(str,command)):return recipe['toolchainVersion']
+   self.assertEqual(constraintfile.read_bytes(),constraints)
    self.assertEqual(list(map(str,command)),['bash','./build.sh','-s','-n','-t','esp32c2']);calls.append(command);output_at(builder/'out/tools/esp32-arduino-libs/esp32c2')
    if change=='bootstrap':bootstrap.write_text(bootstrap.read_text()+'\n# in-flight change\n')
    if change=='recipe-lock':module.LOCK.write_text(module.LOCK.read_text()+'\n')
@@ -105,7 +112,12 @@ class C2CacheTests(unittest.TestCase):
 
  def test_mismatched_python_constraints_reject_before_any_simulated_build(self):
   module,cache,compiler,calls=self.main_fixture('constraints')
-  with self.assertRaisesRegex(RuntimeError,'constraints changed'):self.invoke(module,cache,compiler)
+  with self.assertRaisesRegex(RuntimeError,'constraints snapshot differs'):self.invoke(module,cache,compiler)
   self.assertEqual(calls,[])
+
+ def test_clean_python_environment_installs_with_the_pinned_constraints_first(self):
+  module,cache,compiler,calls=self.main_fixture('fresh-python')
+  self.assertEqual(self.invoke(module,cache,compiler),0)
+  self.assertEqual(len(calls),1)
 
 if __name__=='__main__':unittest.main()

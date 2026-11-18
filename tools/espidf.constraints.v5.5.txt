@@ -1,0 +1,112 @@
+# --------- CORE ----------
+
+# setuptools: version 64 is required to support PEP 621 - pyproject.toml (with editable installs)
+setuptools>=64
+
+# click: Min. version was set to support the API used in idf.py and auto-completion
+click>=7.0,<8.2
+
+# pyserial: Min. version was set to support the used API
+pyserial>=3.3
+
+# cryptography: Min. version was set to support all functionality of ESP-IDF
+# Only binary for cryptography is here to make it work on ARMv7 architecture
+# We do have cryptography binary on https://dl.espressif.com/pypi for ARM
+# On https://pypi.org/ are no ARM binaries as standard now
+cryptography>=2.1.4,<45
+--only-binary cryptography
+
+# pyparsing: Min version was set based on https://github.com/pyparsing/pyparsing/issues/482
+pyparsing>=3.1.0,<3.3
+
+# pyelftools
+
+# We will bump component manager dependencies after testing the newly released versions with the ESP-IDF pipeline
+idf-component-manager>=2.2,<=2.5.2
+urllib3<2
+
+esptool~=4.12
+
+# bitstring (esptool dependency): 5.0 introduces breaking changes
+bitstring<5
+
+# IDFCI-13852
+esp-coredump~=1.10,!=1.17.0
+
+# esp-idf-kconfig: Config name was extended from 40 to 50 chars since 2.0.2 version
+esp-idf-kconfig>=2.0.2,<3.0.0
+
+freertos_gdb~=1.0
+
+esp-idf-monitor>=1.6.2,<2
+
+# 1.4.0 contains support for empty output sections in linker's map file
+esp-idf-size>=1.4.0,<2.0.0
+
+esp-idf-nvs-partition-gen~=0.1.9
+
+# The --only-binary flag is used to prevent local building of tree-sitter-c,
+# which avoids build failures on armv7l architecture.
+# Only versions 0.21.4 (for Python 3.9 and below) and 0.24.1 (for Python 3.10 and above) are available.
+tree-sitter-c>=0.21.4
+--only-binary tree-sitter-c
+
+# --------- CORE ends ----------
+
+# --------- GDBGUI -------------
+
+gdbgui==0.13.2.0; python_version < "3.11" and sys_platform == 'win32'
+# Windows is not supported since 0.14.0.0. See https://github.com/cs01/gdbgui/issues/348
+# pygdmi dependency is shared between gdbgui, coredump and py_debug_backend
+# pygdbmi 0.10 have breaking changes
+# The pygdbmi required max version 0.9.0.2 since 0.9.0.3 is not compatible with latest gdbgui (>=0.13.2.0)
+pygdbmi<=0.9.0.2; python_version < "3.11" and sys_platform == 'win32'
+# A compatible Socket.IO should be used. See https://github.com/miguelgrinberg/python-socketio/issues/578
+python-socketio<5; python_version < "3.11" and sys_platform == 'win32'
+jinja2<3.1; python_version < "3.11" and sys_platform == 'win32'
+itsdangerous<2.1; python_version < "3.11" and sys_platform == 'win32'
+
+gdbgui>=0.15.2.0; python_version >= "3.11"
+
+# --------- GDBGUI ends ---------
+
+# --------- CI ---------
+
+# temp disabled since
+# v5.5.5 and earlier tags have written idf-ci>0.3,<1 in the requirements.ci.txt, which is incompatible with the current idf-ci>=1.0.0,<2.0 constraint.
+# idf-ci>=1.0.0,<2.0
+
+# https://github.com/kislyuk/argcomplete/issues/559
+argcomplete<3.7.1; python_version < "3.10"
+
+# --------- CI ends ---------
+
+# --------- TEST SPECIFIC ---------
+
+# 1.3.2 is not supported in 3.11. See https://gitlab.freedesktop.org/dbus/dbus-python/-/issues/45
+dbus-python<1.3; python_version > "3.10"
+
+# paho mqtt 2.0
+# https://github.com/eclipse/paho.mqtt.python/blob/master/ChangeLog.txt#L1
+# got a few breaking changes
+paho-mqtt<2
+
+# IDFCI-2426
+# https://github.com/secdev/scapy/issues/4512
+scapy<2.6
+
+# --------- PYTEST ends ---------
+
+# --------- DOCS -------------
+
+esp-docs~=2.5.0
+linuxdoc==20210324
+
+# --------- DOCS ends ---------
+
+# --------- esp_prov -------------
+
+# https://github.com/protocolbuffers/protobuf/issues/10075
+protobuf<=3.20.1
+
+# --------- esp_prov ends ---------

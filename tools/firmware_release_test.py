@@ -32,7 +32,7 @@ def fixture():
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(SOURCE_ROOT / 'firmware/IPhoneAutomationHarness' / name, destination)
         (root / 'tools').mkdir()
-        for recipe in ('build_firmware.py', 'verify_rtc_tls_link.py', 'build_c2_sdk.py', 'c2_sdk.lock.json', 'c2_sdk.components.lock', 'partitions/c2-2m.csv'):
+        for recipe in release.builder.RECIPE_FILES:
             (root/'tools'/recipe).parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(SOURCE_ROOT / 'tools' / recipe, root / 'tools' / recipe)
         shutil.copyfile(SOURCE_ROOT / 'LICENSE', root / 'LICENSE')
         output = root / 'apps/web/firmware'
