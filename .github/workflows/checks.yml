@@ -58,7 +58,9 @@ jobs:
         id: firmware
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python3 tools/firmware_release.py plan
+        run: |
+          python3 tools/build_c2_sdk.py --refresh-constraints
+          python3 tools/firmware_release.py plan
       - name: Install pinned Arduino toolchain only when compilation is needed
         if: steps.firmware.outputs.compile == 'true'
         run: |
@@ -122,6 +124,7 @@ jobs:
           name: release-evidence-${{ github.run_id }}-${{ github.run_attempt }}
           if-no-files-found: ignore
           path: |
+            build/c2-inputs.local/espidf.constraints.v5.5.txt
             build/firmware-plan.json
             apps/web/firmware/build-inputs.json
             apps/web/firmware/build-report.json

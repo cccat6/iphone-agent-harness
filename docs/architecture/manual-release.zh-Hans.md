@@ -7,15 +7,15 @@
 ## 发布流程
 
 1. 安装锁定依赖，运行网页、协议、固件和构建工具检查。
-2. 根据 Arduino 源码、编译脚本、固定依赖和开发板配置计算固件输入指纹。
+2. 获取 Espressif 最新的 C2 SDK Python 约束文件，再根据 Arduino 源码、编译脚本、依赖、开发板配置和约束文件的 SHA-256 计算固件输入指纹。
 3. 复用匹配的已发布固件或仓库内固件。输入变化时，编译全部七个版本：C2 的 26 MHz 和 40 MHz 版本，以及 C3、C5、C6、S3 和经典 ESP32。C2 使用 2 MB 分区，其他版本使用 4 MB 分区。
 4. 校验源码来源、依赖、烧录地址、分区范围、大小及 SHA-256。
 5. 构建网站，包含所选固件和烧录清单。
 6. 发布 `firmware-<完整输入SHA256>`。每个 Release 包含 28 个二进制分区文件、烧录清单、编译报告、输入记录、完整归档和 `SHA256SUMS`。草稿上传可续传，已发布且匹配的版本直接复用。发布文件校验通过后，将该版本设为 GitHub Latest。
 7. 更新社区数据库结构，先使用 `wrangler.relay.production.jsonc` 部署区域转发 Worker，再将网站 Worker 部署到 `igent.cc`。网站通过 `OPENAI_RELAY` 服务绑定调用转发 Worker，转发 Worker 不开放公共路由，也不绑定存储。
-8. 读取线上文件，与构建文件逐一比较哈希，将校验报告保存为 Actions 产物。
+8. 读取线上文件，与构建文件逐一比较哈希。校验报告和本次使用的约束文件保存为 Actions 产物。
 
-只修改网页时，重新构建网站并复用现有固件。网站部署失败后再次运行，也会复用已经发布且匹配的固件。
+固件输入相同时，网页发布和部署重试均复用已有固件。
 
 ## 部署凭据
 
@@ -24,6 +24,7 @@
 ## 维护命令
 
 ```sh
+python3 tools/build_c2_sdk.py --refresh-constraints
 python3 tools/firmware_release.py plan --offline
 python3 tools/firmware_release.py verify
 python3 tools/firmware_release_test.py

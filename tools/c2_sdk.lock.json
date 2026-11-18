@@ -55,7 +55,6 @@
     40
   ],
   "constraints": {
-    "url": "https://dl.espressif.com/dl/esp-idf/espidf.constraints.v5.5.txt",
-    "sha256": "4839993120d0bdf9757504d402d1a18287e76758cb28d311abc64f2503d11977"
+    "url": "https://dl.espressif.com/dl/esp-idf/espidf.constraints.v5.5.txt"
   }
 }

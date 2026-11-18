@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import sys
 import tarfile
+import tempfile
 import urllib.request
 ROOT=Path(__file__).resolve().parents[1]
 LOCK=Path(__file__).with_name('c2_sdk.lock.json')
@@ -18,21 +19,39 @@ DEFAULT_CACHE=Path.home()/'.cache/iphone-agent-harness/c2-sdk'
 
 def digest(path):return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 def recipe():return json.loads(LOCK.read_text())
-def pinned_constraints():
-    snapshot=LOCK.with_name(CONSTRAINTS_NAME)
-    expected=recipe()['constraints']['sha256']
-    if digest(snapshot)!=expected:raise RuntimeError('ESP-IDF Python constraints snapshot differs from the pinned recipe')
-    return snapshot,expected
+def constraints_path(root=None):
+    return (root or ROOT)/'build'/'c2-inputs.local'/CONSTRAINTS_NAME
+
+def refresh_constraints():
+    url=recipe()['constraints']['url']
+    request=urllib.request.Request(url,headers={'Cache-Control':'no-cache'})
+    with urllib.request.urlopen(request,timeout=30) as response:
+        data=response.read(65537)
+        if not response.geturl().startswith('https://') or len(data)>65536 or not data or data.lstrip().startswith(b'<'):
+            raise RuntimeError('Unexpected ESP-IDF Python constraints download')
+    snapshot=constraints_path()
+    snapshot.parent.mkdir(parents=True,exist_ok=True)
+    with tempfile.NamedTemporaryFile(dir=snapshot.parent,delete=False) as pending:
+        pending.write(data)
+    os.replace(pending.name,snapshot)
+    print('ESP-IDF Python constraints SHA-256: '+digest(snapshot))
+    return snapshot
+
+def snapshot_constraints(root=None):
+    snapshot=constraints_path(root)
+    if not snapshot.is_file():
+        raise RuntimeError('Fetch the current ESP-IDF constraints with python3 tools/build_c2_sdk.py --refresh-constraints')
+    return snapshot,digest(snapshot)
 
 def seed_constraints(tools_path):
-    snapshot,expected=pinned_constraints()
+    snapshot,expected=snapshot_constraints()
     tools_path.mkdir(parents=True,exist_ok=True)
     constraints=tools_path/CONSTRAINTS_NAME
     # A fresh copy prevents ESP-IDF from refreshing the constraints from its mutable URL.
     shutil.copyfile(snapshot,constraints)
     return constraints,expected
 
-def provenance(xtal=26):return {'format':'iah-c2-sdk-build/1','recipeSha256':digest(LOCK),'bootstrapSha256':digest(__file__),'componentsLockSha256':digest(LOCK.with_name('c2_sdk.components.lock')),'constraintsSha256':pinned_constraints()[1],'repositories':recipe()['repositories'],'toolchainVersion':recipe()['toolchainVersion'],'matrix':recipe()['matrix'],'xtalMHz':xtal}
+def provenance(xtal=26,*,root=None):return {'format':'iah-c2-sdk-build/1','recipeSha256':digest(LOCK),'bootstrapSha256':digest(__file__),'componentsLockSha256':digest(LOCK.with_name('c2_sdk.components.lock')),'constraintsSha256':snapshot_constraints(root)[1],'repositories':recipe()['repositories'],'toolchainVersion':recipe()['toolchainVersion'],'matrix':recipe()['matrix'],'xtalMHz':xtal}
 def sdk_path(cache=DEFAULT_CACHE,xtal=26):return Path(cache).expanduser().resolve()/'sdks'/('esp32c2-'+str(xtal))
 def sdk_files(output):
     return {p.relative_to(output).as_posix():digest(p) for p in sorted(output.rglob('*')) if p.is_file() and p.name!='iah-sdk-provenance.json'}
@@ -95,13 +114,17 @@ def gnu_tools(cache,env,jobs):
     return binary
 
 def main():
-    parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--cache',type=Path,default=DEFAULT_CACHE);parser.add_argument('--jobs',type=int,default=2);parser.add_argument('--toolchain',type=Path);parser.add_argument('--verify-only',action='store_true');parser.add_argument('--xtal',type=int,nargs='+',choices=[26,40],default=[26,40]);args=parser.parse_args()
+    parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--cache',type=Path,default=DEFAULT_CACHE);parser.add_argument('--jobs',type=int,default=2);parser.add_argument('--toolchain',type=Path);parser.add_argument('--verify-only',action='store_true');parser.add_argument('--refresh-constraints',action='store_true');parser.add_argument('--xtal',type=int,nargs='+',choices=[26,40],default=[26,40]);args=parser.parse_args()
     cache=args.cache.expanduser().resolve()
+    if args.refresh_constraints:
+        refresh_constraints()
+        return 0
     if args.verify_only:
         for xtal in args.xtal:print(verified_sdk(cache,xtal))
         return 0
     if any(c.isspace() for c in str(cache)):raise RuntimeError('The ESP-IDF SDK cache path must not contain spaces')
     if not 1<=args.jobs<=8:raise RuntimeError('Use 1–8 build jobs')
+    if not constraints_path().is_file():refresh_constraints()
     expected={xtal:provenance(xtal) for xtal in args.xtal}
     needed=[]
     for xtal in args.xtal:

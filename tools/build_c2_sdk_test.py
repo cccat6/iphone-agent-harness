@@ -28,8 +28,13 @@ def seal(module,cache,xtal):
  folder=module.sdk_path(cache,xtal);output_at(folder);(folder/'iah-sdk-provenance.json').write_text(json.dumps({'recipe':module.provenance(xtal),'files':module.sdk_files(folder)}));return folder
 
 class C2CacheTests(unittest.TestCase):
+ def setUp(self):
+  temporary=tempfile.TemporaryDirectory(prefix='iah-c2-constraints-');self.addCleanup(temporary.cleanup)
+  self.module=load();self.module.ROOT=Path(temporary.name)
+  snapshot=self.module.constraints_path();snapshot.parent.mkdir(parents=True);snapshot.write_bytes(b'fixture constraints\n')
+
  def test_crystal_caches_are_separate_and_cannot_reuse_the_other_marker(self):
-  module=load()
+  module=self.module
   with tempfile.TemporaryDirectory()as temp:
    cache=Path(temp);first=seal(module,cache,26);second=seal(module,cache,40)
    self.assertNotEqual(first,second);self.assertEqual(module.verified_sdk(cache,26),first);self.assertEqual(module.verified_sdk(cache,40),second)
@@ -40,7 +45,7 @@ class C2CacheTests(unittest.TestCase):
  def test_sdk_modification_addition_deletion_and_missing_magic_are_rejected(self):
   for change in ['library','header','flags','added','missing','invalid-magic']:
    with self.subTest(change=change),tempfile.TemporaryDirectory()as temp:
-    module=load();cache=Path(temp);folder=seal(module,cache,26)
+    module=self.module;cache=Path(temp);folder=seal(module,cache,26)
     if change=='library':(folder/'lib/libbt.a').write_bytes(b'!<arch>\nmodified')
     elif change=='header':(folder/'dio_qspi/include/sdkconfig.h').write_text('changed header')
     elif change=='flags':(folder/'flags/cpp_flags').write_text('changed compile flags')
@@ -77,15 +82,16 @@ class C2CacheTests(unittest.TestCase):
    self.assertEqual(command('-C',destination/'deps/tiny','rev-parse','HEAD'),pinned);self.assertEqual((destination/'deps/tiny/source.txt').read_text(),'pinned submodule\n')
 
  def main_fixture(self,change=None):
-  temporary=tempfile.TemporaryDirectory(prefix='iah-c2-offline-');self.addCleanup(temporary.cleanup);root=Path(temporary.name);module=load();bootstrap=root/'bootstrap.py';shutil.copyfile(ROOT/'tools/build_c2_sdk.py',bootstrap);module.__file__=str(bootstrap);module.LOCK=root/'c2_sdk.lock.json';recipe=json.loads((ROOT/'tools/c2_sdk.lock.json').read_text());constraints=b'pinned offline constraints\n';recipe['constraints']['sha256']=hashlib.sha256(constraints).hexdigest();module.LOCK.write_text(json.dumps(recipe));shutil.copyfile(ROOT/'tools/c2_sdk.components.lock',root/'c2_sdk.components.lock')
-  (root/module.CONSTRAINTS_NAME).write_bytes(b'wrong' if change=='constraints' else constraints)
-  cache=root/'cache';builder=cache/'lib-builder';(builder/'configs').mkdir(parents=True);(builder/'configs/builds.json').write_text('{"targets":[]}');(builder/'configs/defconfig.esp32c2').write_text('CONFIG_XTAL_FREQ_26=y\nCONFIG_XTAL_FREQ=26\n');(builder/'build.sh').write_text('getopts ":A:I:i:c:t:b:D:sde"');python=cache/('python-env-'+recipe['constraints']['sha256'][:16])/('Scripts/python.exe'if os.name=='nt'else'bin/python');python.parent.mkdir(parents=True);compiler=root/'compiler';(compiler/'bin').mkdir(parents=True);(compiler/'bin/riscv32-esp-elf-gcc').write_text('offline placeholder');constraintfile=cache/'idf-tools'/module.CONSTRAINTS_NAME;constraintfile.parent.mkdir(parents=True);calls=[]
-  if change!='fresh-python':python.write_text('offline placeholder');constraintfile.write_bytes(b'stale cache')
+  temporary=tempfile.TemporaryDirectory(prefix='iah-c2-offline-');self.addCleanup(temporary.cleanup);root=Path(temporary.name);module=load();module.ROOT=root;bootstrap=root/'bootstrap.py';shutil.copyfile(ROOT/'tools/build_c2_sdk.py',bootstrap);module.__file__=str(bootstrap);module.LOCK=root/'c2_sdk.lock.json';recipe=json.loads((ROOT/'tools/c2_sdk.lock.json').read_text());constraints=b'current upstream constraints fixture\n';module.LOCK.write_text(json.dumps(recipe));shutil.copyfile(ROOT/'tools/c2_sdk.components.lock',root/'c2_sdk.components.lock')
+  snapshot=module.constraints_path();snapshot.parent.mkdir(parents=True);snapshot.write_bytes(constraints)
+  cache=root/'cache';builder=cache/'lib-builder';(builder/'configs').mkdir(parents=True);(builder/'configs/builds.json').write_text('{"targets":[]}');(builder/'configs/defconfig.esp32c2').write_text('CONFIG_XTAL_FREQ_26=y\nCONFIG_XTAL_FREQ=26\n');(builder/'build.sh').write_text('getopts ":A:I:i:c:t:b:D:sde"');python=cache/('python-env-'+hashlib.sha256(constraints).hexdigest()[:16])/('Scripts/python.exe'if os.name=='nt'else'bin/python');python.parent.mkdir(parents=True);compiler=root/'compiler';(compiler/'bin').mkdir(parents=True);(compiler/'bin/riscv32-esp-elf-gcc').write_text('offline placeholder');constraintfile=cache/'idf-tools'/module.CONSTRAINTS_NAME;constraintfile.parent.mkdir(parents=True);calls=[]
+  if change not in ('fresh-python','constraints'):python.write_text('offline placeholder');constraintfile.write_bytes(b'stale cache')
   module.checkout=lambda git,spec,destination,env,recursive=False:Path(destination).mkdir(parents=True,exist_ok=True);module.gnu_tools=lambda *args:None
   def run(command,**kwargs):
    if 'install-python-env' in command:
     self.assertEqual(constraintfile.read_bytes(),constraints)
     python.write_text('offline placeholder')
+    if change=='constraints':constraintfile.write_bytes(b'unexpected installer update')
     return ''
    if '--version'in list(map(str,command)):return recipe['toolchainVersion']
    self.assertEqual(constraintfile.read_bytes(),constraints)
@@ -93,6 +99,7 @@ class C2CacheTests(unittest.TestCase):
    if change=='bootstrap':bootstrap.write_text(bootstrap.read_text()+'\n# in-flight change\n')
    if change=='recipe-lock':module.LOCK.write_text(module.LOCK.read_text()+'\n')
    if change=='managed-lock':(builder/'dependencies.lock').write_text('unapproved dependency resolution')
+   if change=='upstream-snapshot':snapshot.write_bytes(b'replaced while building')
    return ''
   module.run=run
   return module,cache,compiler,calls
@@ -104,7 +111,7 @@ class C2CacheTests(unittest.TestCase):
   module,cache,compiler,calls=self.main_fixture();self.assertEqual(self.invoke(module,cache,compiler),0);self.assertEqual(len(calls),1);self.assertEqual(module.verified_sdk(cache,26),module.sdk_path(cache,26));self.assertEqual(self.invoke(module,cache,compiler),0);self.assertEqual(len(calls),1)
 
  def test_inflight_recipe_or_managed_dependency_changes_never_publish_a_cache_marker(self):
-  for change in ['bootstrap','recipe-lock','managed-lock']:
+  for change in ['bootstrap','recipe-lock','managed-lock','upstream-snapshot']:
    with self.subTest(change=change):
     module,cache,compiler,calls=self.main_fixture(change)
     with self.assertRaises(RuntimeError):self.invoke(module,cache,compiler)
@@ -112,12 +119,22 @@ class C2CacheTests(unittest.TestCase):
 
  def test_mismatched_python_constraints_reject_before_any_simulated_build(self):
   module,cache,compiler,calls=self.main_fixture('constraints')
-  with self.assertRaisesRegex(RuntimeError,'constraints snapshot differs'):self.invoke(module,cache,compiler)
+  with self.assertRaisesRegex(RuntimeError,'changed the pinned Python constraints'):self.invoke(module,cache,compiler)
   self.assertEqual(calls,[])
 
  def test_clean_python_environment_installs_with_the_pinned_constraints_first(self):
   module,cache,compiler,calls=self.main_fixture('fresh-python')
   self.assertEqual(self.invoke(module,cache,compiler),0)
   self.assertEqual(len(calls),1)
+
+ def test_latest_official_snapshot_invalidates_existing_sdk(self):
+  module=self.module;cache=module.ROOT/'cache';seal(module,cache,26)
+  previous=module.provenance(26)
+  new_constraints=b'# official updated constraints\nsetuptools>=64\n'
+  download=io.BytesIO(new_constraints);download.geturl=lambda:module.recipe()['constraints']['url']
+  with patch.object(module.urllib.request,'urlopen',return_value=download),contextlib.redirect_stdout(io.StringIO()):
+   self.assertEqual(module.refresh_constraints().read_bytes(),new_constraints)
+  self.assertNotEqual(module.provenance(26)['constraintsSha256'],previous['constraintsSha256'])
+  with self.assertRaisesRegex(RuntimeError,'stale or modified'):module.verified_sdk(cache,26)
 
 if __name__=='__main__':unittest.main()

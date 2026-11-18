@@ -34,6 +34,9 @@ def fixture():
         (root / 'tools').mkdir()
         for recipe in release.builder.RECIPE_FILES:
             (root/'tools'/recipe).parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(SOURCE_ROOT / 'tools' / recipe, root / 'tools' / recipe)
+        constraints = release.builder.c2_sdk.constraints_path(root)
+        constraints.parent.mkdir(parents=True)
+        constraints.write_text('fixture constraints\n')
         shutil.copyfile(SOURCE_ROOT / 'LICENSE', root / 'LICENSE')
         output = root / 'apps/web/firmware'
         output.mkdir(parents=True)
@@ -52,11 +55,11 @@ def fixture():
                 parts.append({'path':f'{profile_id}/{name}','offset':offset,'size':len(raw),'sha256':release.sha(raw)})
             profiles.append({'id':profile_id,'label':config['label'],'chip':config.get('chip',profile_id),'board':config['board'],'minFlashMB':config.get('minFlashMB',4),'usbCdc':config['usbCdc'],'flashFreq':config['flashFreq'],**({'xtalMHz':config['xtalMHz']} if config.get('xtalMHz') else {}),'parts':parts})
         source_files={name:release.sha((sketch/name).read_bytes()) for name in release.builder.SOURCE_FILES}
-        report={'dependencies':release.DEPENDENCIES,'sourceFiles':source_files,'sourceSha256':release.sha(json.dumps(source_files,sort_keys=True,separators=(',',':')).encode()),'profiles':[{'id':name,'fqbn':config['fqbn'],'compiled':True,**({'sdkProvenance':{'recipe':release.builder.c2_sdk.provenance(config['xtalMHz']),'filesSha256':'a'*64,'fileCount':100,'configuration':release.builder.c2_configuration(config['xtalMHz'])}} if config.get('chip')=='esp32c2' else {})} for name,config in release.builder.PROFILES.items()]}
+        report={'dependencies':release.DEPENDENCIES,'sourceFiles':source_files,'sourceSha256':release.sha(json.dumps(source_files,sort_keys=True,separators=(',',':')).encode()),'profiles':[{'id':name,'fqbn':config['fqbn'],'compiled':True,**({'sdkProvenance':{'recipe':release.builder.c2_sdk.provenance(config['xtalMHz'],root=root),'filesSha256':'a'*64,'fileCount':100,'configuration':release.builder.c2_configuration(config['xtalMHz'])}} if config.get('chip')=='esp32c2' else {})} for name,config in release.builder.PROFILES.items()]}
         report.update(firmwareVersion=release.builder.firmware_version(),buildId=report['sourceSha256'][:16],recipeFiles=release.builder.recipe_files(root))
         (output/'manifest.json').write_text(json.dumps({'schemaVersion':1,'firmwareVersion':report['firmwareVersion'],'buildId':report['buildId'],'profiles':profiles}))
         (output/'build-report.json').write_text(json.dumps(report))
-        with patch.object(release, 'ROOT', root), patch.object(release, 'FIRMWARE', output), patch.object(release.builder, 'SKETCH', sketch):
+        with patch.object(release, 'ROOT', root), patch.object(release, 'FIRMWARE', output), patch.object(release.builder, 'SKETCH', sketch), patch.object(release.builder.c2_sdk, 'ROOT', root):
             (output/'build-inputs.json').write_text(json.dumps(release.inputs()))
             yield root, sketch, output
 
@@ -89,6 +92,14 @@ class FirmwareReleaseTests(unittest.TestCase):
             before = release.key(release.inputs())
             guard = root / 'tools/verify_rtc_tls_link.py'
             guard.write_text(guard.read_text() + '\n# changed verification recipe\n')
+            self.assertNotEqual(release.key(release.inputs()), before)
+            self.assertTrue(release.plan(offline=True)['compile'])
+
+    def test_changed_upstream_constraints_invalidate_release_reuse(self):
+        with fixture() as (root, _, _):
+            before = release.key(release.inputs())
+            constraints = release.builder.c2_sdk.constraints_path(root)
+            constraints.write_text('new upstream constraints\n')
             self.assertNotEqual(release.key(release.inputs()), before)
             self.assertTrue(release.plan(offline=True)['compile'])
 

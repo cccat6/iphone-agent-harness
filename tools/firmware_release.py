@@ -32,6 +32,8 @@ def inputs(root=None):
     root = root or ROOT
     source = {name: sha((root / 'firmware/IPhoneAutomationHarness' / name).read_bytes()) for name in builder.SOURCE_FILES}
     recipes = builder.recipe_files(root)
+    if builder.c2_sdk.CONSTRAINTS_NAME not in recipes:
+        builder.c2_sdk.snapshot_constraints(root)
     return {'format': 'iah-firmware-inputs/1', 'sourceFiles': source,
             'recipeFiles': recipes, 'recipeSha256': sha(json.dumps(recipes, sort_keys=True, separators=(',', ':')).encode()),
             'arduinoCli': CLI_VERSION, 'dependencies': DEPENDENCIES, 'profiles': builder.PROFILES}

@@ -7,15 +7,15 @@ The [Manual release workflow](https://github.com/cccat6/iphone-agent-harness/act
 ## Release sequence
 
 1. Install the locked dependencies and run Web, protocol, firmware and build-tool checks.
-2. Calculate a firmware input fingerprint from the Arduino source, compiler recipe, pinned dependencies and board profiles.
+2. Fetch the latest Espressif Python constraints for the C2 SDK. Calculate the firmware input fingerprint from the Arduino source, compiler recipe, dependencies, board profiles and constraints SHA-256.
 3. Reuse matching published or checked-in firmware. When those inputs change, compile all seven profiles: C2 at 26 MHz and 40 MHz, C3, C5, C6, S3 and classic ESP32. C2 uses a 2 MB layout; the others use 4 MB.
 4. Verify source provenance, dependencies, flash offsets, partition bounds, sizes and SHA-256 hashes.
 5. Build the website with the selected firmware and flashing manifest.
 6. Publish `firmware-<full-input-SHA256>`. A release contains 28 binary parts, manifest, build report, build-input record, a complete archive and `SHA256SUMS`. Draft uploads can resume; matching published releases are reused. Published files are verified before that release becomes GitHub Latest.
 7. Apply the community schema, deploy the regional relay with `wrangler.relay.production.jsonc`, then deploy the website Worker to `igent.cc`. The website calls the relay through `OPENAI_RELAY`; the relay has no public route or storage binding.
-8. Read back deployed files and compare their hashes with the build. Save the verification reports as Actions artifacts.
+8. Read back deployed files and compare their hashes with the build. Save the verification reports and the constraints used as Actions artifacts.
 
-Web-only changes rebuild the website and reuse the existing firmware. A retry after a deployment failure also reuses an already published matching firmware release.
+Website releases and deployment retries reuse the existing firmware when its inputs match.
 
 ## Deployment credential
 
@@ -24,6 +24,7 @@ Set `CLOUDFLARE_API_TOKEN` in [repository Actions secrets](https://github.com/cc
 ## Maintainer commands
 
 ```sh
+python3 tools/build_c2_sdk.py --refresh-constraints
 python3 tools/firmware_release.py plan --offline
 python3 tools/firmware_release.py verify
 python3 tools/firmware_release_test.py
