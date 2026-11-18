@@ -303,6 +303,10 @@ export function createDevicePanel({store,capture,openPanel,getPanelRoot,onDevice
        // Preserve an existing board credential across the automatic hostname change.
        // pinIdentity below still checks the old board fingerprint before it is used.
        if(!saved&&legacyEndpoint&&configuration.baseUrl===DEFAULT_BRIDGE_URL){const previous=await store.getLocalCredential('device:'+legacyEndpoint);if(previous)saved={...previous,baseUrl:configuration.baseUrl};}
+       // A setup import can replace the board while keeping the discovery URL.
+       // The live peer has already matched the imported ID. Keep the old record
+       // until enrollment on the replacement succeeds, but never use its token.
+       if(saved?.boardId&&configuration.boardId&&saved.boardId!==configuration.boardId)saved=null;
        if(!valid(current))return;
        const enroll=async(enrollmentId,enrollmentSignal=signal,expectedFingerprint=configuration.expectedFingerprint)=>{
         await candidate.pair({...configuration,clientId:enrollmentId,setupPassword:'',expectedFingerprint},{signal:enrollmentSignal});

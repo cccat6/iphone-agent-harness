@@ -420,7 +420,12 @@ def main():
             profile_sketch=sketch
             if profile.get('partitions'):
                 profile_sketch=work/(profile_id+'-sketch')/'IPhoneAutomationHarness';copy_clean_sketch(profile_sketch,generated_files=('partitions.csv',));shutil.copyfile(ROOT/'tools'/profile['partitions'],profile_sketch/'partitions.csv')
-            command = [args.arduino_cli, 'compile', '--jobs', str(args.jobs), '--fqbn', profile['fqbn'], '--build-path', str(build), '--build-property', 'compiler.cpp.extra_flags=-DIAH_BUILD_ID=' + build_id]
+            cpp_flags = '-DIAH_BUILD_ID=' + build_id
+            if profile_id == 'esp32s3':
+                cpp_flags += ' -DIAH_S3_IDLE_STACK'
+            command = [args.arduino_cli, 'compile', '--jobs', str(args.jobs), '--fqbn', profile['fqbn'], '--build-path', str(build), '--build-property', 'compiler.cpp.extra_flags=' + cpp_flags]
+            if profile_id == 'esp32s3':
+                command += ['--build-property', 'compiler.c.elf.extra_flags=-Wl,--wrap=vApplicationGetIdleTaskMemory']
             sdk_metadata=None
             if profile.get('chip')=='esp32c2':
                 sdk=c2_sdk.verified_sdk(args.c2_sdk_cache,profile['xtalMHz']);record=json.loads((sdk/'iah-sdk-provenance.json').read_text());sdk_metadata={'recipe':record['recipe'],'filesSha256':digest(json.dumps(record['files'],sort_keys=True,separators=(',',':')).encode()),'fileCount':len(record['files']),'configuration':verify_c2_configuration(sdk,profile['xtalMHz'])}

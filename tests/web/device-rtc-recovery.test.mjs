@@ -14,10 +14,38 @@ test('stale saved RTC IP recovers by hostname settings import and persists the n
  const location=new URL('https://igent.cc/');Object.defineProperty(globalThis,'location',{configurable:true,value:location});Object.defineProperty(globalThis,'history',{configurable:true,value:{replaceState(s,t,path){location.href=new URL(path,location).href;}}});
  t.after(()=>{for(const[key,value]of previous)if(value)Object.defineProperty(globalThis,key,value);else delete globalThis[key];});
  const store=await openStore({memory:true});await store.saveSettings({deviceEndpoint:baseUrl,deviceRTC:oldRTC,deviceFingerprint:fingerprint});await store.saveLocalCredential('device:'+baseUrl,{format:'iah-device-credential/1',baseUrl,boardId:'expected-board',clientId:'browser',token:'a'.repeat(64),hostname:'igent.local',publicKeyFingerprint:fingerprint,expectedFingerprint:fingerprint});
- const identity={boardId:'expected-board',bootId:'boot',hostname:'igent.local',publicKeyFingerprint:fingerprint};
- const options={store,capture:{active:false},getPanelRoot:()=>holder,openPanel(a,b,html){field('[data-address]').value=/data-address[^>]+value="([^"]*)"/.exec(html)[1];},bridgeFactory:options=>{bridges.push(options);return {open:()=>options.rtc.ip===oldRTC.ip?Promise.reject(Object.assign(Error('stale IP'),{code:'DEVICE_RTC_CONNECT_TIMEOUT'})):Promise.resolve(),close(){},exportConfiguration:()=>options.rtc,fetch:async(url)=>{const path=new URL(url).pathname;calls.push(path);if(path==='/v1/identity')return Response.json(identity);if(path==='/v1/binding')return Response.json({...identity,clientId:'browser',targetId:null,bindingVerified:false,targets:[]});throw Error('Unexpected mutation '+path);}};}};
+ let identity={boardId:'expected-board',bootId:'boot',hostname:'igent.local',publicKeyFingerprint:fingerprint};
+ let clientId='browser';
+ const options={store,capture:{active:false},getPanelRoot:()=>holder,openPanel(a,b,html){field('[data-address]').value=/data-address[^>]+value="([^"]*)"/.exec(html)[1];},bridgeFactory:options=>{bridges.push(options);return {open:()=>options.rtc.ip===oldRTC.ip?Promise.reject(Object.assign(Error('stale IP'),{code:'DEVICE_RTC_CONNECT_TIMEOUT'})):Promise.resolve(),close(){},exportConfiguration:()=>options.rtc,fetch:async(url,request)=>{
+  const path=new URL(url).pathname;
+  calls.push(path);
+  if(path==='/v1/identity')return Response.json(identity);
+  if(path==='/v1/pair'&&identity.boardId==='replacement-board'){
+   clientId=JSON.parse(request.body).clientId;
+   return Response.json({...identity,clientId,token:'b'.repeat(64)});
+  }
+  if(path==='/v1/binding'){
+   if(identity.boardId==='replacement-board')assert.equal(new Headers(request.headers).get('authorization'),'Bearer '+'b'.repeat(64));
+   return Response.json({...identity,clientId,targetId:null,bindingVerified:false,targets:[]});
+  }
+  throw Error('Unexpected mutation '+path);
+ }};}};
  const assertDiscoveryLinks=()=>{for(const selector of ['[data-import-connection]','[data-reimport-connection]']){const url=new URL(field(selector).href);assert.equal(url.origin,baseUrl,'reacquire via the stable hostname, never the stale RTC IP');assert.equal(url.searchParams.get('import'),'1');assert.equal(url.searchParams.get('lang'),getLocale());}};
  let panel=createDevicePanel(options);t.after(()=>panel.destroy());await panel.open();assertDiscoveryLinks();await field('[data-pair]').onclick();assert.equal(panel.getState().connected,false);assertDiscoveryLinks();assert.equal(calls.length,0);panel.destroy();
  location.href=createDeviceSetupLink({boardId:'expected-board',httpUrl:baseUrl,rtc:newRTC});panel=createDevicePanel(options);await panel.open();assert.equal(location.hash,'');assert.equal(field('[data-address]').value,baseUrl);await field('[data-pair]').onclick();assert.equal(panel.getState().connected,true);assert.equal(bridges.at(-1).rtc.ip,newRTC.ip);assert.equal((await store.getSettings()).deviceRTC.ip,newRTC.ip);assert.equal(calls.includes('/v1/pair'),false);panel.destroy();
  panel=createDevicePanel(options);await panel.open();await field('[data-pair]').onclick();assert.equal(panel.getState().connected,true);assert.equal(bridges.at(-1).rtc.ip,newRTC.ip);assert.equal(calls.includes('/v1/pair'),false);assertDiscoveryLinks();assert.equal(new URL(field('[data-bridge-settings]').href).origin,baseUrl);
+ // DNS can resolve a replacement at the same hostname. Only an explicit
+ // import of its board identity should make the browser enroll it.
+ panel.destroy();
+ identity={...identity,boardId:'replacement-board',publicKeyFingerprint:'d'.repeat(64)};
+ panel=createDevicePanel(options);await panel.open();await field('[data-pair]').onclick();
+ assert.equal(panel.getState().connected,false);
+ assert.equal(calls.includes('/v1/pair'),false);
+ assert.equal((await store.getLocalCredential('device:'+baseUrl)).boardId,'expected-board');
+ panel.destroy();
+ location.href=createDeviceSetupLink({boardId:identity.boardId,httpUrl:baseUrl,rtc:newRTC});
+ panel=createDevicePanel(options);await panel.open();await field('[data-pair]').onclick();
+ assert.equal(panel.getState().connected,true);
+ assert.equal(calls.filter(path=>path==='/v1/pair').length,1);
+ assert.equal((await store.getLocalCredential('device:'+baseUrl)).boardId,identity.boardId);
 });

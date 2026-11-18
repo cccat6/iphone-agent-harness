@@ -27,16 +27,12 @@
       C389 263 382 269 377 279
       L344 340
       C342 344 341 350 345 356 Z"/>
-    <mask id="hand-clearance" maskUnits="userSpaceOnUse" x="128" y="58" width="410" height="410">
-      <rect x="128" y="58" width="410" height="410" fill="white"/>
-      <use href="#hand-contour" fill="black" stroke="black" stroke-width="30" stroke-linecap="round" stroke-linejoin="round"/>
-    </mask>
     <mask id="eye-highlight" maskUnits="userSpaceOnUse" x="246" y="178" width="46" height="64">
       <rect x="246" y="178" width="46" height="64" fill="white"/>
       <circle cx="274" cy="197" r="5.5" fill="black"/>
     </mask>
   </defs>
-  <g id="phone" fill="#332330" mask="url(#hand-clearance)">
+  <g id="phone" fill="#332330">
     <path id="phone-frame" fill-rule="evenodd" d="M248 76 H383 C417 76 444 103 444 137 V377 C444 411 417 438 383 438 H248 C214 438 188 412 188 378 V137 C188 103 214 76 248 76 Z
       M251 105 C233 105 221 118 221 137 V344 C221 364 233 377 254 377 H378 C398 377 410 364 410 344 V138 C410 118 398 105 379 105 H369 C365 105 364 107 363 112 C361 120 355 124 346 124 H283 C273 124 267 120 265 112 C264 107 262 105 257 105 Z"/>
   </g>
@@ -45,7 +41,8 @@
     <path id="wink-eye" d="M327 220 C337 203 355 198 369 202 C377 204 382 209 381 214 C380 220 375 221 370 218 C356 213 343 219 334 228 C330 233 323 231 327 220 Z"/>
     <path id="smile" d="M285 254 C294 267 315 270 326 254" fill="none" stroke="#332330" stroke-width="12" stroke-linecap="round"/>
   </g>
-  <g id="hand" fill="none" stroke="#ff582d" stroke-width="14" stroke-linecap="round" stroke-linejoin="round">
-    <use href="#hand-contour"/>
+  <g id="hand" stroke-linecap="round" stroke-linejoin="round">
+    <use href="#hand-contour" fill="#fff" stroke="#fff" stroke-width="34"/>
+    <use href="#hand-contour" fill="none" stroke="#ff582d" stroke-width="14"/>
   </g>
 </svg></svg>

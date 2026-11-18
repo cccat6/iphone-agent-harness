@@ -58,6 +58,7 @@ The configuration and diagnostic interface uses newline-delimited JSON at 115200
 {"op":"status"}
 {"op":"wifi-diagnostic"}
 {"op":"wifi-power","dBm":8.5}
+{"op":"radio-max"}
 {"op":"wifi-reconnect"}
 ```
 
@@ -67,11 +68,15 @@ For `setup-config`, supply exactly `op`, `ssid`, `password`, `origin` and a curr
 
 `wifi-diagnostic` reports state, disconnect reason, counters, credential byte lengths, current IP, power and heap metrics. USB-only `wifi-power` accepts 8.5, 11, 13, 15, 17 or 19.5 dBm; `wifi-reconnect` reuses the saved network.
 
+On C3 and S3, `radio-max` saves a 20 dBm Wi-Fi limit and the controller's maximum BLE advertising and default connection power. Use it while setup is open and input is idle. The reply includes controller readback; these settings survive restart. Receive gain remains automatic.
+
 ## Scheduling and resources
 
 The product supports two BLE connections/bonds, eight registered network clients and one writer lease per phone. The RTC adapter supports two independent peers, each with one active RPC. Each phone has a separate writer lease, released when its task ends or the connection is lost. An additional phone can replace an offline saved pairing; connected phones remain paired.
 
 The RTC task runs on core 0 at priority 1 with an 8 KiB stack. HTTP management and the Arduino loop each use a 6 KiB stack and remain separate. Network receive, JSON and hashing stay outside the short Core mutex. NimBLE jobs validate the stable phone identity and connection generation immediately before notification; callbacks publish state through a queue.
+
+The S3 firmware build reserves 2 KiB of internal RAM per FreeRTOS idle task. This is separate from the ESP32 bridge's application task stacks and PSRAM.
 
 `src/RtcTls` builds the complete TLS source family matching the ESP-IDF SDK, with 2048-byte input and output record content limits. Crypto and X.509 retain the matching SDK libraries. This reduces the two calculated record-buffer allocations by 28,672 bytes; the [link guard](../../tools/verify_rtc_tls_link.py) checks that all TLS objects use this configuration. See the [source and configuration record](src/RtcTls/README.md).
 

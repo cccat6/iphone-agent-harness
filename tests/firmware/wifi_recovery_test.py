@@ -22,6 +22,7 @@ methods = '\n'.join(function(service, signature) for signature in [
     'bool finishSetup()', 'bool networkReady()const',
 ])
 loader = function(main, 'void savedNetwork(String& ssid,String& password)')
+radio_policy = function(main, 'void configureWifiStability()')
 # Startup, recovery and provisioning snapshots must share the same loader.
 assert 'wifiGotIps,savedNetwork)' in main
 assert 'if(!previousCredentialsOverride_){previousNetwork_=prefs_.getString("network","");loadSavedNetwork_(previousSsid_,previousPassword_);}' in service
@@ -56,27 +57,41 @@ int deserializeJson(JsonDocument& json,const String& value){if(value=="saved-jso
 LOADER
 struct IP{unsigned operator[](unsigned index)const{return index==0?192:1;}};
 constexpr int WL_CONNECTED=3,WL_DISCONNECTED=6;
+constexpr int WIFI_ALL_CHANNEL_SCAN=1,WIFI_CONNECT_AP_BY_SIGNAL=2;
 struct Wifi{
- bool connected=false;String ssid;std::vector<std::pair<String,String>> starts;unsigned disconnects=0;
+ bool connected=false,autoReconnect=true,pendingOldAssociation=false;String ssid;std::vector<std::pair<String,String>> starts;unsigned disconnects=0;
  int status()const{return connected?WL_CONNECTED:WL_DISCONNECTED;}
  IP localIP()const{return {};}
  String SSID()const{return ssid;}
  void persistent(bool){}
+ void setScanMethod(int){}
+ void setSortMethod(int){}
+ void setAutoReconnect(bool enabled){autoReconnect=enabled;}
+ void setSleep(bool){}
  void disconnect(bool,bool){++disconnects;connected=false;}
- void begin(const char* name,const char* password){ssid=name;starts.emplace_back(name,password);}
+ void enableSTA(bool enabled){if(!enabled){connected=false;pendingOldAssociation=false;}}
+ void begin(const char* name,const char* password){if(pendingOldAssociation)return;ssid=name;starts.emplace_back(name,password);}
+ void queuedSdkRetry(){if(autoReconnect)begin("old-sdk-network","old-sdk-secret");}
 }WiFi;
+RADIO_POLICY
 struct Fixture{
  Preferences& prefs_=preferences;std::atomic<uint32_t> wifiEpoch_{0};void (&loadSavedNetwork_)(String&,String&)=savedNetwork;
  WifiJoinState wifiJoin_;SavedNetworkRetry savedRetry_;SetupDeadline setupDeadline_;
  String candidateNetwork_,candidateSsid_,candidatePassword_,candidateOrigin_,previousNetwork_,previousSsid_,previousPassword_,origin_;
  bool startCandidate_=false,previousCredentialsOverride_=false,configComplete_=true,apActive_=false,recoverySetup_=false;std::atomic_bool httpReady_{false};uint64_t clock=0;unsigned setupOpens=0;
- Fixture(){preferences=Preferences{};WiFi=Wifi{};}
+ Fixture(){preferences=Preferences{};WiFi=Wifi{};configureWifiStability();}
  uint64_t now()const{return clock;}
  void openSetup(){setupDeadline_.opened();httpReady_=false;apActive_=true;recoverySetup_=false;++setupOpens;}
  void candidate(){if(!previousCredentialsOverride_){previousNetwork_=prefs_.getString("network","");loadSavedNetwork_(previousSsid_,previousPassword_);}candidateNetwork_="candidate-json";candidateSsid_="candidate-network";candidatePassword_="candidate-secret";candidateOrigin_="https://fixture.invalid";startCandidate_=true;wifiJoin_.begin(now(),wifiEpoch_.load());}
  METHODS
 };
 int main(){
+ // A queued SDK retry from the unavailable old AP cannot replace the candidate.
+ // The application's bounded saved-network recovery is still exercised below.
+ {Fixture f;preferences.values["network"]="saved-json";f.candidate();f.updateNetwork();WiFi.queuedSdkRetry();assert(WiFi.starts.size()==1);assert(WiFi.ssid=="candidate-network");WiFi.connected=true;++f.wifiEpoch_;f.clock=10;f.updateNetwork();assert(f.wifiJoin_.phase()==WifiJoinState::Phase::Connected);assert(!f.wifiJoin_.candidateFailed());}
+ // A disconnected status can still have the old association command in flight.
+ // Restarting STA retires it before installing the new candidate configuration.
+ {Fixture f;preferences.values["network"]="saved-json";WiFi.pendingOldAssociation=true;f.candidate();f.updateNetwork();assert(!WiFi.pendingOldAssociation);assert(WiFi.starts.size()==1&&WiFi.ssid=="candidate-network");WiFi.connected=true;++f.wifiEpoch_;f.clock=10;f.updateNetwork();assert(f.wifiJoin_.phase()==WifiJoinState::Phase::Connected);}
  // A saved network retries forever at 15, 30, then 60 second intervals.
  {Fixture f;preferences.values["network"]="saved-json";f.updateNetwork();for(uint64_t at:{15000ULL,45000ULL,105000ULL,165000ULL,3600000ULL}){f.clock=at;f.updateNetwork();assert(WiFi.starts.back().first=="json-network");}assert(WiFi.starts.size()==5);assert(f.savedRetry_.attempts()==5);assert(f.apActive_&&f.recoverySetup_);WiFi.connected=true;f.clock=3600100;f.updateNetwork();assert(!f.recoverySetup_);assert(f.setupDeadline_.due(true,f.clock+2000));assert(f.savedRetry_.attempts()==0&&f.savedRetry_.nextAt()==0);}
  // Recovery uses the exact startup precedence: JSON, legacy keys, then build defaults.
@@ -93,7 +108,7 @@ int main(){
  {Fixture f;assert(!f.networkReady());f.httpReady_=true;assert(f.networkReady());f.openSetup();assert(!f.networkReady());}
  std::puts("Production Wi-Fi recovery, startup credential precedence, rollback and atomic readiness scenarios passed");
 }
-'''.replace('STATE_HEADER', str(ROOT / 'firmware/IPhoneAutomationHarness/src/SetupState.h')).replace('LOADER', loader).replace('METHODS', methods)
+'''.replace('STATE_HEADER', str(ROOT / 'firmware/IPhoneAutomationHarness/src/SetupState.h')).replace('LOADER', loader).replace('RADIO_POLICY', radio_policy).replace('METHODS', methods)
 
 with tempfile.TemporaryDirectory(prefix='iah-wifi-recovery-') as directory:
     cpp = Path(directory) / 'test.cpp'

@@ -38,6 +38,7 @@ compile_test "$project_root/tests/firmware/setup_state_test.cpp"
 compile_test "$project_root/tests/firmware/storage_migration_test.cpp"
 "$binary_path"
 python3 "$project_root/tests/firmware/wifi_recovery_test.py"
+python3 "$project_root/tests/firmware/radio_power_test.py"
 compile_test "$project_root/tests/firmware/mdns_lifecycle_test.cpp"
 "$binary_path"
 

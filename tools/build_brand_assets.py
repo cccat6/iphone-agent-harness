@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Render the approved vector mark into browser and installed-app icons."""
 from pathlib import Path
+import re
 import shutil
 import struct
 import subprocess
@@ -11,6 +12,18 @@ ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / 'design/logo-a/iphone-agent-harness-a.svg'
 ICONS = ROOT / 'apps/web/icons'
 
+def sync_firmware_brand(svg):
+    inline = re.sub(r'>\s+<', '><', svg.strip())
+    source = ROOT / 'firmware/IPhoneAutomationHarness/src'
+    for name in ('BridgeSettingsPage.h', 'WifiSetupPage.h'):
+        page = source / name
+        original = page.read_text()
+        updated, count = re.subn(r'<svg\b[^>]*>.*?</svg>', lambda _: inline, original, flags=re.DOTALL)
+        if count != 1:
+            raise ValueError(f'{name} must contain exactly one inline brand SVG')
+        if updated != original:
+            page.write_text(updated)
+
 def build():
     renderer = shutil.which('rsvg-convert')
     if not renderer:
@@ -20,6 +33,7 @@ def build():
     for target in (ICONS/'logo.svg', ICONS/'icon.svg', ROOT/'docs/media/logo.svg'):
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(svg)
+    sync_firmware_brand(svg)
     body = svg[svg.index('>')+1:svg.rfind('</svg>')]
     def plate(padding, rounded=False):
         size = 512-2*padding

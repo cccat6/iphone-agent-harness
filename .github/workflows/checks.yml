@@ -40,7 +40,7 @@ jobs:
         env:
           CXX: clang++
         run: |
-          npm test
+          npm test -- --test-concurrency=2
           python3 tools/validate_design_specs.py
           python3 tools/fetch_test_headers.py
           ARDUINOJSON_INCLUDE=build/test-headers ./tests/firmware/run.sh

@@ -6,6 +6,7 @@ The root MIT license applies to original iPhone Agent Harness source. Upstream d
 |---|---|---|
 | esptool-js | 0.7.0 | `apps/web/vendor/esptool-js/`; upstream license and bundled dependency notices |
 | js-md5 | 0.8.3 | `apps/web/vendor/js-md5/LICENSE` |
+| Marked | 18.2.1 | [Upstream release](https://github.com/markedjs/marked/releases/tag/v18.2.1); unchanged browser ESM and MIT license in `apps/web/vendor/marked/` |
 | NimBLE-Arduino | 2.5.1 | [Upstream](https://github.com/h2zero/NimBLE-Arduino); firmware download directory retains its LICENSE and NOTICE |
 | ArduinoJson | 7.4.3 | [Upstream](https://github.com/bblanchon/ArduinoJson); firmware download directory retains its LICENSE |
 | Arduino ESP32 and its bundled ESP-IDF components | 3.3.11 / bundled SDK | [Versioned source](https://github.com/espressif/arduino-esp32/tree/3.3.11); see the installed Boards Manager package and upstream component licenses, including core and SDK libraries |

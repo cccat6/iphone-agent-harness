@@ -347,7 +347,7 @@ class SecureService {
   WiFi.disconnect(false,false);if(ssid.length())WiFi.begin(ssid.c_str(),password.c_str());
  }
  void updateNetwork(){
-  if(startCandidate_){startCandidate_=false;wifiJoin_.begin(now(),wifiEpoch_.load());WiFi.persistent(false);WiFi.disconnect(false,false);WiFi.begin(candidateSsid_.c_str(),candidatePassword_.c_str());}
+  if(startCandidate_){startCandidate_=false;wifiJoin_.begin(now(),wifiEpoch_.load());WiFi.persistent(false);WiFi.enableSTA(false);WiFi.begin(candidateSsid_.c_str(),candidatePassword_.c_str());}
   auto decision=wifiJoin_.poll(WiFi.status()==WL_CONNECTED,hasNetworkAddress(),WiFi.SSID()==candidateSsid_,wifiEpoch_.load(),now());
   if(decision==WifiJoinState::Decision::Commit){
    bool saved=prefs_.putString("network",candidateNetwork_)==candidateNetwork_.length()&&prefs_.getString("network","")==candidateNetwork_;
